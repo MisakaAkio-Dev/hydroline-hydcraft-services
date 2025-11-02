@@ -23,11 +23,11 @@ const menuOpen = ref(false)
 
 const mainNav = computed(() => {
   const links = [
-    { name: '首页', to: '/', icon: 'i-heroicons-home-modern-20-solid' },
-    { name: '个人资料', to: '/profile', icon: 'i-heroicons-identification-20-solid', requiresAuth: true },
+    { name: '首页', to: '/', icon: 'i-lucide-home' },
+    { name: '个人资料', to: '/profile', icon: 'i-lucide-user-round', requiresAuth: true },
   ]
   if (authStore.permissionKeys.includes('auth.manage.users')) {
-    links.push({ name: '后台控制台', to: '/admin', icon: 'i-heroicons-command-line-20-solid', requiresAuth: true })
+    links.push({ name: '后台控制台', to: '/admin', icon: 'i-lucide-terminal', requiresAuth: true })
   }
   return links
 })
@@ -59,19 +59,19 @@ const userDropdownItems = computed(() => [
   [
     {
       label: '个人资料',
-      icon: 'i-heroicons-user-circle-20-solid',
+  icon: 'i-lucide-user-round',
       click: () => routerPush('/profile'),
     },
     {
       label: '网站偏好设置',
-      icon: 'i-heroicons-adjustments-horizontal-20-solid',
+  icon: 'i-lucide-sliders-horizontal',
       click: () => routerPush('/profile'),
     },
   ],
   [
     {
       label: '退出登录',
-      icon: 'i-heroicons-arrow-left-on-rectangle-20-solid',
+  icon: 'i-lucide-log-out',
       click: () => authStore.signOut(),
     },
   ],
@@ -97,7 +97,7 @@ function routerPush(path: string) {
           variant="ghost"
           size="xs"
           class="h-9 w-9 rounded-full"
-          icon="i-heroicons-bars-3-20-solid"
+          icon="i-lucide-menu"
           @click="menuOpen = !menuOpen"
         />
         <div class="hidden text-sm text-slate-600 dark:text-slate-300 sm:block">
@@ -117,7 +117,7 @@ function routerPush(path: string) {
       <div class="flex items-center gap-2">
         <UTooltip text="消息中心">
           <UButton color="neutral" variant="ghost" size="xs" class="h-9 w-9 rounded-full" icon-only>
-            <UIcon name="i-heroicons-envelope-20-solid" />
+            <UIcon name="i-lucide-mail" />
           </UButton>
         </UTooltip>
         <ThemeToggle />
@@ -129,7 +129,7 @@ function routerPush(path: string) {
                 <span class="hidden text-slate-700 dark:text-slate-200 sm:block">
                   {{ home?.user?.displayName ?? authStore.displayName ?? '用户' }}
                 </span>
-                <UIcon name="i-heroicons-chevron-down-20-solid" class="hidden text-base text-slate-400 sm:block" />
+                <UIcon name="i-lucide-chevron-down" class="hidden text-base text-slate-400 sm:block" />
               </button>
             </template>
             <template #content="{ close }">
@@ -166,7 +166,7 @@ function routerPush(path: string) {
       >
         <div class="mb-6 flex items-center justify-between">
           <span class="text-lg font-semibold text-slate-900 dark:text-white">导航</span>
-          <UButton icon="i-heroicons-x-mark-20-solid" variant="ghost" size="xs" class="h-8 w-8" @click="menuOpen = false" />
+          <UButton icon="i-lucide-x" variant="ghost" size="xs" class="h-8 w-8" @click="menuOpen = false" />
         </div>
         <nav class="space-y-2">
           <RouterLink
@@ -197,7 +197,7 @@ function routerPush(path: string) {
             rel="noreferrer"
           >
             <span>{{ link.label }}</span>
-            <UIcon name="i-heroicons-arrow-top-right-on-square-16-solid" class="text-slate-400" />
+            <UIcon name="i-lucide-external-link" class="text-slate-400" />
           </a>
         </div>
       </aside>

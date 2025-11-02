@@ -16,11 +16,11 @@ const { admin } = storeToRefs(portalStore)
 const sidebarOpen = ref(false)
 
 const menu = computed(() => [
-  { label: '总览', to: '/admin', icon: 'i-heroicons-presentation-chart-bar-20-solid' },
-  { label: '用户与玩家', to: '/admin/users', icon: 'i-heroicons-users-20-solid' },
-  { label: '附件系统', to: '/admin/attachments', icon: 'i-heroicons-archive-box-20-solid' },
-  { label: 'RBAC 管理', to: '/admin/rbac', icon: 'i-heroicons-shield-check-20-solid' },
-  { label: '配置管理', to: '/admin/config', icon: 'i-heroicons-wrench-screwdriver-20-solid' },
+  { label: '总览', to: '/admin', icon: 'i-lucide-layout-dashboard' },
+  { label: '用户与玩家', to: '/admin/users', icon: 'i-lucide-users' },
+  { label: '附件系统', to: '/admin/attachments', icon: 'i-lucide-archive' },
+  { label: 'RBAC 管理', to: '/admin/rbac', icon: 'i-lucide-shield-check' },
+  { label: '配置管理', to: '/admin/config', icon: 'i-lucide-wrench' },
 ])
 
 function isActive(item: { to: string }) {
@@ -50,7 +50,7 @@ onMounted(() => {
           variant="ghost"
           size="xs"
           class="h-9 w-9 rounded-full lg:hidden"
-          icon="i-heroicons-bars-3-20-solid"
+          icon="i-lucide-menu"
           @click="sidebarOpen = !sidebarOpen"
         />
         <h1 class="text-lg font-semibold text-slate-900 dark:text-white">Hydroline 管理后台</h1>
@@ -58,7 +58,7 @@ onMounted(() => {
 
       <div class="flex items-center gap-2">
         <UTooltip text="前台首页">
-          <UButton to="/" color="neutral" variant="ghost" size="xs" class="rounded-full" icon="i-heroicons-home-modern-20-solid" />
+          <UButton to="/" color="neutral" variant="ghost" size="xs" class="rounded-full" icon="i-lucide-home" />
         </UTooltip>
         <ThemeToggle />
         <div class="flex items-center gap-2 rounded-full bg-white/70 px-2 py-1 text-sm shadow-sm dark:bg-slate-900/70">

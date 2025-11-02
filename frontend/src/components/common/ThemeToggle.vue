@@ -5,9 +5,9 @@ import { useUiStore } from '@/stores/ui'
 const uiStore = useUiStore()
 
 const modes = [
-  { value: 'light', label: '浅色', icon: 'i-heroicons-sun-20-solid' },
-  { value: 'dark', label: '深色', icon: 'i-heroicons-moon-20-solid' },
-  { value: 'system', label: '跟随系统', icon: 'i-heroicons-computer-desktop-20-solid' },
+  { value: 'light', label: '浅色', icon: 'i-lucide-sun' },
+  { value: 'dark', label: '深色', icon: 'i-lucide-moon' },
+  { value: 'system', label: '跟随系统', icon: 'i-lucide-monitor' },
 ]
 
 const current = computed(() => uiStore.themeMode)
@@ -26,7 +26,7 @@ function select(mode: 'light' | 'dark' | 'system') {
       class="h-9 w-9 rounded-full"
       icon-only
     >
-      <UIcon :name="modes.find((mode) => mode.value === current)?.icon ?? 'i-heroicons-sun-20-solid'" />
+  <UIcon :name="modes.find((mode) => mode.value === current)?.icon ?? 'i-lucide-sun'" />
     </UButton>
 
     <template #content>
@@ -46,7 +46,7 @@ function select(mode: 'light' | 'dark' | 'system') {
           <span>{{ mode.label }}</span>
           <UIcon
             v-if="current === mode.value"
-            name="i-heroicons-check-20-solid"
+            name="i-lucide-check"
             class="ml-auto text-base"
           />
         </button>
