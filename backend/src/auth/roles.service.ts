@@ -11,6 +11,8 @@ export const DEFAULT_PERMISSIONS = {
   MANAGE_USERS: 'auth.manage.users',
   MANAGE_CONTACT_CHANNELS: 'auth.manage.contact-channels',
   MANAGE_ROLES: 'auth.manage.roles',
+  MANAGE_ATTACHMENTS: 'assets.manage.attachments',
+  MANAGE_CONFIG: 'config.manage',
 };
 
 export const DEFAULT_ROLES = {
@@ -190,6 +192,7 @@ export class RolesService {
       if (missingPermissions.length > 0) {
         await tx.permission.createMany({
           data: missingPermissions.map((key) => ({ key })),
+          skipDuplicates: true,
         });
       }
 

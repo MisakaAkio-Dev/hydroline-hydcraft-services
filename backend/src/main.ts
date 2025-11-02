@@ -11,7 +11,10 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   // 启用 CORS
-  app.enableCors();
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

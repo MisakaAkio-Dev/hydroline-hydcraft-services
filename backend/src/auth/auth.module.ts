@@ -10,6 +10,7 @@ import { ContactChannelsController } from './contact-channels.controller';
 import { AuthGuard } from './auth.guard';
 import { PermissionsGuard } from './permissions.guard';
 import { AuthBootstrap } from './auth.bootstrap';
+import { OptionalAuthGuard } from './optional-auth.guard';
 
 @Module({
   controllers: [
@@ -25,8 +26,9 @@ import { AuthBootstrap } from './auth.bootstrap';
     ContactChannelsService,
     AuthGuard,
     PermissionsGuard,
+    OptionalAuthGuard,
     AuthBootstrap,
   ],
-  exports: [AuthService],
+  exports: [AuthService, AuthGuard, OptionalAuthGuard, PermissionsGuard],
 })
 export class AuthModule {}

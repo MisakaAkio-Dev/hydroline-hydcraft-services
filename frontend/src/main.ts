@@ -4,6 +4,8 @@ import { createHead } from '@unhead/vue/client'
 import ui from '@nuxt/ui/vue-plugin'
 
 import router from './router'
+import { useUiStore } from '@/stores/ui'
+import { useAuthStore } from '@/stores/auth'
 
 import './assets/styles/tailwind.css'
 import './assets/styles/style.css'
@@ -18,5 +20,10 @@ app.use(pinia)
 app.use(router)
 app.use(ui)
 app.use(head)
+
+const uiStore = useUiStore(pinia)
+uiStore.hydrateTheme()
+
+void useAuthStore(pinia).initialize()
 
 app.mount('#app')

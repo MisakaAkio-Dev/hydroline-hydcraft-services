@@ -84,6 +84,12 @@ model User {
   contacts       UserContact[]
   piicHistory    UserPiicHistory[]
   roles          UserRole[]
+  uploadedAttachments Attachment[] @relation("AttachmentUploader")
+  createdFolders AttachmentFolder[] @relation("AttachmentFolderCreator")
+  createdTags AttachmentTag[] @relation("AttachmentTagCreator")
+  tagAssignments AttachmentTagging[] @relation("AttachmentTaggingAssignee")
+  shareTokens AttachmentShareToken[] @relation("AttachmentShareCreator")
+  updatedConfigEntries ConfigEntry[] @relation("ConfigEntryUpdater")
 
   @@map("users")
 }
@@ -341,4 +347,128 @@ model UserRole {
   @@map("user_roles")
   @@unique([userId, roleId], map: "uq_user_role")
   @@index([roleId], map: "idx_user_roles_role")
+}
+
+model AttachmentFolder {
+  id          String             @id @default(uuid())
+  name        String
+  slug        String
+  description String?
+  parentId    String?
+  path        String
+  createdById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  parent      AttachmentFolder?  @relation("AttachmentFolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    AttachmentFolder[] @relation("AttachmentFolderHierarchy")
+  attachments Attachment[]
+  createdBy   User?              @relation("AttachmentFolderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("attachment_folders")
+  @@unique([parentId, name], map: "uq_attachment_folder_parent_name")
+}
+
+model Attachment {
+  id            String            @id @default(uuid())
+  folderId      String?
+  ownerId       String
+  name          String
+  originalName  String
+  fileName      String
+  mimeType      String?
+  size          Int
+  storageKey    String
+  hash          String?
+  isPublic      Boolean           @default(false)
+  externalUrl   String?
+  metadata      Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  deletedAt     DateTime?
+
+  folder        AttachmentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  owner         User              @relation("AttachmentUploader", fields: [ownerId], references: [id], onDelete: Cascade)
+  tags          AttachmentTagging[]
+  shareTokens   AttachmentShareToken[]
+
+  @@map("attachments")
+  @@index([folderId], map: "idx_attachments_folder")
+  @@index([ownerId], map: "idx_attachments_owner")
+}
+
+model AttachmentTag {
+  id          String            @id @default(uuid())
+  key         String            @unique
+  name        String
+  description String?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  createdBy   User?             @relation("AttachmentTagCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  taggings    AttachmentTagging[]
+
+  @@map("attachment_tags")
+}
+
+model AttachmentTagging {
+  attachmentId String
+  tagId        String
+  assignedById String?
+  assignedAt   DateTime @default(now())
+
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  tag          AttachmentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  assignedBy   User? @relation("AttachmentTaggingAssignee", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@id([attachmentId, tagId])
+  @@map("attachment_tagging")
+}
+
+model AttachmentShareToken {
+  id           String    @id @default(uuid())
+  attachmentId String
+  token        String    @unique
+  expiresAt    DateTime
+  createdById  String?
+  createdAt    DateTime  @default(now())
+
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  createdBy    User? @relation("AttachmentShareCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("attachment_share_tokens")
+  @@index([attachmentId], map: "idx_attachment_share_tokens_attachment")
+}
+
+model ConfigNamespace {
+  id          String         @id @default(uuid())
+  key         String         @unique
+  name        String
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  entries     ConfigEntry[]
+
+  @@map("config_namespaces")
+}
+
+model ConfigEntry {
+  id           String          @id @default(uuid())
+  namespaceId  String
+  key          String
+  value        Json
+  description  String?
+  version      Int             @default(1)
+  updatedById  String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  namespace    ConfigNamespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade)
+  updatedBy    User?           @relation("ConfigEntryUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("config_entries")
+  @@unique([namespaceId, key], map: "uq_config_entry_namespace_key")
+  @@index([namespaceId], map: "idx_config_entries_namespace")
 }
