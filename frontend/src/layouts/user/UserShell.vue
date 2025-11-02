@@ -20,7 +20,7 @@ const route = useRoute()
 const router = useRouter()
 
 const { home } = storeToRefs(portalStore)
-const { heroInView } = storeToRefs(uiStore)
+const { heroInView, heroActiveDescription } = storeToRefs(uiStore)
 
 const menuOpen = ref(false)
 
@@ -50,9 +50,15 @@ const headerTitle = computed(() => {
     return '管理工作台'
   }
   if (heroInView.value) {
-    return home.value?.header.idleTitle ?? 'Hydroline'
+    return (heroActiveDescription.value || '').trim() || 'Hydroline'
   }
-  return home.value?.header.activeTitle ?? 'Hydroline'
+  return 'Hydroline'
+})
+
+const userAvatarUrl = computed(() => {
+  const user = authStore.user as any
+  if (!user) return null
+  return user.profile?.avatarUrl ?? user.image ?? null
 })
 
 watch(
@@ -188,13 +194,11 @@ const routerPush = (path: string) => {
                 <span
                   class="hidden text-slate-700 dark:text-slate-200 sm:block"
                 >
-                  {{
-                    home?.user?.displayName ?? authStore.displayName ?? '用户'
-                  }}
+                  {{ authStore.displayName ?? authStore.user?.email ?? '用户' }}
                 </span>
                 <UserAvatar
-                  :src="home?.user?.avatarUrl ?? null"
-                  :name="home?.user?.displayName ?? authStore.displayName"
+                  :src="userAvatarUrl"
+                  :name="authStore.displayName ?? authStore.user?.email"
                   size="sm"
                 />
               </button>

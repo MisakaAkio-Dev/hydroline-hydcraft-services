@@ -13,6 +13,7 @@ export const DEFAULT_PERMISSIONS = {
   MANAGE_ROLES: 'auth.manage.roles',
   MANAGE_ATTACHMENTS: 'assets.manage.attachments',
   MANAGE_CONFIG: 'config.manage',
+  MANAGE_PORTAL_HOME: 'portal.manage.home',
 };
 
 export const DEFAULT_ROLES = {

@@ -1,87 +1,83 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AttachmentsService } from '../attachments/attachments.service';
-import { ConfigService } from '../config/config.service';
-import { join } from 'node:path';
-import { promises as fs } from 'node:fs';
+import { PortalConfigService } from '../portal-config/portal-config.service';
+import {
+  DEFAULT_PORTAL_HOME_CONFIG,
+  PORTAL_CARD_REGISTRY,
+} from '../portal-config/portal-config.constants';
+import type { PortalCardVisibilityConfig } from '../portal-config/portal-config.types';
 
-type HomeNavigationLink = {
+type NavigationLink = {
   id: string;
   label: string;
-  tooltip: string;
+  tooltip: string | null;
   url: string | null;
   available: boolean;
+  icon: string | null;
+};
+
+type PortalUserAccessContext = {
+  id: string;
+  email: string;
+  roleKeys: string[];
 };
 
 @Injectable()
-export class PortalService implements OnModuleInit {
+export class PortalService {
   private readonly logger = new Logger(PortalService.name);
-  private heroAsset:
-    | {
-        id: string;
-        url: string | null;
-        name: string;
-        description?: string | null;
-      }
-    | undefined;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly attachmentsService: AttachmentsService,
-    private readonly configService: ConfigService,
+    private readonly portalConfigService: PortalConfigService,
   ) {}
 
-  async onModuleInit() {
-    try {
-      await this.ensureHeroAsset();
-    } catch (error) {
-      this.logger.warn(`Skip hero asset seeding: ${String(error)}`);
-    }
-  }
-
   async getHomePortal(userId?: string) {
-    if (!this.heroAsset) {
-      try {
-        await this.ensureHeroAsset();
-      } catch (error) {
-        this.logger.warn(`Hero asset unavailable: ${String(error)}`);
-      }
+    let config: {
+      hero: {
+        subtitle: string;
+        background: Array<{ imageUrl: string; description: string | null }>;
+      };
+      navigation: NavigationLink[];
+      cardsConfig: Record<string, PortalCardVisibilityConfig>;
+    };
+
+    try {
+      const resolved = await this.portalConfigService.getResolvedHomeContent();
+      config = {
+        hero: resolved.hero,
+        navigation: resolved.navigation as NavigationLink[],
+        cardsConfig: resolved.cardsConfig,
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to load portal home config: ${String(error)}`);
+      config = {
+        hero: {
+          subtitle: DEFAULT_PORTAL_HOME_CONFIG.hero.subtitle,
+          background: [],
+        },
+        navigation: [],
+        cardsConfig: DEFAULT_PORTAL_HOME_CONFIG.cards,
+      };
     }
 
-    let userSnapshot: Awaited<ReturnType<typeof this.getUserSnapshot>> | null = null;
+    let userContext: PortalUserAccessContext | null = null;
     if (userId) {
       try {
-        userSnapshot = await this.getUserSnapshot(userId);
+        userContext = await this.getUserAccessContext(userId);
       } catch (error) {
-        this.logger.warn(`Failed to load user snapshot ${userId}: ${String(error)}`);
+        this.logger.warn(`Failed to resolve user context ${userId}: ${String(error)}`);
       }
     }
-    const navigation = await this.getHomeNavigation();
-    const cards = await this.composeHomeCards(userSnapshot);
+
+    const cards = this.computeAccessibleCards(config.cardsConfig, userContext);
 
     return {
       hero: {
-        title: 'Hydroline',
-        subtitle: 'ALPHA 测试阶段',
-        background: this.heroAsset
-          ? {
-              imageUrl: this.heroAsset.url,
-              description: this.heroAsset.description ?? '欧文',
-            }
-          : null,
+        subtitle: config.hero.subtitle,
+        background: config.hero.background,
       },
-      header: {
-        idleTitle: this.heroAsset?.description ?? '新城影像',
-        activeTitle: 'Hydroline',
-      },
-      navigation,
+      navigation: config.navigation,
       cards,
-      user: userSnapshot,
-      theme: {
-        modes: ['light', 'dark', 'system'],
-        defaultMode: 'system',
-      },
-      messages: [],
     };
   }
 
@@ -124,55 +120,55 @@ export class PortalService implements OnModuleInit {
           id: user.id,
           email: user.email,
           name: user.name,
-        createdAt: user.createdAt,
-        profile: user.profile
-          ? {
-              displayName: user.profile.displayName ?? null,
-              piic: user.profile.piic ?? null,
-              primaryMinecraft: user.profile.primaryMinecraftProfile
-                ? {
-                    id: user.profile.primaryMinecraftProfile.id,
-                    minecraftId: user.profile.primaryMinecraftProfile.minecraftId,
-                    nickname: user.profile.primaryMinecraftProfile.nickname,
-                  }
-                : null,
-            }
-          : null,
-        minecraftProfiles: user.minecraftIds.map((profile) => ({
-          id: profile.id,
-          minecraftId: profile.minecraftId,
-          nickname: profile.nickname,
-          isPrimary: profile.isPrimary,
+          createdAt: user.createdAt,
+          profile: user.profile
+            ? {
+                displayName: user.profile.displayName,
+                piic: user.profile.piic,
+                primaryMinecraft: user.profile.primaryMinecraftProfile
+                  ? {
+                      id: user.profile.primaryMinecraftProfile.id,
+                      minecraftId: user.profile.primaryMinecraftProfile.minecraftId,
+                      nickname: user.profile.primaryMinecraftProfile.nickname,
+                    }
+                  : null,
+              }
+            : null,
+          minecraftProfiles: user.minecraftIds.map((profile) => ({
+            id: profile.id,
+            minecraftId: profile.minecraftId,
+            nickname: profile.nickname,
+            isPrimary: profile.isPrimary,
+          })),
+          roles: user.roles.map(({ role }) => ({
+            id: role.id,
+            key: role.key,
+            name: role.name,
+          })),
         })),
-        roles: user.roles.map(({ role }) => ({
-          id: role.id,
-          key: role.key,
-          name: role.name,
-        })),
-      })),
         attachments: {
           total: attachmentsCount,
           recent: recentAttachments.map((item) => ({
             id: item.id,
             name: item.name,
             isPublic: item.isPublic,
-          size: item.size,
-          createdAt: item.createdAt,
-          owner: item.owner,
-          folder: item.folder
-            ? {
-                id: item.folder.id,
-                name: item.folder.name,
-                path: item.folder.path,
-              }
-            : null,
-          tags: item.tags.map((tag) => ({
-            id: tag.tag.id,
-            key: tag.tag.key,
-            name: tag.tag.name,
+            size: item.size,
+            createdAt: item.createdAt,
+            owner: item.owner,
+            folder: item.folder
+              ? {
+                  id: item.folder.id,
+                  name: item.folder.name,
+                  path: item.folder.path,
+                }
+              : null,
+            tags: item.tags.map((tag) => ({
+              id: tag.tag.id,
+              key: tag.tag.key,
+              name: tag.tag.name,
+            })),
+            publicUrl: item.isPublic ? `/attachments/public/${item.id}` : null,
           })),
-          publicUrl: item.isPublic ? `/attachments/public/${item.id}` : null,
-        })),
         },
         unlinkedPlayers: [],
       };
@@ -186,221 +182,85 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  private async composeHomeCards(userSnapshot: Awaited<ReturnType<typeof this.getUserSnapshot>> | null) {
-    const cards: unknown[] = [];
-    if (userSnapshot) {
-      cards.push({
-        id: 'profile',
-        kind: 'profile',
-        title: '个人资料',
-        status: 'active',
-        payload: {
-          displayName: userSnapshot.displayName,
-          email: userSnapshot.email,
-          piic: userSnapshot.piic,
-          minecraft: userSnapshot.primaryMinecraft,
-          roles: userSnapshot.roles,
-          avatarUrl: userSnapshot.avatarUrl,
-          joinedAt: userSnapshot.createdAt,
-        },
-      });
-    } else {
-      cards.push({
-        id: 'profile-guest',
-        kind: 'profile',
-        title: '个人资料',
-        status: 'requires-auth',
-      });
-    }
-
-    cards.push(
-      {
-        id: 'server-status',
-        kind: 'placeholder',
-        title: '服务器状态',
-        status: 'locked',
-      },
-      {
-        id: 'tasks',
-        kind: 'placeholder',
-        title: '任务队列',
-        status: 'locked',
-      },
-      {
-        id: 'documents',
-        kind: 'placeholder',
-        title: '文档中心',
-        status: 'locked',
-      },
-    );
-
-    return cards;
-  }
-
-  private async getUserSnapshot(userId: string) {
+  private async getUserAccessContext(userId: string): Promise<PortalUserAccessContext | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        profile: {
-          include: { primaryMinecraftProfile: true },
-        },
-        minecraftIds: true,
+      select: {
+        id: true,
+        email: true,
         roles: {
-          include: { role: true },
-        },
-        uploadedAttachments: {
-          where: {
-            deletedAt: null,
-            tags: {
-              some: {
-                tag: {
-                  key: 'profile.avatar',
-                },
+          select: {
+            role: {
+              select: {
+                key: true,
               },
             },
           },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
         },
       },
     });
     if (!user) {
       return null;
     }
-
-    const avatar = user.uploadedAttachments[0];
-    const primaryMinecraft =
-      user.profile?.primaryMinecraftProfile ??
-      user.minecraftIds.find((profile) => profile.isPrimary) ??
-      user.minecraftIds[0] ??
-      null;
-
     return {
       id: user.id,
       email: user.email,
-      displayName: user.profile?.displayName ?? user.name ?? user.email,
-      name: user.name,
-      piic: user.profile?.piic ?? null,
-      createdAt: user.createdAt,
-      roles: user.roles.map(({ role }) => ({
-        id: role.id,
-        key: role.key,
-        name: role.name,
-      })),
-      primaryMinecraft: primaryMinecraft
-        ? {
-            id: primaryMinecraft.id,
-            minecraftId: primaryMinecraft.minecraftId,
-            nickname: primaryMinecraft.nickname,
-          }
-        : null,
-      avatarUrl: avatar
-        ? avatar.isPublic
-          ? `/attachments/public/${avatar.id}`
-          : null
-        : user.image ?? null,
+      roleKeys: user.roles.map(({ role }) => role.key),
     };
   }
 
-  private async ensureHeroAsset() {
-    const assetPath = join(
-      process.cwd(),
-      '..',
-      'frontend',
-      'src',
-      'assets',
-      'images',
-      'image_home_background_240730.webp',
-    );
-    try {
-      await fs.access(assetPath);
-    } catch {
-      this.logger.warn(`Hero background asset missing at ${assetPath}`);
-      return;
+  private computeAccessibleCards(
+    config: Record<string, PortalCardVisibilityConfig>,
+    user: PortalUserAccessContext | null,
+  ) {
+    const result = new Set<string>();
+
+    for (const card of PORTAL_CARD_REGISTRY) {
+      const visibility = config[card.id];
+      if (!visibility || !visibility.enabled) {
+        continue;
+      }
+
+      if (visibility.allowGuests) {
+        result.add(card.id);
+        continue;
+      }
+
+      if (!user) {
+        continue;
+      }
+
+      const allowedUsers = visibility.allowedUsers ?? [];
+      if (allowedUsers.some((entry) => this.matchesUser(entry, user))) {
+        result.add(card.id);
+        continue;
+      }
+
+      const allowedRoles = visibility.allowedRoles ?? [];
+      if (allowedRoles.length === 0 && allowedUsers.length === 0) {
+        result.add(card.id);
+        continue;
+      }
+
+      if (allowedRoles.some((role) => user.roleKeys.includes(role))) {
+        result.add(card.id);
+      }
     }
 
-    try {
-      const asset = await this.attachmentsService.ensureSeededAttachment({
-        seedKey: 'hero.home.240730',
-        filePath: assetPath,
-        fileName: 'image_home_background_240730.webp',
-        folderPath: ['Public', 'Landing'],
-        tagKeys: ['hero.home'],
-        isPublic: true,
-        description: '欧文',
-      });
-      if (asset) {
-        this.heroAsset = {
-          id: asset.id,
-          url: asset.publicUrl,
-          name: asset.name,
-          description: (asset.metadata as Record<string, unknown> | undefined)?.description as string | undefined,
-        };
-      }
-    } catch (error) {
-      this.logger.warn(`Failed to seed hero asset in attachments: ${String(error)}`);
-    }
+    return Array.from(result);
   }
 
-  private async getHomeNavigation(): Promise<HomeNavigationLink[]> {
-    try {
-      const entries = await this.configService.getEntriesByNamespaceKey('portal.navigation');
-      if (entries.length === 0) {
-        return this.getDefaultNavigation();
-      }
-      const links = entries
-        .map<HomeNavigationLink | null>((entry) => {
-          const payload = entry.value as Record<string, unknown> | null;
-          if (!payload || typeof payload !== 'object') {
-            return null;
-          }
-          const id = String(entry.key);
-          const label = typeof payload.label === 'string' ? payload.label : entry.key;
-          const tooltip = typeof payload.tooltip === 'string' ? payload.tooltip : '';
-          const url = typeof payload.url === 'string' ? payload.url : null;
-          const available = typeof payload.available === 'boolean' ? payload.available : Boolean(url);
-          return {
-            id,
-            label,
-            tooltip,
-            url,
-            available,
-          } satisfies HomeNavigationLink;
-        })
-        .filter((item): item is HomeNavigationLink => Boolean(item));
-      if (links.length === 0) {
-        return this.getDefaultNavigation();
-      }
-      return links;
-    } catch (error) {
-      this.logger.warn(`Failed to load portal navigation config: ${String(error)}`);
-      return this.getDefaultNavigation();
+  private matchesUser(entry: string, user: PortalUserAccessContext) {
+    const normalized = entry.trim();
+    if (!normalized) {
+      return false;
     }
-  }
-
-  private getDefaultNavigation(): HomeNavigationLink[] {
-    return [
-      {
-        id: 'map-six',
-        label: '地图（六周目）',
-        tooltip: 'HydCraft 六周目地图浏览',
-        url: null,
-        available: false,
-      },
-      {
-        id: 'map-seven',
-        label: '地图（七周目）',
-        tooltip: 'HydCraft 七周目地图浏览',
-        url: null,
-        available: false,
-      },
-      {
-        id: 'wiki',
-        label: '知识库（Wiki）',
-        tooltip: 'HydCraft 知识库',
-        url: null,
-        available: false,
-      },
-    ];
+    if (normalized === user.id) {
+      return true;
+    }
+    if (normalized.toLowerCase() === user.email.toLowerCase()) {
+      return true;
+    }
+    return false;
   }
 }

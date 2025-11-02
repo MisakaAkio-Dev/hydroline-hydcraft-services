@@ -21,6 +21,7 @@ const menu = computed(() => [
   { label: '附件系统', to: '/admin/attachments', icon: 'i-lucide-archive' },
   { label: 'RBAC 管理', to: '/admin/rbac', icon: 'i-lucide-shield-check' },
   { label: '配置管理', to: '/admin/config', icon: 'i-lucide-wrench' },
+  { label: '门户首页', to: '/admin/portal/home', icon: 'i-lucide-home' },
 ])
 
 function isActive(item: { to: string }) {

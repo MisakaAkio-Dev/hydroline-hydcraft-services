@@ -89,6 +89,16 @@ export const adminRoutes: RouteRecordRaw[] = [
           layout: 'admin',
         },
       },
+      {
+        path: 'portal/home',
+        name: 'admin.portal.home',
+        component: () => import('@/views/admin/Portal/PortalHomeConfig.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['portal.manage.home'],
+          layout: 'admin',
+        },
+      },
     ],
   },
 ]

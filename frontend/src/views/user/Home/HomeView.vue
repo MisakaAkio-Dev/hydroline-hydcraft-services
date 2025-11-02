@@ -3,28 +3,167 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePortalStore } from '@/stores/portal'
 import { useUiStore } from '@/stores/ui'
+import { useAuthStore } from '@/stores/auth'
 import UserAvatar from '@/components/common/UserAvatar.vue'
-import { getApiBaseUrl } from '@/utils/api'
 import HydrolineTextBold from '@/assets/resources/hydroline_text_bold.svg'
+import fallbackHeroImage from '@/assets/images/image_home_background_240730.webp'
 
 const portalStore = usePortalStore()
 const uiStore = useUiStore()
+const authStore = useAuthStore()
 
 const { home } = storeToRefs(portalStore)
 const { heroInView } = storeToRefs(uiStore)
 
 const heroRef = ref<HTMLElement | null>(null)
+const observer = ref<IntersectionObserver | null>(null)
+const cycleTimer = ref<number | null>(null)
 const scrolled = ref(false)
 
 const navigationLinks = computed(() => home.value?.navigation ?? [])
+const cardIds = computed(() => home.value?.cards ?? [])
 
-const cards = computed(() => home.value?.cards ?? [])
+const heroSubtitle = computed(
+  () => home.value?.hero.subtitle ?? 'ALPHA 测试阶段',
+)
+const heroBackgrounds = computed(() => home.value?.hero.background ?? [])
 
-const observer = ref<IntersectionObserver | null>(null)
+const carouselState = reactive({
+  heroIndex: 0,
+  navIndex: 0,
+})
+
+const activeHeroBackground = computed(
+  () => heroBackgrounds.value[carouselState.heroIndex] ?? null,
+)
+
+const activeHeroImage = computed(
+  () => activeHeroBackground.value?.imageUrl ?? fallbackHeroImage,
+)
+
+const activeHeroDescription = computed(
+  () => activeHeroBackground.value?.description ?? 'Hydroline 城景',
+)
+
+const showHeroIndicators = computed(() => navigationLinks.value.length > 1)
+
+const heroBackdropStyle = computed(() => {
+  if (heroInView.value) {
+    return {}
+  }
+  return {
+    opacity: '0.15',
+    transform: 'translateY(-3rem)',
+    filter: 'blur(8px) saturate(2)',
+  }
+})
+
+const profileCardVisible = computed(() => cardIds.value.includes('profile'))
+
+const profileCardData = computed(() => {
+  if (
+    !profileCardVisible.value ||
+    !authStore.isAuthenticated ||
+    !authStore.user
+  ) {
+    return null
+  }
+  const user = authStore.user as Record<string, any>
+  const roles =
+    (user.roles as
+      | Array<{ role?: { id: string; name?: string } }>
+      | undefined) ?? []
+  return {
+    displayName:
+      authStore.displayName ??
+      user.profile?.displayName ??
+      user.name ??
+      user.email ??
+      'Hydroline 用户',
+    email: user.email ?? '',
+    roles: roles
+      .map((entry) =>
+        entry.role
+          ? {
+              id: entry.role.id,
+              name: entry.role.name ?? entry.role.id,
+            }
+          : null,
+      )
+      .filter((value): value is { id: string; name: string } => Boolean(value)),
+    avatarUrl: user.profile?.avatarUrl ?? user.image ?? null,
+  }
+})
+
+const secondaryCards = computed(() =>
+  cardIds.value.filter((cardId) => cardId !== 'profile'),
+)
+
+const cardMetadata: Record<string, { title: string; description: string }> = {
+  'server-status': {
+    title: '服务器状态',
+    description: '实时掌握在线人数与运行状态。',
+  },
+  tasks: {
+    title: '任务队列',
+    description: '同步作业与自动化任务的进展情况。',
+  },
+  documents: {
+    title: '文档中心',
+    description: '面向成员的知识库与流程文档。',
+  },
+}
+
+function resolveCardMetadata(cardId: string) {
+  return (
+    cardMetadata[cardId] ?? {
+      title: '功能筹备中',
+      description: '敬请期待更多服务能力。',
+    }
+  )
+}
 
 function updateScrollState() {
   scrolled.value = window.scrollY > 80
   uiStore.setHeroInView(!scrolled.value)
+}
+
+function updateHeroDescription() {
+  uiStore.setHeroActiveDescription(activeHeroDescription.value)
+}
+
+function stopHeroCycle() {
+  if (cycleTimer.value !== null) {
+    window.clearInterval(cycleTimer.value)
+    cycleTimer.value = null
+  }
+}
+
+function startHeroCycle() {
+  stopHeroCycle()
+  if (heroBackgrounds.value.length <= 1) {
+    return
+  }
+  cycleTimer.value = window.setInterval(() => {
+    carouselState.heroIndex =
+      (carouselState.heroIndex + 1) % heroBackgrounds.value.length
+    if (navigationLinks.value.length > 0) {
+      carouselState.navIndex =
+        carouselState.heroIndex % navigationLinks.value.length
+    }
+    updateHeroDescription()
+  }, 8000)
+}
+
+function activateNavigation(index: number) {
+  carouselState.navIndex = index
+  if (heroBackgrounds.value.length > 0) {
+    carouselState.heroIndex = index % heroBackgrounds.value.length
+  }
+  if (heroBackgrounds.value.length > 1) {
+    startHeroCycle()
+  }
+  updateHeroDescription()
 }
 
 onMounted(async () => {
@@ -44,51 +183,44 @@ onMounted(async () => {
     observer.value = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          uiStore.setHeroInView(
-            entry.isIntersecting && entry.intersectionRatio > 0.5,
-          )
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            uiStore.setHeroInView(true)
+          } else {
+            uiStore.setHeroInView(false)
+          }
         }
       },
       { threshold: [0.3, 0.6, 1] },
     )
     observer.value.observe(heroRef.value)
   }
-})
 
-const profileCard = computed(() => {
-  const card = cards.value.find((item) => item.kind === 'profile')
-  if (!card || card.kind !== 'profile') return null
-  return card
-})
-
-const placeholderCards = computed(() =>
-  cards.value.filter((card) => card.kind === 'placeholder'),
-)
-
-const heroText = computed(() => ({
-  subtitle: home.value?.hero.subtitle ?? 'ALPHA 测试阶段',
-  description: home.value?.hero.background?.description ?? '',
-}))
-
-const heroBackdropStyle = computed(() => {
-  if (heroInView.value) {
-    return {}
+  if (heroBackgrounds.value.length > 1) {
+    startHeroCycle()
+  } else {
+    updateHeroDescription()
   }
-  return {
-    opacity: '0.15',
-    transform: 'translateY(-3rem)',
-    filter: 'blur(8px) saturate(2)',
-  }
-})
-
-const navigationState = reactive({
-  activeIndex: 0,
 })
 
 watch(
-  () => navigationState.activeIndex,
+  heroBackgrounds,
+  (list) => {
+    carouselState.heroIndex = 0
+    carouselState.navIndex = 0
+    if (list.length > 1) {
+      startHeroCycle()
+    } else {
+      stopHeroCycle()
+    }
+    updateHeroDescription()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => activeHeroDescription.value,
   () => {
-    // 预留未来轮播切换逻辑
+    updateHeroDescription()
   },
 )
 
@@ -98,7 +230,9 @@ onBeforeUnmount(() => {
     observer.value.unobserve(heroRef.value)
     observer.value.disconnect()
   }
+  stopHeroCycle()
   uiStore.setHeroInView(true)
+  uiStore.setHeroActiveDescription('')
 })
 </script>
 
@@ -113,7 +247,8 @@ onBeforeUnmount(() => {
         :style="heroBackdropStyle"
       >
         <img
-          src="http://127.0.0.1:3000/attachments/public/62f77217-9063-43af-9a16-83932a736ba3"
+          :src="activeHeroImage"
+          :alt="activeHeroDescription"
           class="bg-image block h-fit select-none transition duration-350"
         />
       </div>
@@ -127,7 +262,7 @@ onBeforeUnmount(() => {
               />
             </h1>
             <p class="text-sm uppercase text-slate-500 dark:text-slate-300">
-              {{ heroText.subtitle }}
+              {{ heroSubtitle }}
             </p>
           </div>
 
@@ -145,22 +280,26 @@ onBeforeUnmount(() => {
                 :href="link.url ?? undefined"
                 target="_blank"
                 rel="noreferrer"
-                @mouseenter="navigationState.activeIndex = index"
+                @mouseenter="activateNavigation(index)"
+                @focusin="activateNavigation(index)"
               >
                 {{ link.label }}
               </UButton>
             </UTooltip>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div v-if="showHeroIndicators" class="flex items-center gap-2">
             <span
               v-for="index in navigationLinks.length"
               :key="index"
               class="h-2 w-2 rounded-full"
               :class="{
-                'bg-primary-500': navigationState.activeIndex + 1 === index,
+                'bg-primary-500':
+                  (carouselState.navIndex % navigationLinks.length) + 1 ===
+                  index,
                 'bg-slate-300 dark:bg-slate-600':
-                  navigationState.activeIndex + 1 !== index,
+                  (carouselState.navIndex % navigationLinks.length) + 1 !==
+                  index,
               }"
             />
           </div>
@@ -173,44 +312,30 @@ onBeforeUnmount(() => {
         <div class="md:col-span-3">
           <Transition name="fade-slide" mode="out-in">
             <UCard
-              v-if="
-                profileCard &&
-                profileCard.status === 'active' &&
-                profileCard.payload
-              "
-              :key="'profile-active'"
+              v-if="profileCardData"
+              key="profile-active"
               class="rounded-3xl border border-slate-200/70 bg-white/85 p-6 shadow-lg backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
             >
               <div
                 class="flex flex-col gap-4 text-left sm:flex-row sm:items-center"
               >
                 <UserAvatar
-                  :name="profileCard.payload.displayName"
-                  :src="profileCard.payload.avatarUrl"
+                  :name="profileCardData.displayName"
+                  :src="profileCardData.avatarUrl"
                   size="lg"
                 />
                 <div class="flex-1 space-y-2">
                   <h2
                     class="text-xl font-semibold text-slate-900 dark:text-white"
                   >
-                    {{
-                      profileCard.payload.displayName ??
-                      profileCard.payload.email
-                    }}
+                    {{ profileCardData.displayName }}
                   </h2>
                   <p class="text-sm text-slate-600 dark:text-slate-300">
-                    邮箱：{{ profileCard.payload.email }}
+                    邮箱：{{ profileCardData.email }}
                   </p>
                   <div class="flex flex-wrap gap-2">
                     <UBadge
-                      v-if="profileCard.payload.piic"
-                      color="primary"
-                      variant="soft"
-                    >
-                      PIIC: {{ profileCard.payload.piic }}
-                    </UBadge>
-                    <UBadge
-                      v-for="role in profileCard.payload.roles"
+                      v-for="role in profileCardData.roles"
                       :key="role.id"
                       color="primary"
                       variant="subtle"
@@ -224,7 +349,7 @@ onBeforeUnmount(() => {
 
             <UCard
               v-else
-              :key="'profile-placeholder'"
+              key="profile-placeholder"
               class="rounded-3xl border border-dashed border-slate-300/70 bg-white/70 p-6 text-center backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/60"
             >
               <h2 class="text-xl font-semibold text-slate-900 dark:text-white">
@@ -246,8 +371,8 @@ onBeforeUnmount(() => {
 
         <div class="grid gap-4 md:col-span-2">
           <UCard
-            v-for="card in placeholderCards"
-            :key="card.id"
+            v-for="cardId in secondaryCards"
+            :key="cardId"
             class="rounded-2xl border border-slate-200/70 bg-white/80 p-4 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
           >
             <div class="flex items-center justify-between">
@@ -255,10 +380,10 @@ onBeforeUnmount(() => {
                 <h3
                   class="text-base font-medium text-slate-900 dark:text-white"
                 >
-                  {{ card.title }}
+                  {{ resolveCardMetadata(cardId).title }}
                 </h3>
                 <p class="text-xs text-slate-500 dark:text-slate-400">
-                  功能设计中，敬请期待
+                  {{ resolveCardMetadata(cardId).description }}
                 </p>
               </div>
               <UBadge color="neutral" variant="soft">开发中</UBadge>

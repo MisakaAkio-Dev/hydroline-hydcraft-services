@@ -1,9 +1,28 @@
+export interface PortalHeroBackground {
+  imageUrl: string;
+  description: string | null;
+}
+
+export interface PortalHeroData {
+  subtitle: string;
+  background: PortalHeroBackground[];
+}
+
 export interface PortalNavigationLink {
   id: string;
   label: string;
-  tooltip: string;
+  tooltip: string | null;
   url: string | null;
   available: boolean;
+  icon: string | null;
+}
+
+export type PortalCardId = string;
+
+export interface PortalHomeData {
+  hero: PortalHeroData;
+  navigation: PortalNavigationLink[];
+  cards: PortalCardId[];
 }
 
 export interface PortalMinecraftProfile {
@@ -22,64 +41,6 @@ export interface PortalAttachmentTag {
   id: string;
   key: string;
   name: string;
-}
-
-export interface PortalUserSnapshot {
-  id: string;
-  email: string;
-  name: string | null | undefined;
-  displayName: string | null | undefined;
-  piic: string | null;
-  createdAt: string;
-  roles: PortalRole[];
-  primaryMinecraft: PortalMinecraftProfile | null;
-  avatarUrl: string | null;
-}
-
-export type PortalHomeCard =
-  | {
-      id: string;
-      kind: 'profile';
-      title: string;
-      status: 'active' | 'requires-auth';
-      payload?: {
-        displayName: string | null | undefined;
-        email: string;
-        piic: string | null;
-        minecraft: PortalMinecraftProfile | null;
-        roles: PortalRole[];
-        avatarUrl: string | null;
-        joinedAt: string;
-      };
-    }
-  | {
-      id: string;
-      kind: 'placeholder';
-      title: string;
-      status: 'locked';
-    };
-
-export interface PortalHomeData {
-  hero: {
-    title: string;
-    subtitle: string;
-    background: {
-      imageUrl: string | null;
-      description: string | null;
-    } | null;
-  };
-  header: {
-    idleTitle: string;
-    activeTitle: string;
-  };
-  navigation: PortalNavigationLink[];
-  cards: PortalHomeCard[];
-  user: PortalUserSnapshot | null;
-  theme: {
-    modes: Array<'light' | 'dark' | 'system'>;
-    defaultMode: 'light' | 'dark' | 'system';
-  };
-  messages: unknown[];
 }
 
 export interface AdminOverviewUser {

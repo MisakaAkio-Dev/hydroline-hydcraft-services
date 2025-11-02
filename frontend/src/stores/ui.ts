@@ -26,6 +26,7 @@ export const useUiStore = defineStore('ui', {
       : null) ?? 'system',
     loginDialogOpen: false,
     heroInView: true,
+    heroActiveDescription: '',
   }),
   getters: {
     isLoading(state) {
@@ -71,6 +72,9 @@ export const useUiStore = defineStore('ui', {
     },
     setHeroInView(value: boolean) {
       this.heroInView = value
+    },
+    setHeroActiveDescription(description: string) {
+      this.heroActiveDescription = description
     },
   },
 })
