@@ -1,9 +1,7 @@
 {
   "name": "@hydroline/backend",
-  "version": "0.0.1",
-  "author": "AurLemon",
+  "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

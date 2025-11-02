@@ -1,7 +1,12 @@
 {
   "name": "hydroline-hydcraft-services",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "author": {
+    "name": "AurLemon (Lin Junle)",
+    "email": "aurlemoncn@gmail.com",
+    "url": "https://aurlemon.top"
+  },
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "backend:dev": "pnpm --filter @hydroline/backend run dev",
