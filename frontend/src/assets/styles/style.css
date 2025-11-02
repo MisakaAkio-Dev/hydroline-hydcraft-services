@@ -53,7 +53,6 @@ body {
   background: radial-gradient(ellipse at left bottom,
       var(--color-surface-0) 0% 50%,
       var(--color-surface-1) 120% 175%);
-  min-height: 100vh;
 }
 
 *,

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
+import dayjs from 'dayjs'
 import { useAuthStore } from '@/stores/auth'
 import { usePortalStore } from '@/stores/portal'
 import { useUiStore } from '@/stores/ui'
@@ -9,6 +10,8 @@ import AppLoadingBar from '@/components/common/AppLoadingBar.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import AuthDialog from '@/components/dialogs/AuthDialog.vue'
+import HydrlabSvg from '@/assets/resources/hydrlab_logo.svg'
+import HydrolineSvg from '@/assets/resources/hydroline_logo.svg'
 
 const authStore = useAuthStore()
 const portalStore = usePortalStore()
@@ -24,10 +27,20 @@ const menuOpen = ref(false)
 const mainNav = computed(() => {
   const links = [
     { name: '首页', to: '/', icon: 'i-lucide-home' },
-    { name: '个人资料', to: '/profile', icon: 'i-lucide-user-round', requiresAuth: true },
+    {
+      name: '个人资料',
+      to: '/profile',
+      icon: 'i-lucide-user-round',
+      requiresAuth: true,
+    },
   ]
   if (authStore.permissionKeys.includes('auth.manage.users')) {
-    links.push({ name: '后台控制台', to: '/admin', icon: 'i-lucide-terminal', requiresAuth: true })
+    links.push({
+      name: '后台控制台',
+      to: '/admin',
+      icon: 'i-lucide-terminal',
+      requiresAuth: true,
+    })
   }
   return links
 })
@@ -59,44 +72,88 @@ const userDropdownItems = computed(() => [
   [
     {
       label: '个人资料',
-  icon: 'i-lucide-user-round',
+      icon: 'i-lucide-user-round',
       click: () => routerPush('/profile'),
     },
     {
       label: '网站偏好设置',
-  icon: 'i-lucide-sliders-horizontal',
+      icon: 'i-lucide-sliders-horizontal',
       click: () => routerPush('/profile'),
     },
   ],
   [
     {
       label: '退出登录',
-  icon: 'i-lucide-log-out',
+      icon: 'i-lucide-log-out',
       click: () => authStore.signOut(),
     },
   ],
 ])
 
-function routerPush(path: string) {
+const footerRegisterItems = [
+  {
+    type: 'miit',
+    label: '闽ICP备2023007345号-1',
+    link: 'https://beian.miit.gov.cn/',
+  },
+  {
+    type: 'mps',
+    label: '闽公网安备35010202001677号',
+    link: 'https://www.beian.gov.cn/portal/registersysteminfo?recordcode=35010202001677',
+  },
+]
+
+const siteItems = [
+  {
+    label: '门户站',
+    link: 'https://hydcraft.cn/',
+  },
+  {
+    label: '知识库',
+    link: 'https://wiki.hydcraft.cn/',
+  },
+  {
+    label: 'GitHub',
+    link: 'https://github.com/Hydroline/',
+  },
+]
+
+const isMainPage = computed(() => route.path === '/' || route.path === '')
+
+const handleDropdownItemClick = (
+  action: (() => void) | undefined,
+  close: () => void,
+) => {
+  action?.()
+  close()
+}
+
+const routerPush = (path: string) => {
   if (route.fullPath === path) return
   router.push(path)
 }
 </script>
 
 <template>
-  <div class="relative min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+  <div
+    class="relative min-h-screen flex flex-col dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
+  >
     <AppLoadingBar />
     <AuthDialog />
 
     <header
-      class="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-slate-200/60 bg-white/60 px-4 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/70"
+      class="fixed inset-x-0 top-0 z-100 grid grid-cols-[1fr_auto_1fr] h-16 items-center border-slate-200/60 px-4 dark:border-slate-800/60"
+      :class="{
+        'bg-white/60 dark:bg-slate-950/70 border-b backdrop-blur-xl':
+          !isMainPage,
+      }"
     >
       <div class="flex items-center gap-3">
         <UButton
           color="neutral"
           variant="ghost"
           size="xs"
-          class="h-9 w-9 rounded-full"
+          class="flex items-center justify-center h-9 w-9 rounded-full"
           icon="i-lucide-menu"
           @click="menuOpen = !menuOpen"
         />
@@ -106,44 +163,62 @@ function routerPush(path: string) {
         </div>
       </div>
 
-      <div class="text-center">
-        <Transition name="fade-slide" mode="out-in">
-          <p :key="headerTitle" class="text-lg font-semibold text-slate-900 dark:text-white">
+      <div class="flex items-center justify-center text-center">
+        <Transition name="fade-slide" mode="out-in" v-if="isMainPage">
+          <p
+            v-if="heroInView"
+            key="header-title"
+            class="text-lg text-slate-400 dark:text-white/50"
+          >
             {{ headerTitle }}
           </p>
+          <div v-else key="header-logo">
+            <HydrolineSvg class="h-6 text-slate-500 dark:text-white/75" />
+          </div>
         </Transition>
       </div>
 
-      <div class="flex items-center gap-2">
-        <UTooltip text="消息中心">
-          <UButton color="neutral" variant="ghost" size="xs" class="h-9 w-9 rounded-full" icon-only>
-            <UIcon name="i-lucide-mail" />
-          </UButton>
-        </UTooltip>
-        <ThemeToggle />
+      <div class="flex items-center justify-end gap-2">
         <div v-if="authStore.isAuthenticated">
           <UPopover :popper="{ placement: 'bottom-end' }">
             <template #anchor>
-              <button class="flex items-center gap-2 rounded-full bg-white/60 px-2 py-1 text-sm shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:hover:bg-slate-800">
-                <UserAvatar :src="home?.user?.avatarUrl ?? null" :name="home?.user?.displayName ?? authStore.displayName" size="sm" />
-                <span class="hidden text-slate-700 dark:text-slate-200 sm:block">
-                  {{ home?.user?.displayName ?? authStore.displayName ?? '用户' }}
+              <button
+                class="flex items-center gap-2 rounded-full px-2 py-1 text-sm transition hover:bg-elevated"
+              >
+                <span
+                  class="hidden text-slate-700 dark:text-slate-200 sm:block"
+                >
+                  {{
+                    home?.user?.displayName ?? authStore.displayName ?? '用户'
+                  }}
                 </span>
-                <UIcon name="i-lucide-chevron-down" class="hidden text-base text-slate-400 sm:block" />
+                <UserAvatar
+                  :src="home?.user?.avatarUrl ?? null"
+                  :name="home?.user?.displayName ?? authStore.displayName"
+                  size="sm"
+                />
               </button>
             </template>
             <template #content="{ close }">
               <div class="w-48 space-y-2 p-2">
-                <div v-for="(group, index) in userDropdownItems" :key="index" class="space-y-1">
+                <div
+                  v-for="(group, index) in userDropdownItems"
+                  :key="index"
+                  class="space-y-1"
+                >
                   <button
                     v-for="item in group"
                     :key="item.label"
                     type="button"
                     class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-slate-100 dark:hover:bg-slate-800"
-                    :class="item.label === '退出登录' ? 'text-red-600 dark:text-red-300' : 'text-slate-600 dark:text-slate-200'"
-                    @click="item.click?.(); close()"
+                    :class="
+                      item.label === '退出登录'
+                        ? 'text-red-600 dark:text-red-300'
+                        : 'text-slate-600 dark:text-slate-200'
+                    "
+                    @click="handleDropdownItemClick(item.click, close)"
                   >
-                    <UIcon :name="item.icon" class="text-base" />
+                    <UIcon :name="item.icon" class="text-base h-6 w-6" />
                     <span>{{ item.label }}</span>
                   </button>
                   <hr
@@ -155,7 +230,26 @@ function routerPush(path: string) {
             </template>
           </UPopover>
         </div>
-        <UButton v-else color="primary" size="xs" class="rounded-full" @click="openLogin">登录</UButton>
+        <UButton
+          v-else
+          color="primary"
+          size="xs"
+          class="rounded-full"
+          @click="openLogin"
+          >登录</UButton
+        >
+        <UTooltip text="消息中心">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            class="h-9 w-9 rounded-full"
+            icon-only
+          >
+            <UIcon name="i-lucide-mail" class="h-6 w-6" />
+          </UButton>
+        </UTooltip>
+        <ThemeToggle />
       </div>
     </header>
 
@@ -165,8 +259,16 @@ function routerPush(path: string) {
         class="fixed inset-y-0 left-0 z-40 w-72 bg-white/95 p-4 shadow-xl backdrop-blur-xl dark:bg-slate-950/95"
       >
         <div class="mb-6 flex items-center justify-between">
-          <span class="text-lg font-semibold text-slate-900 dark:text-white">导航</span>
-          <UButton icon="i-lucide-x" variant="ghost" size="xs" class="h-8 w-8" @click="menuOpen = false" />
+          <span class="text-lg font-semibold text-slate-900 dark:text-white"
+            >导航</span
+          >
+          <UButton
+            icon="i-lucide-x"
+            variant="ghost"
+            size="xs"
+            class="h-8 w-8"
+            @click="menuOpen = false"
+          />
         </div>
         <nav class="space-y-2">
           <RouterLink
@@ -180,13 +282,17 @@ function routerPush(path: string) {
                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white',
             ]"
           >
-            <UIcon :name="item.icon" class="text-base" />
+            <UIcon :name="item.icon" class="text-base h-fit" />
             {{ item.name }}
           </RouterLink>
         </nav>
 
         <div class="mt-6 space-y-2">
-          <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">快捷入口</p>
+          <p
+            class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          >
+            快捷入口
+          </p>
           <a
             v-for="link in navigationLinks"
             :key="link.id"
@@ -197,7 +303,7 @@ function routerPush(path: string) {
             rel="noreferrer"
           >
             <span>{{ link.label }}</span>
-            <UIcon name="i-lucide-external-link" class="text-slate-400" />
+            <UIcon name="i-lucide-external-link" class="text-slate-400 h-fit" />
           </a>
         </div>
       </aside>
@@ -207,16 +313,54 @@ function routerPush(path: string) {
       <RouterView />
     </main>
 
-    <footer class="mt-16 border-t border-slate-200/60 bg-white/60 px-4 py-10 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/60">
-      <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 text-sm text-slate-500 dark:text-slate-400 md:flex-row md:items-center md:justify-between">
-        <div class="flex items-center gap-3">
-          <img src="@/assets/resources/hydroline_logo.svg" alt="Hydroline" class="h-8" />
-          <span>Hydroline</span>
+    <footer class="mt-auto px-4 py-8">
+      <div
+        class="mx-auto flex w-full max-w-5xl flex-col gap-3 text-sm text-slate-500 dark:text-slate-400 md:flex-row md:items-center md:justify-between"
+      >
+        <div class="flex items-center gap-2">
+          <HydrlabSvg class="h-6" />
+          <div
+            class="select-none font-bold mx-0.5 w-px h-5 bg-slate-200 dark:bg-slate-600"
+          ></div>
+          <HydrolineSvg class="h-6" />
+          <span class="font-semibold">Hydroline HydCraft</span>
         </div>
-        <div class="flex flex-wrap gap-4">
-          <span>隐私政策（待补充）</span>
-          <span>备案号（待补充）</span>
-          <span>© HydCraft Network</span>
+        <div class="flex items-end gap-0.5">
+          <div class="flex gap-3">
+            <span :key="item.label" v-for="item in siteItems">
+              <a
+                :href="item.link"
+                target="_blank"
+                rel="noreferrer noopener"
+                class="hover:underline"
+                >{{ item.label }}</a
+              >
+            </span>
+          </div>
+          <div
+            class="select-none font-bold mx-2 text-slate-300 dark:text-slate-500"
+          >
+            ·
+          </div>
+          <div class="flex gap-3">
+            <span :key="item.type" v-for="item in footerRegisterItems">
+              <a
+                :href="item.link"
+                target="_blank"
+                rel="noreferrer noopener"
+                class="hover:underline"
+                >{{ item.label }}</a
+              >
+            </span>
+          </div>
+          <div
+            class="select-none font-bold mx-2 text-slate-300 dark:text-slate-200"
+          >
+            ·
+          </div>
+          <div>
+            <span>© Team Hydrlab {{ dayjs().year() }}</span>
+          </div>
         </div>
       </div>
     </footer>
@@ -237,7 +381,9 @@ function routerPush(path: string) {
 
 .slide-fade-enter-active,
 .slide-fade-leave-active {
-  transition: transform 0.25s ease, opacity 0.25s ease;
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
 }
 
 .slide-fade-enter-from,

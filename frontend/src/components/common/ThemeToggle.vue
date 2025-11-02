@@ -26,7 +26,12 @@ function select(mode: 'light' | 'dark' | 'system') {
       class="h-9 w-9 rounded-full"
       icon-only
     >
-  <UIcon :name="modes.find((mode) => mode.value === current)?.icon ?? 'i-lucide-sun'" />
+      <UIcon
+        :name="
+          modes.find((mode) => mode.value === current)?.icon ?? 'i-lucide-sun'
+        "
+        class="h-6 w-6"
+      />
     </UButton>
 
     <template #content>
@@ -37,7 +42,8 @@ function select(mode: 'light' | 'dark' | 'system') {
           type="button"
           class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-slate-100 dark:hover:bg-slate-800"
           :class="{
-            'bg-primary-100/60 text-primary-600 dark:bg-primary-500/20 dark:text-primary-200': current === mode.value,
+            'bg-primary-100/60 text-primary-600 dark:bg-primary-500/20 dark:text-primary-200':
+              current === mode.value,
             'text-slate-600 dark:text-slate-300': current !== mode.value,
           }"
           @click="select(mode.value as 'light' | 'dark' | 'system')"

@@ -5,23 +5,16 @@ import { usePortalStore } from '@/stores/portal'
 import { useUiStore } from '@/stores/ui'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import { getApiBaseUrl } from '@/utils/api'
+import HydrolineTextBold from '@/assets/resources/hydroline_text_bold.svg'
 
 const portalStore = usePortalStore()
 const uiStore = useUiStore()
 
 const { home } = storeToRefs(portalStore)
+const { heroInView } = storeToRefs(uiStore)
 
 const heroRef = ref<HTMLElement | null>(null)
 const scrolled = ref(false)
-
-const backgroundStyles = computed(() => {
-  const url = home.value?.hero.background?.imageUrl
-  return url
-    ? {
-        backgroundImage: `url(${url.startsWith('http') ? url : `${getApiBaseUrl()}${url}`})`,
-      }
-    : {}
-})
 
 const navigationLinks = computed(() => home.value?.navigation ?? [])
 
@@ -51,7 +44,9 @@ onMounted(async () => {
     observer.value = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          uiStore.setHeroInView(entry.isIntersecting && entry.intersectionRatio > 0.5)
+          uiStore.setHeroInView(
+            entry.isIntersecting && entry.intersectionRatio > 0.5,
+          )
         }
       },
       { threshold: [0.3, 0.6, 1] },
@@ -66,13 +61,25 @@ const profileCard = computed(() => {
   return card
 })
 
-const placeholderCards = computed(() => cards.value.filter((card) => card.kind === 'placeholder'))
+const placeholderCards = computed(() =>
+  cards.value.filter((card) => card.kind === 'placeholder'),
+)
 
 const heroText = computed(() => ({
-  title: home.value?.hero.title ?? 'Hydroline',
   subtitle: home.value?.hero.subtitle ?? 'ALPHA 测试阶段',
   description: home.value?.hero.background?.description ?? '',
 }))
+
+const heroBackdropStyle = computed(() => {
+  if (heroInView.value) {
+    return {}
+  }
+  return {
+    opacity: '0.15',
+    transform: 'translateY(-3rem)',
+    filter: 'blur(8px) saturate(2)',
+  }
+})
 
 const navigationState = reactive({
   activeIndex: 0,
@@ -99,31 +106,37 @@ onBeforeUnmount(() => {
   <div class="relative overflow-hidden">
     <section
       ref="heroRef"
-      class="relative flex min-h-[70vh] flex-col items-center justify-center px-4 py-24 text-center"
+      class="relative flex min-h-[60vh] flex-col items-center justify-center px-4 py-24 text-center"
     >
-      <div class="absolute inset-0 -z-10 overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-b from-white/0 via-white/40 to-white dark:from-slate-950/0 dark:via-slate-950/70 dark:to-slate-950" />
-        <div
-          class="h-full w-full bg-cover bg-center transition duration-700"
-          :class="{ 'blur-md scale-105': scrolled }"
-          :style="backgroundStyles"
+      <div
+        class="fixed inset-0 -z-10 flex flex-col justify-center items-center px-20 transition duration-300"
+        :style="heroBackdropStyle"
+      >
+        <img
+          src="http://127.0.0.1:3000/attachments/public/62f77217-9063-43af-9a16-83932a736ba3"
+          class="bg-image block h-fit select-none transition duration-350"
         />
       </div>
 
       <Transition name="fade-slide" mode="out-in">
-        <div :key="heroText.title" class="flex flex-col items-center gap-6">
-          <img src="@/assets/resources/hydroline_logo.svg" alt="Hydroline Logo" class="h-20 w-auto" />
+        <div class="flex flex-col items-center gap-6">
           <div class="space-y-2">
-            <h1 class="text-4xl font-semibold tracking-tight text-slate-900 drop-shadow-sm dark:text-white md:text-5xl">
-              {{ heroText.title }}
+            <h1 class="drop-shadow-sm">
+              <HydrolineTextBold
+                class="h-28 text-slate-600 dark:text-slate-300"
+              />
             </h1>
-            <p class="text-sm uppercase tracking-[0.6em] text-slate-500 dark:text-slate-300">
+            <p class="text-sm uppercase text-slate-500 dark:text-slate-300">
               {{ heroText.subtitle }}
             </p>
           </div>
 
           <div class="flex flex-wrap items-center justify-center gap-4">
-            <UTooltip v-for="(link, index) in navigationLinks" :key="link.id" :text="link.tooltip">
+            <UTooltip
+              v-for="(link, index) in navigationLinks"
+              :key="link.id"
+              :text="link.tooltip"
+            >
               <UButton
                 :color="link.available ? 'primary' : 'neutral'"
                 variant="soft"
@@ -146,7 +159,8 @@ onBeforeUnmount(() => {
               class="h-2 w-2 rounded-full"
               :class="{
                 'bg-primary-500': navigationState.activeIndex + 1 === index,
-                'bg-slate-300 dark:bg-slate-600': navigationState.activeIndex + 1 !== index,
+                'bg-slate-300 dark:bg-slate-600':
+                  navigationState.activeIndex + 1 !== index,
               }"
             />
           </div>
@@ -159,21 +173,40 @@ onBeforeUnmount(() => {
         <div class="md:col-span-3">
           <Transition name="fade-slide" mode="out-in">
             <UCard
-              v-if="profileCard && profileCard.status === 'active' && profileCard.payload"
+              v-if="
+                profileCard &&
+                profileCard.status === 'active' &&
+                profileCard.payload
+              "
               :key="'profile-active'"
               class="rounded-3xl border border-slate-200/70 bg-white/85 p-6 shadow-lg backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
             >
-              <div class="flex flex-col gap-4 text-left sm:flex-row sm:items-center">
-                <UserAvatar :name="profileCard.payload.displayName" :src="profileCard.payload.avatarUrl" size="lg" />
+              <div
+                class="flex flex-col gap-4 text-left sm:flex-row sm:items-center"
+              >
+                <UserAvatar
+                  :name="profileCard.payload.displayName"
+                  :src="profileCard.payload.avatarUrl"
+                  size="lg"
+                />
                 <div class="flex-1 space-y-2">
-                  <h2 class="text-xl font-semibold text-slate-900 dark:text-white">
-                    {{ profileCard.payload.displayName ?? profileCard.payload.email }}
+                  <h2
+                    class="text-xl font-semibold text-slate-900 dark:text-white"
+                  >
+                    {{
+                      profileCard.payload.displayName ??
+                      profileCard.payload.email
+                    }}
                   </h2>
                   <p class="text-sm text-slate-600 dark:text-slate-300">
                     邮箱：{{ profileCard.payload.email }}
                   </p>
                   <div class="flex flex-wrap gap-2">
-                    <UBadge v-if="profileCard.payload.piic" color="primary" variant="soft">
+                    <UBadge
+                      v-if="profileCard.payload.piic"
+                      color="primary"
+                      variant="soft"
+                    >
                       PIIC: {{ profileCard.payload.piic }}
                     </UBadge>
                     <UBadge
@@ -194,11 +227,17 @@ onBeforeUnmount(() => {
               :key="'profile-placeholder'"
               class="rounded-3xl border border-dashed border-slate-300/70 bg-white/70 p-6 text-center backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/60"
             >
-              <h2 class="text-xl font-semibold text-slate-900 dark:text-white">个人资料</h2>
+              <h2 class="text-xl font-semibold text-slate-900 dark:text-white">
+                个人资料
+              </h2>
               <p class="mt-2 text-sm text-slate-500 dark:text-slate-300">
                 立即登录以解锁个性化信息和 Minecraft 关联数据。
               </p>
-              <UButton class="mt-4" color="primary" @click="uiStore.openLoginDialog()">
+              <UButton
+                class="mt-4"
+                color="primary"
+                @click="uiStore.openLoginDialog()"
+              >
                 登录账户
               </UButton>
             </UCard>
@@ -213,7 +252,11 @@ onBeforeUnmount(() => {
           >
             <div class="flex items-center justify-between">
               <div>
-                <h3 class="text-base font-medium text-slate-900 dark:text-white">{{ card.title }}</h3>
+                <h3
+                  class="text-base font-medium text-slate-900 dark:text-white"
+                >
+                  {{ card.title }}
+                </h3>
                 <p class="text-xs text-slate-500 dark:text-slate-400">
                   功能设计中，敬请期待
                 </p>
@@ -226,9 +269,13 @@ onBeforeUnmount(() => {
     </section>
 
     <section class="mx-auto mt-16 w-full max-w-6xl px-4 pb-24">
-      <UCard class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70">
+      <UCard
+        class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
+      >
         <header class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold text-slate-900 dark:text-white">最新动态</h2>
+          <h2 class="text-xl font-semibold text-slate-900 dark:text-white">
+            最新动态
+          </h2>
           <UBadge color="primary" variant="soft">Beta</UBadge>
         </header>
         <p class="mt-4 text-sm text-slate-600 dark:text-slate-300">
@@ -249,5 +296,18 @@ onBeforeUnmount(() => {
 .fade-slide-leave-to {
   opacity: 0;
   transform: translateY(12px);
+}
+
+.bg-image {
+  mask:
+    linear-gradient(to bottom, rgba(255, 255, 255, 1), transparent 80%),
+    linear-gradient(
+      to right,
+      transparent 3%,
+      rgba(255, 255, 255, 1) 15% 85%,
+      transparent 97%
+    );
+  mask-composite: intersect;
+  -webkit-mask-composite: destination-in;
 }
 </style>

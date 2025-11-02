@@ -4,5 +4,5 @@ export default [
   {
     ignores: ['dist', 'node_modules'],
   },
-  ...vueTsConfig(),
+  ...vueTsConfig({ rootDir: import.meta.dirname }),
 ]
