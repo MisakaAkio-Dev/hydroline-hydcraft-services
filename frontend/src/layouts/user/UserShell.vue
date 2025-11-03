@@ -28,10 +28,9 @@ const mainNav = computed(() => {
   const links = [
     { name: '首页', to: '/', icon: 'i-lucide-home' },
     {
-      name: '个人资料',
+      name: '玩家档案',
       to: '/profile',
       icon: 'i-lucide-user-round',
-      requiresAuth: true,
     },
   ]
   if (authStore.permissionKeys.includes('auth.manage.users')) {
@@ -87,14 +86,14 @@ const navigationLinks = computed(() => home.value?.navigation ?? [])
 const userDropdownItems = computed(() => [
   [
     {
-      label: '个人资料',
+      label: '玩家档案',
       icon: 'i-lucide-user-round',
       click: () => routerPush('/profile'),
     },
     {
-      label: '网站偏好设置',
+      label: '用户偏好设置',
       icon: 'i-lucide-sliders-horizontal',
-      click: () => routerPush('/profile'),
+      click: () => routerPush('/profile/preferences'),
     },
   ],
   [
@@ -198,22 +197,21 @@ const routerPush = (path: string) => {
       <div class="flex items-center justify-end gap-2">
         <div v-if="authStore.isAuthenticated">
           <UPopover :popper="{ placement: 'bottom-end' }">
-            <template #anchor>
-              <button
-                class="flex items-center gap-2 rounded-full px-2 py-1 text-sm transition hover:bg-elevated"
-              >
-                <span
-                  class="hidden text-slate-700 dark:text-slate-200 sm:block"
-                >
-                  {{ authStore.displayName ?? authStore.user?.email ?? '用户' }}
-                </span>
-                <UserAvatar
-                  :src="userAvatarUrl"
-                  :name="authStore.displayName ?? authStore.user?.email"
-                  size="sm"
-                />
-              </button>
-            </template>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              class="flex items-center gap-2 rounded-full px-2 py-1 text-sm hover:bg-accented"
+            >
+              <span class="hidden text-slate-700 dark:text-slate-200 sm:block">
+                {{ authStore.displayName ?? authStore.user?.email ?? '用户' }}
+              </span>
+              <UserAvatar
+                :src="userAvatarUrl"
+                :name="authStore.displayName ?? authStore.user?.email"
+                size="sm"
+              />
+            </UButton>
             <template #content="{ close }">
               <div class="w-48 space-y-2 p-2">
                 <div
@@ -233,7 +231,7 @@ const routerPush = (path: string) => {
                     "
                     @click="handleDropdownItemClick(item.click, close)"
                   >
-                    <UIcon :name="item.icon" class="text-base h-6 w-6" />
+                    <UIcon :name="item.icon" class="text-base h-4 w-4" />
                     <span>{{ item.label }}</span>
                   </button>
                   <hr
@@ -259,7 +257,7 @@ const routerPush = (path: string) => {
             color="neutral"
             variant="ghost"
             size="xs"
-            class="h-9 w-9 rounded-full"
+            class="h-9 w-9 rounded-full hover:bg-accented"
             icon-only
           >
             <UIcon name="i-lucide-mail" class="h-6 w-6" />

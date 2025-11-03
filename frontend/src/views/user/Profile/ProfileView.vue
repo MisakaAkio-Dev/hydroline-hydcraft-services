@@ -1,25 +1,32 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
 
 const auth = useAuthStore()
+const ui = useUiStore()
 
+const isAuthenticated = computed(() => auth.isAuthenticated)
 const profile = computed(() => auth.user?.profile ?? {})
 const contacts = computed(() => auth.user?.contacts ?? [])
+
+function openLoginDialog() {
+  ui.openLoginDialog()
+}
 </script>
 
 <template>
   <section class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-16 pt-8">
     <header class="flex flex-col gap-2">
       <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
-        个人资料
+        玩家档案
       </h1>
       <p class="text-sm text-slate-600 dark:text-slate-300">
         后续将在此页面提供更完整的资料编辑能力，目前仅展示账号信息。
       </p>
     </header>
 
-    <div class="grid gap-6 md:grid-cols-[1.2fr_1fr]">
+    <div v-if="isAuthenticated" class="grid gap-6 md:grid-cols-[1.2fr_1fr]">
       <UCard class="bg-white/80 backdrop-blur-sm dark:bg-slate-900/60">
         <template #header>
           <div class="flex items-center justify-between">
@@ -98,5 +105,18 @@ const contacts = computed(() => auth.user?.contacts ?? [])
         </div>
       </UCard>
     </div>
+
+    <UCard
+      v-else
+      class="flex flex-col items-center gap-4 bg-white/80 py-12 text-center backdrop-blur-sm dark:bg-slate-900/60"
+    >
+      <h2 class="text-xl font-semibold text-slate-900 dark:text-white">
+        需要登录
+      </h2>
+      <p class="max-w-sm text-sm text-slate-600 dark:text-slate-300">
+        登录后即可查看您的玩家档案，了解账号与联系方式等信息。
+      </p>
+      <UButton color="primary" @click="openLoginDialog">立即登录</UButton>
+    </UCard>
   </section>
 </template>

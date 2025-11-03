@@ -17,7 +17,14 @@ export const userRoutes: RouteRecordRaw[] = [
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/user/Profile/ProfileView.vue'),
-        meta: { requiresAuth: true, layout: 'user' },
+        meta: { layout: 'user' },
+      },
+      {
+        path: 'profile/preferences',
+        name: 'profile.preferences',
+        component: () =>
+          import('@/views/user/Profile/ProfilePreferencesView.vue'),
+        meta: { layout: 'user' },
       },
       {
         path: 'error/404',
@@ -62,7 +69,8 @@ export const adminRoutes: RouteRecordRaw[] = [
       {
         path: 'attachments',
         name: 'admin.attachments',
-        component: () => import('@/views/admin/Attachments/AttachmentLibrary.vue'),
+        component: () =>
+          import('@/views/admin/Attachments/AttachmentLibrary.vue'),
         meta: {
           requiresAuth: true,
           requiresPermissions: ['assets.manage.attachments'],
