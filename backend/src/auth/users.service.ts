@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthmeService } from '../authme/authme.service';
 import { CreateLifecycleEventDto } from './dto/create-lifecycle-event.dto';
 import { CreateMinecraftProfileDto } from './dto/create-minecraft-profile.dto';
 import { CreateStatusEventDto } from './dto/create-status-event.dto';
@@ -26,7 +27,7 @@ type PrismaClientOrTx = PrismaService | Prisma.TransactionClient;
 export class UsersService {
   private readonly piicPrefix = 'HC';
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly authmeService: AuthmeService) {}
 
   async initializeUserRecords(
     userId: string,
@@ -98,6 +99,14 @@ export class UsersService {
           },
         });
       }
+
+      // Initialize joinDate if not set
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          joinDate: user.joinDate ?? user.createdAt,
+        },
+      });
 
       if (options.minecraftId) {
         const hasPrimary = await tx.userMinecraftProfile.findFirst({
@@ -173,6 +182,9 @@ export class UsersService {
         email: true,
         name: true,
         image: true,
+        joinDate: true,
+        lastLoginAt: true,
+        lastLoginIp: true,
         createdAt: true,
         updatedAt: true,
         profile: {
@@ -212,12 +224,13 @@ export class UsersService {
           },
           orderBy: { createdAt: 'asc' },
         },
-        authmeBinding: {
+        authmeBindings: {
           select: {
             authmeUsername: true,
             authmeRealname: true,
             boundAt: true,
           },
+          orderBy: { boundAt: 'asc' },
         },
         roles: {
           select: {
@@ -278,16 +291,52 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    return user;
+    // Enrich AuthMe bindings with latest data from AuthMe DB (ip/regip/lastlogin/regdate)
+    const enrichedBindings = await Promise.all(
+      (user.authmeBindings ?? []).map(async (b) => {
+        try {
+          const account = await this.authmeService.getAccount(b.authmeUsername);
+          return {
+            authmeUsername: b.authmeUsername,
+            authmeRealname: b.authmeRealname,
+            boundAt: b.boundAt,
+            ip: account?.ip ?? null,
+            regip: account?.regip ?? null,
+            lastlogin: account?.lastlogin ?? null,
+            regdate: account?.regdate ?? null,
+          } as const;
+        } catch {
+          return { ...b } as const;
+        }
+      }),
+    );
+
+    return {
+      ...user,
+      authmeBindings: enrichedBindings,
+    } as typeof user & { authmeBindings: typeof enrichedBindings };
   }
 
   async updateCurrentUser(userId: string, dto: UpdateCurrentUserDto) {
     await this.ensureUser(userId);
     const userUpdate: Prisma.UserUpdateInput = {};
+    const current = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, nameChangedAt: true },
+    });
 
     if (dto.name !== undefined) {
       const normalizedName = this.normalizeEmptyToNull(dto.name);
-      userUpdate.name = normalizedName ?? null;
+      const newName = normalizedName ?? null;
+      if (current && newName !== (current.name ?? null)) {
+        const lastChanged = current.nameChangedAt?.getTime?.() ?? null;
+        const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+        if (lastChanged && Date.now() - lastChanged < THIRTY_DAYS_MS) {
+          throw new BadRequestException('用户名每30天只能修改一次');
+        }
+        userUpdate.nameChangedAt = new Date();
+      }
+      userUpdate.name = newName;
     }
 
     if (dto.image !== undefined) {
@@ -343,6 +392,7 @@ export class UsersService {
       include: {
         profile: true,
         minecraftIds: true,
+        authmeBindings: true,
         statusSnapshot: {
           include: { event: true },
         },
@@ -375,6 +425,43 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    // Enrich AuthMe bindings with live data similar to getSessionUser
+    const enrichedBindings = await Promise.all(
+      (user.authmeBindings ?? []).map(async (b) => {
+        try {
+          const account = await this.authmeService.getAccount(b.authmeUsername);
+          return {
+            authmeUsername: b.authmeUsername,
+            authmeRealname: b.authmeRealname,
+            boundAt: b.boundAt,
+            ip: account?.ip ?? null,
+            regip: account?.regip ?? null,
+            lastlogin: account?.lastlogin ?? null,
+            regdate: account?.regdate ?? null,
+          } as const;
+        } catch {
+          return { ...b } as const;
+        }
+      }),
+    );
+
+    return {
+      ...user,
+      authmeBindings: enrichedBindings,
+    } as typeof user & { authmeBindings: typeof enrichedBindings };
+  }
+
+  async updateJoinDate(userId: string, joinDateIso: string) {
+    await this.ensureUser(userId);
+    const date = new Date(joinDateIso);
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('无效的入服日期');
+    }
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { joinDate: date },
+      select: { id: true, joinDate: true },
+    });
     return user;
   }
 
@@ -790,6 +877,11 @@ export class UsersService {
       'postalCode',
       'country',
       'phone',
+      // region fields (CN/HK/MO/TW)
+      'regionCountry',
+      'regionProvince',
+      'regionCity',
+      'regionDistrict',
     ];
     const normalized: Record<string, string> = {};
     for (const key of allowedKeys) {

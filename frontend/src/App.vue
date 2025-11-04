@@ -18,6 +18,9 @@ const showSessionLoader = computed(
 
 <template>
   <UApp :tooltip="appTooltipConfig">
+    <!-- Global providers for overlays and toasts -->
+    <UModals />
+    <UNotifications />
     <RouterView />
     <Transition
       appear

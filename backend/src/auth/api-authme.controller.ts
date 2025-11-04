@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Request } from 'express';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
@@ -14,7 +22,11 @@ export class ApiAuthmeController {
   @UseGuards(AuthGuard, AuthmeRateLimitGuard)
   async bind(@Body() dto: AuthmeBindDto, @Req() req: Request) {
     try {
-      const user = await this.authService.bindAuthme(req.user!.id, dto, buildRequestContext(req));
+      const user = await this.authService.bindAuthme(
+        req.user!.id,
+        dto,
+        buildRequestContext(req),
+      );
       return user;
     } catch (error) {
       rethrowAuthmeError(error);
@@ -23,9 +35,13 @@ export class ApiAuthmeController {
 
   @Delete('bind')
   @UseGuards(AuthGuard, AuthmeRateLimitGuard)
-  async unbind(@Req() req: Request) {
+  async unbind(@Req() req: Request, @Query('username') username?: string) {
     try {
-      const user = await this.authService.unbindAuthme(req.user!.id, buildRequestContext(req));
+      const user = await this.authService.unbindAuthme(
+        req.user!.id,
+        buildRequestContext(req),
+        username,
+      );
       return user;
     } catch (error) {
       rethrowAuthmeError(error);
@@ -35,7 +51,9 @@ export class ApiAuthmeController {
 
 function buildRequestContext(req: Request) {
   return {
-    ip: req.ip ?? req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim(),
+    ip:
+      req.ip ??
+      req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim(),
     userAgent: req.headers['user-agent'] ?? null,
   };
 }

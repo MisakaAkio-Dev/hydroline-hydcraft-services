@@ -10,12 +10,17 @@ export class AuthmeBindingService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  getBindingByUserId(userId: string) {
-    return this.prisma.userAuthmeBinding.findUnique({ where: { userId } });
+  listBindingsByUserId(userId: string) {
+    return this.prisma.userAuthmeBinding.findMany({
+      where: { userId },
+      orderBy: { boundAt: 'asc' },
+    });
   }
 
   getBindingByUsernameLower(authmeUsernameLower: string) {
-    return this.prisma.userAuthmeBinding.findUnique({ where: { authmeUsernameLower } });
+    return this.prisma.userAuthmeBinding.findUnique({
+      where: { authmeUsernameLower },
+    });
   }
 
   async bindUser(options: {
@@ -26,7 +31,9 @@ export class AuthmeBindingService {
   }) {
     const normalizedUsername = options.authmeUser.username.toLowerCase();
     return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.userAuthmeBinding.findUnique({ where: { authmeUsernameLower: normalizedUsername } });
+      const existing = await tx.userAuthmeBinding.findUnique({
+        where: { authmeUsernameLower: normalizedUsername },
+      });
       if (existing && existing.userId !== options.userId) {
         throw businessError({
           type: 'BUSINESS_VALIDATION_FAILED',
@@ -35,11 +42,12 @@ export class AuthmeBindingService {
         });
       }
 
+      // Upsert by unique username; if it exists for same user, update metadata; if not exists, create a new binding
       const binding = await tx.userAuthmeBinding.upsert({
-        where: { userId: options.userId },
+        where: { authmeUsernameLower: normalizedUsername },
         update: {
+          userId: options.userId,
           authmeUsername: options.authmeUser.username,
-          authmeUsernameLower: normalizedUsername,
           authmeRealname: options.authmeUser.realname,
           boundAt: new Date(),
           boundByUserId: options.operatorUserId ?? options.userId,
@@ -73,24 +81,56 @@ export class AuthmeBindingService {
     });
   }
 
-  async unbindUser(options: { userId: string; operatorUserId?: string; sourceIp?: string | null }) {
+  async unbindUser(options: {
+    userId: string;
+    usernameLower?: string;
+    operatorUserId?: string;
+    sourceIp?: string | null;
+  }) {
     return this.prisma.$transaction(async (tx) => {
-      const binding = await tx.userAuthmeBinding.findUnique({ where: { userId: options.userId } });
-      if (!binding) {
-        return null;
+      if (options.usernameLower) {
+        const target = await tx.userAuthmeBinding.findUnique({
+          where: { authmeUsernameLower: options.usernameLower },
+        });
+        if (!target || target.userId !== options.userId) {
+          return null;
+        }
+        await tx.userAuthmeBinding.delete({
+          where: { authmeUsernameLower: options.usernameLower },
+        });
+        await tx.userLifecycleEvent.create({
+          data: {
+            userId: options.userId,
+            eventType: LifecycleEventType.ACCOUNT_UNBIND,
+            occurredAt: new Date(),
+            source: 'authme-binding',
+            metadata: this.toJson({ authmeUsername: target.authmeUsername }),
+            createdById: options.operatorUserId ?? options.userId,
+          },
+        });
+        return target;
       }
-      await tx.userAuthmeBinding.delete({ where: { userId: options.userId } });
-      await tx.userLifecycleEvent.create({
-        data: {
-          userId: options.userId,
-          eventType: LifecycleEventType.ACCOUNT_UNBIND,
-          occurredAt: new Date(),
-          source: 'authme-binding',
-          metadata: this.toJson({ authmeUsername: binding.authmeUsername }),
-          createdById: options.operatorUserId ?? options.userId,
-        },
+
+      const bindings = await tx.userAuthmeBinding.findMany({
+        where: { userId: options.userId },
       });
-      return binding;
+      if (bindings.length === 0) return null;
+      await tx.userAuthmeBinding.deleteMany({
+        where: { userId: options.userId },
+      });
+      for (const b of bindings) {
+        await tx.userLifecycleEvent.create({
+          data: {
+            userId: options.userId,
+            eventType: LifecycleEventType.ACCOUNT_UNBIND,
+            occurredAt: new Date(),
+            source: 'authme-binding',
+            metadata: this.toJson({ authmeUsername: b.authmeUsername }),
+            createdById: options.operatorUserId ?? options.userId,
+          },
+        });
+      }
+      return bindings[0];
     });
   }
 

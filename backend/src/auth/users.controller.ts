@@ -25,6 +25,7 @@ import { CreateUserContactDto } from './dto/create-user-contact.dto';
 import { UpdateUserContactDto } from './dto/update-user-contact.dto';
 import { RegeneratePiicDto } from './dto/regenerate-piic.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
+import { UpdateJoinDateDto } from './dto/update-join-date.dto';
 
 @Controller('auth/users')
 @UseGuards(AuthGuard, PermissionsGuard)
@@ -53,6 +54,12 @@ export class UsersController {
   @Patch(':userId/profile')
   async updateProfile(@Param('userId') userId: string, @Body() dto: UpdateUserProfileDto) {
     return this.usersService.updateProfile(userId, dto);
+  }
+
+  // Update user's in-game join date (admin only). Registration time is immutable.
+  @Patch(':userId/join-date')
+  async updateJoinDate(@Param('userId') userId: string, @Body() dto: UpdateJoinDateDto) {
+    return this.usersService.updateJoinDate(userId, dto.joinDate);
   }
 
   @Post(':userId/minecraft-profiles')

@@ -2,6 +2,14 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import ProfileHeader from './components/ProfileHeader.vue'
+import EditBanner from './components/EditBanner.vue'
+import ProfileSidebar from './components/ProfileSidebar.vue'
+import BasicSection from './components/sections/BasicSection.vue'
+import AddressSection from './components/sections/AddressSection.vue'
+import MinecraftSection from './components/sections/MinecraftSection.vue'
+import AuthmeBindDialog from './components/AuthmeBindDialog.vue'
+import { getTimezones } from '@/utils/timezones'
 import {
   useAuthStore,
   type GenderType,
@@ -27,6 +35,10 @@ type FormState = {
   postalCode: string
   country: string
   phone: string
+  regionCountry?: string
+  regionProvince?: string
+  regionCity?: string
+  regionDistrict?: string
 }
 
 type SectionKey = 'basic' | 'address' | 'minecraft'
@@ -59,8 +71,6 @@ const genderOptions: Array<{ label: string; value: GenderType }> = [
   { label: '未指定', value: 'UNSPECIFIED' },
   { label: '男性', value: 'MALE' },
   { label: '女性', value: 'FEMALE' },
-  { label: '非二元', value: 'NON_BINARY' },
-  { label: '其他', value: 'OTHER' },
 ]
 
 const addressFields = [
@@ -87,7 +97,7 @@ const sections: Array<{
   },
   {
     id: 'minecraft',
-    label: 'Minecraft 账户',
+    label: '服务器账户',
   },
 ]
 
@@ -191,12 +201,20 @@ const form = reactive<FormState>({
   postalCode: '',
   country: '',
   phone: '',
+  regionCountry: '',
+  regionProvince: '',
+  regionCity: '',
+  regionDistrict: '',
 })
 
 const authmeBindingForm = reactive({
   authmeId: '',
   password: '',
 })
+
+const timezoneOptions = ref<string[]>(getTimezones())
+const languageOptions = ref([{ label: '中文（简体）', value: 'zh-CN' }])
+const showBindDialog = ref(false)
 
 const hasChanges = computed(() => serializeForm() !== initialSnapshot.value)
 const canSubmit = computed(
@@ -214,9 +232,36 @@ const currentSection = computed(
 )
 
 const bindingEnabled = computed(() => featureStore.flags.authmeBindingEnabled)
-const authmeBinding = computed(
-  () => (auth.user as Record<string, any> | null)?.authmeBinding ?? null,
-)
+const authmeBindings = computed(() => {
+  const user = auth.user as Record<string, any> | null
+  const single = (user as any)?.authmeBinding ?? null
+  const many = (user as any)?.authmeBindings ?? null
+  if (Array.isArray(many)) {
+    return many.map((b: any) => ({
+      username: b.authmeUsername,
+      realname: b.authmeRealname ?? null,
+      boundAt: b.boundAt ?? null,
+      ip: b.ip ?? null,
+      regip: b.regip ?? null,
+      lastlogin: b.lastlogin ?? null,
+      regdate: b.regdate ?? null,
+    }))
+  }
+  if (single) {
+    return [
+      {
+        username: single.authmeUsername,
+        realname: single.authmeRealname ?? null,
+        boundAt: single.boundAt ?? null,
+        ip: single.ip ?? null,
+        regip: single.regip ?? null,
+        lastlogin: single.lastlogin ?? null,
+        regdate: single.regdate ?? null,
+      },
+    ]
+  }
+  return []
+})
 
 const avatarUrl = computed(() => {
   const user = auth.user as Record<string, any> | null
@@ -231,10 +276,29 @@ const lastSyncedText = computed(() => {
   return dayjs(lastSyncedAt.value).format('YYYY年MM月DD日 HH:mm')
 })
 
-const joinedText = computed(() => {
+const registeredText = computed(() => {
   const user = auth.user as Record<string, any> | null
   if (!user?.createdAt) return ''
-  return dayjs(user.createdAt).format('YYYY年M月D日')
+  return dayjs(user.createdAt).format('YYYY年M月D日 HH:mm')
+})
+
+const joinedText = computed(() => {
+  const user = auth.user as Record<string, any> | null
+  const joinDate = (user as any)?.joinDate ?? user?.createdAt
+  if (!joinDate) return ''
+  return dayjs(joinDate).format('YYYY年M月D日')
+})
+
+const lastLoginText = computed(() => {
+  const user = auth.user as Record<string, any> | null
+  const t = (user as any)?.lastLoginAt
+  if (!t) return ''
+  return dayjs(t).format('YYYY年MM月DD日 HH:mm')
+})
+
+const lastLoginIp = computed(() => {
+  const user = auth.user as Record<string, any> | null
+  return ((user as any)?.lastLoginIp as string | null) ?? null
 })
 
 const genderLabelMap = computed(() =>
@@ -328,6 +392,15 @@ function populateForm(user: Record<string, any>) {
       extra && typeof extra[key] === 'string' ? (extra[key] as string) : ''
     form[key] = value
   }
+  // region in extra.region
+  const region =
+    extra && typeof (extra['region'] as any) === 'object'
+      ? (extra['region'] as Record<string, any>)
+      : null
+  form.regionCountry = (region?.country as string) || ''
+  form.regionProvince = (region?.province as string) || ''
+  form.regionCity = (region?.city as string) || ''
+  form.regionDistrict = (region?.district as string) || ''
   lastSyncedAt.value = user.updatedAt ?? null
   initialSnapshot.value = serializeForm()
 }
@@ -391,14 +464,14 @@ async function submitAuthmeBinding() {
   }
 }
 
-async function handleUnbindAuthme() {
+async function handleUnbindAuthme(_username?: string) {
   if (!isEditing.value) {
     return
   }
   bindingError.value = ''
   bindingLoading.value = true
   try {
-    await auth.unbindAuthme()
+    await auth.unbindAuthme(_username)
     toast.add({ title: '已解除绑定', color: 'warning' })
   } catch (error) {
     if (error instanceof ApiError) {
@@ -427,6 +500,10 @@ function serializeForm() {
     postalCode: form.postalCode.trim(),
     country: form.country.trim(),
     phone: form.phone.trim(),
+    regionCountry: form.regionCountry?.trim() ?? '',
+    regionProvince: form.regionProvince?.trim() ?? '',
+    regionCity: form.regionCity?.trim() ?? '',
+    regionDistrict: form.regionDistrict?.trim() ?? '',
   })
 }
 
@@ -494,6 +571,25 @@ function buildPayload(): UpdateCurrentUserPayload {
     if (newValue) {
       extraPayload[key] = newValue
     }
+  }
+  // region
+  const regionExisting = (existingExtra['region'] ?? {}) as Record<string, string>
+  const regionPayload = {
+    country: form.regionCountry || undefined,
+    province: form.regionProvince || undefined,
+    city: form.regionCity || undefined,
+    district: form.regionDistrict || undefined,
+  }
+  const regionChanged = (
+    (regionExisting?.country ?? '') !== (regionPayload.country ?? '') ||
+    (regionExisting?.province ?? '') !== (regionPayload.province ?? '') ||
+    (regionExisting?.city ?? '') !== (regionPayload.city ?? '') ||
+    (regionExisting?.district ?? '') !== (regionPayload.district ?? '')
+  )
+  const hasRegion = !!(regionPayload.country || regionPayload.province || regionPayload.city || regionPayload.district)
+  if (regionChanged || hasRegion) {
+    extraChanged = true
+    ;(extraPayload as any).region = regionPayload
   }
   if (extraChanged) {
     payload.extra = extraPayload
@@ -596,418 +692,67 @@ function handleError(error: unknown, fallback: string) {
 <template>
   <section class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-16 pt-8">
     <div v-if="isAuthenticated" class="space-y-6">
-      <div
-        class="rounded-3xl border border-slate-200/70 bg-linear-to-r from-white/90 via-white/85 to-white/90 p-px shadow-sm backdrop-blur dark:border-slate-800/70 dark:from-slate-900/80 dark:via-slate-900/85 dark:to-slate-900/80"
-      >
-        <div
-          class="rounded-[calc(1.5rem-1px)] bg-white/95 p-6 dark:bg-slate-950/80 md:p-8"
-        >
-          <div
-            class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between"
-          >
-            <div class="flex items-center gap-4">
-              <UserAvatar
-                :src="avatarUrl"
-                :name="auth.displayName ?? auth.user?.email"
-                size="lg"
-              />
-              <div>
-                <p
-                  class="text-xs font-semibold uppercase tracking-wide text-primary-500"
-                >
-                  Hydroline 账户
-                </p>
-                <h2
-                  class="mt-1 text-xl font-semibold text-slate-900 dark:text-white"
-                >
-                  {{ (auth.displayName ?? form.email) || '用户' }}
-                </h2>
-                <p class="text-sm text-slate-600 dark:text-slate-300">
-                  {{ form.email }}
-                </p>
-              </div>
-            </div>
-            <div
-              class="flex flex-col items-start gap-3 text-sm text-slate-500 md:items-end"
-            >
-              <div class="flex items-center gap-2">
-                <UIcon name="i-lucide-history" class="h-4 w-4" />
-                <span>最后同步：{{ lastSyncedText }}</span>
-              </div>
-              <div v-if="joinedText" class="flex items-center gap-2">
-                <UIcon name="i-lucide-calendar" class="h-4 w-4" />
-                <span>加入于 {{ joinedText }}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <UButton
-                  variant="ghost"
-                  size="xs"
-                  :disabled="loading"
-                  icon="i-lucide-refresh-cw"
-                  @click="loadUser"
-                >
-                  重新同步
-                </UButton>
-                <UBadge
-                  v-if="saving"
-                  color="primary"
-                  variant="soft"
-                  class="animate-pulse"
-                >
-                  正在保存…
-                </UBadge>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ProfileHeader
+        :avatar-url="avatarUrl"
+        :display-name="auth.displayName ?? form.email"
+        :email="form.email"
+        :last-synced-text="lastSyncedText"
+        :joined-text="joinedText"
+        :registered-text="registeredText"
+        :last-login-text="lastLoginText"
+        :last-login-ip="lastLoginIp"
+        :loading="loading"
+        @refresh="loadUser"
+      />
 
-      <form
-        id="profile-form"
-        class="flex flex-col gap-6 transition-opacity"
-        :class="{ 'pointer-events-none opacity-60': loading && !saving }"
-        @submit.prevent="handleSave"
-      >
+      <form id="profile-form" class="flex flex-col gap-6 transition-opacity" :class="{ 'pointer-events-none opacity-60': loading && !saving }" @submit.prevent="handleSave">
         <Transition name="fade">
-          <div
-            v-if="isEditing"
-            class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary-200/70 bg-primary-50/80 px-4 py-3 text-sm text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200"
-          >
-            <div class="flex items-center gap-2">
-              <UIcon name="i-lucide-pencil" class="h-4 w-4" />
-              <span>已进入编辑模式</span>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <span
-                v-if="hasChanges"
-                class="text-xs text-primary-600/80 dark:text-primary-200/80"
-              >
-                检测到未保存的修改
-              </span>
-              <UButton type="button" variant="ghost" @click="cancelEditing">
-                取消
-              </UButton>
-              <UButton
-                type="submit"
-                color="primary"
-                :loading="saving"
-                :disabled="!canSubmit"
-              >
-                保存更改
-              </UButton>
-            </div>
-          </div>
+          <EditBanner v-if="isEditing" :has-changes="hasChanges" :saving="saving" @cancel="cancelEditing" @save="handleSave" />
         </Transition>
 
         <div class="flex flex-col gap-6 lg:flex-row">
-          <aside
-            class="w-full shrink-0 rounded-2xl py-4 backdrop-blur-sm lg:w-50"
-          >
-            <nav class="flex flex-row gap-2 overflow-x-auto lg:flex-col">
-              <button
-                v-for="section in sections"
-                :key="section.id"
-                type="button"
-                class="group flex-1 rounded-2xl px-4 py-3 text-left text-sm transition lg:flex-auto"
-                :class="[
-                  activeSection === section.id
-                    ? 'bg-primary-100/80 text-primary-700 dark:bg-primary-500/15 dark:text-primary-200'
-                    : 'text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-slate-800/60',
-                ]"
-                @click="activeSection = section.id"
-              >
-                <div class="font-semibold">
-                  {{ section.label }}
-                </div>
-              </button>
-            </nav>
-          </aside>
+          <ProfileSidebar :items="sections" :active-id="activeSection" @update:active-id="(id:string)=>activeSection = id as any" />
 
-          <div
-            class="flex-1 rounded-2xl border border-slate-200/70 bg-white/85 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60"
-          >
-            <div
-              class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-5 dark:border-slate-800/70"
-            >
+          <div class="flex-1 rounded-2xl border border-slate-200/70 bg-white/85 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-5 dark:border-slate-800/70">
               <div>
-                <h2
-                  class="text-lg font-semibold text-slate-900 dark:text-white"
-                >
-                  {{ currentSection.label }}
-                </h2>
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">{{ currentSection.label }}</h2>
               </div>
-              <UButton
-                v-if="!isEditing"
-                type="button"
-                color="primary"
-                variant="soft"
-                :disabled="loading"
-                @click="startEditing"
-              >
-                编辑
-              </UButton>
+              <UButton v-if="!isEditing" type="button" color="primary" variant="soft" :disabled="loading" @click="startEditing">编辑</UButton>
             </div>
 
             <div class="px-6 py-6">
-              <div v-if="activeSection === 'basic'" class="space-y-4">
-                <div
-                  v-for="field in basicFields"
-                  :key="field.key"
-                  class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 transition hover:bg-slate-50/50 dark:hover:bg-slate-800/40 md:flex-row md:items-center md:gap-6"
-                  :class="
-                    isFieldEditable(field)
-                      ? 'bg-slate-50/70 dark:bg-slate-800/40'
-                      : ''
-                  "
-                >
-                  <div
-                    class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
-                  >
-                    {{ field.label }}
-                  </div>
-                  <div class="flex-1">
-                    <template v-if="isFieldEditable(field)">
-                      <USelectMenu
-                        v-if="field.key === 'gender'"
-                        v-model="form.gender"
-                        :options="genderOptions"
-                        value-attribute="value"
-                        option-attribute="label"
-                        class="w-full"
-                        :popper="{ placement: 'bottom-start' }"
-                      />
-                      <UTextarea
-                        v-else-if="field.component === 'textarea'"
-                        v-model="form[field.key]"
-                        :rows="3"
-                        :placeholder="field.placeholder"
-                      />
-                      <UInput
-                        v-else
-                        v-model="form[field.key]"
-                        :type="field.inputType ?? 'text'"
-                        :placeholder="field.placeholder"
-                      />
-                    </template>
-                    <template v-else>
-                      <p
-                        class="text-sm"
-                        :class="[
-                          field.component === 'textarea'
-                            ? 'whitespace-pre-line'
-                            : 'whitespace-normal',
-                          formatFieldValue(field) === '未填写'
-                            ? 'text-slate-400 italic'
-                            : 'text-slate-900 dark:text-slate-100',
-                        ]"
-                      >
-                        {{ formatFieldValue(field) }}
-                      </p>
-                    </template>
-                  </div>
-                </div>
-              </div>
+              <BasicSection
+                v-if="activeSection === 'basic'"
+                :model-value="{ name: form.name, displayName: form.displayName, email: form.email, gender: form.gender, birthday: form.birthday, motto: form.motto, timezone: form.timezone, locale: form.locale }"
+                :is-editing="isEditing"
+                :gender-options="genderOptions"
+                :timezone-options="timezoneOptions"
+                :language-options="languageOptions"
+                @update:model-value="(v:any)=>{ form.name=v.name; form.displayName=v.displayName; form.gender=v.gender; form.birthday=v.birthday; form.motto=v.motto; form.timezone=v.timezone; form.locale=v.locale }"
+              />
 
-              <div v-else-if="activeSection === 'address'" class="space-y-4">
-                <div
-                  v-for="field in addressFieldDefinitions"
-                  :key="field.key"
-                  class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 transition hover:bg-slate-50/50 dark:hover:bg-slate-800/40 md:flex-row md:items-center md:gap-6"
-                  :class="
-                    isFieldEditable(field)
-                      ? 'bg-slate-50/70 dark:bg-slate-800/40'
-                      : ''
-                  "
-                >
-                  <div
-                    class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
-                  >
-                    {{ field.label }}
-                  </div>
-                  <div class="flex-1">
-                    <template v-if="isFieldEditable(field)">
-                      <UTextarea
-                        v-if="field.component === 'textarea'"
-                        v-model="form[field.key]"
-                        :rows="3"
-                        :placeholder="field.placeholder"
-                      />
-                      <UInput
-                        v-else
-                        v-model="form[field.key]"
-                        :type="field.inputType ?? 'text'"
-                        :placeholder="field.placeholder"
-                      />
-                    </template>
-                    <template v-else>
-                      <p
-                        class="text-sm"
-                        :class="[
-                          formatFieldValue(field) === '未填写'
-                            ? 'text-slate-400 italic'
-                            : 'text-slate-900 dark:text-slate-100',
-                        ]"
-                      >
-                        {{ formatFieldValue(field) }}
-                      </p>
-                    </template>
-                  </div>
-                </div>
-              </div>
+              <AddressSection
+                v-else-if="activeSection === 'address'"
+                :model-value="{ addressLine1: form.addressLine1, addressLine2: form.addressLine2, city: form.city, state: form.state, postalCode: form.postalCode, country: form.country, phone: form.phone, region: { country: (form.regionCountry as any) || 'OTHER', province: form.regionProvince, city: form.regionCity, district: form.regionDistrict } }"
+                :is-editing="isEditing"
+                @update:model-value="(v:any)=>{ form.addressLine1=v.addressLine1; form.addressLine2=v.addressLine2; form.city=v.city; form.state=v.state; form.postalCode=v.postalCode; form.country=v.country; form.phone=v.phone; form.regionCountry=v.region.country; form.regionProvince=v.region.province; form.regionCity=v.region.city; form.regionDistrict=v.region.district }"
+              />
 
-              <div v-else class="space-y-4">
-                <div
-                  class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 md:flex-row md:items-center md:gap-6"
-                >
-                  <div
-                    class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
-                  >
-                    绑定状态
-                  </div>
-                  <div
-                    class="flex-1 text-sm text-slate-900 dark:text-slate-100"
-                  >
-                    {{
-                      authmeBinding
-                        ? '已绑定一个 AuthMe 账号'
-                        : '尚未绑定 AuthMe 账号'
-                    }}
-                  </div>
-                </div>
-
-                <template v-if="authmeBinding">
-                  <div
-                    class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 md:flex-row md:items-center md:gap-6"
-                  >
-                    <div
-                      class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
-                    >
-                      绑定账号
-                    </div>
-                    <div
-                      class="flex-1 text-sm text-slate-900 dark:text-slate-100"
-                    >
-                      {{ authmeBinding.authmeRealname }}
-                    </div>
-                  </div>
-                  <div
-                    class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 md:flex-row md:items-center md:gap-6"
-                  >
-                    <div
-                      class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
-                    >
-                      绑定时间
-                    </div>
-                    <div
-                      class="flex-1 text-sm text-slate-900 dark:text-slate-100"
-                    >
-                      {{
-                        authmeBinding.boundAt
-                          ? new Date(authmeBinding.boundAt).toLocaleString()
-                          : '—'
-                      }}
-                    </div>
-                  </div>
-                  <div
-                    v-if="isEditing"
-                    class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 md:flex-row md:items-center md:gap-6"
-                  >
-                    <div
-                      class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
-                    >
-                      操作
-                    </div>
-                    <div class="flex flex-1 items-center gap-3 text-sm">
-                      <UButton
-                        type="button"
-                        color="primary"
-                        variant="outline"
-                        :loading="bindingLoading"
-                        @click="handleUnbindAuthme"
-                      >
-                        解除绑定
-                      </UButton>
-                      <span class="text-xs text-slate-500 dark:text-slate-400">
-                        解绑后可再次绑定其他账号。
-                      </span>
-                    </div>
-                  </div>
-                </template>
-
-                <template v-else>
-                  <div
-                    v-if="isEditing"
-                    class="space-y-4 rounded-xl border border-dashed border-slate-200/70 px-4 py-4 dark:border-slate-700"
-                  >
-                    <div class="flex flex-col gap-2">
-                      <label
-                        class="text-sm font-medium text-slate-600 dark:text-slate-300"
-                      >
-                        AuthMe 账号
-                        <UInput
-                          v-model="authmeBindingForm.authmeId"
-                          class="mt-2"
-                          placeholder="用户名或 RealName"
-                        />
-                      </label>
-                      <label
-                        class="text-sm font-medium text-slate-600 dark:text-slate-300"
-                      >
-                        AuthMe 密码
-                        <UInput
-                          v-model="authmeBindingForm.password"
-                          class="mt-2"
-                          type="password"
-                          placeholder="请输入 AuthMe 密码"
-                        />
-                      </label>
-                    </div>
-                    <div
-                      v-if="bindingError"
-                      class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
-                    >
-                      {{ bindingError }}
-                    </div>
-                    <UButton
-                      type="button"
-                      color="primary"
-                      :loading="bindingLoading"
-                      :disabled="!bindingEnabled"
-                      @click="submitAuthmeBinding"
-                    >
-                      绑定 AuthMe 账号
-                    </UButton>
-                    <div
-                      v-if="!bindingEnabled"
-                      class="rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
-                    >
-                      当前暂未开放绑定能力，如需绑定请联系管理员。
-                    </div>
-                  </div>
-                  <div
-                    v-else
-                    class="rounded-xl border border-dashed border-slate-200/70 px-4 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400"
-                  >
-                    尚未绑定 AuthMe 账号。点击右上角的“编辑”后可发起绑定。
-                  </div>
-                </template>
+              <div v-else>
+                <MinecraftSection :bindings="authmeBindings" :is-editing="isEditing" :loading="bindingLoading" @add="showBindDialog = true" @unbind="handleUnbindAuthme" />
               </div>
             </div>
           </div>
         </div>
+
+        <AuthmeBindDialog :open="showBindDialog" :loading="bindingLoading" @close="showBindDialog = false" @submit="(p)=>{ authmeBindingForm.authmeId = p.authmeId; authmeBindingForm.password = p.password; submitAuthmeBinding() }" />
       </form>
     </div>
 
-    <UCard
-      v-else
-      class="flex flex-col items-center gap-4 bg-white/85 py-12 text-center shadow-sm backdrop-blur-sm dark:bg-slate-900/65"
-    >
-      <h2 class="text-xl font-semibold text-slate-900 dark:text-white">
-        需要登录
-      </h2>
-      <p class="max-w-sm text-sm text-slate-600 dark:text-slate-300">
-        登录后即可完善个人资料与联系地址，确保服务体验与通知准确触达。
-      </p>
+    <UCard v-else class="flex flex-col items-center gap-4 bg-white/85 py-12 text-center shadow-sm backdrop-blur-sm dark:bg-slate-900/65">
+      <h2 class="text-xl font-semibold text-slate-900 dark:text-white">需要登录</h2>
+      <p class="max-w-sm text-sm text-slate-600 dark:text-slate-300">登录后即可完善个人资料与联系地址，确保服务体验与通知准确触达。</p>
       <UButton color="primary" @click="openLoginDialog">立即登录</UButton>
     </UCard>
   </section>

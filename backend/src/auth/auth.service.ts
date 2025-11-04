@@ -182,13 +182,14 @@ export class AuthService {
     return { user };
   }
 
-  async unbindAuthme(userId: string, context: RequestContext = {}) {
+  async unbindAuthme(userId: string, context: RequestContext = {}, username?: string) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeBindingEnabled) {
       throw new BadRequestException('当前环境未启用 AuthMe 绑定');
     }
     await this.authmeBindingService.unbindUser({
       userId,
+      usernameLower: username?.toLowerCase(),
       operatorUserId: userId,
       sourceIp: context.ip ?? null,
     });
@@ -380,6 +381,14 @@ export class AuthService {
         expiresAt: new Date(Date.now() + ttl),
         ipAddress: context.ip ?? null,
         userAgent: context.userAgent ?? null,
+      },
+    });
+    // Update user's last login information
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        lastLoginAt: new Date(),
+        lastLoginIp: context.ip ?? null,
       },
     });
     const user = await this.usersService.getSessionUser(userId);

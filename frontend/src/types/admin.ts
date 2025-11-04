@@ -30,6 +30,31 @@ export interface AdminUserListResponse {
   };
 }
 
+export interface AdminAuthmeBindingEntry {
+  authmeUsername: string;
+  authmeRealname: string | null;
+  boundAt: string;
+  ip?: string | null;
+  regip?: string | null;
+  lastlogin?: number | null;
+  regdate?: number | null;
+}
+
+export interface AdminUserDetail extends AdminUserListItem {
+  joinDate: string | null;
+  lastLoginAt: string | null;
+  lastLoginIp: string | null;
+  profile: (AdminUserListItem['profile'] & {
+    birthday?: string | null;
+    gender?: string | null;
+    motto?: string | null;
+    timezone?: string | null;
+    locale?: string | null;
+    extra?: unknown;
+  }) | null;
+  authmeBindings: AdminAuthmeBindingEntry[];
+}
+
 export interface AdminAttachmentSummary {
   id: string;
   name: string;

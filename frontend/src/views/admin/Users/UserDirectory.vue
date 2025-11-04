@@ -79,6 +79,7 @@ async function goToPage(page: number) {
             <th class="px-4 py-3">角色</th>
             <th class="px-4 py-3">Minecraft</th>
             <th class="px-4 py-3">注册时间</th>
+            <th class="px-4 py-3">操作</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800/70">
@@ -114,9 +115,14 @@ async function goToPage(page: number) {
             <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
               {{ new Date(item.createdAt).toLocaleString() }}
             </td>
+            <td class="px-4 py-3">
+              <RouterLink :to="{ name: 'admin.users.detail', params: { userId: item.id } }">
+                <UButton color="primary" size="xs" variant="soft">查看</UButton>
+              </RouterLink>
+            </td>
           </tr>
           <tr v-if="rows.length === 0">
-            <td colspan="5" class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+            <td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
               未查询到符合条件的用户。
             </td>
           </tr>
