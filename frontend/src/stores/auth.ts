@@ -32,6 +32,22 @@ type UpdateCurrentUserPayload = {
 
 export type { GenderType, UpdateCurrentUserPayload }
 
+type AuthLoginPayload =
+  | { mode: 'EMAIL'; email: string; password: string; rememberMe?: boolean }
+  | { mode: 'AUTHME'; authmeId: string; password: string; rememberMe?: boolean }
+
+type AuthRegisterPayload =
+  | {
+      mode: 'EMAIL'
+      email: string
+      password: string
+      name?: string
+      minecraftId?: string
+      minecraftNick?: string
+      rememberMe?: boolean
+    }
+  | { mode: 'AUTHME'; authmeId: string; password: string; rememberMe?: boolean }
+
 function readStoredValue(key: string): string | null {
   if (typeof window === 'undefined') {
     return null
@@ -169,30 +185,49 @@ export const useAuthStore = defineStore('auth', {
         initializePromise = null
       }
     },
-    async signIn(payload: { email: string; password: string; rememberMe?: boolean }) {
+    async register(payload: AuthRegisterPayload) {
       this.loading = true
       try {
         const result = await apiFetch<{
-          tokens: { accessToken: string; refreshToken: string | null }
+          tokens: { accessToken: string | null; refreshToken: string | null }
           user: RawUser
-        }>(
-          '/auth/signin',
-          {
-            method: 'POST',
-            body: {
-              email: payload.email,
-              password: payload.password,
-              rememberMe: payload.rememberMe ?? false,
-            },
-          },
-        )
-        this.setToken(result.tokens.accessToken)
+        }>('/api/auth/register', {
+          method: 'POST',
+          body: payload,
+        })
+        this.setToken(result.tokens.accessToken ?? null)
         this.setRefreshToken(result.tokens.refreshToken ?? null)
         this.setUser(result.user)
         return result.user
       } finally {
         this.loading = false
       }
+    },
+    async login(payload: AuthLoginPayload) {
+      this.loading = true
+      try {
+        const result = await apiFetch<{
+          tokens: { accessToken: string | null; refreshToken: string | null }
+          user: RawUser
+        }>('/api/auth/login', {
+          method: 'POST',
+          body: payload,
+        })
+        this.setToken(result.tokens.accessToken ?? null)
+        this.setRefreshToken(result.tokens.refreshToken ?? null)
+        this.setUser(result.user)
+        return result.user
+      } finally {
+        this.loading = false
+      }
+    },
+    async signIn(payload: { email: string; password: string; rememberMe?: boolean }) {
+      return this.login({
+        mode: 'EMAIL',
+        email: payload.email,
+        password: payload.password,
+        rememberMe: payload.rememberMe,
+      })
     },
     async signOut() {
       if (!this.token) {
@@ -284,6 +319,29 @@ export const useAuthStore = defineStore('auth', {
         method: 'PATCH',
         token: this.token,
         body: payload,
+      })
+      this.setUser(result.user)
+      return result.user
+    },
+    async bindAuthme(payload: { authmeId: string; password: string }) {
+      if (!this.token) {
+        throw new ApiError(401, '未登录')
+      }
+      const result = await apiFetch<{ user: RawUser }>('/api/authme/bind', {
+        method: 'POST',
+        token: this.token,
+        body: payload,
+      })
+      this.setUser(result.user)
+      return result.user
+    },
+    async unbindAuthme() {
+      if (!this.token) {
+        throw new ApiError(401, '未登录')
+      }
+      const result = await apiFetch<{ user: RawUser }>('/api/authme/bind', {
+        method: 'DELETE',
+        token: this.token,
       })
       this.setUser(result.user)
       return result.user

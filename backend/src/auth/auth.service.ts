@@ -10,7 +10,15 @@ import { SignInDto } from './dto/sign-in.dto';
 import { SignUpDto } from './dto/sign-up.dto';
 import { UsersService } from './users.service';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { generateRandomString, hashPassword } from 'better-auth/crypto';
+import { generateRandomString } from 'better-auth/crypto';
+import { hashPassword } from 'better-auth/crypto';
+import { AuthRegisterDto } from './dto/auth-register.dto';
+import { AuthLoginDto } from './dto/auth-login.dto';
+import { AuthmeBindDto } from './dto/authme-bind.dto';
+import { AuthmeService } from '../authme/authme.service';
+import { AuthmeBindingService } from '../authme/authme-binding.service';
+import { AuthFeatureService, AuthFeatureFlags } from '../authme/auth-feature.service';
+import { businessError } from '../authme/authme.errors';
 
 interface AuthResponse {
   token: string | null;
@@ -23,12 +31,35 @@ interface AuthResponse {
   refreshToken?: string | null;
 }
 
+interface RequestContext {
+  ip?: string | null;
+  userAgent?: string | null;
+}
+
+interface AuthOperationResult {
+  tokens: { accessToken: string | null; refreshToken: string | null };
+  user: Awaited<ReturnType<UsersService['getSessionUser']>>;
+  cookies: string[];
+}
+
+interface SignUpInternalInput {
+  email: string;
+  password: string;
+  name: string;
+  rememberMe: boolean;
+  minecraftId?: string;
+  minecraftNick?: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly rolesService: RolesService,
+    private readonly authmeService: AuthmeService,
+    private readonly authmeBindingService: AuthmeBindingService,
+    private readonly authFeatureService: AuthFeatureService,
   ) {}
 
   async initializeDefaults() {
@@ -36,77 +67,51 @@ export class AuthService {
     await this.ensureDefaultAdmin();
   }
 
-  async signUp(dto: SignUpDto) {
-    const headers = new Headers();
-    const result = await auth.api
-      .signUpEmail({
-        body: {
-          email: dto.email,
-          password: dto.password,
-          name: dto.name ?? dto.email,
-          rememberMe: dto.rememberMe ?? false,
-        },
-        headers,
-        returnHeaders: true,
-      })
-      .catch((error: unknown) => {
-        const message =
-          error instanceof Error ? error.message : 'Failed to sign up';
-        throw new BadRequestException(message);
-      });
-
-    const payload = result.response as AuthResponse;
-    if (!payload.user?.id) {
-      throw new BadRequestException('Failed to create user');
+  async register(dto: AuthRegisterDto, context: RequestContext = {}): Promise<AuthOperationResult> {
+    if (dto.mode === 'AUTHME') {
+      return this.registerWithAuthme(dto, context);
     }
+    if (!dto.email) {
+      throw new BadRequestException('邮箱地址不能为空');
+    }
+    return this.registerWithEmail(dto, context);
+  }
 
-    await this.usersService.initializeUserRecords(payload.user.id, {
-      displayName: dto.name ?? dto.email,
-      minecraftId: dto.minecraftId,
-      minecraftNick: dto.minecraftNick,
-    });
-    await this.assignDefaultRole(payload.user.id);
+  async login(dto: AuthLoginDto, context: RequestContext = {}): Promise<AuthOperationResult> {
+    if (dto.mode === 'AUTHME') {
+      return this.loginWithAuthme(dto, context);
+    }
+    if (!dto.email) {
+      throw new BadRequestException('邮箱地址不能为空');
+    }
+    return this.loginWithEmail(dto);
+  }
 
-    const tokens = this.extractTokens(result);
-    const fullUser = await this.usersService.getSessionUser(payload.user.id);
-
-    return {
-      tokens,
-      user: fullUser,
-      cookies: tokens.cookies,
-    };
+  async signUp(dto: SignUpDto) {
+    return this.register(
+      {
+        mode: 'EMAIL',
+        email: dto.email,
+        password: dto.password,
+        name: dto.name,
+        minecraftId: dto.minecraftId,
+        minecraftNick: dto.minecraftNick,
+        rememberMe: dto.rememberMe,
+      },
+      {},
+    );
   }
 
   async signIn(dto: SignInDto) {
-    const headers = new Headers();
-    const result = await auth.api
-      .signInEmail({
-        body: {
-          email: dto.email,
-          password: dto.password,
-          rememberMe: dto.rememberMe ?? false,
-        },
-        headers,
-        returnHeaders: true,
-      })
-      .catch((error: unknown) => {
-        const message =
-          error instanceof Error ? error.message : 'Invalid credentials';
-        throw new UnauthorizedException(message);
-      });
-
-    const payload = result.response as AuthResponse;
-    if (!payload.user?.id || !payload.token) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    const tokens = this.extractTokens(result);
-    const user = await this.usersService.getSessionUser(payload.user.id);
-
-    return {
-      tokens,
-      user,
-      cookies: tokens.cookies,
-    };
+    return this.login(
+      {
+        mode: 'EMAIL',
+        email: dto.email,
+        password: dto.password,
+        rememberMe: dto.rememberMe,
+      },
+      {},
+    );
   }
 
   async refresh(dto: RefreshTokenDto) {
@@ -159,6 +164,230 @@ export class AuthService {
 
     const user = await this.usersService.getSessionUser(session.userId);
     return { user, sessionToken: token };
+  }
+
+  async bindAuthme(userId: string, dto: AuthmeBindDto, context: RequestContext = {}) {
+    const flags = await this.authFeatureService.getFlags();
+    if (!flags.authmeBindingEnabled) {
+      throw new BadRequestException('当前环境未启用 AuthMe 绑定');
+    }
+    const account = await this.authmeService.verifyCredentials(dto.authmeId, dto.password);
+    await this.authmeBindingService.bindUser({
+      userId,
+      authmeUser: account,
+      operatorUserId: userId,
+      sourceIp: context.ip ?? null,
+    });
+    const user = await this.usersService.getSessionUser(userId);
+    return { user };
+  }
+
+  async unbindAuthme(userId: string, context: RequestContext = {}) {
+    const flags = await this.authFeatureService.getFlags();
+    if (!flags.authmeBindingEnabled) {
+      throw new BadRequestException('当前环境未启用 AuthMe 绑定');
+    }
+    await this.authmeBindingService.unbindUser({
+      userId,
+      operatorUserId: userId,
+      sourceIp: context.ip ?? null,
+    });
+    const user = await this.usersService.getSessionUser(userId);
+    return { user };
+  }
+
+  async getFeatureFlags(): Promise<AuthFeatureFlags> {
+    return this.authFeatureService.getFlags();
+  }
+
+  private async registerWithEmail(dto: AuthRegisterDto, _context: RequestContext) {
+    return this.signUpInternal({
+      email: dto.email!,
+      password: dto.password,
+      name: dto.name ?? dto.email!,
+      rememberMe: dto.rememberMe ?? false,
+      minecraftId: dto.minecraftId,
+      minecraftNick: dto.minecraftNick,
+    });
+  }
+
+  private async registerWithAuthme(dto: AuthRegisterDto, context: RequestContext) {
+    const flags = await this.authFeatureService.getFlags();
+    if (!flags.authmeRegisterEnabled) {
+      throw new BadRequestException('AuthMe 注册暂未开放');
+    }
+    if (!dto.authmeId) {
+      throw new BadRequestException('缺少 AuthMe 账号');
+    }
+    const authmeAccount = await this.authmeService.verifyCredentials(dto.authmeId, dto.password);
+    const email = this.resolveAuthmeEmail(authmeAccount.email);
+    const usernameLower = authmeAccount.username.toLowerCase();
+    const existingBinding = await this.authmeBindingService.getBindingByUsernameLower(usernameLower);
+    if (existingBinding) {
+      throw businessError({
+        type: 'BUSINESS_VALIDATION_FAILED',
+        code: 'BINDING_CONFLICT',
+        safeMessage: '该 AuthMe 账号已绑定其他用户，请先解绑',
+      });
+    }
+
+    const result = await this.signUpInternal({
+      email,
+      password: generateRandomString(48),
+      name: authmeAccount.realname || authmeAccount.username,
+      rememberMe: dto.rememberMe ?? false,
+    });
+
+    await this.authmeBindingService.bindUser({
+      userId: result.user.id,
+      authmeUser: authmeAccount,
+      operatorUserId: result.user.id,
+      sourceIp: context.ip ?? null,
+    });
+
+    const user = await this.usersService.getSessionUser(result.user.id);
+    return { ...result, user } satisfies AuthOperationResult;
+  }
+
+  private resolveAuthmeEmail(email: string | null | undefined) {
+    if (email && email.includes('@')) {
+      return email.trim();
+    }
+    throw businessError({
+      type: 'BUSINESS_VALIDATION_FAILED',
+      code: 'AUTHME_EMAIL_REQUIRED',
+      safeMessage: 'AuthMe 账号未配置邮箱，请联系管理员处理',
+    });
+  }
+
+  private async loginWithEmail(dto: AuthLoginDto) {
+    return this.signInInternal({
+      email: dto.email!,
+      password: dto.password,
+      rememberMe: dto.rememberMe ?? false,
+    });
+  }
+
+  private async loginWithAuthme(dto: AuthLoginDto, context: RequestContext) {
+    const flags = await this.authFeatureService.getFlags();
+    if (!flags.authmeLoginEnabled) {
+      throw new BadRequestException('AuthMe 登录暂未开放');
+    }
+    if (!dto.authmeId) {
+      throw new BadRequestException('缺少 AuthMe 账号');
+    }
+
+    const authmeAccount = await this.authmeService.verifyCredentials(dto.authmeId, dto.password);
+    const binding = await this.authmeBindingService.getBindingByUsernameLower(authmeAccount.username.toLowerCase());
+    if (!binding) {
+      throw businessError({
+        type: 'BUSINESS_VALIDATION_FAILED',
+        code: 'AUTHME_NOT_BOUND',
+        safeMessage: '该 AuthMe 账号尚未绑定 Hydroline 用户，请先完成绑定',
+      });
+    }
+    return this.createSessionForUser(binding.userId, dto.rememberMe ?? false, context);
+  }
+
+  private async signUpInternal(input: SignUpInternalInput): Promise<AuthOperationResult> {
+    const headers = new Headers();
+    const result = await auth.api
+      .signUpEmail({
+        body: {
+          email: input.email,
+          password: input.password,
+          name: input.name,
+          rememberMe: input.rememberMe,
+        },
+        headers,
+        returnHeaders: true,
+      })
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : 'Failed to sign up';
+        throw new BadRequestException(message);
+      });
+
+    const payload = result.response as AuthResponse;
+    if (!payload.user?.id) {
+      throw new BadRequestException('Failed to create user');
+    }
+
+    await this.usersService.initializeUserRecords(payload.user.id, {
+      displayName: input.name ?? input.email,
+      minecraftId: input.minecraftId,
+      minecraftNick: input.minecraftNick,
+    });
+    await this.assignDefaultRole(payload.user.id);
+
+    const tokens = this.extractTokens(result);
+    const fullUser = await this.usersService.getSessionUser(payload.user.id);
+
+    return {
+      tokens,
+      user: fullUser,
+      cookies: tokens.cookies,
+    };
+  }
+
+  private async signInInternal(input: {
+    email: string;
+    password: string;
+    rememberMe: boolean;
+  }): Promise<AuthOperationResult> {
+    const headers = new Headers();
+    const result = await auth.api
+      .signInEmail({
+        body: {
+          email: input.email,
+          password: input.password,
+          rememberMe: input.rememberMe,
+        },
+        headers,
+        returnHeaders: true,
+      })
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : 'Invalid credentials';
+        throw new UnauthorizedException(message);
+      });
+
+    const payload = result.response as AuthResponse;
+    if (!payload.user?.id || !payload.token) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const tokens = this.extractTokens(result);
+    const user = await this.usersService.getSessionUser(payload.user.id);
+
+    return {
+      tokens,
+      user,
+      cookies: tokens.cookies,
+    };
+  }
+
+  private async createSessionForUser(
+    userId: string,
+    rememberMe: boolean,
+    context: RequestContext,
+  ): Promise<AuthOperationResult> {
+    const token = generateRandomString(64, 'a-z', 'A-Z', '0-9');
+    const ttl = rememberMe ? this.sessionTtlMs * 2 : this.sessionTtlMs;
+    await this.prisma.session.create({
+      data: {
+        token,
+        userId,
+        expiresAt: new Date(Date.now() + ttl),
+        ipAddress: context.ip ?? null,
+        userAgent: context.userAgent ?? null,
+      },
+    });
+    const user = await this.usersService.getSessionUser(userId);
+    return {
+      tokens: { accessToken: token, refreshToken: token },
+      user,
+      cookies: [],
+    };
   }
 
   private extractTokens(result: { headers: Headers; response: AuthResponse }) {

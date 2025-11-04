@@ -81,6 +81,23 @@ pnpm run dev
 - `GET /auth/session` - 获取当前会话
   - 需要 Bearer Token 认证
 
+### AuthMe 扩展
+
+- `POST /api/auth/register`：`mode=EMAIL|AUTHME`；AuthMe 模式自动校验外部数据库并建立绑定。
+- `POST /api/auth/login`：支持 AuthMe 登录；未绑定返回 `AUTHME_NOT_BOUND`，DB 故障返回友好 `safeMessage`。
+- `POST /api/authme/bind` / `DELETE /api/authme/bind`：登录态下绑定/解绑 AuthMe，附带速率限制（IP 10/min、用户 20/min）。
+- `GET /api/auth/features`：拉取 KV 功能开关（AuthMe 注册/登录/绑定、邮箱验证）。
+- `GET /api/auth/health/authme`：实时健康检查（`stage: DNS|CONNECT|AUTH|QUERY`）。
+
+> 配置均来自 KV 命名空间：`authme.db`（连接信息）与 `feature.auth`（开关）。修改后 15s 内自动套用。
+
+#### 调试 & 故障定位
+
+1. **AuthMe 无法连接**：查看日志 `AuthmeService` warn/error；调用 `/api/auth/health/authme`，若 `ok:false` 则根据 `stage` 排查 DNS/网络/权限。
+2. **绑定失败**：接口返回 `BINDING_CONFLICT`（账号被占用）或 `AUTHME_PASSWORD_MISMATCH`（密码错误）；检查表 `user_authme_binding`。
+3. **配置未生效**：确认 `authme.db` KV JSON 完整；服务日志出现 `AuthMe connection pool refreshed`；否则为字段缺失导致的 `normalizeConfig` 警告。
+4. **限流**：`/api/authme/*` 命中 429 时会在日志标记 `AuthmeRateLimitGuard`，可根据 `ip:`/`user:` key 评估。
+
 ### 其他路由
 
 - `GET /` - 公开路由

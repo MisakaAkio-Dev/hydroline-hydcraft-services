@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, MaxLength, Matches } from 'class-validator';
+import { IsDefined, IsOptional, IsString, MaxLength, Matches } from 'class-validator';
 import { toJsonValue } from '../utils/json-transform';
 
 export class CreateConfigEntryDto {
@@ -8,6 +8,7 @@ export class CreateConfigEntryDto {
   @MaxLength(64)
   key!: string;
 
+  @IsDefined()
   @Transform(({ value }) => toJsonValue(value))
   value!: unknown;
 

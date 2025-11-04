@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import { useAuthStore, type GenderType, type UpdateCurrentUserPayload } from '@/stores/auth'
+import { useFeatureStore } from '@/stores/feature'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/utils/api'
 
@@ -26,6 +27,7 @@ type FormState = {
 
 const auth = useAuthStore()
 const ui = useUiStore()
+const featureStore = useFeatureStore()
 const toast = useToast()
 
 const isAuthenticated = computed(() => auth.isAuthenticated)
@@ -33,6 +35,8 @@ const loading = ref(false)
 const saving = ref(false)
 const lastSyncedAt = ref<string | null>(null)
 const initialSnapshot = ref('')
+const bindingLoading = ref(false)
+const bindingError = ref('')
 
 const genderOptions: Array<{ label: string; value: GenderType }> = [
   { label: '未指定', value: 'UNSPECIFIED' },
@@ -70,10 +74,18 @@ const form = reactive<FormState>({
   phone: '',
 })
 
+const authmeBindingForm = reactive({
+  authmeId: '',
+  password: '',
+})
+
 const hasChanges = computed(() => serializeForm() !== initialSnapshot.value)
 const canSubmit = computed(
   () => isAuthenticated.value && hasChanges.value && !saving.value && !loading.value,
 )
+
+const bindingEnabled = computed(() => featureStore.flags.authmeBindingEnabled)
+const authmeBinding = computed(() => (auth.user as Record<string, any> | null)?.authmeBinding ?? null)
 
 const avatarUrl = computed(() => {
   const user = auth.user as Record<string, any> | null
@@ -158,6 +170,49 @@ function populateForm(user: Record<string, any>) {
   }
   lastSyncedAt.value = user.updatedAt ?? null
   initialSnapshot.value = serializeForm()
+}
+
+async function submitAuthmeBinding() {
+  if (!bindingEnabled.value) {
+    bindingError.value = '当前未开放绑定功能'
+    return
+  }
+  bindingError.value = ''
+  bindingLoading.value = true
+  try {
+    await auth.bindAuthme({
+      authmeId: authmeBindingForm.authmeId,
+      password: authmeBindingForm.password,
+    })
+    authmeBindingForm.authmeId = ''
+    authmeBindingForm.password = ''
+    toast.add({ title: '绑定成功', color: 'green' })
+  } catch (error) {
+    if (error instanceof ApiError) {
+      bindingError.value = error.message
+    } else {
+      bindingError.value = '绑定失败，请稍后再试'
+    }
+  } finally {
+    bindingLoading.value = false
+  }
+}
+
+async function handleUnbindAuthme() {
+  bindingError.value = ''
+  bindingLoading.value = true
+  try {
+    await auth.unbindAuthme()
+    toast.add({ title: '已解除绑定', color: 'amber' })
+  } catch (error) {
+    if (error instanceof ApiError) {
+      bindingError.value = error.message
+    } else {
+      bindingError.value = '解绑失败，请稍后再试'
+    }
+  } finally {
+    bindingLoading.value = false
+  }
 }
 
 function serializeForm() {
@@ -531,6 +586,75 @@ function handleError(error: unknown, fallback: string) {
             </div>
           </UCard>
         </div>
+
+        <UCard class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">AuthMe 绑定</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">与 Minecraft 账号绑定以启用 AuthMe 登录。</p>
+              </div>
+              <UBadge color="primary" variant="soft">Minecraft</UBadge>
+            </div>
+          </template>
+
+          <div v-if="authmeBinding" class="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+            <p>
+              已绑定账号：
+              <span class="font-semibold text-slate-900 dark:text-white">{{ authmeBinding.authmeUsername }}</span>
+              <span v-if="authmeBinding.authmeRealname" class="ml-2 text-slate-500">
+                ({{ authmeBinding.authmeRealname }})
+              </span>
+            </p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              绑定时间：{{ authmeBinding.boundAt ? new Date(authmeBinding.boundAt).toLocaleString() : '-' }}
+            </p>
+            <div class="flex items-center gap-3">
+              <UButton color="primary" variant="outline" :loading="bindingLoading" @click="handleUnbindAuthme">
+                解除绑定
+              </UButton>
+              <span class="text-xs text-slate-500 dark:text-slate-400">解绑后可再次绑定其他账号。</span>
+            </div>
+          </div>
+          <div v-else>
+            <div
+              v-if="!bindingEnabled"
+              class="rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+            >
+              当前暂未开放绑定能力，如需绑定请联系管理员。
+            </div>
+            <form v-else class="grid gap-4 md:grid-cols-2" @submit.prevent="submitAuthmeBinding">
+              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
+                <span class="font-medium text-slate-700 dark:text-slate-200">AuthMe 账号</span>
+                <UInput
+                  v-model="authmeBindingForm.authmeId"
+                  placeholder="用户名或 RealName"
+                  required
+                />
+              </label>
+              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
+                <span class="font-medium text-slate-700 dark:text-slate-200">AuthMe 密码</span>
+                <UInput
+                  v-model="authmeBindingForm.password"
+                  type="password"
+                  placeholder="请输入 AuthMe 密码"
+                  required
+                />
+              </label>
+              <div class="md:col-span-2 space-y-2">
+                <div
+                  v-if="bindingError"
+                  class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
+                >
+                  {{ bindingError }}
+                </div>
+                <UButton type="submit" color="primary" :loading="bindingLoading">
+                  绑定 AuthMe 账号
+                </UButton>
+              </div>
+            </form>
+          </div>
+        </UCard>
 
         <div class="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white/85 p-4 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60 md:flex-row md:items-center md:justify-between md:p-5">
           <div class="space-y-0.5">

@@ -7,9 +7,10 @@ import { AttachmentsModule } from './attachments/attachments.module';
 import { ConfigModule } from './config/config.module';
 import { PortalConfigModule } from './portal-config/portal-config.module';
 import { PortalModule } from './portal/portal.module';
+import { AuthmeModule } from './authme/authme.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, AttachmentsModule, ConfigModule, PortalConfigModule, PortalModule],
+  imports: [PrismaModule, AuthModule, AttachmentsModule, ConfigModule, PortalConfigModule, PortalModule, AuthmeModule],
   controllers: [AppController],
   providers: [AppService],
 })

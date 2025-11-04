@@ -8,6 +8,7 @@ import lucideIcons from '@iconify-json/lucide/icons.json'
 import router from './router'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
+import { useFeatureStore } from '@/stores/feature'
 
 import './assets/styles/tailwind.css'
 import './assets/styles/style.css'
@@ -27,6 +28,9 @@ app.use(ui)
 
 const uiStore = useUiStore(pinia)
 uiStore.hydrateTheme()
+
+const featureStore = useFeatureStore(pinia)
+void featureStore.initialize()
 
 void useAuthStore(pinia).initialize()
 

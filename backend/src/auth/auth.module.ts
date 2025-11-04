@@ -11,10 +11,14 @@ import { AuthGuard } from './auth.guard';
 import { PermissionsGuard } from './permissions.guard';
 import { AuthBootstrap } from './auth.bootstrap';
 import { OptionalAuthGuard } from './optional-auth.guard';
+import { ApiAuthController } from './api-auth.controller';
+import { ApiAuthmeController } from './api-authme.controller';
 
 @Module({
   controllers: [
     AuthController,
+    ApiAuthController,
+    ApiAuthmeController,
     UsersController,
     RolesController,
     ContactChannelsController,

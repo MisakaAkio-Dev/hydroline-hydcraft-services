@@ -212,6 +212,13 @@ export class UsersService {
           },
           orderBy: { createdAt: 'asc' },
         },
+        authmeBinding: {
+          select: {
+            authmeUsername: true,
+            authmeRealname: true,
+            boundAt: true,
+          },
+        },
         roles: {
           select: {
             id: true,

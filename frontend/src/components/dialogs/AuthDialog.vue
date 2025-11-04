@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import {
   Dialog,
   DialogPanel,
@@ -10,17 +10,28 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePortalStore } from '@/stores/portal'
+import { useFeatureStore } from '@/stores/feature'
 import { ApiError } from '@/utils/api'
 
 const authStore = useAuthStore()
 const uiStore = useUiStore()
 const portalStore = usePortalStore()
+const featureStore = useFeatureStore()
 
 const tab = ref<'login' | 'register'>('login')
-const errorMessage = ref('')
+const loginMode = ref<'EMAIL' | 'AUTHME'>('EMAIL')
+const registerMode = ref<'EMAIL' | 'AUTHME'>('EMAIL')
+const loginError = ref('')
+const registerError = ref('')
 
 const loginForm = reactive({
   email: '',
+  password: '',
+  rememberMe: true,
+})
+
+const authmeLoginForm = reactive({
+  authmeId: '',
   password: '',
   rememberMe: true,
 })
@@ -31,30 +42,92 @@ const registerForm = reactive({
   confirmPassword: '',
 })
 
+const authmeRegisterForm = reactive({
+  authmeId: '',
+  password: '',
+})
+
+const authmeLoginEnabled = computed(() => featureStore.flags.authmeLoginEnabled)
+const authmeRegisterEnabled = computed(() => featureStore.flags.authmeRegisterEnabled)
+
+watch(
+  () => featureStore.flags,
+  () => {
+    if (!authmeLoginEnabled.value && loginMode.value === 'AUTHME') {
+      loginMode.value = 'EMAIL'
+    }
+    if (!authmeRegisterEnabled.value && registerMode.value === 'AUTHME') {
+      registerMode.value = 'EMAIL'
+    }
+  },
+  { immediate: true, deep: true },
+)
+
 async function handleLogin() {
-  errorMessage.value = ''
+  loginError.value = ''
   uiStore.startLoading()
   try {
-    await authStore.signIn({
-      email: loginForm.email,
-      password: loginForm.password,
-      rememberMe: loginForm.rememberMe,
-    })
+    if (loginMode.value === 'AUTHME') {
+      await authStore.login({
+        mode: 'AUTHME',
+        authmeId: authmeLoginForm.authmeId,
+        password: authmeLoginForm.password,
+        rememberMe: authmeLoginForm.rememberMe,
+      })
+    } else {
+      await authStore.login({
+        mode: 'EMAIL',
+        email: loginForm.email,
+        password: loginForm.password,
+        rememberMe: loginForm.rememberMe,
+      })
+    }
     await portalStore.fetchHome(true)
     uiStore.closeLoginDialog()
   } catch (error) {
     if (error instanceof ApiError) {
-      errorMessage.value = error.message
+      loginError.value = error.message
     } else {
-      errorMessage.value = '登录失败，请稍后重试'
+      loginError.value = '登录失败，请稍后重试'
     }
   } finally {
     uiStore.stopLoading()
   }
 }
 
-function handleRegisterPlaceholder() {
-  errorMessage.value = '注册功能将在后端完善后开放，请联系管理员创建账户。'
+async function handleRegister() {
+  registerError.value = ''
+  if (registerMode.value === 'EMAIL' && registerForm.password !== registerForm.confirmPassword) {
+    registerError.value = '两次输入的密码不一致'
+    return
+  }
+  uiStore.startLoading()
+  try {
+    if (registerMode.value === 'AUTHME') {
+      await authStore.register({
+        mode: 'AUTHME',
+        authmeId: authmeRegisterForm.authmeId,
+        password: authmeRegisterForm.password,
+      })
+    } else {
+      await authStore.register({
+        mode: 'EMAIL',
+        email: registerForm.email,
+        password: registerForm.password,
+        rememberMe: true,
+      })
+    }
+    await portalStore.fetchHome(true)
+    uiStore.closeLoginDialog()
+  } catch (error) {
+    if (error instanceof ApiError) {
+      registerError.value = error.message
+    } else {
+      registerError.value = '注册失败，请稍后再试'
+    }
+  } finally {
+    uiStore.stopLoading()
+  }
 }
 
 function closeDialog() {
@@ -135,43 +208,108 @@ function closeDialog() {
                 class="mt-6 space-y-4"
                 @submit.prevent="handleLogin"
               >
-                <label
-                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                <div
+                  class="flex rounded-full bg-slate-100/80 p-1 text-xs font-medium dark:bg-slate-800/60"
                 >
-                  <span>邮箱</span>
-                  <UInput
-                    v-model="loginForm.email"
-                    type="email"
-                    placeholder="you@example.com"
-                    required
-                  />
-                </label>
-                <label
-                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                >
-                  <span>密码</span>
-                  <UInput
-                    v-model="loginForm.password"
-                    type="password"
-                    placeholder="请输入密码"
-                    required
-                  />
-                </label>
-                <div class="flex items-center justify-between text-sm">
-                  <label
-                    class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+                  <button
+                    type="button"
+                    class="flex-1 rounded-full px-3 py-1"
+                    :class="
+                      loginMode === 'EMAIL'
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                    "
+                    @click="loginMode = 'EMAIL'"
                   >
-                    <UCheckbox v-model="loginForm.rememberMe" />
-                    记住我
-                  </label>
-                  <UButton variant="link">忘记密码</UButton>
+                    邮箱登录
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 rounded-full px-3 py-1"
+                    :class="
+                      loginMode === 'AUTHME'
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                    "
+                    :disabled="!authmeLoginEnabled"
+                    :title="authmeLoginEnabled ? '使用 AuthMe 账号登录' : '暂未开放 AuthMe 登录'"
+                    @click="loginMode = 'AUTHME'"
+                  >
+                    AuthMe 登录
+                  </button>
                 </div>
 
+                <template v-if="loginMode === 'EMAIL'">
+                  <label
+                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <span>邮箱</span>
+                    <UInput
+                      v-model="loginForm.email"
+                      type="email"
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </label>
+                  <label
+                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <span>密码</span>
+                    <UInput
+                      v-model="loginForm.password"
+                      type="password"
+                      placeholder="请输入密码"
+                      required
+                    />
+                  </label>
+                  <div class="flex items-center justify-between text-sm">
+                    <label
+                      class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+                    >
+                      <UCheckbox v-model="loginForm.rememberMe" />
+                      记住我
+                    </label>
+                    <UButton variant="link">忘记密码</UButton>
+                  </div>
+                </template>
+                <template v-else>
+                  <label
+                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <span>AuthMe 账号</span>
+                    <UInput
+                      v-model="authmeLoginForm.authmeId"
+                      placeholder="用户名或 RealName"
+                      required
+                    />
+                  </label>
+                  <label
+                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <span>AuthMe 密码</span>
+                    <UInput
+                      v-model="authmeLoginForm.password"
+                      type="password"
+                      placeholder="请输入 AuthMe 密码"
+                      required
+                    />
+                  </label>
+                  <div class="flex items-center justify-between text-sm">
+                    <label
+                      class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+                    >
+                      <UCheckbox v-model="authmeLoginForm.rememberMe" />
+                      记住我
+                    </label>
+                    <span class="text-xs text-slate-400">AuthMe 登录仅限已绑定账号</span>
+                  </div>
+                </template>
+
                 <div
-                  v-if="errorMessage"
+                  v-if="loginError"
                   class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
                 >
-                  {{ errorMessage }}
+                  {{ loginError }}
                 </div>
 
                 <UButton
@@ -184,53 +322,117 @@ function closeDialog() {
                 <div
                   class="rounded-lg border border-slate-200/60 p-3 text-xs text-slate-500 dark:border-slate-700/60 dark:text-slate-300"
                 >
-                  支持邮箱密码登录。
+                  {{
+                    loginMode === 'AUTHME'
+                      ? '需要先在 AuthMe 服务器完成注册并绑定 Hydroline 账号。'
+                      : '支持邮箱密码登录。'
+                  }}
                 </div>
               </form>
 
               <form
                 v-else
                 class="mt-6 space-y-4"
-                @submit.prevent="handleRegisterPlaceholder"
+                @submit.prevent="handleRegister"
               >
-                <label
-                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                <div
+                  class="flex rounded-full bg-slate-100/80 p-1 text-xs font-medium dark:bg-slate-800/60"
                 >
-                  <span>邮箱</span>
-                  <UInput
-                    v-model="registerForm.email"
-                    type="email"
-                    placeholder="you@example.com"
-                    required
-                  />
-                </label>
-                <label
-                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                >
-                  <span>密码</span>
-                  <UInput
-                    v-model="registerForm.password"
-                    type="password"
-                    placeholder="设置登录密码"
-                    required
-                  />
-                </label>
-                <label
-                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                >
-                  <span>确认密码</span>
-                  <UInput
-                    v-model="registerForm.confirmPassword"
-                    type="password"
-                    placeholder="再次输入密码"
-                    required
-                  />
-                </label>
+                  <button
+                    type="button"
+                    class="flex-1 rounded-full px-3 py-1"
+                    :class="
+                      registerMode === 'EMAIL'
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                    "
+                    @click="registerMode = 'EMAIL'"
+                  >
+                    常规注册
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 rounded-full px-3 py-1"
+                    :class="
+                      registerMode === 'AUTHME'
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                    "
+                    :disabled="!authmeRegisterEnabled"
+                    :title="authmeRegisterEnabled ? '使用 AuthMe 账号快速注册' : '暂未开放 AuthMe 注册'"
+                    @click="registerMode = 'AUTHME'"
+                  >
+                    AuthMe 注册
+                  </button>
+                </div>
+
+                <template v-if="registerMode === 'EMAIL'">
+                  <label
+                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <span>邮箱</span>
+                    <UInput
+                      v-model="registerForm.email"
+                      type="email"
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </label>
+                  <label
+                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <span>密码</span>
+                    <UInput
+                      v-model="registerForm.password"
+                      type="password"
+                      placeholder="设置登录密码"
+                      required
+                    />
+                  </label>
+                  <label
+                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <span>确认密码</span>
+                    <UInput
+                      v-model="registerForm.confirmPassword"
+                      type="password"
+                      placeholder="再次输入密码"
+                      required
+                    />
+                  </label>
+                </template>
+                <template v-else>
+                  <label
+                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <span>AuthMe 账号</span>
+                    <UInput
+                      v-model="authmeRegisterForm.authmeId"
+                      placeholder="用户名或 RealName"
+                      required
+                    />
+                  </label>
+                  <label
+                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <span>AuthMe 密码</span>
+                    <UInput
+                      v-model="authmeRegisterForm.password"
+                      type="password"
+                      placeholder="请输入 AuthMe 密码"
+                      required
+                    />
+                  </label>
+                  <p class="text-xs text-slate-500 dark:text-slate-300">
+                    系统会校验 AuthMe 数据库并自动完成 Hydroline 账号绑定。
+                  </p>
+                </template>
 
                 <div
-                  class="rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+                  v-if="registerError"
+                  class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
                 >
-                  注册流程将由管理员审核后开放。当前阶段请联系管理员完成帐号创建。
+                  {{ registerError }}
                 </div>
 
                 <UButton
@@ -239,7 +441,7 @@ function closeDialog() {
                   variant="outline"
                   class="w-full flex justify-center items-center"
                 >
-                  提交注册意向
+                  立即注册
                 </UButton>
               </form>
             </DialogPanel>

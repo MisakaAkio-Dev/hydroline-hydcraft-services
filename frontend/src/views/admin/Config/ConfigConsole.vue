@@ -39,6 +39,7 @@ const namespaceForm = reactive({
   name: '',
   description: '',
 })
+const namespaceModalMode = ref<'create' | 'edit'>('create')
 
 const entryForm = reactive({
   key: '',
@@ -59,6 +60,7 @@ const deletingEntry = ref(false)
 const selectedNamespace = computed(() =>
   namespaces.value.find((item) => item.id === selectedNamespaceId.value) ?? null,
 )
+const isEditingNamespace = computed(() => namespaceModalMode.value === 'edit')
 
 async function fetchNamespaces() {
   loadingNamespaces.value = true
@@ -103,7 +105,11 @@ function selectNamespace(namespaceId: string) {
   void fetchEntries(namespaceId)
 }
 
-async function createNamespace() {
+async function submitNamespace() {
+  if (namespaceModalMode.value === 'edit') {
+    await updateNamespace()
+    return
+  }
   const key = namespaceForm.key.trim()
   const name = namespaceForm.name.trim()
   if (!key || !name) {
@@ -213,8 +219,24 @@ function closeCreateModal() {
   createEntryModalOpen.value = false
 }
 
-function openNamespaceModal() {
-  resetNamespaceForm()
+function openNamespaceModal(mode: 'create' | 'edit' = 'create') {
+  namespaceModalMode.value = mode
+  if (mode === 'create') {
+    resetNamespaceForm()
+    namespaceModalOpen.value = true
+    return
+  }
+  if (!selectedNamespace.value) {
+    toast.add({
+      title: '请选择命名空间',
+      description: '选择后才能编辑名称和描述',
+      color: 'warning',
+    })
+    return
+  }
+  namespaceForm.key = selectedNamespace.value.key
+  namespaceForm.name = selectedNamespace.value.name
+  namespaceForm.description = selectedNamespace.value.description ?? ''
   namespaceModalOpen.value = true
 }
 
@@ -226,6 +248,47 @@ function namespaceFormUpdateCount(namespaceId: string, delta: number) {
   const ns = namespaces.value.find((item) => item.id === namespaceId)
   if (ns && ns._count) {
     ns._count.entries = Math.max(0, ns._count.entries + delta)
+  }
+}
+
+async function updateNamespace() {
+  const current = selectedNamespace.value
+  if (!current) {
+    toast.add({
+      title: '未选择命名空间',
+      description: '请选择后再编辑',
+      color: 'warning',
+    })
+    return
+  }
+  const name = namespaceForm.name.trim()
+  const description = namespaceForm.description.trim()
+
+  submitting.value = true
+  uiStore.startLoading()
+  try {
+    const updated = await apiFetch<Namespace>(`/config/namespaces/${current.id}`, {
+      method: 'PATCH',
+      token: authStore.token ?? undefined,
+      body: {
+        name: name || undefined,
+        description: description || undefined,
+      },
+    })
+    namespaces.value = namespaces.value.map((item) =>
+      item.id === updated.id ? { ...item, name: updated.name, description: updated.description } : item,
+    )
+    toast.add({
+      title: '命名空间已更新',
+      description: updated.name,
+      color: 'success',
+    })
+    namespaceModalOpen.value = false
+  } catch (error) {
+    handleError(error, '更新命名空间失败')
+  } finally {
+    submitting.value = false
+    uiStore.stopLoading()
   }
 }
 
@@ -323,6 +386,7 @@ function resetNamespaceForm() {
   namespaceForm.key = ''
   namespaceForm.name = ''
   namespaceForm.description = ''
+  namespaceModalMode.value = 'create'
 }
 
 watch(namespaceModalOpen, (open) => {
@@ -372,16 +436,29 @@ onMounted(() => {
           <template #header>
             <div class="flex items-center justify-between gap-2">
               <h2 class="text-sm font-semibold text-slate-900 dark:text-white">命名空间</h2>
-              <UButton
-                size="xs"
-                color="primary"
-                variant="soft"
-                icon="i-lucide-plus"
-                class="items-center"
-                @click="openNamespaceModal"
-              >
-                新增
-              </UButton>
+              <div class="flex gap-2">
+                <UButton
+                  size="xs"
+                  color="primary"
+                  variant="soft"
+                  icon="i-lucide-plus"
+                  class="items-center"
+                  @click="openNamespaceModal('create')"
+                >
+                  新增
+                </UButton>
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide-pencil"
+                  class="items-center"
+                  :disabled="!selectedNamespaceId"
+                  @click="openNamespaceModal('edit')"
+                >
+                  编辑
+                </UButton>
+              </div>
             </div>
           </template>
           <div class="space-y-2">
@@ -527,14 +604,27 @@ onMounted(() => {
 
     <UModal v-model:open="namespaceModalOpen" :ui="{ content: 'w-full max-w-lg' }">
       <template #content>
-        <form class="space-y-4 p-6 text-sm" @submit.prevent="createNamespace">
+        <form class="space-y-4 p-6 text-sm" @submit.prevent="submitNamespace">
           <header>
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">新建命名空间</h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">填写后将立即创建并选中该命名空间。</p>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ isEditingNamespace ? '编辑命名空间' : '新建命名空间' }}
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              {{
+                isEditingNamespace
+                  ? '更新名称或描述以便更好地识别此命名空间。'
+                  : '填写后将立即创建并选中该命名空间。'
+              }}
+            </p>
           </header>
           <label class="flex flex-col gap-1">
             <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Key</span>
-            <UInput v-model="namespaceForm.key" placeholder="如 portal.navigation" required />
+            <UInput
+              v-model="namespaceForm.key"
+              placeholder="如 portal.navigation"
+              :disabled="isEditingNamespace"
+              required
+            />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">名称</span>
@@ -546,7 +636,9 @@ onMounted(() => {
           </label>
           <div class="flex justify-end gap-2">
             <UButton type="button" color="neutral" variant="ghost" @click="closeNamespaceModal">取消</UButton>
-            <UButton type="submit" color="primary" :loading="submitting">创建</UButton>
+            <UButton type="submit" color="primary" :loading="submitting">
+              {{ isEditingNamespace ? '保存' : '创建' }}
+            </UButton>
           </div>
         </form>
       </template>
