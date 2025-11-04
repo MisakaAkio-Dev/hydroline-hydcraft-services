@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 
 interface ApiErrorResponse {
   code: number;
@@ -20,8 +21,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse();
-    const request = ctx.getRequest();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
     const { status, message, payload } = this.normalizeError(exception);
     const body: ApiErrorResponse = {
@@ -31,10 +32,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
       data: payload,
     };
 
-    this.logger.error(
-      `${request.method} ${request.url} -> ${status} ${message}`,
-      exception instanceof Error ? exception.stack : undefined,
-    );
+    if (status >= 500) {
+      this.logger.error(
+        `${request.method} ${request.url} -> ${status} ${message}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
+    }
 
     response.status(status).json(body);
   }
@@ -50,7 +53,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
         const { message, ...rest } = response as Record<string, unknown>;
         return {
           status,
-          message: Array.isArray(message) ? message.join('; ') : (message as string) ?? exception.message,
+          message: Array.isArray(message)
+            ? message.join('; ')
+            : ((message as string) ?? exception.message),
           payload: rest,
         };
       }

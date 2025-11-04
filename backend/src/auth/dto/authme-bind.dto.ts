@@ -1,4 +1,4 @@
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsString, MaxLength } from 'class-validator';
 
 export class AuthmeBindDto {
   @IsString()
@@ -6,7 +6,5 @@ export class AuthmeBindDto {
   authmeId!: string;
 
   @IsString()
-  @MinLength(8)
-  @MaxLength(128)
   password!: string;
 }

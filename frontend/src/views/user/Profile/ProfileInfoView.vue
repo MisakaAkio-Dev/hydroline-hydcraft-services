@@ -2,7 +2,11 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import UserAvatar from '@/components/common/UserAvatar.vue'
-import { useAuthStore, type GenderType, type UpdateCurrentUserPayload } from '@/stores/auth'
+import {
+  useAuthStore,
+  type GenderType,
+  type UpdateCurrentUserPayload,
+} from '@/stores/auth'
 import { useFeatureStore } from '@/stores/feature'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/utils/api'
@@ -81,11 +85,17 @@ const authmeBindingForm = reactive({
 
 const hasChanges = computed(() => serializeForm() !== initialSnapshot.value)
 const canSubmit = computed(
-  () => isAuthenticated.value && hasChanges.value && !saving.value && !loading.value,
+  () =>
+    isAuthenticated.value &&
+    hasChanges.value &&
+    !saving.value &&
+    !loading.value,
 )
 
 const bindingEnabled = computed(() => featureStore.flags.authmeBindingEnabled)
-const authmeBinding = computed(() => (auth.user as Record<string, any> | null)?.authmeBinding ?? null)
+const authmeBinding = computed(
+  () => (auth.user as Record<string, any> | null)?.authmeBinding ?? null,
+)
 
 const avatarUrl = computed(() => {
   const user = auth.user as Record<string, any> | null
@@ -155,8 +165,11 @@ function populateForm(user: Record<string, any>) {
   form.name = user.name ?? ''
   form.displayName = user.profile?.displayName ?? ''
   form.email = user.email ?? ''
-  form.gender = (user.profile?.gender as GenderType | undefined) ?? 'UNSPECIFIED'
-  form.birthday = user.profile?.birthday ? String(user.profile.birthday).slice(0, 10) : ''
+  form.gender =
+    (user.profile?.gender as GenderType | undefined) ?? 'UNSPECIFIED'
+  form.birthday = user.profile?.birthday
+    ? String(user.profile.birthday).slice(0, 10)
+    : ''
   form.motto = user.profile?.motto ?? ''
   form.timezone = user.profile?.timezone ?? ''
   form.locale = user.profile?.locale ?? ''
@@ -165,7 +178,8 @@ function populateForm(user: Record<string, any>) {
       ? (user.profile.extra as Record<string, unknown>)
       : {}
   for (const key of addressFields) {
-    const value = extra && typeof extra[key] === 'string' ? (extra[key] as string) : ''
+    const value =
+      extra && typeof extra[key] === 'string' ? (extra[key] as string) : ''
     form[key] = value
   }
   lastSyncedAt.value = user.updatedAt ?? null
@@ -289,7 +303,9 @@ function buildPayload(): UpdateCurrentUserPayload {
   for (const key of addressFields) {
     const newValue = form[key].trim()
     const currentValue =
-      typeof existingExtra[key] === 'string' ? (existingExtra[key] as string).trim() : ''
+      typeof existingExtra[key] === 'string'
+        ? (existingExtra[key] as string).trim()
+        : ''
     if (newValue !== currentValue) {
       extraChanged = true
     }
@@ -379,7 +395,9 @@ function openLoginDialog() {
 
 function handleError(error: unknown, fallback: string) {
   const description =
-    error instanceof ApiError ? error.message : '请稍后重试，若问题持续请联系管理员。'
+    error instanceof ApiError
+      ? error.message
+      : '请稍后重试，若问题持续请联系管理员。'
   toast.add({
     title: fallback,
     description,
@@ -391,21 +409,16 @@ function handleError(error: unknown, fallback: string) {
 
 <template>
   <section class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-16 pt-8">
-    <header class="flex flex-col gap-2">
-      <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">用户信息</h1>
-      <p class="text-sm text-slate-600 dark:text-slate-300">
-        更新账户基础信息、个性化偏好与联系地址，让我们在需要联系您时更加顺畅。
-      </p>
-    </header>
-
     <div v-if="isAuthenticated" class="space-y-6">
       <div
-        class="rounded-3xl border border-slate-200/70 bg-gradient-to-r from-white/90 via-white/85 to-white/90 p-[1px] shadow-2xl backdrop-blur dark:border-slate-800/70 dark:from-slate-900/80 dark:via-slate-900/85 dark:to-slate-900/80"
+        class="rounded-3xl border border-slate-200/70 bg-linear-to-r from-white/90 via-white/85 to-white/90 p-px shadow-sm backdrop-blur dark:border-slate-800/70 dark:from-slate-900/80 dark:via-slate-900/85 dark:to-slate-900/80"
       >
         <div
           class="rounded-[calc(1.5rem-1px)] bg-white/95 p-6 dark:bg-slate-950/80 md:p-8"
         >
-          <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div
+            class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between"
+          >
             <div class="flex items-center gap-4">
               <UserAvatar
                 :src="avatarUrl"
@@ -413,10 +426,14 @@ function handleError(error: unknown, fallback: string) {
                 size="lg"
               />
               <div>
-                <p class="text-xs font-semibold uppercase tracking-wide text-primary-500">
+                <p
+                  class="text-xs font-semibold uppercase tracking-wide text-primary-500"
+                >
                   Hydroline 账户
                 </p>
-                <h2 class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">
+                <h2
+                  class="mt-1 text-xl font-semibold text-slate-900 dark:text-white"
+                >
                   {{ (auth.displayName ?? form.email) || '用户' }}
                 </h2>
                 <p class="text-sm text-slate-600 dark:text-slate-300">
@@ -424,7 +441,9 @@ function handleError(error: unknown, fallback: string) {
                 </p>
               </div>
             </div>
-            <div class="flex flex-col items-start gap-3 text-sm text-slate-500 md:items-end">
+            <div
+              class="flex flex-col items-start gap-3 text-sm text-slate-500 md:items-end"
+            >
               <div class="flex items-center gap-2">
                 <UIcon name="i-lucide-history" class="h-4 w-4" />
                 <span>最后同步：{{ lastSyncedText }}</span>
@@ -463,10 +482,14 @@ function handleError(error: unknown, fallback: string) {
         @submit.prevent="handleSave"
       >
         <div class="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
-          <UCard class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60">
+          <UCard
+            class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60"
+          >
             <template #header>
               <div class="flex flex-col gap-1">
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+                <h2
+                  class="text-lg font-semibold text-slate-900 dark:text-white"
+                >
                   基础资料
                 </h2>
                 <p class="text-xs text-slate-500 dark:text-slate-400">
@@ -476,23 +499,39 @@ function handleError(error: unknown, fallback: string) {
             </template>
 
             <div class="grid gap-4 md:grid-cols-2">
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">显示名称</span>
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >显示名称</span
+                >
                 <UInput
                   v-model="form.displayName"
                   placeholder="用于站内展示的名字"
                 />
               </label>
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">真实姓名</span>
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >真实姓名</span
+                >
                 <UInput v-model="form.name" placeholder="例如：陈嘉禾" />
               </label>
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">邮箱</span>
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >邮箱</span
+                >
                 <UInput v-model="form.email" type="email" disabled />
               </label>
-              <div class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">性别</span>
+              <div
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >性别</span
+                >
                 <USelectMenu
                   v-model="form.gender"
                   :options="genderOptions"
@@ -502,16 +541,31 @@ function handleError(error: unknown, fallback: string) {
                   :popper="{ placement: 'bottom-start' }"
                 />
               </div>
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">生日</span>
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >生日</span
+                >
                 <UInput v-model="form.birthday" type="date" />
               </label>
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">时区</span>
-                <UInput v-model="form.timezone" placeholder="例如：Asia/Shanghai" />
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >时区</span
+                >
+                <UInput
+                  v-model="form.timezone"
+                  placeholder="例如：Asia/Shanghai"
+                />
               </label>
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">语言</span>
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >语言</span
+                >
                 <UInput
                   v-model="form.locale"
                   placeholder="例如：zh-CN"
@@ -520,8 +574,12 @@ function handleError(error: unknown, fallback: string) {
               </label>
             </div>
 
-            <label class="mt-4 flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-              <span class="font-medium text-slate-700 dark:text-slate-200">个性签名</span>
+            <label
+              class="mt-4 flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+            >
+              <span class="font-medium text-slate-700 dark:text-slate-200"
+                >个性签名</span
+              >
               <UTextarea
                 v-model="form.motto"
                 :rows="3"
@@ -530,10 +588,14 @@ function handleError(error: unknown, fallback: string) {
             </label>
           </UCard>
 
-          <UCard class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60">
+          <UCard
+            class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60"
+          >
             <template #header>
               <div class="flex flex-col gap-1">
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+                <h2
+                  class="text-lg font-semibold text-slate-900 dark:text-white"
+                >
                   联系与地址
                 </h2>
                 <p class="text-xs text-slate-500 dark:text-slate-400">
@@ -543,25 +605,43 @@ function handleError(error: unknown, fallback: string) {
             </template>
 
             <div class="grid gap-4">
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">地址（行 1）</span>
-                <UInput v-model="form.addressLine1" placeholder="街道、门牌号等" />
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >地址（行 1）</span
+                >
+                <UInput
+                  v-model="form.addressLine1"
+                  placeholder="街道、门牌号等"
+                />
               </label>
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">地址（行 2）</span>
-                <UInput v-model="form.addressLine2" placeholder="单元、楼层等补充信息" />
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >地址（行 2）</span
+                >
+                <UInput
+                  v-model="form.addressLine2"
+                  placeholder="单元、楼层等补充信息"
+                />
               </label>
               <div class="grid gap-4 md:grid-cols-2">
                 <label
                   class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
                 >
-                  <span class="font-medium text-slate-700 dark:text-slate-200">城市</span>
+                  <span class="font-medium text-slate-700 dark:text-slate-200"
+                    >城市</span
+                  >
                   <UInput v-model="form.city" placeholder="所在城市" />
                 </label>
                 <label
                   class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
                 >
-                  <span class="font-medium text-slate-700 dark:text-slate-200">省 / 州</span>
+                  <span class="font-medium text-slate-700 dark:text-slate-200"
+                    >省 / 州</span
+                  >
                   <UInput v-model="form.state" placeholder="所在省份或州" />
                 </label>
               </div>
@@ -569,51 +649,86 @@ function handleError(error: unknown, fallback: string) {
                 <label
                   class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
                 >
-                  <span class="font-medium text-slate-700 dark:text-slate-200">邮政编码</span>
+                  <span class="font-medium text-slate-700 dark:text-slate-200"
+                    >邮政编码</span
+                  >
                   <UInput v-model="form.postalCode" placeholder="邮编" />
                 </label>
                 <label
                   class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
                 >
-                  <span class="font-medium text-slate-700 dark:text-slate-200">国家 / 地区</span>
+                  <span class="font-medium text-slate-700 dark:text-slate-200"
+                    >国家 / 地区</span
+                  >
                   <UInput v-model="form.country" placeholder="例如：中国" />
                 </label>
               </div>
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">联系电话</span>
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >联系电话</span
+                >
                 <UInput v-model="form.phone" placeholder="用于紧急联系" />
               </label>
             </div>
           </UCard>
         </div>
 
-        <UCard class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60">
+        <UCard
+          class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60"
+        >
           <template #header>
             <div class="flex items-center justify-between">
               <div>
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">AuthMe 绑定</h2>
-                <p class="text-xs text-slate-500 dark:text-slate-400">与 Minecraft 账号绑定以启用 AuthMe 登录。</p>
+                <h2
+                  class="text-lg font-semibold text-slate-900 dark:text-white"
+                >
+                  AuthMe 绑定
+                </h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  与 Minecraft 账号绑定以启用 AuthMe 登录。
+                </p>
               </div>
               <UBadge color="primary" variant="soft">Minecraft</UBadge>
             </div>
           </template>
 
-          <div v-if="authmeBinding" class="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+          <div
+            v-if="authmeBinding"
+            class="space-y-3 text-sm text-slate-600 dark:text-slate-300"
+          >
             <p>
               已绑定账号：
-              <span class="font-semibold text-slate-900 dark:text-white">{{ authmeBinding.authmeUsername }}</span>
-              <span v-if="authmeBinding.authmeRealname" class="ml-2 text-slate-500">
+              <span class="font-semibold text-slate-900 dark:text-white">{{
+                authmeBinding.authmeUsername
+              }}</span>
+              <span
+                v-if="authmeBinding.authmeRealname"
+                class="ml-2 text-slate-500"
+              >
                 ({{ authmeBinding.authmeRealname }})
               </span>
             </p>
             <p class="text-xs text-slate-500 dark:text-slate-400">
-              绑定时间：{{ authmeBinding.boundAt ? new Date(authmeBinding.boundAt).toLocaleString() : '-' }}
+              绑定时间：{{
+                authmeBinding.boundAt
+                  ? new Date(authmeBinding.boundAt).toLocaleString()
+                  : '-'
+              }}
             </p>
             <div class="flex items-center gap-3">
-              <UButton color="primary" variant="outline" :loading="bindingLoading" @click="handleUnbindAuthme">
+              <UButton
+                color="primary"
+                variant="outline"
+                :loading="bindingLoading"
+                @click="handleUnbindAuthme"
+              >
                 解除绑定
               </UButton>
-              <span class="text-xs text-slate-500 dark:text-slate-400">解绑后可再次绑定其他账号。</span>
+              <span class="text-xs text-slate-500 dark:text-slate-400"
+                >解绑后可再次绑定其他账号。</span
+              >
             </div>
           </div>
           <div v-else>
@@ -623,17 +738,29 @@ function handleError(error: unknown, fallback: string) {
             >
               当前暂未开放绑定能力，如需绑定请联系管理员。
             </div>
-            <form v-else class="grid gap-4 md:grid-cols-2" @submit.prevent="submitAuthmeBinding">
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">AuthMe 账号</span>
+            <form
+              v-else
+              class="grid gap-4 md:grid-cols-2"
+              @submit.prevent="submitAuthmeBinding"
+            >
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >AuthMe 账号</span
+                >
                 <UInput
                   v-model="authmeBindingForm.authmeId"
                   placeholder="用户名或 RealName"
                   required
                 />
               </label>
-              <label class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-                <span class="font-medium text-slate-700 dark:text-slate-200">AuthMe 密码</span>
+              <label
+                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+              >
+                <span class="font-medium text-slate-700 dark:text-slate-200"
+                  >AuthMe 密码</span
+                >
                 <UInput
                   v-model="authmeBindingForm.password"
                   type="password"
@@ -648,7 +775,11 @@ function handleError(error: unknown, fallback: string) {
                 >
                   {{ bindingError }}
                 </div>
-                <UButton type="submit" color="primary" :loading="bindingLoading">
+                <UButton
+                  type="submit"
+                  color="primary"
+                  :loading="bindingLoading"
+                >
                   绑定 AuthMe 账号
                 </UButton>
               </div>
@@ -656,7 +787,9 @@ function handleError(error: unknown, fallback: string) {
           </div>
         </UCard>
 
-        <div class="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white/85 p-4 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60 md:flex-row md:items-center md:justify-between md:p-5">
+        <div
+          class="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white/85 p-4 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60 md:flex-row md:items-center md:justify-between md:p-5"
+        >
           <div class="space-y-0.5">
             <p class="text-sm font-medium text-slate-800 dark:text-slate-200">
               {{ hasChanges ? '检测到未保存的修改' : '所有信息均已同步' }}
@@ -691,7 +824,9 @@ function handleError(error: unknown, fallback: string) {
       v-else
       class="flex flex-col items-center gap-4 bg-white/85 py-12 text-center shadow-sm backdrop-blur-sm dark:bg-slate-900/65"
     >
-      <h2 class="text-xl font-semibold text-slate-900 dark:text-white">需要登录</h2>
+      <h2 class="text-xl font-semibold text-slate-900 dark:text-white">
+        需要登录
+      </h2>
       <p class="max-w-sm text-sm text-slate-600 dark:text-slate-300">
         登录后即可完善个人资料与联系地址，确保服务体验与通知准确触达。
       </p>
