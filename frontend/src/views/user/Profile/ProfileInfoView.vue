@@ -29,6 +29,17 @@ type FormState = {
   phone: string
 }
 
+type SectionKey = 'basic' | 'address' | 'minecraft'
+
+type FieldDefinition = {
+  key: keyof FormState
+  label: string
+  inputType?: 'text' | 'email' | 'date' | 'tel'
+  component?: 'textarea' | 'select'
+  placeholder?: string
+  readonly?: boolean
+}
+
 const auth = useAuthStore()
 const ui = useUiStore()
 const featureStore = useFeatureStore()
@@ -41,6 +52,8 @@ const lastSyncedAt = ref<string | null>(null)
 const initialSnapshot = ref('')
 const bindingLoading = ref(false)
 const bindingError = ref('')
+const activeSection = ref<SectionKey>('basic')
+const isEditing = ref(false)
 
 const genderOptions: Array<{ label: string; value: GenderType }> = [
   { label: '未指定', value: 'UNSPECIFIED' },
@@ -59,6 +72,108 @@ const addressFields = [
   'country',
   'phone',
 ] as const satisfies readonly (keyof FormState)[]
+
+const sections: Array<{
+  id: SectionKey
+  label: string
+}> = [
+  {
+    id: 'basic',
+    label: '基础资料',
+  },
+  {
+    id: 'address',
+    label: '地址信息',
+  },
+  {
+    id: 'minecraft',
+    label: 'Minecraft 账户',
+  },
+]
+
+const basicFields: FieldDefinition[] = [
+  {
+    key: 'displayName',
+    label: '显示名称',
+    placeholder: '用于站内展示的名字',
+  },
+  {
+    key: 'name',
+    label: '真实姓名',
+    placeholder: '例如：陈嘉禾',
+  },
+  {
+    key: 'email',
+    label: '邮箱',
+    inputType: 'email',
+    readonly: true,
+  },
+  {
+    key: 'gender',
+    label: '性别',
+    component: 'select',
+  },
+  {
+    key: 'birthday',
+    label: '生日',
+    inputType: 'date',
+  },
+  {
+    key: 'timezone',
+    label: '时区',
+    placeholder: '例如：Asia/Shanghai',
+  },
+  {
+    key: 'locale',
+    label: '语言',
+    placeholder: '例如：zh-CN',
+  },
+  {
+    key: 'motto',
+    label: '个性签名',
+    component: 'textarea',
+    placeholder: '向社区介绍你自己，保持简洁有力。',
+  },
+]
+
+const addressFieldDefinitions: FieldDefinition[] = [
+  {
+    key: 'addressLine1',
+    label: '地址（行 1）',
+    placeholder: '街道、门牌号等',
+  },
+  {
+    key: 'addressLine2',
+    label: '地址（行 2）',
+    placeholder: '单元、楼层等补充信息',
+  },
+  {
+    key: 'city',
+    label: '城市',
+    placeholder: '所在城市',
+  },
+  {
+    key: 'state',
+    label: '省 / 州',
+    placeholder: '所在省份或州',
+  },
+  {
+    key: 'postalCode',
+    label: '邮政编码',
+    placeholder: '邮编',
+  },
+  {
+    key: 'country',
+    label: '国家 / 地区',
+    placeholder: '例如：中国',
+  },
+  {
+    key: 'phone',
+    label: '联系电话',
+    inputType: 'tel',
+    placeholder: '用于紧急联系',
+  },
+]
 
 const form = reactive<FormState>({
   name: '',
@@ -92,6 +207,12 @@ const canSubmit = computed(
     !loading.value,
 )
 
+const currentSection = computed(
+  () =>
+    sections.find((section) => section.id === activeSection.value) ??
+    sections[0],
+)
+
 const bindingEnabled = computed(() => featureStore.flags.authmeBindingEnabled)
 const authmeBinding = computed(
   () => (auth.user as Record<string, any> | null)?.authmeBinding ?? null,
@@ -116,6 +237,22 @@ const joinedText = computed(() => {
   return dayjs(user.createdAt).format('YYYY年M月D日')
 })
 
+const genderLabelMap = computed(() =>
+  genderOptions.reduce<Record<GenderType, string>>(
+    (acc, option) => {
+      acc[option.value] = option.label
+      return acc
+    },
+    {
+      UNSPECIFIED: '未指定',
+      MALE: '男性',
+      FEMALE: '女性',
+      NON_BINARY: '非二元',
+      OTHER: '其他',
+    },
+  ),
+)
+
 watch(
   () => auth.user,
   (user) => {
@@ -139,6 +276,14 @@ watch(
   },
 )
 
+watch(isEditing, (value) => {
+  if (!value) {
+    bindingError.value = ''
+    authmeBindingForm.authmeId = ''
+    authmeBindingForm.password = ''
+  }
+})
+
 onMounted(() => {
   if (auth.isAuthenticated) {
     void loadUser()
@@ -159,6 +304,7 @@ function resetForm() {
   }
   lastSyncedAt.value = null
   initialSnapshot.value = serializeForm()
+  isEditing.value = false
 }
 
 function populateForm(user: Record<string, any>) {
@@ -186,7 +332,40 @@ function populateForm(user: Record<string, any>) {
   initialSnapshot.value = serializeForm()
 }
 
+function startEditing() {
+  if (!isAuthenticated.value) {
+    openLoginDialog()
+    return
+  }
+  isEditing.value = true
+}
+
+function cancelEditing() {
+  handleReset(false)
+  isEditing.value = false
+  authmeBindingForm.authmeId = ''
+  authmeBindingForm.password = ''
+}
+
+function isFieldEditable(field: FieldDefinition) {
+  return isEditing.value && !field.readonly
+}
+
+function formatFieldValue(field: FieldDefinition) {
+  const value = form[field.key]
+  if (field.key === 'gender') {
+    return genderLabelMap.value[value as GenderType] ?? '未指定'
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value.trim()
+  }
+  return '未填写'
+}
+
 async function submitAuthmeBinding() {
+  if (!isEditing.value) {
+    return
+  }
   if (!bindingEnabled.value) {
     bindingError.value = '当前未开放绑定功能'
     return
@@ -200,7 +379,7 @@ async function submitAuthmeBinding() {
     })
     authmeBindingForm.authmeId = ''
     authmeBindingForm.password = ''
-    toast.add({ title: '绑定成功', color: 'green' })
+    toast.add({ title: '绑定成功', color: 'success' })
   } catch (error) {
     if (error instanceof ApiError) {
       bindingError.value = error.message
@@ -213,11 +392,14 @@ async function submitAuthmeBinding() {
 }
 
 async function handleUnbindAuthme() {
+  if (!isEditing.value) {
+    return
+  }
   bindingError.value = ''
   bindingLoading.value = true
   try {
     await auth.unbindAuthme()
-    toast.add({ title: '已解除绑定', color: 'amber' })
+    toast.add({ title: '已解除绑定', color: 'warning' })
   } catch (error) {
     if (error instanceof ApiError) {
       bindingError.value = error.message
@@ -363,6 +545,8 @@ async function handleSave() {
   try {
     const updated = await auth.updateCurrentUser(payload)
     lastSyncedAt.value = updated.updatedAt ?? lastSyncedAt.value
+    initialSnapshot.value = serializeForm()
+    isEditing.value = false
     toast.add({
       title: '资料已更新',
       description: '您的账户信息已成功保存。',
@@ -376,17 +560,19 @@ async function handleSave() {
   }
 }
 
-function handleReset() {
+function handleReset(showToast = true) {
   if (!auth.user) {
     resetForm()
     return
   }
   populateForm(auth.user)
-  toast.add({
-    title: '已还原修改',
-    description: '表单内容已恢复为最新的服务器数据。',
-    color: 'info',
-  })
+  if (showToast) {
+    toast.add({
+      title: '已还原修改',
+      description: '表单内容已恢复为最新的服务器数据。',
+      color: 'info',
+    })
+  }
 }
 
 function openLoginDialog() {
@@ -477,344 +663,336 @@ function handleError(error: unknown, fallback: string) {
       </div>
 
       <form
-        class="space-y-6 transition-opacity"
+        id="profile-form"
+        class="flex flex-col gap-6 transition-opacity"
         :class="{ 'pointer-events-none opacity-60': loading && !saving }"
         @submit.prevent="handleSave"
       >
-        <div class="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
-          <UCard
-            class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60"
+        <Transition name="fade">
+          <div
+            v-if="isEditing"
+            class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary-200/70 bg-primary-50/80 px-4 py-3 text-sm text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200"
           >
-            <template #header>
-              <div class="flex flex-col gap-1">
-                <h2
-                  class="text-lg font-semibold text-slate-900 dark:text-white"
-                >
-                  基础资料
-                </h2>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  这些信息将用于识别与个性化体验，可随时更新。
-                </p>
-              </div>
-            </template>
-
-            <div class="grid gap-4 md:grid-cols-2">
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >显示名称</span
-                >
-                <UInput
-                  v-model="form.displayName"
-                  placeholder="用于站内展示的名字"
-                />
-              </label>
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >真实姓名</span
-                >
-                <UInput v-model="form.name" placeholder="例如：陈嘉禾" />
-              </label>
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >邮箱</span
-                >
-                <UInput v-model="form.email" type="email" disabled />
-              </label>
-              <div
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >性别</span
-                >
-                <USelectMenu
-                  v-model="form.gender"
-                  :options="genderOptions"
-                  value-attribute="value"
-                  option-attribute="label"
-                  class="w-full"
-                  :popper="{ placement: 'bottom-start' }"
-                />
-              </div>
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >生日</span
-                >
-                <UInput v-model="form.birthday" type="date" />
-              </label>
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >时区</span
-                >
-                <UInput
-                  v-model="form.timezone"
-                  placeholder="例如：Asia/Shanghai"
-                />
-              </label>
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >语言</span
-                >
-                <UInput
-                  v-model="form.locale"
-                  placeholder="例如：zh-CN"
-                  maxlength="32"
-                />
-              </label>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-pencil" class="h-4 w-4" />
+              <span>已进入编辑模式</span>
             </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span
+                v-if="hasChanges"
+                class="text-xs text-primary-600/80 dark:text-primary-200/80"
+              >
+                检测到未保存的修改
+              </span>
+              <UButton type="button" variant="ghost" @click="cancelEditing">
+                取消
+              </UButton>
+              <UButton
+                type="submit"
+                color="primary"
+                :loading="saving"
+                :disabled="!canSubmit"
+              >
+                保存更改
+              </UButton>
+            </div>
+          </div>
+        </Transition>
 
-            <label
-              class="mt-4 flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
+        <div class="flex flex-col gap-6 lg:flex-row">
+          <aside
+            class="w-full shrink-0 rounded-2xl py-4 backdrop-blur-sm lg:w-50"
+          >
+            <nav class="flex flex-row gap-2 overflow-x-auto lg:flex-col">
+              <button
+                v-for="section in sections"
+                :key="section.id"
+                type="button"
+                class="group flex-1 rounded-2xl px-4 py-3 text-left text-sm transition lg:flex-auto"
+                :class="[
+                  activeSection === section.id
+                    ? 'bg-primary-100/80 text-primary-700 dark:bg-primary-500/15 dark:text-primary-200'
+                    : 'text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-slate-800/60',
+                ]"
+                @click="activeSection = section.id"
+              >
+                <div class="font-semibold">
+                  {{ section.label }}
+                </div>
+              </button>
+            </nav>
+          </aside>
+
+          <div
+            class="flex-1 rounded-2xl border border-slate-200/70 bg-white/85 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60"
+          >
+            <div
+              class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-5 dark:border-slate-800/70"
             >
-              <span class="font-medium text-slate-700 dark:text-slate-200"
-                >个性签名</span
-              >
-              <UTextarea
-                v-model="form.motto"
-                :rows="3"
-                placeholder="向社区介绍你自己，保持简洁有力。"
-              />
-            </label>
-          </UCard>
-
-          <UCard
-            class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60"
-          >
-            <template #header>
-              <div class="flex flex-col gap-1">
-                <h2
-                  class="text-lg font-semibold text-slate-900 dark:text-white"
-                >
-                  联系与地址
-                </h2>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  这些信息仅用于必要的联系和服务交付，不会对外公开。
-                </p>
-              </div>
-            </template>
-
-            <div class="grid gap-4">
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >地址（行 1）</span
-                >
-                <UInput
-                  v-model="form.addressLine1"
-                  placeholder="街道、门牌号等"
-                />
-              </label>
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >地址（行 2）</span
-                >
-                <UInput
-                  v-model="form.addressLine2"
-                  placeholder="单元、楼层等补充信息"
-                />
-              </label>
-              <div class="grid gap-4 md:grid-cols-2">
-                <label
-                  class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-                >
-                  <span class="font-medium text-slate-700 dark:text-slate-200"
-                    >城市</span
-                  >
-                  <UInput v-model="form.city" placeholder="所在城市" />
-                </label>
-                <label
-                  class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-                >
-                  <span class="font-medium text-slate-700 dark:text-slate-200"
-                    >省 / 州</span
-                  >
-                  <UInput v-model="form.state" placeholder="所在省份或州" />
-                </label>
-              </div>
-              <div class="grid gap-4 md:grid-cols-2">
-                <label
-                  class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-                >
-                  <span class="font-medium text-slate-700 dark:text-slate-200"
-                    >邮政编码</span
-                  >
-                  <UInput v-model="form.postalCode" placeholder="邮编" />
-                </label>
-                <label
-                  class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-                >
-                  <span class="font-medium text-slate-700 dark:text-slate-200"
-                    >国家 / 地区</span
-                  >
-                  <UInput v-model="form.country" placeholder="例如：中国" />
-                </label>
-              </div>
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >联系电话</span
-                >
-                <UInput v-model="form.phone" placeholder="用于紧急联系" />
-              </label>
-            </div>
-          </UCard>
-        </div>
-
-        <UCard
-          class="bg-white/85 shadow-sm backdrop-blur-sm dark:bg-slate-900/60"
-        >
-          <template #header>
-            <div class="flex items-center justify-between">
               <div>
                 <h2
                   class="text-lg font-semibold text-slate-900 dark:text-white"
                 >
-                  AuthMe 绑定
+                  {{ currentSection.label }}
                 </h2>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  与 Minecraft 账号绑定以启用 AuthMe 登录。
-                </p>
               </div>
-              <UBadge color="primary" variant="soft">Minecraft</UBadge>
-            </div>
-          </template>
-
-          <div
-            v-if="authmeBinding"
-            class="space-y-3 text-sm text-slate-600 dark:text-slate-300"
-          >
-            <p>
-              已绑定账号：
-              <span class="font-semibold text-slate-900 dark:text-white">{{
-                authmeBinding.authmeUsername
-              }}</span>
-              <span
-                v-if="authmeBinding.authmeRealname"
-                class="ml-2 text-slate-500"
-              >
-                ({{ authmeBinding.authmeRealname }})
-              </span>
-            </p>
-            <p class="text-xs text-slate-500 dark:text-slate-400">
-              绑定时间：{{
-                authmeBinding.boundAt
-                  ? new Date(authmeBinding.boundAt).toLocaleString()
-                  : '-'
-              }}
-            </p>
-            <div class="flex items-center gap-3">
               <UButton
+                v-if="!isEditing"
+                type="button"
                 color="primary"
-                variant="outline"
-                :loading="bindingLoading"
-                @click="handleUnbindAuthme"
+                variant="soft"
+                :disabled="loading"
+                @click="startEditing"
               >
-                解除绑定
+                编辑
               </UButton>
-              <span class="text-xs text-slate-500 dark:text-slate-400"
-                >解绑后可再次绑定其他账号。</span
-              >
             </div>
-          </div>
-          <div v-else>
-            <div
-              v-if="!bindingEnabled"
-              class="rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
-            >
-              当前暂未开放绑定能力，如需绑定请联系管理员。
-            </div>
-            <form
-              v-else
-              class="grid gap-4 md:grid-cols-2"
-              @submit.prevent="submitAuthmeBinding"
-            >
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >AuthMe 账号</span
-                >
-                <UInput
-                  v-model="authmeBindingForm.authmeId"
-                  placeholder="用户名或 RealName"
-                  required
-                />
-              </label>
-              <label
-                class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-              >
-                <span class="font-medium text-slate-700 dark:text-slate-200"
-                  >AuthMe 密码</span
-                >
-                <UInput
-                  v-model="authmeBindingForm.password"
-                  type="password"
-                  placeholder="请输入 AuthMe 密码"
-                  required
-                />
-              </label>
-              <div class="md:col-span-2 space-y-2">
-                <div
-                  v-if="bindingError"
-                  class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
-                >
-                  {{ bindingError }}
-                </div>
-                <UButton
-                  type="submit"
-                  color="primary"
-                  :loading="bindingLoading"
-                >
-                  绑定 AuthMe 账号
-                </UButton>
-              </div>
-            </form>
-          </div>
-        </UCard>
 
-        <div
-          class="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white/85 p-4 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60 md:flex-row md:items-center md:justify-between md:p-5"
-        >
-          <div class="space-y-0.5">
-            <p class="text-sm font-medium text-slate-800 dark:text-slate-200">
-              {{ hasChanges ? '检测到未保存的修改' : '所有信息均已同步' }}
-            </p>
-            <p class="text-xs text-slate-500 dark:text-slate-400">
-              修改将立刻同步至账户配置，用于未来的服务体验与通知。
-            </p>
-          </div>
-          <div class="flex items-center gap-3">
-            <UButton
-              type="button"
-              variant="ghost"
-              :disabled="!hasChanges || saving || loading"
-              @click="handleReset"
-            >
-              恢复
-            </UButton>
-            <UButton
-              type="submit"
-              color="primary"
-              :loading="saving"
-              :disabled="!canSubmit"
-            >
-              保存更改
-            </UButton>
+            <div class="px-6 py-6">
+              <div v-if="activeSection === 'basic'" class="space-y-4">
+                <div
+                  v-for="field in basicFields"
+                  :key="field.key"
+                  class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 transition hover:bg-slate-50/50 dark:hover:bg-slate-800/40 md:flex-row md:items-center md:gap-6"
+                  :class="
+                    isFieldEditable(field)
+                      ? 'bg-slate-50/70 dark:bg-slate-800/40'
+                      : ''
+                  "
+                >
+                  <div
+                    class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
+                  >
+                    {{ field.label }}
+                  </div>
+                  <div class="flex-1">
+                    <template v-if="isFieldEditable(field)">
+                      <USelectMenu
+                        v-if="field.key === 'gender'"
+                        v-model="form.gender"
+                        :options="genderOptions"
+                        value-attribute="value"
+                        option-attribute="label"
+                        class="w-full"
+                        :popper="{ placement: 'bottom-start' }"
+                      />
+                      <UTextarea
+                        v-else-if="field.component === 'textarea'"
+                        v-model="form[field.key]"
+                        :rows="3"
+                        :placeholder="field.placeholder"
+                      />
+                      <UInput
+                        v-else
+                        v-model="form[field.key]"
+                        :type="field.inputType ?? 'text'"
+                        :placeholder="field.placeholder"
+                      />
+                    </template>
+                    <template v-else>
+                      <p
+                        class="text-sm"
+                        :class="[
+                          field.component === 'textarea'
+                            ? 'whitespace-pre-line'
+                            : 'whitespace-normal',
+                          formatFieldValue(field) === '未填写'
+                            ? 'text-slate-400 italic'
+                            : 'text-slate-900 dark:text-slate-100',
+                        ]"
+                      >
+                        {{ formatFieldValue(field) }}
+                      </p>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="activeSection === 'address'" class="space-y-4">
+                <div
+                  v-for="field in addressFieldDefinitions"
+                  :key="field.key"
+                  class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 transition hover:bg-slate-50/50 dark:hover:bg-slate-800/40 md:flex-row md:items-center md:gap-6"
+                  :class="
+                    isFieldEditable(field)
+                      ? 'bg-slate-50/70 dark:bg-slate-800/40'
+                      : ''
+                  "
+                >
+                  <div
+                    class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
+                  >
+                    {{ field.label }}
+                  </div>
+                  <div class="flex-1">
+                    <template v-if="isFieldEditable(field)">
+                      <UTextarea
+                        v-if="field.component === 'textarea'"
+                        v-model="form[field.key]"
+                        :rows="3"
+                        :placeholder="field.placeholder"
+                      />
+                      <UInput
+                        v-else
+                        v-model="form[field.key]"
+                        :type="field.inputType ?? 'text'"
+                        :placeholder="field.placeholder"
+                      />
+                    </template>
+                    <template v-else>
+                      <p
+                        class="text-sm"
+                        :class="[
+                          formatFieldValue(field) === '未填写'
+                            ? 'text-slate-400 italic'
+                            : 'text-slate-900 dark:text-slate-100',
+                        ]"
+                      >
+                        {{ formatFieldValue(field) }}
+                      </p>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else class="space-y-4">
+                <div
+                  class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 md:flex-row md:items-center md:gap-6"
+                >
+                  <div
+                    class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
+                  >
+                    绑定状态
+                  </div>
+                  <div
+                    class="flex-1 text-sm text-slate-900 dark:text-slate-100"
+                  >
+                    {{
+                      authmeBinding
+                        ? '已绑定一个 AuthMe 账号'
+                        : '尚未绑定 AuthMe 账号'
+                    }}
+                  </div>
+                </div>
+
+                <template v-if="authmeBinding">
+                  <div
+                    class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 md:flex-row md:items-center md:gap-6"
+                  >
+                    <div
+                      class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
+                    >
+                      绑定账号
+                    </div>
+                    <div
+                      class="flex-1 text-sm text-slate-900 dark:text-slate-100"
+                    >
+                      {{ authmeBinding.authmeRealname }}
+                    </div>
+                  </div>
+                  <div
+                    class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 md:flex-row md:items-center md:gap-6"
+                  >
+                    <div
+                      class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
+                    >
+                      绑定时间
+                    </div>
+                    <div
+                      class="flex-1 text-sm text-slate-900 dark:text-slate-100"
+                    >
+                      {{
+                        authmeBinding.boundAt
+                          ? new Date(authmeBinding.boundAt).toLocaleString()
+                          : '—'
+                      }}
+                    </div>
+                  </div>
+                  <div
+                    v-if="isEditing"
+                    class="flex flex-col gap-2 rounded-xl border border-transparent px-4 py-3 md:flex-row md:items-center md:gap-6"
+                  >
+                    <div
+                      class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
+                    >
+                      操作
+                    </div>
+                    <div class="flex flex-1 items-center gap-3 text-sm">
+                      <UButton
+                        type="button"
+                        color="primary"
+                        variant="outline"
+                        :loading="bindingLoading"
+                        @click="handleUnbindAuthme"
+                      >
+                        解除绑定
+                      </UButton>
+                      <span class="text-xs text-slate-500 dark:text-slate-400">
+                        解绑后可再次绑定其他账号。
+                      </span>
+                    </div>
+                  </div>
+                </template>
+
+                <template v-else>
+                  <div
+                    v-if="isEditing"
+                    class="space-y-4 rounded-xl border border-dashed border-slate-200/70 px-4 py-4 dark:border-slate-700"
+                  >
+                    <div class="flex flex-col gap-2">
+                      <label
+                        class="text-sm font-medium text-slate-600 dark:text-slate-300"
+                      >
+                        AuthMe 账号
+                        <UInput
+                          v-model="authmeBindingForm.authmeId"
+                          class="mt-2"
+                          placeholder="用户名或 RealName"
+                        />
+                      </label>
+                      <label
+                        class="text-sm font-medium text-slate-600 dark:text-slate-300"
+                      >
+                        AuthMe 密码
+                        <UInput
+                          v-model="authmeBindingForm.password"
+                          class="mt-2"
+                          type="password"
+                          placeholder="请输入 AuthMe 密码"
+                        />
+                      </label>
+                    </div>
+                    <div
+                      v-if="bindingError"
+                      class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
+                    >
+                      {{ bindingError }}
+                    </div>
+                    <UButton
+                      type="button"
+                      color="primary"
+                      :loading="bindingLoading"
+                      :disabled="!bindingEnabled"
+                      @click="submitAuthmeBinding"
+                    >
+                      绑定 AuthMe 账号
+                    </UButton>
+                    <div
+                      v-if="!bindingEnabled"
+                      class="rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+                    >
+                      当前暂未开放绑定能力，如需绑定请联系管理员。
+                    </div>
+                  </div>
+                  <div
+                    v-else
+                    class="rounded-xl border border-dashed border-slate-200/70 px-4 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                  >
+                    尚未绑定 AuthMe 账号。点击右上角的“编辑”后可发起绑定。
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
         </div>
       </form>
