@@ -18,7 +18,10 @@ import { AuthLoginDto } from './dto/auth-login.dto';
 import { AuthmeBindDto } from './dto/authme-bind.dto';
 import { AuthmeService } from '../authme/authme.service';
 import { AuthmeBindingService } from '../authme/authme-binding.service';
-import { AuthFeatureService, AuthFeatureFlags } from '../authme/auth-feature.service';
+import {
+  AuthFeatureService,
+  AuthFeatureFlags,
+} from '../authme/auth-feature.service';
 import { businessError } from '../authme/authme.errors';
 
 interface AuthResponse {
@@ -68,7 +71,10 @@ export class AuthService {
     await this.ensureDefaultAdmin();
   }
 
-  async register(dto: AuthRegisterDto, context: RequestContext = {}): Promise<AuthOperationResult> {
+  async register(
+    dto: AuthRegisterDto,
+    context: RequestContext = {},
+  ): Promise<AuthOperationResult> {
     if (dto.mode === 'AUTHME') {
       return this.registerWithAuthme(dto, context);
     }
@@ -78,7 +84,10 @@ export class AuthService {
     return this.registerWithEmail(dto, context);
   }
 
-  async login(dto: AuthLoginDto, context: RequestContext = {}): Promise<AuthOperationResult> {
+  async login(
+    dto: AuthLoginDto,
+    context: RequestContext = {},
+  ): Promise<AuthOperationResult> {
     if (dto.mode === 'AUTHME') {
       return this.loginWithAuthme(dto, context);
     }
@@ -167,12 +176,19 @@ export class AuthService {
     return { user, sessionToken: token };
   }
 
-  async bindAuthme(userId: string, dto: AuthmeBindDto, context: RequestContext = {}) {
+  async bindAuthme(
+    userId: string,
+    dto: AuthmeBindDto,
+    context: RequestContext = {},
+  ) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeBindingEnabled) {
       throw new BadRequestException('当前环境未启用 AuthMe 绑定');
     }
-    const account = await this.authmeService.verifyCredentials(dto.authmeId, dto.password);
+    const account = await this.authmeService.verifyCredentials(
+      dto.authmeId,
+      dto.password,
+    );
     await this.authmeBindingService.bindUser({
       userId,
       authmeUser: account,
@@ -183,7 +199,11 @@ export class AuthService {
     return { user };
   }
 
-  async unbindAuthme(userId: string, context: RequestContext = {}, username?: string) {
+  async unbindAuthme(
+    userId: string,
+    context: RequestContext = {},
+    username?: string,
+  ) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeBindingEnabled) {
       throw new BadRequestException('当前环境未启用 AuthMe 绑定');
@@ -650,6 +670,59 @@ export class AuthService {
       displayName: admin.name ?? 'Administrator',
     });
     await this.assignDefaultRole(admin.id, DEFAULT_ROLES.ADMIN);
+  }
+
+  // Persist latest IP/User-Agent for the session identified by token
+  async touchSession(token: string, context: RequestContext): Promise<void> {
+    if (!token) return;
+    await this.prisma.session.updateMany({
+      where: { token },
+      data: {
+        ipAddress: context.ip ?? undefined,
+        userAgent: context.userAgent ?? undefined,
+      },
+    });
+    // If user's last login info is missing, backfill it using this request
+    const session = await this.prisma.session.findUnique({ where: { token } });
+    if (!session) return;
+    const user = await this.prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { lastLoginAt: true },
+    });
+    if (!user?.lastLoginAt) {
+      await this.prisma.user.update({
+        where: { id: session.userId },
+        data: {
+          lastLoginAt: new Date(),
+          lastLoginIp: context.ip ?? session.ipAddress ?? null,
+        },
+      });
+    }
+  }
+
+  // Allow client to identify device; stores a friendly string into userAgent
+  async identifySession(
+    token: string,
+    body: { deviceName?: string | null; devicePlatform?: string | null },
+    context: RequestContext = {},
+  ) {
+    if (!token) return { success: false } as const;
+    const session = await this.prisma.session.findUnique({ where: { token } });
+    if (!session) return { success: false } as const;
+    const friendly = [body.deviceName, body.devicePlatform]
+      .filter((v) => typeof v === 'string' && v.trim().length > 0)
+      .join(' / ');
+    const mergedUA = friendly
+      ? `${friendly}${context.userAgent ? ` | ${context.userAgent}` : ''}`
+      : (context.userAgent ?? session.userAgent ?? null);
+    await this.prisma.session.update({
+      where: { id: session.id },
+      data: {
+        userAgent: mergedUA ?? undefined,
+        ipAddress: context.ip ?? session.ipAddress ?? undefined,
+      },
+    });
+    return { success: true } as const;
   }
 
   private async assignDefaultRole(

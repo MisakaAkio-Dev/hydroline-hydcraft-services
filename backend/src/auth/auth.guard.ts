@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { buildRequestContext } from './helpers/request-context.helper';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -23,6 +24,13 @@ export class AuthGuard implements CanActivate {
 
     const token = authHeader.slice(7);
     const session = await this.authService.getSession(token);
+    // Persist latest IP/User-Agent on every authenticated request
+    try {
+      const ctx = buildRequestContext(request);
+      await this.authService.touchSession(token, ctx);
+    } catch {
+      // best-effort only
+    }
     request.user = session.user;
     request.sessionToken = token;
     return true;

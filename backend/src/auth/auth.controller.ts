@@ -127,6 +127,15 @@ export class AuthController {
     if (!userId) {
       throw new UnauthorizedException('Invalid session');
     }
+    // Best-effort: update current session IP/UA from this request
+    try {
+      await this.authService.touchSession(
+        req.sessionToken as string,
+        buildRequestContext(req),
+      );
+    } catch {
+      // ignore
+    }
     const sessions = await this.authService.listUserSessions(userId);
     const currentToken = req.sessionToken ?? null;
     const enriched = await Promise.all(
@@ -147,6 +156,25 @@ export class AuthController {
         isCurrent: session.token === currentToken,
       })),
     };
+  }
+
+  @Post('sessions/identify')
+  @UseGuards(AuthGuard)
+  async identifySession(
+    @Req() req: Request,
+    @Body()
+    body: { deviceName?: string | null; devicePlatform?: string | null },
+  ) {
+  const token: string | undefined = req.sessionToken ?? undefined;
+    if (!token) {
+      throw new UnauthorizedException('Invalid session');
+    }
+    const result = await this.authService.identifySession(
+      token,
+      body ?? {},
+      buildRequestContext(req),
+    );
+    return result;
   }
 
   @Delete('sessions/:sessionId')
