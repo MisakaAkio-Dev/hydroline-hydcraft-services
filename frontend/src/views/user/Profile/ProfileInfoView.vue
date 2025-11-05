@@ -118,90 +118,6 @@ const sections: Array<{
   },
 ]
 
-const basicFields: FieldDefinition[] = [
-  {
-    key: 'displayName',
-    label: '显示名称',
-    placeholder: '用于站内展示的名字',
-  },
-  {
-    key: 'name',
-    label: '真实姓名',
-    placeholder: '例如：陈嘉禾',
-  },
-  {
-    key: 'email',
-    label: '邮箱',
-    inputType: 'email',
-    readonly: true,
-  },
-  {
-    key: 'gender',
-    label: '性别',
-    component: 'select',
-  },
-  {
-    key: 'birthday',
-    label: '生日',
-    inputType: 'date',
-  },
-  {
-    key: 'timezone',
-    label: '时区',
-    placeholder: '例如：Asia/Shanghai',
-  },
-  {
-    key: 'locale',
-    label: '语言',
-    placeholder: '例如：zh-CN',
-  },
-  {
-    key: 'motto',
-    label: '个性签名',
-    component: 'textarea',
-    placeholder: '向社区介绍你自己，保持简洁有力。',
-  },
-]
-
-const addressFieldDefinitions: FieldDefinition[] = [
-  {
-    key: 'addressLine1',
-    label: '地址（行 1）',
-    placeholder: '街道、门牌号等',
-  },
-  {
-    key: 'addressLine2',
-    label: '地址（行 2）',
-    placeholder: '单元、楼层等补充信息',
-  },
-  {
-    key: 'city',
-    label: '城市',
-    placeholder: '所在城市',
-  },
-  {
-    key: 'state',
-    label: '省 / 州',
-    placeholder: '所在省份或州',
-  },
-  {
-    key: 'postalCode',
-    label: '邮政编码',
-    placeholder: '邮编',
-  },
-  {
-    key: 'country',
-    label: '国家 / 地区',
-    placeholder: '例如：中国',
-  },
-  {
-    key: 'phone',
-    label: '联系电话',
-    inputType: 'tel',
-    placeholder: '用于紧急联系',
-  },
-]
-
 const form = reactive<FormState>({
   name: '',
   displayName: '',
@@ -237,13 +153,6 @@ const languageOptions = ref([{ label: '中文（简体）', value: 'zh-CN' }])
 const showBindDialog = ref(false)
 
 const hasChanges = computed(() => serializeForm() !== initialSnapshot.value)
-const canSubmit = computed(
-  () =>
-    isAuthenticated.value &&
-    hasChanges.value &&
-    !saving.value &&
-    !loading.value,
-)
 
 const currentSection = computed(
   () =>
@@ -461,21 +370,6 @@ function cancelEditing() {
   isEditing.value = false
   authmeBindingForm.authmeId = ''
   authmeBindingForm.password = ''
-}
-
-function isFieldEditable(field: FieldDefinition) {
-  return isEditing.value && !field.readonly
-}
-
-function formatFieldValue(field: FieldDefinition) {
-  const value = form[field.key]
-  if (field.key === 'gender') {
-    return genderLabelMap.value[value as GenderType] ?? '未指定'
-  }
-  if (typeof value === 'string' && value.trim().length > 0) {
-    return value.trim()
-  }
-  return '未填写'
 }
 
 async function submitAuthmeBinding() {

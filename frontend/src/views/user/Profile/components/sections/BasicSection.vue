@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { parseDate } from '@internationalized/date'
+import dayjs from 'dayjs'
 import type { GenderType } from '@/stores/auth'
 import RegionSelector from '../RegionSelector.vue'
 import { countries } from '../region-data'
@@ -65,11 +67,21 @@ const genderLabel = computed(
 )
 
 // 由 RegionSelector 内部处理更新
-
 const countryName = computed(() => {
   const code = props.modelValue.region?.country || 'OTHER'
   return countries.find((c) => c.code === code)?.name || '未填写'
 })
+
+const languageLabel = computed(() => {
+  const value = props.modelValue.locale
+  return (
+    props.languageOptions.find((opt) => opt.value === value)?.label ||
+    value ||
+    '未填写'
+  )
+})
+
+const birthdayOpen = ref(false)
 </script>
 
 <template>
@@ -178,13 +190,45 @@ const countryName = computed(() => {
           生日
         </div>
         <div class="flex-1">
-          <UInput
+          <UPopover
             v-if="isEditing"
-            :model-value="props.modelValue.birthday"
-            type="date"
-            class="w-full"
-            @update:model-value="(v: any) => update('birthday', v)"
-          />
+            :open="birthdayOpen"
+            @update:open="(v: boolean) => (birthdayOpen = v)"
+          >
+            <UInput
+              :model-value="props.modelValue.birthday"
+              readonly
+              class="w-full max-w-60 cursor-pointer"
+              placeholder="选择日期"
+              @click="birthdayOpen = true"
+            />
+            <template #content>
+              <div class="p-2">
+                <UCalendar
+                  :model-value="
+                    props.modelValue.birthday
+                      ? parseDate(props.modelValue.birthday)
+                      : undefined
+                  "
+                  fixed-weeks
+                  @update:model-value="
+                    (d: any) => {
+                      if (!d) {
+                        update('birthday', '')
+                        birthdayOpen = false
+                        return
+                      }
+                      const dateStr = dayjs(
+                        new Date(d.year, d.month - 1, d.day),
+                      ).format('YYYY-MM-DD')
+                      update('birthday', dateStr)
+                      birthdayOpen = false
+                    }
+                  "
+                />
+              </div>
+            </template>
+          </UPopover>
           <p v-else class="text-sm text-slate-900 dark:text-slate-100">
             {{ props.modelValue.birthday || '未填写' }}
           </p>
@@ -234,8 +278,18 @@ const countryName = computed(() => {
             class="w-full"
             @update:model-value="(v: any) => update('locale', v)"
           />
-          <p v-else class="text-sm text-slate-900 dark:text-slate-100">
-            {{ props.modelValue.locale || '未填写' }}
+          <p
+            v-else
+            class="flex items-center text-sm text-slate-900 dark:text-slate-100"
+          >
+            {{ languageLabel }}
+            <UBadge
+              v-if="props.modelValue.locale"
+              class="leading-none text-[9px] w-fit h-fit px-1 py-0.5"
+              variant="soft"
+            >
+              {{ props.modelValue.locale }}
+            </UBadge>
           </p>
         </div>
       </div>
