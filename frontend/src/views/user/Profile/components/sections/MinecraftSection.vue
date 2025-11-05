@@ -23,8 +23,8 @@ const emit = defineEmits<{
 <template>
   <div class="space-y-4">
     <div class="flex items-center justify-between">
-      <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">
-        玩家绑定信息
+      <h3 class="px-1 text-lg text-slate-600 dark:text-slate-300">
+        账户绑定
       </h3>
       <div>
         <UButton
@@ -83,25 +83,17 @@ const emit = defineEmits<{
             <div v-if="b.ip">
               上次登录 IP：{{ b.ip }}
               <span
-                v-if="b.ipLocation && b.ipLocation.includes('|')"
+                v-if="b.ipLocation"
                 class="text-slate-500 dark:text-slate-400"
-                >（{{
-                  b.ipLocation.split('|').slice(0, 4).filter(Boolean).join(' ')
-                }}）</span
+                >（{{ b.ipLocation }}）</span
               >
             </div>
             <div v-if="b.regip">
               注册 IP：{{ b.regip }}
               <span
-                v-if="b.regipLocation && b.regipLocation.includes('|')"
+                v-if="b.regipLocation"
                 class="text-slate-500 dark:text-slate-400"
-                >（{{
-                  b.regipLocation
-                    .split('|')
-                    .slice(0, 4)
-                    .filter(Boolean)
-                    .join(' ')
-                }}）</span
+                >（{{ b.regipLocation }}）</span
               >
             </div>
           </div>

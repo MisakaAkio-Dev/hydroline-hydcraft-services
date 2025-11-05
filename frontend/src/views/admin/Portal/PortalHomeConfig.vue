@@ -762,7 +762,7 @@ onMounted(() => {
           class="rounded-2xl border border-dashed border-slate-300/80 bg-slate-50/70 p-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/60"
         >
           <div class="flex items-center justify-between">
-            <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            <h4 class="px-1 text-lg text-slate-600 dark:text-slate-300">
               新增背景图
             </h4>
             <UButton
@@ -948,7 +948,7 @@ onMounted(() => {
           class="rounded-2xl border border-dashed border-slate-300/70 bg-slate-50/70 p-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/60"
         >
           <div class="flex items-center justify-between">
-            <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            <h4 class="px-1 text-lg text-slate-600 dark:text-slate-300">
               新增导航链接
             </h4>
             <UButton

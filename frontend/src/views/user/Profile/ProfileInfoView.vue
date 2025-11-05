@@ -69,6 +69,8 @@ const lastSyncedAt = ref<string | null>(null)
 const initialSnapshot = ref('')
 const bindingLoading = ref(false)
 const bindingError = ref('')
+const unbindLoading = ref(false)
+const unbindError = ref('')
 const activeSection = ref<SectionKey>('basic')
 // 任一卡片正在编辑
 const isEditingAny = ref(false)
@@ -92,10 +94,10 @@ const sessionsError = ref('')
 const revokingSessionId = ref<string | null>(null)
 const basicSectionRef = ref<InstanceType<typeof BasicSection> | null>(null)
 // 解绑 / 终止会话确认弹窗
-const showUnbindConfirm = ref(false)
-const unbindTargetUsername = ref<string | null>(null)
+const showUnbindDialog = ref(false)
 const showRevokeConfirm = ref(false)
 const revokeTargetId = ref<string | null>(null)
+const authmeUnbindForm = reactive({ username: '', password: '' })
 
 const genderOptions: Array<{ label: string; value: GenderType }> = [
   { label: '未指定', value: 'UNSPECIFIED' },
@@ -130,6 +132,15 @@ const sections: Array<{
     label: '会话管理',
   },
 ]
+
+function normalizeLocationText(value: string | null | undefined) {
+  if (!value || typeof value !== 'string') {
+    return null
+  }
+  const replaced = value.replace(/\s*·\s*/g, ' ').replace(/\|/g, ' ')
+  const cleaned = replaced.replace(/\s+/g, ' ').trim()
+  return cleaned.length > 0 ? cleaned : null
+}
 
 const form = reactive<FormState>({
   name: '',
@@ -180,9 +191,13 @@ const authmeBindings = computed(() => {
       realname: b.authmeRealname ?? null,
       boundAt: b.boundAt ?? null,
       ip: b.ip ?? null,
-      ipLocation: b.ip_location ?? b.ipLocation ?? null,
+      ipLocation: normalizeLocationText(
+        (b.ip_location ?? b.ipLocation ?? null) as string | null,
+      ),
       regip: b.regip ?? null,
-      regipLocation: b.regip_location ?? b.regipLocation ?? null,
+      regipLocation: normalizeLocationText(
+        (b.regip_location ?? b.regipLocation ?? null) as string | null,
+      ),
       lastlogin: b.lastlogin ?? null,
       regdate: b.regdate ?? null,
     }))
@@ -194,9 +209,13 @@ const authmeBindings = computed(() => {
         realname: single.authmeRealname ?? null,
         boundAt: single.boundAt ?? null,
         ip: single.ip ?? null,
-        ipLocation: single.ip_location ?? single.ipLocation ?? null,
+        ipLocation: normalizeLocationText(
+          (single.ip_location ?? single.ipLocation ?? null) as string | null,
+        ),
         regip: single.regip ?? null,
-        regipLocation: single.regip_location ?? single.regipLocation ?? null,
+        regipLocation: normalizeLocationText(
+          (single.regip_location ?? single.regipLocation ?? null) as string | null,
+        ),
         lastlogin: single.lastlogin ?? null,
         regdate: single.regdate ?? null,
       },
@@ -243,21 +262,21 @@ const lastLoginIp = computed(() => {
   return ((user as any)?.lastLoginIp as string | null) ?? null
 })
 
-const genderLabelMap = computed(() =>
-  genderOptions.reduce<Record<GenderType, string>>(
-    (acc, option) => {
-      acc[option.value] = option.label
-      return acc
-    },
-    {
-      UNSPECIFIED: '未指定',
-      MALE: '男性',
-      FEMALE: '女性',
-      NON_BINARY: '非二元',
-      OTHER: '其他',
-    },
-  ),
-)
+const lastLoginIpLocation = computed(() => {
+  const user = auth.user as Record<string, any> | null
+  const location =
+    ((user as any)?.lastLoginIpLocation ??
+      (user as any)?.lastLoginIpLocationRaw ??
+      null) as string | null
+  return normalizeLocationText(location)
+})
+
+const lastLoginIpDisplay = computed(() => {
+  const ip = lastLoginIp.value
+  if (!ip) return ''
+  const location = lastLoginIpLocation.value
+  return location ? `${ip}（${location}）` : ip
+})
 
 watch(
   () => auth.user,
@@ -408,21 +427,48 @@ async function submitAuthmeBinding() {
   }
 }
 
-async function handleUnbindAuthme(_username?: string) {
-  bindingError.value = ''
-  bindingLoading.value = true
+function requestUnbindAuthme(username: string) {
+  authmeUnbindForm.username = username
+  authmeUnbindForm.password = ''
+  unbindError.value = ''
+  showUnbindDialog.value = true
+}
+
+async function submitUnbindAuthme() {
+  if (!authmeUnbindForm.password.trim()) {
+    unbindError.value = '请输入 AuthMe 密码'
+    return
+  }
+  unbindError.value = ''
+  unbindLoading.value = true
   try {
-    await auth.unbindAuthme(_username)
+    await auth.unbindAuthme({
+      username: authmeUnbindForm.username || undefined,
+      password: authmeUnbindForm.password,
+    })
+    handleCloseUnbindDialog(true)
     toast.add({ title: '已解除绑定', color: 'warning' })
   } catch (error) {
     if (error instanceof ApiError) {
-      bindingError.value = error.message
+      unbindError.value = error.message
     } else {
-      bindingError.value = '解绑失败，请稍后再试'
+      unbindError.value = '解绑失败，请稍后再试'
     }
   } finally {
-    bindingLoading.value = false
+    unbindLoading.value = false
   }
+}
+
+function handleCloseUnbindDialog(force = false) {
+  if (unbindLoading.value && !force) {
+    return
+  }
+  showUnbindDialog.value = false
+  authmeUnbindForm.password = ''
+  if (force || !unbindLoading.value) {
+    authmeUnbindForm.username = ''
+  }
+  unbindError.value = ''
 }
 
 async function loadSessions(force = false) {
@@ -449,7 +495,9 @@ async function loadSessions(force = false) {
       updatedAt: entry.updatedAt as string,
       expiresAt: entry.expiresAt as string,
       ipAddress: (entry.ipAddress as string | null | undefined) ?? null,
-      ipLocation: (entry.ipLocation as string | null | undefined) ?? null,
+      ipLocation: normalizeLocationText(
+        (entry.ipLocation as string | null | undefined) ?? null,
+      ),
       userAgent: (entry.userAgent as string | null | undefined) ?? null,
       isCurrent: Boolean(entry.isCurrent),
     }))
@@ -506,20 +554,6 @@ async function handleRevokeSession(sessionId: string) {
   } finally {
     revokingSessionId.value = null
   }
-}
-
-// 弹窗触发与确认
-function askUnbind(username: string) {
-  unbindTargetUsername.value = username
-  showUnbindConfirm.value = true
-}
-
-function confirmUnbind() {
-  if (unbindTargetUsername.value) {
-    void handleUnbindAuthme(unbindTargetUsername.value)
-  }
-  showUnbindConfirm.value = false
-  unbindTargetUsername.value = null
 }
 
 function askRevoke(id: string) {
@@ -833,6 +867,7 @@ function confirmLeave() {
                 joinedText: joinedText,
                 lastLoginText: lastLoginText,
                 lastLoginIp: lastLoginIp,
+                lastLoginIpDisplay: lastLoginIpDisplay,
               }"
               :saving="saving"
               :reset-signal="resetSignal"
@@ -868,7 +903,7 @@ function confirmLeave() {
               :is-editing="false"
               :loading="bindingLoading"
               @add="showBindDialog = true"
-              @unbind="askUnbind"
+              @unbind="requestUnbindAuthme"
             />
 
             <SessionsSection
@@ -933,40 +968,56 @@ function confirmLeave() {
         </template>
       </UModal>
 
-      <!-- 解绑确认 -->
+      <!-- AuthMe 解绑 -->
       <UModal
-        :open="showUnbindConfirm"
+        :open="showUnbindDialog"
         @update:open="
           (value: boolean) => {
-            showUnbindConfirm = value
-            if (!value) unbindTargetUsername = null
+            if (!value) handleCloseUnbindDialog()
           }
         "
       >
         <template #content>
           <UCard>
             <template #header>
-              <div class="text-base font-semibold">解除绑定？</div>
+              <div class="text-base font-semibold">解除 AuthMe 绑定</div>
             </template>
-            <UAlert
-              icon="i-lucide-link-2-off"
-              color="warning"
-              variant="soft"
-              title="将解除与该 AuthMe 账户的绑定"
-              :description="`用户名：${unbindTargetUsername ?? ''}`"
-              class="mb-4"
-            />
-            <div class="flex justify-end gap-2">
-              <UButton variant="ghost" @click="showUnbindConfirm = false"
-                >取消</UButton
-              >
-              <UButton
+            <div class="space-y-4">
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                请输入对应 AuthMe 密码以确认解除绑定操作。
+              </p>
+              <UAlert
+                icon="i-lucide-link-2-off"
                 color="warning"
-                :loading="bindingLoading"
-                @click="confirmUnbind"
-                >确认解除</UButton
-              >
+                variant="soft"
+                title="目标账户"
+                :description="authmeUnbindForm.username || '未知账号'"
+              />
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300">
+                  AuthMe 密码
+                </label>
+                <UInput
+                  v-model="authmeUnbindForm.password"
+                  type="password"
+                  placeholder="请输入 AuthMe 密码"
+                  autocomplete="current-password"
+                  :disabled="unbindLoading"
+                  @keyup.enter="submitUnbindAuthme()"
+                />
+              </div>
+              <p v-if="unbindError" class="text-sm text-rose-500">{{ unbindError }}</p>
             </div>
+            <template #footer>
+              <div class="flex justify-end gap-2">
+                <UButton variant="ghost" :disabled="unbindLoading" @click="handleCloseUnbindDialog()"
+                  >取消</UButton
+                >
+                <UButton color="warning" :loading="unbindLoading" @click="submitUnbindAuthme"
+                  >确认解除</UButton
+                >
+              </div>
+            </template>
           </UCard>
         </template>
       </UModal>

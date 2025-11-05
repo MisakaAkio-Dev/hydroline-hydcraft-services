@@ -248,7 +248,9 @@ export class AuthController {
         return {
           ...binding,
           ip_location: ipLocation?.raw ?? null,
+          ip_location_display: ipLocation?.display ?? null,
           regip_location: regipLocation?.raw ?? null,
+          regip_location_display: regipLocation?.display ?? null,
         };
       }),
     );

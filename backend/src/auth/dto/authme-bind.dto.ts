@@ -8,3 +8,4 @@ export class AuthmeBindDto {
   @IsString()
   password!: string;
 }
+

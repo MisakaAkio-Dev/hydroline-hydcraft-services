@@ -49,6 +49,8 @@ const props = defineProps<{
     joinedText?: string
     lastLoginText?: string
     lastLoginIp?: string | null
+    lastLoginIpDisplay?: string | null
+    roleNames?: string[]
   }
 }>()
 
@@ -284,6 +286,34 @@ defineExpose({ forceEdit })
           />
           <p v-else class="text-sm text-slate-900 dark:text-slate-100">
             {{ props.modelValue.displayName || '未填写' }}
+          </p>
+        </div>
+      </div>
+
+      <div
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-start md:gap-6"
+      >
+        <div
+          class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
+        >
+          权限组
+        </div>
+        <div class="flex-1">
+          <div
+            v-if="props.meta?.roleNames && props.meta.roleNames.length > 0"
+            class="flex flex-wrap gap-2"
+          >
+            <UBadge
+              v-for="role in props.meta.roleNames"
+              :key="role"
+              variant="soft"
+              class="text-xs"
+            >
+              {{ role }}
+            </UBadge>
+          </div>
+          <p v-else class="text-sm text-slate-400 dark:text-slate-500">
+            暂无权限组
           </p>
         </div>
       </div>
@@ -734,7 +764,7 @@ defineExpose({ forceEdit })
         </div>
         <div class="flex-1">
           <p class="text-sm text-slate-900 dark:text-slate-100">
-            {{ props.meta?.lastLoginIp || '未知' }}
+            {{ props.meta?.lastLoginIpDisplay || props.meta?.lastLoginIp || '未知' }}
           </p>
         </div>
       </div>

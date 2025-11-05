@@ -1,16 +1,9 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { AuthmeBindDto } from './dto/authme-bind.dto';
+import { AuthmeUnbindDto } from './dto/authme-unbind.dto';
 import { rethrowAuthmeError } from './helpers/authme-error.helper';
 import { AuthmeRateLimitGuard } from '../authme/authme-rate-limit.guard';
 import { buildRequestContext } from './helpers/request-context.helper';
@@ -36,12 +29,12 @@ export class ApiAuthmeController {
 
   @Delete('bind')
   @UseGuards(AuthGuard, AuthmeRateLimitGuard)
-  async unbind(@Req() req: Request, @Query('username') username?: string) {
+  async unbind(@Req() req: Request, @Body() dto: AuthmeUnbindDto) {
     try {
       const user = await this.authService.unbindAuthme(
         req.user!.id,
+        dto,
         buildRequestContext(req),
-        username,
       );
       return user;
     } catch (error) {

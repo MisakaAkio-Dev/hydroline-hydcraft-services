@@ -13,8 +13,10 @@ import { AuthBootstrap } from './auth.bootstrap';
 import { OptionalAuthGuard } from './optional-auth.guard';
 import { ApiAuthController } from './api-auth.controller';
 import { ApiAuthmeController } from './api-authme.controller';
+import { Ip2RegionModule } from '../lib/ip2region/ip2region.module';
 
 @Module({
+  imports: [Ip2RegionModule],
   controllers: [
     AuthController,
     ApiAuthController,

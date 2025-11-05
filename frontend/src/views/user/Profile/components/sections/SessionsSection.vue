@@ -38,7 +38,7 @@ function formatUserAgent(value: string | null | undefined) {
 <template>
   <div class="space-y-4">
     <div class="flex items-center justify-between gap-3">
-      <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">会话管理</h3>
+      <h3 class="px-1 text-lg text-slate-600 dark:text-slate-300">会话管理</h3>
       <UButton size="sm" variant="soft" :loading="props.loading" @click="emit('refresh')">刷新</UButton>
     </div>
 
@@ -55,7 +55,7 @@ function formatUserAgent(value: string | null | undefined) {
     </div>
 
     <div v-else class="space-y-4">
-      <article v-for="session in props.sessions" :key="session.id" class="rounded-xl border border-slate-200/70 px-4 py-4 dark:border-slate-800/70">
+      <article v-for="session in props.sessions" :key="session.id" class="rounded-xl p-4 bg-white dark:bg-slate-700/60 border border-slate-200/60 dark:border-slate-800/60">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div class="space-y-2">
             <div class="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">

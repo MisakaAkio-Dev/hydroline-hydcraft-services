@@ -1,5 +1,6 @@
 import type { Request } from 'express';
 import type { RequestContext } from '../auth.service';
+import { normalizeIpAddress } from '../../lib/ip2region/ip-normalizer';
 
 const forwardedHeaderKeys = [
   'x-forwarded-for',
@@ -38,7 +39,7 @@ export function buildRequestContext(req: Request): RequestContext {
       ? req.socket.remoteAddress
       : undefined;
   const rawIp = primaryHeaderIp ?? fallbackIp ?? remoteIp ?? req.ip ?? null;
-  const ip = typeof rawIp === 'string' ? rawIp.trim() || null : null;
+  const ip = normalizeIpAddress(rawIp);
   const uaHeader = req.headers['user-agent'];
   const resolvedUserAgent =
     typeof uaHeader === 'string'

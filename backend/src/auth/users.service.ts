@@ -27,6 +27,8 @@ import {
   UpdateCurrentUserDto,
   UpdateCurrentUserProfileExtraDto,
 } from './dto/update-current-user.dto';
+import { IpLocationService } from '../lib/ip2region/ip-location.service';
+import { normalizeIpAddress } from '../lib/ip2region/ip-normalizer';
 
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient;
 
@@ -37,6 +39,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authmeService: AuthmeService,
+    private readonly ipLocationService: IpLocationService,
   ) {}
 
   async initializeUserRecords(
@@ -310,29 +313,45 @@ export class UsersService {
     }
 
     // Enrich AuthMe bindings with latest data from AuthMe DB (ip/regip/lastlogin/regdate)
-    const enrichedBindings = await Promise.all(
-      (user.authmeBindings ?? []).map(async (b) => {
-        try {
-          const account = await this.authmeService.getAccount(b.authmeUsername);
-          return {
-            authmeUsername: b.authmeUsername,
-            authmeRealname: b.authmeRealname,
-            boundAt: b.boundAt,
-            ip: account?.ip ?? null,
-            regip: account?.regip ?? null,
-            lastlogin: account?.lastlogin ?? null,
-            regdate: account?.regdate ?? null,
-          } as const;
-        } catch {
-          return { ...b } as const;
-        }
-      }),
-    );
+    const normalizedLastLoginIp = normalizeIpAddress(user.lastLoginIp);
+    const [lastLoginLocation, enrichedBindings] = await Promise.all([
+      normalizedLastLoginIp
+        ? this.ipLocationService.lookup(normalizedLastLoginIp)
+        : Promise.resolve(null),
+      Promise.all(
+        (user.authmeBindings ?? []).map(async (b) => {
+          try {
+            const account = await this.authmeService.getAccount(
+              b.authmeUsername,
+            );
+            return {
+              authmeUsername: b.authmeUsername,
+              authmeRealname: b.authmeRealname,
+              boundAt: b.boundAt,
+              ip: account?.ip ?? null,
+              regip: account?.regip ?? null,
+              lastlogin: account?.lastlogin ?? null,
+              regdate: account?.regdate ?? null,
+            } as const;
+          } catch {
+            return { ...b } as const;
+          }
+        }),
+      ),
+    ]);
 
     return {
       ...user,
+      lastLoginIp: normalizedLastLoginIp,
+      lastLoginIpLocation: lastLoginLocation?.display ?? null,
+      lastLoginIpLocationRaw: lastLoginLocation?.raw ?? null,
       authmeBindings: enrichedBindings,
-    } as typeof user & { authmeBindings: typeof enrichedBindings };
+    } as typeof user & {
+      authmeBindings: typeof enrichedBindings;
+      lastLoginIp: typeof normalizedLastLoginIp;
+      lastLoginIpLocation: string | null;
+      lastLoginIpLocationRaw: string | null;
+    };
   }
 
   async updateCurrentUser(userId: string, dto: UpdateCurrentUserDto) {
@@ -375,7 +394,7 @@ export class UsersService {
         }
         userUpdate.email = normalizedEmail;
         // Reset emailVerified when email changed
-        (userUpdate as any).emailVerified = false;
+        userUpdate.emailVerified = false;
       }
     }
 

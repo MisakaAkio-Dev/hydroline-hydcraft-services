@@ -88,6 +88,36 @@ export async function loadChinaDivision(): Promise<LoadedRegionData> {
       districtsMap,
       municipalities: Array.from(municipalities),
     }
+
+    // Ensure港澳台始终可选，且为单层级
+    const ensureExtraProvince = (
+      name: string,
+      options: { municipality?: boolean } = {},
+    ) => {
+      if (!provinces.includes(name)) {
+        provinces.push(name)
+      }
+      if (!citiesMap[name]) {
+        citiesMap[name] = options.municipality ? [name] : []
+      }
+      if (!districtsMap[name]) {
+        districtsMap[name] = []
+      }
+      if (options.municipality) {
+        municipalities.add(name)
+      }
+    }
+
+    ensureExtraProvince('香港特别行政区', { municipality: true })
+    ensureExtraProvince('澳门特别行政区', { municipality: true })
+    ensureExtraProvince('台湾省')
+
+    cached = {
+      provinces: [...provinces],
+      citiesMap: { ...citiesMap },
+      districtsMap: { ...districtsMap },
+      municipalities: Array.from(municipalities),
+    }
     return cached
   })()
   try {

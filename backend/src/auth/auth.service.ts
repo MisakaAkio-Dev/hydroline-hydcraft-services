@@ -16,6 +16,7 @@ import { hashPassword } from 'better-auth/crypto';
 import { AuthRegisterDto } from './dto/auth-register.dto';
 import { AuthLoginDto } from './dto/auth-login.dto';
 import { AuthmeBindDto } from './dto/authme-bind.dto';
+import { AuthmeUnbindDto } from './dto/authme-unbind.dto';
 import { AuthmeService } from '../authme/authme.service';
 import { AuthmeBindingService } from '../authme/authme-binding.service';
 import {
@@ -201,16 +202,40 @@ export class AuthService {
 
   async unbindAuthme(
     userId: string,
+    dto: AuthmeUnbindDto,
     context: RequestContext = {},
-    username?: string,
   ) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeBindingEnabled) {
       throw new BadRequestException('当前环境未启用 AuthMe 绑定');
     }
+    const bindings =
+      await this.authmeBindingService.listBindingsByUserId(userId);
+    if (!bindings || bindings.length === 0) {
+      throw new BadRequestException('当前账户没有可以解除的 AuthMe 绑定');
+    }
+
+    const requested = dto.username?.trim();
+    const targetUsername = this.resolveTargetBindingUsername(
+      bindings,
+      requested,
+    );
+
+    const account = await this.authmeService.verifyCredentials(
+      targetUsername,
+      dto.password,
+    );
+    const usernameLower = account.username.toLowerCase();
+    const binding = bindings.find(
+      (entry) => entry.authmeUsernameLower === usernameLower,
+    );
+    if (!binding || binding.userId !== userId) {
+      throw new BadRequestException('指定的 AuthMe 账号未绑定到当前用户');
+    }
+
     await this.authmeBindingService.unbindUser({
       userId,
-      usernameLower: username?.toLowerCase(),
+      usernameLower,
       operatorUserId: userId,
       sourceIp: context.ip ?? null,
     });
@@ -747,5 +772,18 @@ export class AuthService {
         roleId: role.id,
       },
     });
+  }
+
+  private resolveTargetBindingUsername(
+    bindings: Array<{ authmeUsername: string; authmeUsernameLower: string }>,
+    requested?: string | null,
+  ): string {
+    if (requested && requested.trim().length > 0) {
+      return requested.trim();
+    }
+    if (bindings.length === 1) {
+      return bindings[0].authmeUsername;
+    }
+    throw new BadRequestException('请指定要解绑的 AuthMe 账号');
   }
 }

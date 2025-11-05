@@ -359,16 +359,14 @@ export const useAuthStore = defineStore('auth', {
       this.setUser(result.user)
       return result.user
     },
-    async unbindAuthme(username?: string) {
+    async unbindAuthme(payload: { username?: string; password: string }) {
       if (!this.token) {
         throw new ApiError(401, '未登录')
       }
-      const url = username
-        ? `/api/authme/bind?username=${encodeURIComponent(username)}`
-        : '/api/authme/bind'
-      const result = await apiFetch<{ user: RawUser }>(url, {
+      const result = await apiFetch<{ user: RawUser }>('/api/authme/bind', {
         method: 'DELETE',
         token: this.token,
+        body: payload,
       })
       this.setUser(result.user)
       return result.user

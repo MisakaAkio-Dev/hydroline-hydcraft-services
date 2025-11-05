@@ -3,6 +3,7 @@ import { LifecycleEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthmeUser } from './authme.interfaces';
 import { businessError } from './authme.errors';
+import { normalizeIpAddress } from '../lib/ip2region/ip-normalizer';
 
 @Injectable()
 export class AuthmeBindingService {
@@ -140,6 +141,6 @@ export class AuthmeBindingService {
 }
 
 function sanitizeIp(ip?: string | null) {
-  if (!ip) return null;
-  return ip.split(',')[0].trim();
+  const first = typeof ip === 'string' ? ip.split(',')[0] : null;
+  return normalizeIpAddress(first) ?? null;
 }

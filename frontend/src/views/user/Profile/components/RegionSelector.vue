@@ -5,6 +5,7 @@ import {
   countries,
   provinces,
   municipalities,
+  singleLevelRegions,
   citiesMap,
   districtsMap,
 } from './region-data'
@@ -60,12 +61,18 @@ const isMunicipality = computed(() => {
   const list = dynamicMunicipalities.value ?? municipalities
   return list.includes(props.modelValue.province || '')
 })
+const isSingleLevel = computed(() =>
+  singleLevelRegions.includes(props.modelValue.province || ''),
+)
 const cityOptions = computed(() => {
   const p = props.modelValue.province || ''
   const map = dynamicCitiesMap.value ?? citiesMap
   return map[p] || []
 })
 const districtOptions = computed(() => {
+  if (isSingleLevel.value) {
+    return []
+  }
   const map = dynamicDistrictsMap.value ?? districtsMap
   if (isMunicipality.value) {
     const city = props.modelValue.province || ''
@@ -74,6 +81,16 @@ const districtOptions = computed(() => {
   const city = props.modelValue.city || ''
   return map[city] || []
 })
+
+watch(
+  () => [props.modelValue.province, isSingleLevel.value],
+  ([, single]) => {
+    if (single) {
+      update({ city: null, district: null })
+    }
+  },
+  { immediate: false },
+)
 </script>
 
 <template>
@@ -117,7 +134,7 @@ const districtOptions = computed(() => {
             "
           />
         </div>
-        <div v-if="!isMunicipality">
+        <div v-if="!isMunicipality && !isSingleLevel">
           <USelectMenu
             class="w-full"
             :model-value="
@@ -130,7 +147,7 @@ const districtOptions = computed(() => {
             "
           />
         </div>
-        <div>
+        <div v-if="!isSingleLevel">
           <USelectMenu
             class="w-full"
             :model-value="
