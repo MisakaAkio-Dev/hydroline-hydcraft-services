@@ -4,7 +4,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { auth } from '../lib/auth';
+import { auth } from '../lib/shared/auth';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesService, DEFAULT_ROLES } from './roles.service';
 import { SignInDto } from './dto/sign-in.dto';

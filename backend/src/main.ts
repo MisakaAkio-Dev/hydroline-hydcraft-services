@@ -2,15 +2,14 @@ import 'dotenv/config';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ApiExceptionFilter } from './lib/http-exception.filter';
-import { TransformInterceptor } from './lib/transform.interceptor';
+import { ApiExceptionFilter } from './lib/shared/http-exception.filter';
+import { TransformInterceptor } from './lib/shared/transform.interceptor';
 import { PrismaService } from './prisma/prisma.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const logger = new Logger('Bootstrap');
 
-  // 启用 CORS
   app.enableCors({
     origin: true,
     credentials: true,
