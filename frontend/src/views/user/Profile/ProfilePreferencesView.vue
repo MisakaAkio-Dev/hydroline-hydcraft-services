@@ -14,7 +14,7 @@ function openLoginDialog() {
 </script>
 
 <template>
-  <section class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-16 pt-8">
+  <section class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pb-16 pt-8">
     <header class="flex flex-col gap-2">
       <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
         用户偏好设置

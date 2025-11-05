@@ -24,13 +24,13 @@ function handleClick(id: string) {
 </script>
 
 <template>
-  <aside class="w-full shrink-0 rounded-2xl p-4 lg:w-50">
-    <nav class="flex flex-row gap-2 overflow-x-auto lg:flex-col">
+  <aside class="shrink-0 rounded-2xl p-4 xl:w-55 xl:absolute xl:right-full">
+    <nav class="flex flex-row gap-2 overflow-x-auto xl:flex-col">
       <button
         v-for="item in props.items"
         :key="item.id"
         type="button"
-        class="group flex-1 rounded-2xl px-4 py-3 text-left text-sm transition lg:flex-auto"
+        class="group whitespace-nowrap flex justify-center items-center rounded-2xl px-4 py-3 text-left text-sm transition w-30 xl:w-auto xl:justify-start"
         :class="[
           props.activeId === item.id
             ? 'bg-primary-100/80 text-primary-700 dark:bg-primary-500/15 dark:text-primary-200'

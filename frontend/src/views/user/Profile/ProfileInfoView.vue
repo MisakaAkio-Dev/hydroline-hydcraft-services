@@ -770,7 +770,7 @@ function confirmLeave() {
 </script>
 
 <template>
-  <section class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-16 pt-8">
+  <section class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pb-16 pt-8">
     <div v-if="isAuthenticated" class="space-y-6">
       <ProfileHeader
         :avatar-url="avatarUrl"
@@ -791,7 +791,7 @@ function confirmLeave() {
         :class="{ 'pointer-events-none opacity-60': loading && !saving }"
         @submit.prevent="handleSave"
       >
-        <div class="flex flex-col gap-6 lg:flex-row">
+        <div class="flex flex-col gap-2 relative xl:gap-6">
           <ProfileSidebar
             :items="sections"
             :active-id="activeSection"
@@ -901,10 +901,12 @@ function confirmLeave() {
       <!-- 离开编辑确认 -->
       <UModal
         :open="showLeaveConfirm"
-        @update:open="(value: boolean) => {
-          showLeaveConfirm = value
-          if (!value) pendingAction = null
-        }"
+        @update:open="
+          (value: boolean) => {
+            showLeaveConfirm = value
+            if (!value) pendingAction = null
+          }
+        "
       >
         <template #content>
           <UCard>
@@ -920,20 +922,26 @@ function confirmLeave() {
               class="mb-4"
             />
             <div class="flex justify-end gap-2">
-              <UButton variant="ghost" @click="showLeaveConfirm = false">继续编辑</UButton>
-              <UButton color="warning" :loading="saving" @click="confirmLeave">放弃并切换</UButton>
+              <UButton variant="ghost" @click="showLeaveConfirm = false"
+                >继续编辑</UButton
+              >
+              <UButton color="warning" :loading="saving" @click="confirmLeave"
+                >放弃并切换</UButton
+              >
             </div>
           </UCard>
         </template>
-  </UModal>
+      </UModal>
 
       <!-- 解绑确认 -->
       <UModal
         :open="showUnbindConfirm"
-        @update:open="(value: boolean) => {
-          showUnbindConfirm = value
-          if (!value) unbindTargetUsername = null
-        }"
+        @update:open="
+          (value: boolean) => {
+            showUnbindConfirm = value
+            if (!value) unbindTargetUsername = null
+          }
+        "
       >
         <template #content>
           <UCard>
@@ -949,20 +957,29 @@ function confirmLeave() {
               class="mb-4"
             />
             <div class="flex justify-end gap-2">
-              <UButton variant="ghost" @click="showUnbindConfirm = false">取消</UButton>
-              <UButton color="warning" :loading="bindingLoading" @click="confirmUnbind">确认解除</UButton>
+              <UButton variant="ghost" @click="showUnbindConfirm = false"
+                >取消</UButton
+              >
+              <UButton
+                color="warning"
+                :loading="bindingLoading"
+                @click="confirmUnbind"
+                >确认解除</UButton
+              >
             </div>
           </UCard>
         </template>
-  </UModal>
+      </UModal>
 
       <!-- 终止会话确认 -->
       <UModal
         :open="showRevokeConfirm"
-        @update:open="(value: boolean) => {
-          showRevokeConfirm = value
-          if (!value) revokeTargetId = null
-        }"
+        @update:open="
+          (value: boolean) => {
+            showRevokeConfirm = value
+            if (!value) revokeTargetId = null
+          }
+        "
       >
         <template #content>
           <UCard>
@@ -978,12 +995,19 @@ function confirmLeave() {
               class="mb-4"
             />
             <div class="flex justify-end gap-2">
-              <UButton variant="ghost" @click="showRevokeConfirm = false">取消</UButton>
-              <UButton color="error" :loading="revokingSessionId === revokeTargetId" @click="confirmRevoke">确认终止</UButton>
+              <UButton variant="ghost" @click="showRevokeConfirm = false"
+                >取消</UButton
+              >
+              <UButton
+                color="error"
+                :loading="revokingSessionId === revokeTargetId"
+                @click="confirmRevoke"
+                >确认终止</UButton
+              >
             </div>
           </UCard>
         </template>
-  </UModal>
+      </UModal>
     </div>
 
     <UCard

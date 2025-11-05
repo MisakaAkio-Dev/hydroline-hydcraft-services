@@ -236,24 +236,38 @@ defineExpose({ forceEdit })
 <template>
   <div class="space-y-8">
     <!-- 基础信息 -->
-    <div class="space-y-4">
+    <div class="space-y-3">
       <div class="flex items-center justify-between">
-        <h3 class="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+        <h3 class="px-1 text-lg text-slate-600 dark:text-slate-300">
           基础信息
         </h3>
         <div>
           <template v-if="!editingBasic">
-            <UButton size="sm" variant="ghost" @click="setEditing('basic', true)">编辑</UButton>
+            <UButton
+              size="sm"
+              variant="ghost"
+              @click="setEditing('basic', true)"
+              >编辑</UButton
+            >
           </template>
           <template v-else>
-            <UButton size="sm" variant="solid" color="primary" :loading="props.saving" @click="saveBasic">保存</UButton>
-            <UButton size="sm" variant="ghost" class="ml-2" @click="cancelBasic">取消</UButton>
+            <UButton
+              size="sm"
+              variant="solid"
+              color="primary"
+              :loading="props.saving"
+              @click="saveBasic"
+              >保存</UButton
+            >
+            <UButton size="sm" variant="ghost" class="ml-2" @click="cancelBasic"
+              >取消</UButton
+            >
           </template>
         </div>
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -275,7 +289,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -297,7 +311,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -319,7 +333,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -343,7 +357,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -359,7 +373,7 @@ defineExpose({ forceEdit })
             <UInput
               :model-value="props.modelValue.birthday"
               readonly
-              class="w-full max-w-60 cursor-pointer"
+              class="w-full flex cursor-pointer"
               placeholder="选择日期"
               @click="birthdayOpen = true"
             />
@@ -397,7 +411,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -422,7 +436,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -456,7 +470,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -483,24 +497,40 @@ defineExpose({ forceEdit })
     </div>
 
     <!-- 地区 -->
-    <div class="space-y-4">
+    <div class="space-y-3">
       <div class="flex items-center justify-between">
-        <h3 class="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
-          地区
-        </h3>
+        <h3 class="px-1 text-lg text-slate-600 dark:text-slate-300">地区</h3>
         <div>
           <template v-if="!editingRegion">
-            <UButton size="sm" variant="ghost" @click="setEditing('region', true)">编辑</UButton>
+            <UButton
+              size="sm"
+              variant="ghost"
+              @click="setEditing('region', true)"
+              >编辑</UButton
+            >
           </template>
           <template v-else>
-            <UButton size="sm" variant="solid" color="primary" :loading="props.saving" @click="saveRegion">保存</UButton>
-            <UButton size="sm" variant="ghost" class="ml-2" @click="cancelRegion">取消</UButton>
+            <UButton
+              size="sm"
+              variant="solid"
+              color="primary"
+              :loading="props.saving"
+              @click="saveRegion"
+              >保存</UButton
+            >
+            <UButton
+              size="sm"
+              variant="ghost"
+              class="ml-2"
+              @click="cancelRegion"
+              >取消</UButton
+            >
           </template>
         </div>
       </div>
 
       <div
-        class="flex flex-col gap-3 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-3 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -544,75 +574,40 @@ defineExpose({ forceEdit })
 
       <!-- 中国式地址选择（编辑时显示下拉，不编辑显示文本） -->
       <template v-if="editingRegion">
-        <div class="rounded-xl px-4 py-3">
-          <RegionSelector
-            :model-value="props.modelValue.region"
-            :disabled="!editingRegion"
-            @update:model-value="(v: any) => update('region', v)"
-          />
-        </div>
+        <RegionSelector
+          :model-value="props.modelValue.region"
+          :disabled="!editingRegion"
+          @update:model-value="(v: any) => update('region', v)"
+        />
       </template>
       <template v-else>
         <div
-          class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+          class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
         >
           <div
             class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
           >
-            国家 / 地区
+            常驻地区
           </div>
           <div class="flex-1">
-            <p class="text-sm text-slate-900 dark:text-slate-100">
-              {{ countryName }}
-            </p>
-          </div>
-        </div>
-        <div
-          class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
-        >
-          <div
-            class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
-          >
-            省 / 直辖市
-          </div>
-          <div class="flex-1">
-            <p class="text-sm text-slate-900 dark:text-slate-100">
-              {{ props.modelValue.region?.province || '未填写' }}
-            </p>
-          </div>
-        </div>
-        <div
-          class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
-        >
-          <div
-            class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
-          >
-            城市
-          </div>
-          <div class="flex-1">
-            <p class="text-sm text-slate-900 dark:text-slate-100">
-              {{ props.modelValue.region?.city || '未填写' }}
-            </p>
-          </div>
-        </div>
-        <div
-          class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
-        >
-          <div
-            class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
-          >
-            区 / 县
-          </div>
-          <div class="flex-1">
-            <p class="text-sm text-slate-900 dark:text-slate-100">
-              {{ props.modelValue.region?.district || '未填写' }}
-            </p>
+            <div class="text-sm text-slate-900 dark:text-slate-100 space-x-2">
+              <span>{{ countryName }}</span>
+              <span v-if="props.modelValue.region?.province">{{
+                props.modelValue.region?.province || '未填写'
+              }}</span>
+              <span v-if="props.modelValue.region?.city">{{
+                props.modelValue.region?.city || '未填写'
+              }}</span>
+              <span v-if="props.modelValue.region?.district">{{
+                props.modelValue.region?.district || '未填写'
+              }}</span>
+            </div>
           </div>
         </div>
       </template>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -620,7 +615,7 @@ defineExpose({ forceEdit })
           详细地址
         </div>
         <div class="flex-1">
-            <div
+          <div
             v-if="editingRegion"
             class="grid grid-cols-1 gap-2 sm:grid-cols-[140px,1fr]"
           >
@@ -639,7 +634,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -647,7 +642,7 @@ defineExpose({ forceEdit })
           邮政编码
         </div>
         <div class="flex-1">
-            <div
+          <div
             v-if="editingRegion"
             class="grid grid-cols-1 gap-2 sm:grid-cols-[140px,1fr]"
           >
@@ -667,12 +662,10 @@ defineExpose({ forceEdit })
     </div>
 
     <!-- 账号活动（只读） -->
-    <div class="space-y-4">
-      <h3 class="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
-        账号活动
-      </h3>
+    <div class="space-y-3">
+      <h3 class="px-1 text-lg text-slate-600 dark:text-slate-300">账号活动</h3>
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -687,7 +680,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -702,7 +695,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -717,7 +710,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
@@ -732,7 +725,7 @@ defineExpose({ forceEdit })
       </div>
 
       <div
-        class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
