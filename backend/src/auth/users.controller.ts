@@ -52,18 +52,27 @@ export class UsersController {
   }
 
   @Patch(':userId/profile')
-  async updateProfile(@Param('userId') userId: string, @Body() dto: UpdateUserProfileDto) {
+  async updateProfile(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateUserProfileDto,
+  ) {
     return this.usersService.updateProfile(userId, dto);
   }
 
   // Update user's in-game join date (admin only). Registration time is immutable.
   @Patch(':userId/join-date')
-  async updateJoinDate(@Param('userId') userId: string, @Body() dto: UpdateJoinDateDto) {
+  async updateJoinDate(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateJoinDateDto,
+  ) {
     return this.usersService.updateJoinDate(userId, dto.joinDate);
   }
 
   @Post(':userId/minecraft-profiles')
-  async addMinecraftProfile(@Param('userId') userId: string, @Body() dto: CreateMinecraftProfileDto) {
+  async addMinecraftProfile(
+    @Param('userId') userId: string,
+    @Body() dto: CreateMinecraftProfileDto,
+  ) {
     return this.usersService.addMinecraftProfile(userId, dto);
   }
 

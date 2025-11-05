@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePermissionDto } from './dto/create-permission.dto';
@@ -38,7 +42,9 @@ export class RolesService {
   }
 
   async createRole(dto: CreateRoleDto) {
-    const existing = await this.prisma.role.findUnique({ where: { key: dto.key } });
+    const existing = await this.prisma.role.findUnique({
+      where: { key: dto.key },
+    });
     if (existing) {
       throw new BadRequestException('Role key already exists');
     }
@@ -99,7 +105,10 @@ export class RolesService {
     await this.prisma.$transaction(async (tx) => {
       await tx.rolePermission.deleteMany({ where: { roleId } });
       await tx.rolePermission.createMany({
-        data: permissions.map((permission) => ({ roleId, permissionId: permission.id })),
+        data: permissions.map((permission) => ({
+          roleId,
+          permissionId: permission.id,
+        })),
       });
     });
 
@@ -125,7 +134,9 @@ export class RolesService {
 
     const usage = await this.prisma.userRole.count({ where: { roleId } });
     if (usage > 0) {
-      throw new BadRequestException('Role is assigned to users and cannot be deleted');
+      throw new BadRequestException(
+        'Role is assigned to users and cannot be deleted',
+      );
     }
 
     await this.prisma.role.delete({ where: { id: roleId } });
@@ -136,7 +147,9 @@ export class RolesService {
   }
 
   async createPermission(dto: CreatePermissionDto) {
-    const existing = await this.prisma.permission.findUnique({ where: { key: dto.key } });
+    const existing = await this.prisma.permission.findUnique({
+      where: { key: dto.key },
+    });
     if (existing) {
       throw new BadRequestException('Permission key already exists');
     }
@@ -151,7 +164,9 @@ export class RolesService {
   }
 
   async updatePermission(permissionId: string, dto: UpdatePermissionDto) {
-    const permission = await this.prisma.permission.findUnique({ where: { id: permissionId } });
+    const permission = await this.prisma.permission.findUnique({
+      where: { id: permissionId },
+    });
     if (!permission) {
       throw new NotFoundException('Permission not found');
     }
@@ -169,14 +184,20 @@ export class RolesService {
   }
 
   async deletePermission(permissionId: string) {
-    const permission = await this.prisma.permission.findUnique({ where: { id: permissionId } });
+    const permission = await this.prisma.permission.findUnique({
+      where: { id: permissionId },
+    });
     if (!permission) {
       throw new NotFoundException('Permission not found');
     }
 
-    const usage = await this.prisma.rolePermission.count({ where: { permissionId } });
+    const usage = await this.prisma.rolePermission.count({
+      where: { permissionId },
+    });
     if (usage > 0) {
-      throw new BadRequestException('Permission is assigned to roles and cannot be deleted');
+      throw new BadRequestException(
+        'Permission is assigned to roles and cannot be deleted',
+      );
     }
 
     await this.prisma.permission.delete({ where: { id: permissionId } });
@@ -204,7 +225,9 @@ export class RolesService {
       const permissions = await tx.permission.findMany({
         where: { key: { in: Object.values(DEFAULT_PERMISSIONS) } },
       });
-      const permissionMap = new Map(permissions.map((permission) => [permission.key, permission]));
+      const permissionMap = new Map(
+        permissions.map((permission) => [permission.key, permission]),
+      );
       type PermissionEntity = (typeof permissions)[number];
 
       const ensureRole = async (
@@ -231,7 +254,9 @@ export class RolesService {
           where: { roleId: role.id },
           select: { permissionId: true },
         });
-        const existingPermissionIds = new Set(existingPermissions.map((entry) => entry.permissionId));
+        const existingPermissionIds = new Set(
+          existingPermissions.map((entry) => entry.permissionId),
+        );
 
         const toAssign = requiredPermissionKeys
           .map((key) => permissionMap.get(key))
@@ -242,7 +267,7 @@ export class RolesService {
             return !existingPermissionIds.has(permission.id);
           })
           .map((permission) => ({
-            roleId: role!.id,
+            roleId: role.id,
             permissionId: permission.id,
           }));
 
@@ -254,15 +279,26 @@ export class RolesService {
         }
       };
 
-      await ensureRole(DEFAULT_ROLES.ADMIN, { name: 'Administrator', isSystem: true }, Object.values(DEFAULT_PERMISSIONS));
+      await ensureRole(
+        DEFAULT_ROLES.ADMIN,
+        { name: 'Administrator', isSystem: true },
+        Object.values(DEFAULT_PERMISSIONS),
+      );
 
       await ensureRole(
         DEFAULT_ROLES.MODERATOR,
         { name: 'Moderator', isSystem: true },
-        [DEFAULT_PERMISSIONS.MANAGE_USERS, DEFAULT_PERMISSIONS.MANAGE_CONTACT_CHANNELS],
+        [
+          DEFAULT_PERMISSIONS.MANAGE_USERS,
+          DEFAULT_PERMISSIONS.MANAGE_CONTACT_CHANNELS,
+        ],
       );
 
-      await ensureRole(DEFAULT_ROLES.PLAYER, { name: 'Player', isSystem: true }, []);
+      await ensureRole(
+        DEFAULT_ROLES.PLAYER,
+        { name: 'Player', isSystem: true },
+        [],
+      );
     });
   }
 
@@ -271,10 +307,16 @@ export class RolesService {
       return [];
     }
 
-    const permissions = await this.prisma.permission.findMany({ where: { key: { in: keys } } });
+    const permissions = await this.prisma.permission.findMany({
+      where: { key: { in: keys } },
+    });
     if (permissions.length !== keys.length) {
-      const missing = keys.filter((key) => !permissions.find((p) => p.key === key));
-      throw new NotFoundException(`Permissions not found: ${missing.join(', ')}`);
+      const missing = keys.filter(
+        (key) => !permissions.find((p) => p.key === key),
+      );
+      throw new NotFoundException(
+        `Permissions not found: ${missing.join(', ')}`,
+      );
     }
     return permissions;
   }

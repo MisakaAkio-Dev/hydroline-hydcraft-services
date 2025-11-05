@@ -101,7 +101,9 @@ export class MysqlAuthmeLib implements AuthmeLib {
     return mapUser(rows[0]);
   }
 
-  async getByUsernameOrRealname(identifier: string): Promise<AuthmeUser | null> {
+  async getByUsernameOrRealname(
+    identifier: string,
+  ): Promise<AuthmeUser | null> {
     const byUsername = await this.getByUsername(identifier);
     if (byUsername) {
       return byUsername;
@@ -118,7 +120,11 @@ export class MysqlAuthmeLib implements AuthmeLib {
     return rows.map(mapUser);
   }
 
-  async listAllByIp(ip: string, offset = 0, limit = DEFAULT_LIMIT): Promise<AuthmeUser[]> {
+  async listAllByIp(
+    ip: string,
+    offset = 0,
+    limit = DEFAULT_LIMIT,
+  ): Promise<AuthmeUser[]> {
     const rows = await this.query<AuthmeUserRow[]>(
       `SELECT * FROM authme WHERE ip = ? ORDER BY id LIMIT ? OFFSET ?`,
       [ip, limit, offset],
@@ -156,7 +162,10 @@ export class MysqlAuthmeLib implements AuthmeLib {
     return rows.length > 0;
   }
 
-  async verifyPassword(storedPassword: string, plain: string): Promise<boolean> {
+  async verifyPassword(
+    storedPassword: string,
+    plain: string,
+  ): Promise<boolean> {
     const segments = normalizePasswordSegments(storedPassword);
     if (!segments) {
       this.metrics?.incrementVerifyFailed('invalid_format');
@@ -171,20 +180,59 @@ export class MysqlAuthmeLib implements AuthmeLib {
         return match;
       }
       default:
-        this.logger?.warn?.(`Unsupported AuthMe password algorithm: ${segments.algorithm}`);
+        this.logger?.warn?.(
+          `Unsupported AuthMe password algorithm: ${segments.algorithm}`,
+        );
         this.metrics?.incrementVerifyFailed('not_supported');
         return false;
     }
   }
 
-  private async query<T = RowDataPacket[]>(sql: string, params: unknown[], label: string): Promise<T> {
+  private async query<T = RowDataPacket[]>(
+    sql: string,
+    params: unknown[],
+    label: string,
+  ): Promise<T> {
     const start = performance.now();
+    let attempt = 0;
+    const maxAttempts = 2; // 首次失败后重试一次
     try {
-      const [rows] = await this.pool.query(sql, params);
-      return rows as T;
-    } catch (error) {
-      this.logger?.error?.(`AuthMe query failed (${label})`, { error });
-      throw externalError(resolveStage(error), (error as Error).message, getErrorCode(error));
+      while (true) {
+        try {
+          const [rows] = await this.pool.query(sql, params);
+          return rows as T;
+        } catch (error) {
+          const code = getErrorCode(error)?.toUpperCase();
+          const stage = resolveStage(error);
+          const retryable = stage === 'CONNECT' && isRetryableConnectCode(code);
+
+          if (retryable && attempt + 1 < maxAttempts) {
+            attempt += 1;
+            this.logger?.warn?.(
+              `AuthMe query failed (${label}) with ${code}, attempting reconnect and retry (${attempt}/${maxAttempts - 1})`,
+              { code, label },
+            );
+            // 轻微退避，避免瞬时风暴
+            await delay(150);
+            // 触发池中新连接的创建，快速恢复
+            try {
+              const conn = await this.pool.getConnection();
+              conn.release();
+            } catch {
+              // ignore: 尝试创建连接失败，交由下一次 query 再抛出
+            }
+            continue; // 重试 query
+          }
+
+          // 不可重试或已用尽重试次数
+          this.logger?.error?.(`AuthMe query failed (${label})`, { error });
+          throw externalError(
+            stage,
+            (error as Error).message,
+            getErrorCode(error),
+          );
+        }
+      }
     } finally {
       const duration = performance.now() - start;
       this.metrics?.observeQuery(label, duration);
@@ -246,13 +294,19 @@ function resolveStage(error: unknown): 'DNS' | 'CONNECT' | 'AUTH' | 'QUERY' {
     return 'DNS';
   }
   if (
-    ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'PROTOCOL_CONNECTION_LOST', 'EHOSTUNREACH'].includes(
-      normalized,
-    )
+    [
+      'ECONNREFUSED',
+      'ECONNRESET',
+      'ETIMEDOUT',
+      'PROTOCOL_CONNECTION_LOST',
+      'EHOSTUNREACH',
+    ].includes(normalized)
   ) {
     return 'CONNECT';
   }
-  if (['ER_ACCESS_DENIED_ERROR', 'ER_DBACCESS_DENIED_ERROR'].includes(normalized)) {
+  if (
+    ['ER_ACCESS_DENIED_ERROR', 'ER_DBACCESS_DENIED_ERROR'].includes(normalized)
+  ) {
     return 'AUTH';
   }
   return 'QUERY';
@@ -262,8 +316,27 @@ function getErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== 'object') {
     return undefined;
   }
-  if ('code' in error && typeof (error as Record<string, unknown>).code === 'string') {
+  if (
+    'code' in error &&
+    typeof (error as Record<string, unknown>).code === 'string'
+  ) {
     return (error as { code: string }).code;
   }
   return undefined;
+}
+
+function isRetryableConnectCode(code?: string): boolean {
+  if (!code) return false;
+  const c = code.toUpperCase();
+  return [
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'ECONNREFUSED',
+    'EHOSTUNREACH',
+    'PROTOCOL_CONNECTION_LOST',
+  ].includes(c);
+}
+
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

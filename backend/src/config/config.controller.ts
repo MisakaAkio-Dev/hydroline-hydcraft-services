@@ -37,7 +37,10 @@ export class ConfigController {
   }
 
   @Patch('namespaces/:namespaceId')
-  async updateNamespace(@Param('namespaceId') namespaceId: string, @Body() dto: UpdateNamespaceDto) {
+  async updateNamespace(
+    @Param('namespaceId') namespaceId: string,
+    @Body() dto: UpdateNamespaceDto,
+  ) {
     return this.configService.updateNamespace(namespaceId, dto);
   }
 
@@ -62,7 +65,11 @@ export class ConfigController {
   }
 
   @Patch('entries/:entryId')
-  async updateEntry(@Param('entryId') entryId: string, @Body() dto: UpdateConfigEntryDto, @Req() req: Request) {
+  async updateEntry(
+    @Param('entryId') entryId: string,
+    @Body() dto: UpdateConfigEntryDto,
+    @Req() req: Request,
+  ) {
     return this.configService.updateEntry(entryId, dto, req.user!.id);
   }
 

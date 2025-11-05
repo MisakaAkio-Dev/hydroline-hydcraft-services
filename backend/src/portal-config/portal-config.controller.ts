@@ -36,14 +36,20 @@ export class PortalConfigController {
   }
 
   @Patch('hero')
-  async updateHeroSubtitle(@Body() dto: UpdateHeroSubtitleDto, @Req() req: Request) {
+  async updateHeroSubtitle(
+    @Body() dto: UpdateHeroSubtitleDto,
+    @Req() req: Request,
+  ) {
     return this.portalConfigService.updateHeroSubtitle(dto.subtitle, {
       userId: req.user!.id,
     });
   }
 
   @Post('hero/backgrounds')
-  async addHeroBackground(@Body() dto: CreateHeroBackgroundDto, @Req() req: Request) {
+  async addHeroBackground(
+    @Body() dto: CreateHeroBackgroundDto,
+    @Req() req: Request,
+  ) {
     return this.portalConfigService.addHeroBackground(dto, {
       userId: req.user!.id,
     });
@@ -61,21 +67,30 @@ export class PortalConfigController {
   }
 
   @Delete('hero/backgrounds/:backgroundId')
-  async removeHeroBackground(@Param('backgroundId') backgroundId: string, @Req() req: Request) {
+  async removeHeroBackground(
+    @Param('backgroundId') backgroundId: string,
+    @Req() req: Request,
+  ) {
     return this.portalConfigService.removeHeroBackground(backgroundId, {
       userId: req.user!.id,
     });
   }
 
   @Patch('hero/backgrounds/reorder')
-  async reorderHeroBackgrounds(@Body() dto: ReorderHeroBackgroundsDto, @Req() req: Request) {
+  async reorderHeroBackgrounds(
+    @Body() dto: ReorderHeroBackgroundsDto,
+    @Req() req: Request,
+  ) {
     return this.portalConfigService.reorderHeroBackgrounds(dto.order, {
       userId: req.user!.id,
     });
   }
 
   @Post('navigation')
-  async createNavigationItem(@Body() dto: CreateNavigationItemDto, @Req() req: Request) {
+  async createNavigationItem(
+    @Body() dto: CreateNavigationItemDto,
+    @Req() req: Request,
+  ) {
     return this.portalConfigService.createNavigationItem(dto, {
       userId: req.user!.id,
     });
@@ -94,20 +109,30 @@ export class PortalConfigController {
       available: dto.available,
       icon: dto.icon ?? undefined,
     };
-    return this.portalConfigService.updateNavigationItem(navigationId, payload, {
-      userId: req.user!.id,
-    });
+    return this.portalConfigService.updateNavigationItem(
+      navigationId,
+      payload,
+      {
+        userId: req.user!.id,
+      },
+    );
   }
 
   @Delete('navigation/:navigationId')
-  async removeNavigationItem(@Param('navigationId') navigationId: string, @Req() req: Request) {
+  async removeNavigationItem(
+    @Param('navigationId') navigationId: string,
+    @Req() req: Request,
+  ) {
     return this.portalConfigService.removeNavigationItem(navigationId, {
       userId: req.user!.id,
     });
   }
 
   @Patch('navigation/reorder')
-  async reorderNavigation(@Body() dto: ReorderNavigationDto, @Req() req: Request) {
+  async reorderNavigation(
+    @Body() dto: ReorderNavigationDto,
+    @Req() req: Request,
+  ) {
     return this.portalConfigService.reorderNavigation(dto.order, {
       userId: req.user!.id,
     });

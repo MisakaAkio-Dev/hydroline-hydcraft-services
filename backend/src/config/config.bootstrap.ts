@@ -34,12 +34,17 @@ export class ConfigBootstrap implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      const namespace = await this.configService.ensureNamespaceByKey(PORTAL_NAV_NAMESPACE, {
-        name: 'Portal Navigation Links',
-        description: '站点首页导航按钮配置',
-      });
+      const namespace = await this.configService.ensureNamespaceByKey(
+        PORTAL_NAV_NAMESPACE,
+        {
+          name: 'Portal Navigation Links',
+          description: '站点首页导航按钮配置',
+        },
+      );
 
-      const existingEntries = await this.configService.listEntries(namespace.id);
+      const existingEntries = await this.configService.listEntries(
+        namespace.id,
+      );
       const existingKeys = new Set(existingEntries.map((entry) => entry.key));
 
       for (const entry of PORTAL_DEFAULT_ENTRIES) {

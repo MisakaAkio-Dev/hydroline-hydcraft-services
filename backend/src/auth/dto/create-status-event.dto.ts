@@ -1,10 +1,5 @@
 import { PlayerStatus, StatusSource } from '@prisma/client';
-import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateStatusEventDto {
   @IsEnum(PlayerStatus)

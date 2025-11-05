@@ -1,5 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsDefined, IsOptional, IsString, MaxLength, Matches } from 'class-validator';
+import {
+  IsDefined,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Matches,
+} from 'class-validator';
 import { toJsonValue } from '../utils/json-transform';
 
 export class CreateConfigEntryDto {

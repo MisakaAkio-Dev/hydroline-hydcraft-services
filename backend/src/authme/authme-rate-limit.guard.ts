@@ -1,5 +1,14 @@
-import { CanActivate, ExecutionContext, Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import { AUTHME_BIND_RATE_LIMITS, AUTHME_BIND_RATE_LIMIT_WINDOW_MS } from './authme.constants';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
+import {
+  AUTHME_BIND_RATE_LIMITS,
+  AUTHME_BIND_RATE_LIMIT_WINDOW_MS,
+} from './authme.constants';
 
 interface BucketEntry {
   count: number;
@@ -19,10 +28,19 @@ export class AuthmeRateLimitGuard implements CanActivate {
     this.prune(now);
 
     if (!this.consume(`ip:${ip}`, AUTHME_BIND_RATE_LIMITS.ip, now)) {
-      throw new HttpException('AuthMe 绑定请求过于频繁，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(
+        'AuthMe 绑定请求过于频繁，请稍后再试',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
-    if (userId && !this.consume(`user:${userId}`, AUTHME_BIND_RATE_LIMITS.user, now)) {
-      throw new HttpException('AuthMe 绑定请求过于频繁，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
+    if (
+      userId &&
+      !this.consume(`user:${userId}`, AUTHME_BIND_RATE_LIMITS.user, now)
+    ) {
+      throw new HttpException(
+        'AuthMe 绑定请求过于频繁，请稍后再试',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
     return true;
   }
@@ -30,7 +48,10 @@ export class AuthmeRateLimitGuard implements CanActivate {
   private consume(key: string, limit: number, now: number): boolean {
     const bucket = this.buckets.get(key);
     if (!bucket || bucket.expiresAt <= now) {
-      this.buckets.set(key, { count: 1, expiresAt: now + AUTHME_BIND_RATE_LIMIT_WINDOW_MS });
+      this.buckets.set(key, {
+        count: 1,
+        expiresAt: now + AUTHME_BIND_RATE_LIMIT_WINDOW_MS,
+      });
       return true;
     }
     if (bucket.count >= limit) {

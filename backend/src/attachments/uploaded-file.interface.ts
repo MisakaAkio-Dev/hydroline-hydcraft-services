@@ -1,6 +1,6 @@
 export interface StoredUploadedFile {
-  originalname: string
-  buffer: Buffer
-  size: number
-  mimetype: string
+  originalname: string;
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
 }

@@ -38,7 +38,11 @@ export interface AuthmeLib {
   getByRealname(realname: string): Promise<AuthmeUser | null>;
   getByUsernameOrRealname(identifier: string): Promise<AuthmeUser | null>;
   listAll(offset?: number, limit?: number): Promise<AuthmeUser[]>;
-  listAllByIp(ip: string, offset?: number, limit?: number): Promise<AuthmeUser[]>;
+  listAllByIp(
+    ip: string,
+    offset?: number,
+    limit?: number,
+  ): Promise<AuthmeUser[]>;
   listIpsByUsername(username: string): Promise<string[]>;
   exists(usernameOrRealname: string): Promise<boolean>;
   verifyPassword(storedPassword: string, plain: string): Promise<boolean>;

@@ -24,7 +24,10 @@ export type UnexpectedError = {
   cause?: unknown;
 };
 
-export type AuthmeErrorDetail = ExternalDependencyError | BusinessValidationError | UnexpectedError;
+export type AuthmeErrorDetail =
+  | ExternalDependencyError
+  | BusinessValidationError
+  | UnexpectedError;
 
 export class AuthmeError extends Error {
   constructor(public readonly detail: AuthmeErrorDetail) {
@@ -32,7 +35,11 @@ export class AuthmeError extends Error {
   }
 }
 
-export function externalError(stage: ExternalDependencyError['stage'], message: string, cause?: string): AuthmeError {
+export function externalError(
+  stage: ExternalDependencyError['stage'],
+  message: string,
+  cause?: string,
+): AuthmeError {
   return new AuthmeError({
     type: 'EXTERNAL_UNAVAILABLE',
     dep: 'AUTHME_DB',

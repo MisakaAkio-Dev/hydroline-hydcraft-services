@@ -53,7 +53,11 @@ export const auth = betterAuth({
     const originalCreate = adapter.create?.bind(adapter);
     if (typeof originalCreate === 'function') {
       adapter.create = async (args: any) => {
-        if (args?.model === 'Account' && args.data && typeof args.data.type !== 'string') {
+        if (
+          args?.model === 'Account' &&
+          args.data &&
+          typeof args.data.type !== 'string'
+        ) {
           args = {
             ...args,
             data: {

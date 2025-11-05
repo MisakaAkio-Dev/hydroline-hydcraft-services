@@ -1,4 +1,7 @@
-import type { PortalCardRegistryEntry, PortalHomeConfig } from './portal-config.types';
+import type {
+  PortalCardRegistryEntry,
+  PortalHomeConfig,
+} from './portal-config.types';
 
 export const PORTAL_CONFIG_NAMESPACE = 'portal.home';
 export const PORTAL_CONFIG_ENTRY_KEY = 'config';

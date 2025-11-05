@@ -145,7 +145,7 @@ const routerPush = (path: string) => {
 
 <template>
   <div
-    class="relative min-h-screen flex flex-col dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
+    class="relative min-h-[105vh] flex flex-col dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
   >
     <AppLoadingBar />
     <AuthDialog />

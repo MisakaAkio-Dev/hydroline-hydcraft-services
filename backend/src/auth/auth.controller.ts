@@ -165,7 +165,7 @@ export class AuthController {
     @Body()
     body: { deviceName?: string | null; devicePlatform?: string | null },
   ) {
-  const token: string | undefined = req.sessionToken ?? undefined;
+    const token: string | undefined = req.sessionToken ?? undefined;
     if (!token) {
       throw new UnauthorizedException('Invalid session');
     }

@@ -26,7 +26,7 @@ export class ApiAuthmeController {
       const user = await this.authService.bindAuthme(
         req.user!.id,
         dto,
-  buildRequestContext(req),
+        buildRequestContext(req),
       );
       return user;
     } catch (error) {

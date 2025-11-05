@@ -1,11 +1,26 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '../config/config.service';
-import { AUTHME_DB_NAMESPACE, AUTHME_CONFIG_POLL_INTERVAL_MS, AUTHME_DEFAULT_SAFE_MESSAGE } from './authme.constants';
+import {
+  AUTHME_DB_NAMESPACE,
+  AUTHME_CONFIG_POLL_INTERVAL_MS,
+  AUTHME_DEFAULT_SAFE_MESSAGE,
+} from './authme.constants';
 import { AuthmeDbConfig } from './authme.config';
 import { MysqlAuthmeLib } from './lib/authme-lib';
 import type { AuthmeLib, AuthmeUser } from './authme.interfaces';
 import { PromAuthmeMetricsRecorder } from './authme.metrics';
-import { AuthmeError, businessError, externalError, unexpectedError } from './authme.errors';
+import {
+  AuthmeError,
+  businessError,
+  externalError,
+  unexpectedError,
+} from './authme.errors';
 import type { AuthmeHealth } from './authme.interfaces';
 
 interface ConfigEntry {
@@ -25,7 +40,9 @@ export class AuthmeService implements OnModuleInit, OnModuleDestroy {
   private configSignature: string | null = null;
   private poller?: NodeJS.Timeout;
 
-  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {}
+  constructor(
+    @Inject(ConfigService) private readonly configService: ConfigService,
+  ) {}
 
   async onModuleInit() {
     await this.refreshConfig(true);
@@ -55,7 +72,10 @@ export class AuthmeService implements OnModuleInit, OnModuleDestroy {
     return this.lib.health();
   }
 
-  async verifyCredentials(identifier: string, password: string): Promise<AuthmeUser> {
+  async verifyCredentials(
+    identifier: string,
+    password: string,
+  ): Promise<AuthmeUser> {
     const lib = await this.ensureLib();
     try {
       const user = await lib.getByUsernameOrRealname(identifier);
@@ -130,28 +150,40 @@ export class AuthmeService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('AuthMe connection pool refreshed');
   }
 
-  private async loadConfig(): Promise<{ signature: string; config: AuthmeDbConfig | null }> {
-    const entries = (await this.configService.getEntriesByNamespaceKey(AUTHME_DB_NAMESPACE)) as ConfigEntry[];
+  private async loadConfig(): Promise<{
+    signature: string;
+    config: AuthmeDbConfig | null;
+  }> {
+    const entries = (await this.configService.getEntriesByNamespaceKey(
+      AUTHME_DB_NAMESPACE,
+    )) as ConfigEntry[];
     const primary = pickConfigEntry(entries);
     if (!primary) {
       return { signature: 'empty', config: null };
     }
     const signature = `${primary.key}:${primary.version}`;
-    const payload = isRecord(primary.value) ? (primary.value as Record<string, unknown>) : {};
+    const payload = isRecord(primary.value) ? primary.value : {};
     const config = this.normalizeConfig(payload);
     if (!config) {
-      this.logger.warn('AuthMe config missing required fields, skipping pool creation');
+      this.logger.warn(
+        'AuthMe config missing required fields, skipping pool creation',
+      );
       return { signature, config: null };
     }
     return { signature, config };
   }
 
   async getConfigSnapshot() {
-    const entry = await this.configService.getEntry(AUTHME_DB_NAMESPACE, 'config');
+    const entry = await this.configService.getEntry(
+      AUTHME_DB_NAMESPACE,
+      'config',
+    );
     if (!entry) {
       return { config: null, meta: null };
     }
-    const payload = isRecord(entry.value) ? (entry.value as Record<string, unknown>) : {};
+    const payload = isRecord(entry.value)
+      ? (entry.value as Record<string, unknown>)
+      : {};
     const normalized = this.normalizeConfig(payload);
     return {
       config: normalized,
@@ -159,29 +191,42 @@ export class AuthmeService implements OnModuleInit, OnModuleDestroy {
         id: entry.id,
         version: entry.version,
         updatedAt:
-          entry.updatedAt instanceof Date ? entry.updatedAt.toISOString() : String(entry.updatedAt ?? ''),
+          entry.updatedAt instanceof Date
+            ? entry.updatedAt.toISOString()
+            : String(entry.updatedAt ?? ''),
       },
     };
   }
 
   async upsertConfig(config: AuthmeDbConfig, userId?: string) {
-    const namespace = await this.configService.ensureNamespaceByKey(AUTHME_DB_NAMESPACE, {
-      name: 'AuthMe Database',
-      description: 'AuthMe MySQL connection configuration',
-    });
-    const entry = await this.configService.getEntry(AUTHME_DB_NAMESPACE, 'config');
+    const namespace = await this.configService.ensureNamespaceByKey(
+      AUTHME_DB_NAMESPACE,
+      {
+        name: 'AuthMe Database',
+        description: 'AuthMe MySQL connection configuration',
+      },
+    );
+    const entry = await this.configService.getEntry(
+      AUTHME_DB_NAMESPACE,
+      'config',
+    );
     if (entry) {
       await this.configService.updateEntry(entry.id, { value: config }, userId);
     } else {
-      await this.configService.createEntry(namespace.id, { key: 'config', value: config }, userId);
+      await this.configService.createEntry(
+        namespace.id,
+        { key: 'config', value: config },
+        userId,
+      );
     }
     await this.refreshConfig(true);
   }
 
-
-  private normalizeConfig(payload: Record<string, unknown>): AuthmeDbConfig | null {
+  private normalizeConfig(
+    payload: Record<string, unknown>,
+  ): AuthmeDbConfig | null {
     try {
-      const poolRaw = isRecord(payload.pool) ? (payload.pool as Record<string, unknown>) : {};
+      const poolRaw = isRecord(payload.pool) ? payload.pool : {};
       const pool = {
         min: toNumber(poolRaw.min, 0),
         max: toNumber(poolRaw.max, 10),
@@ -200,7 +245,12 @@ export class AuthmeService implements OnModuleInit, OnModuleDestroy {
         enabled: toBoolean(payload.enabled, false),
         pool,
       };
-      if (!config.host || !config.database || !config.user || !config.password) {
+      if (
+        !config.host ||
+        !config.database ||
+        !config.user ||
+        !config.password
+      ) {
         return null;
       }
       return config;
@@ -224,11 +274,17 @@ function pickConfigEntry(entries: ConfigEntry[]) {
   if (!entries.length) {
     return null;
   }
-  const preferred = entries.find((entry) => entry.key === 'config' && isRecord(entry.value));
+  const preferred = entries.find(
+    (entry) => entry.key === 'config' && isRecord(entry.value),
+  );
   if (preferred) {
     return preferred;
   }
-  return entries.find((entry) => isRecord(entry.value) && looksLikeAuthmeConfig(entry.value as Record<string, unknown>)) ?? null;
+  return (
+    entries.find(
+      (entry) => isRecord(entry.value) && looksLikeAuthmeConfig(entry.value),
+    ) ?? null
+  );
 }
 
 function toNumber(value: unknown, fallback: number): number {

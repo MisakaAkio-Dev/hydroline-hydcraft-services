@@ -70,7 +70,9 @@ export class PortalConfigService {
 
   async getResolvedHomeContent() {
     const config = await this.getRawConfig();
-    const heroBackgrounds = await this.resolveBackgrounds(config.hero.backgrounds);
+    const heroBackgrounds = await this.resolveBackgrounds(
+      config.hero.backgrounds,
+    );
     const navigation = config.navigation.map((item) =>
       this.normalizeNavigationItem(item),
     );
@@ -110,7 +112,9 @@ export class PortalConfigService {
         subtitle: config.hero.subtitle,
         backgrounds: heroBackgrounds,
       },
-      navigation: config.navigation.map((item) => this.normalizeNavigationItem(item)),
+      navigation: config.navigation.map((item) =>
+        this.normalizeNavigationItem(item),
+      ),
       cards: this.ensureCardConfig(config.cards),
       registry: this.getCardRegistry(),
     };
@@ -157,7 +161,9 @@ export class PortalConfigService {
     options: SaveOptions = {},
   ) {
     const config = await this.getRawConfig();
-    const target = config.hero.backgrounds.find((item) => item.id === backgroundId);
+    const target = config.hero.backgrounds.find(
+      (item) => item.id === backgroundId,
+    );
     if (!target) {
       throw new NotFoundException('背景图不存在');
     }
@@ -332,8 +338,9 @@ export class PortalConfigService {
     const resolvedItems = await Promise.all(
       items.map((item) => this.resolveBackground(item)),
     );
-    return resolvedItems.filter((item): item is { imageUrl: string; description: string | null } =>
-      Boolean(item),
+    return resolvedItems.filter(
+      (item): item is { imageUrl: string; description: string | null } =>
+        Boolean(item),
     );
   }
 
@@ -370,7 +377,9 @@ export class PortalConfigService {
       tooltip: input.tooltip?.trim() || null,
       url: input.url?.trim() || null,
       available:
-        input.available !== undefined ? Boolean(input.available) : Boolean(input.url),
+        input.available !== undefined
+          ? Boolean(input.available)
+          : Boolean(input.url),
       icon: input.icon?.trim() || null,
     };
   }
@@ -416,11 +425,14 @@ export class PortalConfigService {
   private applyDefaults(config: PortalHomeConfigDraft): PortalHomeConfig {
     const cloned: PortalHomeConfig = {
       hero: {
-        subtitle: config.hero?.subtitle || DEFAULT_PORTAL_HOME_CONFIG.hero.subtitle,
+        subtitle:
+          config.hero?.subtitle || DEFAULT_PORTAL_HOME_CONFIG.hero.subtitle,
         backgrounds: Array.isArray(config.hero?.backgrounds)
           ? config.hero.backgrounds
               .map((item) => this.normalizeBackground(item))
-              .filter((item): item is PortalHomeBackgroundConfig => Boolean(item))
+              .filter((item): item is PortalHomeBackgroundConfig =>
+                Boolean(item),
+              )
           : [],
       },
       navigation: Array.isArray(config.navigation)
@@ -455,7 +467,10 @@ export class PortalConfigService {
     };
   }
 
-  private async saveConfig(config: PortalHomeConfig, options: SaveOptions = {}) {
+  private async saveConfig(
+    config: PortalHomeConfig,
+    options: SaveOptions = {},
+  ) {
     const namespace = await this.configService.ensureNamespaceByKey(
       PORTAL_CONFIG_NAMESPACE,
       {

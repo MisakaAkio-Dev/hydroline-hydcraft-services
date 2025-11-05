@@ -50,7 +50,10 @@ export class AuthmeAdminController {
   }
 
   @Patch('feature')
-  async updateFeature(@Body() dto: UpdateAuthmeFeatureDto, @Req() req: Request) {
+  async updateFeature(
+    @Body() dto: UpdateAuthmeFeatureDto,
+    @Req() req: Request,
+  ) {
     await this.authFeatureService.setFlags(dto, req.user?.id);
     return this.getOverview();
   }

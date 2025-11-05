@@ -18,7 +18,9 @@ export interface AuthmeDbConfig {
   enabled: boolean;
 }
 
-export function isValidAuthmeConfig(config: Partial<AuthmeDbConfig> | null | undefined): config is AuthmeDbConfig {
+export function isValidAuthmeConfig(
+  config: Partial<AuthmeDbConfig> | null | undefined,
+): config is AuthmeDbConfig {
   if (!config) return false;
   return (
     typeof config.host === 'string' &&

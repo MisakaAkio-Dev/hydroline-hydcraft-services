@@ -542,9 +542,7 @@ async function loadSessions(force = false) {
   sessionsLoading.value = true
   try {
     const response = await auth.listSessions()
-    const list = Array.isArray(response?.sessions)
-      ? response.sessions
-      : []
+    const list = Array.isArray(response?.sessions) ? response.sessions : []
     sessions.value = list.map((entry: any) => ({
       id: entry.id as string,
       createdAt: entry.createdAt as string,
@@ -599,9 +597,7 @@ async function handleRevokeSession(sessionId: string) {
     await loadSessions(true)
   } catch (error) {
     const description =
-      error instanceof ApiError
-        ? error.message
-        : '无法终止会话，请稍后再试'
+      error instanceof ApiError ? error.message : '无法终止会话，请稍后再试'
     toast.add({
       title: '终止会话失败',
       description,
@@ -701,20 +697,27 @@ function buildPayload(): UpdateCurrentUserPayload {
     }
   }
   // region
-  const regionExisting = (existingExtra['region'] ?? {}) as Record<string, string>
+  const regionExisting = (existingExtra['region'] ?? {}) as Record<
+    string,
+    string
+  >
   const regionPayload = {
     country: form.regionCountry || undefined,
     province: form.regionProvince || undefined,
     city: form.regionCity || undefined,
     district: form.regionDistrict || undefined,
   }
-  const regionChanged = (
+  const regionChanged =
     (regionExisting?.country ?? '') !== (regionPayload.country ?? '') ||
     (regionExisting?.province ?? '') !== (regionPayload.province ?? '') ||
     (regionExisting?.city ?? '') !== (regionPayload.city ?? '') ||
     (regionExisting?.district ?? '') !== (regionPayload.district ?? '')
+  const hasRegion = !!(
+    regionPayload.country ||
+    regionPayload.province ||
+    regionPayload.city ||
+    regionPayload.district
   )
-  const hasRegion = !!(regionPayload.country || regionPayload.province || regionPayload.city || regionPayload.district)
   if (regionChanged || hasRegion) {
     extraChanged = true
     ;(extraPayload as any).region = regionPayload
@@ -837,39 +840,123 @@ function handleError(error: unknown, fallback: string) {
         @refresh="loadUser"
       />
 
-      <form id="profile-form" class="flex flex-col gap-6 transition-opacity" :class="{ 'pointer-events-none opacity-60': loading && !saving }" @submit.prevent="handleSave">
+      <form
+        id="profile-form"
+        class="flex flex-col gap-6 transition-opacity"
+        :class="{ 'pointer-events-none opacity-60': loading && !saving }"
+        @submit.prevent="handleSave"
+      >
         <Transition name="fade">
-          <EditBanner v-if="isEditing" :has-changes="hasChanges" :saving="saving" @cancel="cancelEditing" @save="handleSave" />
+          <EditBanner
+            v-if="isEditing"
+            :has-changes="hasChanges"
+            :saving="saving"
+            @cancel="cancelEditing"
+            @save="handleSave"
+          />
         </Transition>
 
         <div class="flex flex-col gap-6 lg:flex-row">
-          <ProfileSidebar :items="sections" :active-id="activeSection" @update:active-id="(id:string)=>activeSection = id as any" />
+          <ProfileSidebar
+            :items="sections"
+            :active-id="activeSection"
+            @update:active-id="(id: string) => (activeSection = id as any)"
+          />
 
-          <div class="flex-1 rounded-2xl border border-slate-200/70 bg-white/85 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-5 dark:border-slate-800/70">
+          <div
+            class="flex-1 rounded-2xl border border-slate-200/70 bg-white/85 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60"
+          >
+            <div
+              class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-5 dark:border-slate-800/70"
+            >
               <div>
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">{{ currentSection.label }}</h2>
+                <h2
+                  class="text-lg font-semibold text-slate-900 dark:text-white"
+                >
+                  {{ currentSection.label }}
+                </h2>
               </div>
-              <UButton v-if="!isEditing" type="button" color="primary" variant="soft" :disabled="loading" @click="startEditing">编辑</UButton>
+              <UButton
+                v-if="!isEditing"
+                type="button"
+                color="primary"
+                variant="soft"
+                :disabled="loading"
+                @click="startEditing"
+                >编辑</UButton
+              >
             </div>
 
             <div class="px-6 py-6">
               <BasicSection
                 v-if="activeSection === 'basic'"
-                :model-value="{ name: form.name, displayName: form.displayName, email: form.email, gender: form.gender, birthday: form.birthday, motto: form.motto, timezone: form.timezone, locale: form.locale }"
+                :model-value="{
+                  name: form.name,
+                  displayName: form.displayName,
+                  email: form.email,
+                  gender: form.gender,
+                  birthday: form.birthday,
+                  motto: form.motto,
+                  timezone: form.timezone,
+                  locale: form.locale,
+                }"
                 :is-editing="isEditing"
                 :gender-options="genderOptions"
                 :timezone-options="timezoneOptions"
                 :language-options="languageOptions"
-                :meta="{ lastSyncedText: lastSyncedText, registeredText: registeredText, joinedText: joinedText, lastLoginText: lastLoginText, lastLoginIp: lastLoginIp }"
-                @update:model-value="(v:any)=>{ form.name=v.name; form.displayName=v.displayName; form.gender=v.gender; form.birthday=v.birthday; form.motto=v.motto; form.timezone=v.timezone; form.locale=v.locale }"
+                :meta="{
+                  lastSyncedText: lastSyncedText,
+                  registeredText: registeredText,
+                  joinedText: joinedText,
+                  lastLoginText: lastLoginText,
+                  lastLoginIp: lastLoginIp,
+                }"
+                @update:model-value="
+                  (v: any) => {
+                    form.name = v.name
+                    form.displayName = v.displayName
+                    form.gender = v.gender
+                    form.birthday = v.birthday
+                    form.motto = v.motto
+                    form.timezone = v.timezone
+                    form.locale = v.locale
+                  }
+                "
               />
 
               <AddressSection
                 v-else-if="activeSection === 'address'"
-                :model-value="{ addressLine1: form.addressLine1, addressLine2: form.addressLine2, city: form.city, state: form.state, postalCode: form.postalCode, country: form.country, phone: form.phone, region: { country: (form.regionCountry as any) || 'OTHER', province: form.regionProvince, city: form.regionCity, district: form.regionDistrict } }"
+                :model-value="{
+                  addressLine1: form.addressLine1,
+                  addressLine2: form.addressLine2,
+                  city: form.city,
+                  state: form.state,
+                  postalCode: form.postalCode,
+                  country: form.country,
+                  phone: form.phone,
+                  region: {
+                    country: (form.regionCountry as any) || 'OTHER',
+                    province: form.regionProvince,
+                    city: form.regionCity,
+                    district: form.regionDistrict,
+                  },
+                }"
                 :is-editing="isEditing"
-                @update:model-value="(v:any)=>{ form.addressLine1=v.addressLine1; form.addressLine2=v.addressLine2; form.city=v.city; form.state=v.state; form.postalCode=v.postalCode; form.country=v.country; form.phone=v.phone; form.regionCountry=v.region.country; form.regionProvince=v.region.province; form.regionCity=v.region.city; form.regionDistrict=v.region.district }"
+                @update:model-value="
+                  (v: any) => {
+                    form.addressLine1 = v.addressLine1
+                    form.addressLine2 = v.addressLine2
+                    form.city = v.city
+                    form.state = v.state
+                    form.postalCode = v.postalCode
+                    form.country = v.country
+                    form.phone = v.phone
+                    form.regionCountry = v.region.country
+                    form.regionProvince = v.region.province
+                    form.regionCity = v.region.city
+                    form.regionDistrict = v.region.district
+                  }
+                "
               />
 
               <MinecraftSection
@@ -894,13 +981,32 @@ function handleError(error: unknown, fallback: string) {
           </div>
         </div>
 
-        <AuthmeBindDialog :open="showBindDialog" :loading="bindingLoading" :error="bindingError" @close="showBindDialog = false" @submit="(p)=>{ authmeBindingForm.authmeId = p.authmeId; authmeBindingForm.password = p.password; submitAuthmeBinding() }" />
+        <AuthmeBindDialog
+          :open="showBindDialog"
+          :loading="bindingLoading"
+          :error="bindingError"
+          @close="showBindDialog = false"
+          @submit="
+            (p) => {
+              authmeBindingForm.authmeId = p.authmeId
+              authmeBindingForm.password = p.password
+              submitAuthmeBinding()
+            }
+          "
+        />
       </form>
     </div>
 
-    <UCard v-else class="flex flex-col items-center gap-4 bg-white/85 py-12 text-center shadow-sm backdrop-blur-sm dark:bg-slate-900/65">
-      <h2 class="text-xl font-semibold text-slate-900 dark:text-white">需要登录</h2>
-      <p class="max-w-sm text-sm text-slate-600 dark:text-slate-300">登录后即可完善个人资料与联系地址，确保服务体验与通知准确触达。</p>
+    <UCard
+      v-else
+      class="flex flex-col items-center gap-4 bg-white/85 py-12 text-center shadow-sm backdrop-blur-sm dark:bg-slate-900/65"
+    >
+      <h2 class="text-xl font-semibold text-slate-900 dark:text-white">
+        需要登录
+      </h2>
+      <p class="max-w-sm text-sm text-slate-600 dark:text-slate-300">
+        登录后即可完善个人资料与联系地址，确保服务体验与通知准确触达。
+      </p>
       <UButton color="primary" @click="openLoginDialog">立即登录</UButton>
     </UCard>
   </section>

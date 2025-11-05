@@ -20,7 +20,9 @@ import { UpdateContactChannelDto } from './dto/update-contact-channel.dto';
 @UseGuards(AuthGuard, PermissionsGuard)
 @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_CONTACT_CHANNELS)
 export class ContactChannelsController {
-  constructor(private readonly contactChannelsService: ContactChannelsService) {}
+  constructor(
+    private readonly contactChannelsService: ContactChannelsService,
+  ) {}
 
   @Get()
   async list() {

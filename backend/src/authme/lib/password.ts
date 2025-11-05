@@ -4,9 +4,9 @@ function sha256(buffer: Buffer): Buffer {
   return createHash('sha256').update(buffer).digest();
 }
 
-export function normalizePasswordSegments(stored: string):
-  | { algorithm: string; salt: string; hash: string }
-  | null {
+export function normalizePasswordSegments(
+  stored: string,
+): { algorithm: string; salt: string; hash: string } | null {
   if (!stored?.startsWith('$')) {
     return null;
   }
@@ -21,7 +21,10 @@ export function normalizePasswordSegments(stored: string):
   return { algorithm: algorithm.toUpperCase(), salt, hash };
 }
 
-export async function verifyShaPassword(stored: string, plain: string): Promise<boolean> {
+export async function verifyShaPassword(
+  stored: string,
+  plain: string,
+): Promise<boolean> {
   const segments = normalizePasswordSegments(stored);
   if (!segments || segments.algorithm !== 'SHA') {
     return false;

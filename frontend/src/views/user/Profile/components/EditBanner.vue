@@ -12,7 +12,7 @@ const emit = defineEmits<{
 
 <template>
   <div
-    class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary-200/70 bg-primary-50/80 px-4 py-3 text-sm text-primary-700 shadow-sm dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200"
+    class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary-200/70 bg-primary-50/80 px-4 py-3 text-sm text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200"
   >
     <div class="flex items-center gap-2">
       <UIcon name="i-lucide-pencil" class="h-4 w-4" />

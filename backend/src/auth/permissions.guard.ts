@@ -44,7 +44,9 @@ export class PermissionsGuard implements CanActivate {
 
     const missing = requiredPermissions.filter((perm) => !granted.has(perm));
     if (missing.length > 0) {
-      throw new ForbiddenException(`Missing permissions: ${missing.join(', ')}`);
+      throw new ForbiddenException(
+        `Missing permissions: ${missing.join(', ')}`,
+      );
     }
 
     return true;

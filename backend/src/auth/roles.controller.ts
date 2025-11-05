@@ -35,7 +35,10 @@ export class RolesController {
   }
 
   @Patch('roles/:roleId')
-  async updateRole(@Param('roleId') roleId: string, @Body() dto: UpdateRoleDto) {
+  async updateRole(
+    @Param('roleId') roleId: string,
+    @Body() dto: UpdateRoleDto,
+  ) {
     return this.rolesService.updateRole(roleId, dto);
   }
 

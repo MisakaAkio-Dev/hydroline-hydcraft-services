@@ -12,7 +12,17 @@ import { AuthmeAdminController } from './authme.admin.controller';
 @Module({
   imports: [ConfigModule, PrismaModule, AuthModule],
   controllers: [AuthmeAdminController],
-  providers: [AuthmeService, AuthmeBindingService, AuthFeatureService, AuthmeRateLimitGuard],
-  exports: [AuthmeService, AuthmeBindingService, AuthFeatureService, AuthmeRateLimitGuard],
+  providers: [
+    AuthmeService,
+    AuthmeBindingService,
+    AuthFeatureService,
+    AuthmeRateLimitGuard,
+  ],
+  exports: [
+    AuthmeService,
+    AuthmeBindingService,
+    AuthFeatureService,
+    AuthmeRateLimitGuard,
+  ],
 })
 export class AuthmeModule {}

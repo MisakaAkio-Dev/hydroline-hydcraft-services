@@ -41,8 +41,13 @@ export class ConfigService {
     });
   }
 
-  async updateNamespace(namespaceId: string, data: { name?: string; description?: string }) {
-    const namespace = await this.prisma.configNamespace.findUnique({ where: { id: namespaceId } });
+  async updateNamespace(
+    namespaceId: string,
+    data: { name?: string; description?: string },
+  ) {
+    const namespace = await this.prisma.configNamespace.findUnique({
+      where: { id: namespaceId },
+    });
     if (!namespace) {
       throw new NotFoundException('Namespace not found');
     }
@@ -77,7 +82,11 @@ export class ConfigService {
     });
   }
 
-  async createEntry(namespaceId: string, data: { key: string; value: unknown; description?: string }, userId?: string) {
+  async createEntry(
+    namespaceId: string,
+    data: { key: string; value: unknown; description?: string },
+    userId?: string,
+  ) {
     await this.ensureNamespaceById(namespaceId);
     try {
       const normalized = this.normalizeValue(data.value);
@@ -98,13 +107,21 @@ export class ConfigService {
     }
   }
 
-  async updateEntry(entryId: string, data: { value?: unknown; description?: string }, userId?: string) {
-    const entry = await this.prisma.configEntry.findUnique({ where: { id: entryId } });
+  async updateEntry(
+    entryId: string,
+    data: { value?: unknown; description?: string },
+    userId?: string,
+  ) {
+    const entry = await this.prisma.configEntry.findUnique({
+      where: { id: entryId },
+    });
     if (!entry) {
       throw new NotFoundException('Entry not found');
     }
     const normalized =
-      data.value !== undefined ? this.normalizeValue(data.value) : this.normalizeValue(entry.value);
+      data.value !== undefined
+        ? this.normalizeValue(data.value)
+        : this.normalizeValue(entry.value);
 
     return this.prisma.configEntry.update({
       where: { id: entryId },
@@ -118,7 +135,9 @@ export class ConfigService {
   }
 
   async removeEntry(entryId: string) {
-    const entry = await this.prisma.configEntry.findUnique({ where: { id: entryId } });
+    const entry = await this.prisma.configEntry.findUnique({
+      where: { id: entryId },
+    });
     if (!entry) {
       throw new NotFoundException('Entry not found');
     }
@@ -155,8 +174,13 @@ export class ConfigService {
     });
   }
 
-  async ensureNamespaceByKey(key: string, data: { name: string; description?: string }) {
-    const namespace = await this.prisma.configNamespace.findUnique({ where: { key } });
+  async ensureNamespaceByKey(
+    key: string,
+    data: { name: string; description?: string },
+  ) {
+    const namespace = await this.prisma.configNamespace.findUnique({
+      where: { key },
+    });
     if (namespace) {
       return namespace;
     }
@@ -170,7 +194,9 @@ export class ConfigService {
   }
 
   private async ensureNamespaceById(namespaceId: string) {
-    const namespace = await this.prisma.configNamespace.findUnique({ where: { id: namespaceId } });
+    const namespace = await this.prisma.configNamespace.findUnique({
+      where: { id: namespaceId },
+    });
     if (!namespace) {
       throw new NotFoundException('Namespace not found');
     }

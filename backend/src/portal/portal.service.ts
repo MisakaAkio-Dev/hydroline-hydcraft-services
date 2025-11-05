@@ -65,7 +65,9 @@ export class PortalService {
       try {
         userContext = await this.getUserAccessContext(userId);
       } catch (error) {
-        this.logger.warn(`Failed to resolve user context ${userId}: ${String(error)}`);
+        this.logger.warn(
+          `Failed to resolve user context ${userId}: ${String(error)}`,
+        );
       }
     }
 
@@ -128,7 +130,8 @@ export class PortalService {
                 primaryMinecraft: user.profile.primaryMinecraftProfile
                   ? {
                       id: user.profile.primaryMinecraftProfile.id,
-                      minecraftId: user.profile.primaryMinecraftProfile.minecraftId,
+                      minecraftId:
+                        user.profile.primaryMinecraftProfile.minecraftId,
                       nickname: user.profile.primaryMinecraftProfile.nickname,
                     }
                   : null,
@@ -182,7 +185,9 @@ export class PortalService {
     }
   }
 
-  private async getUserAccessContext(userId: string): Promise<PortalUserAccessContext | null> {
+  private async getUserAccessContext(
+    userId: string,
+  ): Promise<PortalUserAccessContext | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {

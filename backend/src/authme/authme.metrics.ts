@@ -1,4 +1,10 @@
-import { Counter, Gauge, Histogram, collectDefaultMetrics, register } from 'prom-client';
+import {
+  Counter,
+  Gauge,
+  Histogram,
+  collectDefaultMetrics,
+  register,
+} from 'prom-client';
 
 export interface AuthmeMetricsRecorder {
   setConnected(connected: boolean): void;
@@ -14,7 +20,11 @@ function getOrCreateGauge(name: string, help: string): Gauge<string> {
   return new Gauge({ name, help });
 }
 
-function getOrCreateHistogram(name: string, help: string, labelNames: string[]): Histogram<string> {
+function getOrCreateHistogram(
+  name: string,
+  help: string,
+  labelNames: string[],
+): Histogram<string> {
   const existing = register.getSingleMetric(name);
   if (existing) {
     return existing as Histogram<string>;
@@ -27,7 +37,11 @@ function getOrCreateHistogram(name: string, help: string, labelNames: string[]):
   });
 }
 
-function getOrCreateCounter(name: string, help: string, labelNames: string[]): Counter<string> {
+function getOrCreateCounter(
+  name: string,
+  help: string,
+  labelNames: string[],
+): Counter<string> {
   const existing = register.getSingleMetric(name);
   if (existing) {
     return existing as Counter<string>;
@@ -38,9 +52,20 @@ function getOrCreateCounter(name: string, help: string, labelNames: string[]): C
 let metricsCollected = false;
 
 export class PromAuthmeMetricsRecorder implements AuthmeMetricsRecorder {
-  private readonly connectedGauge = getOrCreateGauge('authme_db_connected', 'Whether authme db pool is connected');
-  private readonly queryHistogram = getOrCreateHistogram('authme_db_query_time_ms', 'Authme db query latency', ['method']);
-  private readonly verifyFailedCounter = getOrCreateCounter('authme_verify_failed_total', 'Authme password verification failures', ['reason']);
+  private readonly connectedGauge = getOrCreateGauge(
+    'authme_db_connected',
+    'Whether authme db pool is connected',
+  );
+  private readonly queryHistogram = getOrCreateHistogram(
+    'authme_db_query_time_ms',
+    'Authme db query latency',
+    ['method'],
+  );
+  private readonly verifyFailedCounter = getOrCreateCounter(
+    'authme_verify_failed_total',
+    'Authme password verification failures',
+    ['reason'],
+  );
 
   constructor() {
     if (!metricsCollected) {

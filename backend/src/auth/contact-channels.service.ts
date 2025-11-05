@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateContactChannelDto } from './dto/create-contact-channel.dto';
@@ -9,11 +13,15 @@ export class ContactChannelsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listChannels() {
-    return this.prisma.contactChannel.findMany({ orderBy: { createdAt: 'asc' } });
+    return this.prisma.contactChannel.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
   async createChannel(dto: CreateContactChannelDto) {
-    const exists = await this.prisma.contactChannel.findUnique({ where: { key: dto.key } });
+    const exists = await this.prisma.contactChannel.findUnique({
+      where: { key: dto.key },
+    });
     if (exists) {
       throw new BadRequestException('Channel key already exists');
     }
@@ -33,7 +41,9 @@ export class ContactChannelsService {
   }
 
   async updateChannel(channelId: string, dto: UpdateContactChannelDto) {
-    const channel = await this.prisma.contactChannel.findUnique({ where: { id: channelId } });
+    const channel = await this.prisma.contactChannel.findUnique({
+      where: { id: channelId },
+    });
     if (!channel) {
       throw new NotFoundException('Channel not found');
     }
@@ -56,12 +66,16 @@ export class ContactChannelsService {
   }
 
   async deleteChannel(channelId: string) {
-    const channel = await this.prisma.contactChannel.findUnique({ where: { id: channelId } });
+    const channel = await this.prisma.contactChannel.findUnique({
+      where: { id: channelId },
+    });
     if (!channel) {
       throw new NotFoundException('Channel not found');
     }
 
-    const contactCount = await this.prisma.userContact.count({ where: { channelId } });
+    const contactCount = await this.prisma.userContact.count({
+      where: { channelId },
+    });
     if (contactCount > 0) {
       throw new BadRequestException('Channel is in use and cannot be deleted');
     }

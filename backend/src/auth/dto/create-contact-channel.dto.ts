@@ -1,4 +1,10 @@
-import { IsBoolean, IsOptional, IsString, MaxLength, Matches } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Matches,
+} from 'class-validator';
 
 export class CreateContactChannelDto {
   @IsString()
@@ -17,7 +23,9 @@ export class CreateContactChannelDto {
   @IsOptional()
   @IsString()
   @MaxLength(256)
-  @Matches(/^[\s\S]*$/, { message: 'validationRegex must be a valid regex string' })
+  @Matches(/^[\s\S]*$/, {
+    message: 'validationRegex must be a valid regex string',
+  })
   validationRegex?: string;
 
   @IsOptional()

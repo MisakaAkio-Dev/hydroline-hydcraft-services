@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import {
   ContactVerificationStatus,
   LifecycleEventType,
@@ -19,7 +23,10 @@ import { RegeneratePiicDto } from './dto/regenerate-piic.dto';
 import { UpdateMinecraftProfileDto } from './dto/update-minecraft-profile.dto';
 import { UpdateUserContactDto } from './dto/update-user-contact.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
-import { UpdateCurrentUserDto, UpdateCurrentUserProfileExtraDto } from './dto/update-current-user.dto';
+import {
+  UpdateCurrentUserDto,
+  UpdateCurrentUserProfileExtraDto,
+} from './dto/update-current-user.dto';
 
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient;
 
@@ -27,7 +34,10 @@ type PrismaClientOrTx = PrismaService | Prisma.TransactionClient;
 export class UsersService {
   private readonly piicPrefix = 'HC';
 
-  constructor(private readonly prisma: PrismaService, private readonly authmeService: AuthmeService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authmeService: AuthmeService,
+  ) {}
 
   async initializeUserRecords(
     userId: string,
@@ -80,7 +90,9 @@ export class UsersService {
         });
       }
 
-      const latestStatus = await tx.userStatusSnapshot.findUnique({ where: { userId } });
+      const latestStatus = await tx.userStatusSnapshot.findUnique({
+        where: { userId },
+      });
       if (!latestStatus) {
         const event = await tx.userStatusEvent.create({
           data: {
@@ -143,7 +155,13 @@ export class UsersService {
             { email: { contains: keyword, mode: 'insensitive' } },
             { name: { contains: keyword, mode: 'insensitive' } },
             { profile: { piic: { contains: keyword, mode: 'insensitive' } } },
-            { minecraftIds: { some: { minecraftId: { contains: keyword, mode: 'insensitive' } } } },
+            {
+              minecraftIds: {
+                some: {
+                  minecraftId: { contains: keyword, mode: 'insensitive' },
+                },
+              },
+            },
           ],
         }
       : {};
@@ -505,7 +523,9 @@ export class UsersService {
         where: { playerUuid: dto.playerUuid },
       });
       if (duplicate && duplicate.userId !== userId) {
-        throw new BadRequestException('playerUuid already associated with another user');
+        throw new BadRequestException(
+          'playerUuid already associated with another user',
+        );
       }
     }
 
@@ -530,7 +550,11 @@ export class UsersService {
     return profile;
   }
 
-  async updateMinecraftProfile(userId: string, profileId: string, dto: UpdateMinecraftProfileDto) {
+  async updateMinecraftProfile(
+    userId: string,
+    profileId: string,
+    dto: UpdateMinecraftProfileDto,
+  ) {
     await this.ensureUser(userId);
     const target = await this.prisma.userMinecraftProfile.findUnique({
       where: { id: profileId },
@@ -544,7 +568,9 @@ export class UsersService {
         where: { playerUuid: dto.playerUuid },
       });
       if (duplicate && duplicate.userId !== userId) {
-        throw new BadRequestException('playerUuid already associated with another user');
+        throw new BadRequestException(
+          'playerUuid already associated with another user',
+        );
       }
     }
 
@@ -574,7 +600,9 @@ export class UsersService {
 
   async removeMinecraftProfile(userId: string, profileId: string) {
     await this.ensureUser(userId);
-    const target = await this.prisma.userMinecraftProfile.findUnique({ where: { id: profileId } });
+    const target = await this.prisma.userMinecraftProfile.findUnique({
+      where: { id: profileId },
+    });
     if (!target || target.userId !== userId) {
       throw new NotFoundException('Minecraft profile not found for user');
     }
@@ -605,7 +633,11 @@ export class UsersService {
     });
   }
 
-  async addStatusEvent(userId: string, dto: CreateStatusEventDto, createdById?: string) {
+  async addStatusEvent(
+    userId: string,
+    dto: CreateStatusEventDto,
+    createdById?: string,
+  ) {
     await this.ensureUser(userId);
     const event = await this.prisma.userStatusEvent.create({
       data: {
@@ -638,7 +670,10 @@ export class UsersService {
         eventType: LifecycleEventType.STATUS_CHANGE,
         occurredAt: new Date(),
         source: dto.source ?? StatusSource.ADMIN,
-        metadata: this.toJsonValue({ status: event.status, reasonCode: event.reasonCode }),
+        metadata: this.toJsonValue({
+          status: event.status,
+          reasonCode: event.reasonCode,
+        }),
         createdById,
       },
     });
@@ -646,7 +681,11 @@ export class UsersService {
     return event;
   }
 
-  async addLifecycleEvent(userId: string, dto: CreateLifecycleEventDto, createdById?: string) {
+  async addLifecycleEvent(
+    userId: string,
+    dto: CreateLifecycleEventDto,
+    createdById?: string,
+  ) {
     await this.ensureUser(userId);
     const event = await this.prisma.userLifecycleEvent.create({
       data: {
@@ -700,9 +739,16 @@ export class UsersService {
     return contact;
   }
 
-  async updateContact(userId: string, contactId: string, dto: UpdateUserContactDto) {
+  async updateContact(
+    userId: string,
+    contactId: string,
+    dto: UpdateUserContactDto,
+  ) {
     await this.ensureUser(userId);
-    const existing = await this.prisma.userContact.findUnique({ include: { channel: true }, where: { id: contactId } });
+    const existing = await this.prisma.userContact.findUnique({
+      include: { channel: true },
+      where: { id: contactId },
+    });
     if (!existing || existing.userId !== userId) {
       throw new NotFoundException('Contact not found');
     }
@@ -717,7 +763,9 @@ export class UsersService {
         value: dto.value,
         isPrimary: dto.isPrimary ?? existing.isPrimary,
         verification: dto.verification ?? existing.verification,
-        verifiedAt: dto.verifiedAt ? new Date(dto.verifiedAt) : existing.verifiedAt,
+        verifiedAt: dto.verifiedAt
+          ? new Date(dto.verifiedAt)
+          : existing.verifiedAt,
         metadata:
           dto.metadata !== undefined
             ? this.toJson(dto.metadata)
@@ -731,14 +779,20 @@ export class UsersService {
 
   async removeContact(userId: string, contactId: string) {
     await this.ensureUser(userId);
-    const existing = await this.prisma.userContact.findUnique({ where: { id: contactId } });
+    const existing = await this.prisma.userContact.findUnique({
+      where: { id: contactId },
+    });
     if (!existing || existing.userId !== userId) {
       throw new NotFoundException('Contact not found');
     }
     await this.prisma.userContact.delete({ where: { id: contactId } });
   }
 
-  async regeneratePiic(userId: string, dto: RegeneratePiicDto, actorId?: string) {
+  async regeneratePiic(
+    userId: string,
+    dto: RegeneratePiicDto,
+    actorId?: string,
+  ) {
     await this.ensureUser(userId);
     const newPiic = await this.generatePiic(this.prisma);
     const now = new Date();
@@ -785,9 +839,13 @@ export class UsersService {
 
   async assignRoles(userId: string, roleKeys: string[], actorId?: string) {
     await this.ensureUser(userId);
-    const roles = await this.prisma.role.findMany({ where: { key: { in: roleKeys } } });
+    const roles = await this.prisma.role.findMany({
+      where: { key: { in: roleKeys } },
+    });
     if (roles.length !== roleKeys.length) {
-      const missing = roleKeys.filter((key) => !roles.find((r) => r.key === key));
+      const missing = roleKeys.filter(
+        (key) => !roles.find((r) => r.key === key),
+      );
       throw new NotFoundException(`Roles not found: ${missing.join(', ')}`);
     }
 
@@ -806,7 +864,10 @@ export class UsersService {
   }
 
   async ensureUser(userId: string) {
-    const exists = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    const exists = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
     if (!exists) {
       throw new NotFoundException('User not found');
     }

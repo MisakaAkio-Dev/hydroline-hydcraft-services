@@ -24,7 +24,7 @@ import type { StoredUploadedFile } from './uploaded-file.interface';
 type AttachmentWithRelations = Prisma.AttachmentGetPayload<{
   include: {
     folder: true;
-    owner: { select: { id: true, name: true, email: true } };
+    owner: { select: { id: true; name: true; email: true } };
     tags: { include: { tag: true } };
   };
 }>;
@@ -74,7 +74,9 @@ export class AttachmentsService implements OnModuleInit {
 
   async createFolder(userId: string, dto: CreateFolderDto) {
     const parent = dto.parentId
-      ? await this.prisma.attachmentFolder.findUnique({ where: { id: dto.parentId } })
+      ? await this.prisma.attachmentFolder.findUnique({
+          where: { id: dto.parentId },
+        })
       : null;
     if (dto.parentId && !parent) {
       throw new NotFoundException('Parent folder not found');
@@ -102,7 +104,9 @@ export class AttachmentsService implements OnModuleInit {
   }
 
   async updateFolder(folderId: string, dto: UpdateFolderDto) {
-    const folder = await this.prisma.attachmentFolder.findUnique({ where: { id: folderId } });
+    const folder = await this.prisma.attachmentFolder.findUnique({
+      where: { id: folderId },
+    });
     if (!folder) {
       throw new NotFoundException('Folder not found');
     }
@@ -112,11 +116,13 @@ export class AttachmentsService implements OnModuleInit {
     }
 
     const targetParentId =
-      dto.parentId === undefined ? folder.parentId : dto.parentId ?? null;
+      dto.parentId === undefined ? folder.parentId : (dto.parentId ?? null);
 
     let parent: AttachmentFolder | null = null;
     if (targetParentId) {
-      parent = await this.prisma.attachmentFolder.findUnique({ where: { id: targetParentId } });
+      parent = await this.prisma.attachmentFolder.findUnique({
+        where: { id: targetParentId },
+      });
       if (!parent) {
         throw new NotFoundException('Parent folder not found');
       }
@@ -128,7 +134,9 @@ export class AttachmentsService implements OnModuleInit {
     const nextName = dto.name ?? folder.name;
     await this.ensureUniqueFolder(targetParentId, nextName, folderId);
 
-    const slug = dto.name ? this.slugify(dto.name) : folder.slug ?? this.slugify(folder.name);
+    const slug = dto.name
+      ? this.slugify(dto.name)
+      : (folder.slug ?? this.slugify(folder.name));
     const path: string = parent ? `${parent.path}/${slug}` : slug;
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -153,7 +161,10 @@ export class AttachmentsService implements OnModuleInit {
         select: { id: true, path: true },
       });
       for (const child of descendants) {
-        const childPath = child.path.replace(`${folder.path}/`, `${record.path}/`);
+        const childPath = child.path.replace(
+          `${folder.path}/`,
+          `${record.path}/`,
+        );
         await tx.attachmentFolder.update({
           where: { id: child.id },
           data: { path: childPath },
@@ -171,7 +182,9 @@ export class AttachmentsService implements OnModuleInit {
   }
 
   async createTag(userId: string, dto: CreateTagDto) {
-    const existing = await this.prisma.attachmentTag.findUnique({ where: { key: dto.key } });
+    const existing = await this.prisma.attachmentTag.findUnique({
+      where: { key: dto.key },
+    });
     if (existing) {
       throw new BadRequestException('Tag key already exists');
     }
@@ -187,7 +200,9 @@ export class AttachmentsService implements OnModuleInit {
   }
 
   async updateTag(tagId: string, dto: UpdateTagDto) {
-    const tag = await this.prisma.attachmentTag.findUnique({ where: { id: tagId } });
+    const tag = await this.prisma.attachmentTag.findUnique({
+      where: { id: tagId },
+    });
     if (!tag) {
       throw new NotFoundException('Tag not found');
     }
@@ -201,7 +216,9 @@ export class AttachmentsService implements OnModuleInit {
   }
 
   async deleteTag(tagId: string) {
-    const tag = await this.prisma.attachmentTag.findUnique({ where: { id: tagId } });
+    const tag = await this.prisma.attachmentTag.findUnique({
+      where: { id: tagId },
+    });
     if (!tag) {
       throw new NotFoundException('Tag not found');
     }
@@ -245,25 +262,34 @@ export class AttachmentsService implements OnModuleInit {
     return attachments.map((item) => this.serializeAttachment(item));
   }
 
-  async uploadAttachment(userId: string, file: StoredUploadedFile | undefined, dto: CreateAttachmentDto) {
+  async uploadAttachment(
+    userId: string,
+    file: StoredUploadedFile | undefined,
+    dto: CreateAttachmentDto,
+  ) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
     const folderId = dto.folderId ?? null;
     const folder = folderId
-      ? await this.prisma.attachmentFolder.findUnique({ where: { id: folderId } })
+      ? await this.prisma.attachmentFolder.findUnique({
+          where: { id: folderId },
+        })
       : null;
     if (folderId && !folder) {
       throw new NotFoundException('Folder not found');
     }
 
-    const tagRecords = dto.tagKeys && dto.tagKeys.length > 0
-      ? await this.prisma.attachmentTag.findMany({
-          where: { key: { in: dto.tagKeys } },
-        })
-      : [];
+    const tagRecords =
+      dto.tagKeys && dto.tagKeys.length > 0
+        ? await this.prisma.attachmentTag.findMany({
+            where: { key: { in: dto.tagKeys } },
+          })
+        : [];
     if (dto.tagKeys && tagRecords.length !== dto.tagKeys.length) {
-      const missing = dto.tagKeys.filter((key) => !tagRecords.find((tag) => tag.key === key));
+      const missing = dto.tagKeys.filter(
+        (key) => !tagRecords.find((tag) => tag.key === key),
+      );
       throw new BadRequestException(`Tags not found: ${missing.join(', ')}`);
     }
 
@@ -271,7 +297,9 @@ export class AttachmentsService implements OnModuleInit {
     const hash = createHash('sha256').update(buffer).digest('hex');
     const ext = extname(file.originalname) || '';
     const randomName = `${Date.now()}-${randomUUID()}${ext}`;
-    const storageKey = folder ? join(folder.path, randomName) : join('root', randomName);
+    const storageKey = folder
+      ? join(folder.path, randomName)
+      : join('root', randomName);
     const physicalPath = join(this.uploadRoot, storageKey);
 
     await fs.mkdir(dirname(physicalPath), { recursive: true });
@@ -309,7 +337,11 @@ export class AttachmentsService implements OnModuleInit {
     return this.serializeAttachment(attachment);
   }
 
-  async updateAttachment(attachmentId: string, userId: string, dto: UpdateAttachmentDto) {
+  async updateAttachment(
+    attachmentId: string,
+    userId: string,
+    dto: UpdateAttachmentDto,
+  ) {
     const attachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
       include: { tags: true },
@@ -319,9 +351,12 @@ export class AttachmentsService implements OnModuleInit {
     }
 
     const folderIdInput = dto.folderId;
-    const folder = typeof folderIdInput === 'string'
-      ? await this.prisma.attachmentFolder.findUnique({ where: { id: folderIdInput } })
-      : null;
+    const folder =
+      typeof folderIdInput === 'string'
+        ? await this.prisma.attachmentFolder.findUnique({
+            where: { id: folderIdInput },
+          })
+        : null;
     if (typeof folderIdInput === 'string' && !folder) {
       throw new NotFoundException('Folder not found');
     }
@@ -332,7 +367,9 @@ export class AttachmentsService implements OnModuleInit {
         where: { key: { in: dto.tagKeys } },
       });
       if (tags.length !== dto.tagKeys.length) {
-        const missing = dto.tagKeys.filter((key) => !tags.find((tag) => tag.key === key));
+        const missing = dto.tagKeys.filter(
+          (key) => !tags.find((tag) => tag.key === key),
+        );
         throw new BadRequestException(`Tags not found: ${missing.join(', ')}`);
       }
       tagConnect = tags.map((tag) => ({ tagId: tag.id, assignedById: userId }));
@@ -342,7 +379,8 @@ export class AttachmentsService implements OnModuleInit {
       where: { id: attachmentId },
       data: {
         name: dto.name ?? attachment.name,
-        folderId: folderIdInput !== undefined ? folderIdInput : attachment.folderId,
+        folderId:
+          folderIdInput !== undefined ? folderIdInput : attachment.folderId,
         isPublic: dto.isPublic ?? attachment.isPublic,
         metadata:
           dto.metadata !== undefined
@@ -367,7 +405,9 @@ export class AttachmentsService implements OnModuleInit {
   }
 
   async deleteAttachment(attachmentId: string) {
-    const attachment = await this.prisma.attachment.findUnique({ where: { id: attachmentId } });
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+    });
     if (!attachment) {
       throw new NotFoundException('Attachment not found');
     }
@@ -380,8 +420,14 @@ export class AttachmentsService implements OnModuleInit {
     });
   }
 
-  async generateShareToken(attachmentId: string, userId: string, dto: GenerateShareTokenDto) {
-    const attachment = await this.prisma.attachment.findUnique({ where: { id: attachmentId } });
+  async generateShareToken(
+    attachmentId: string,
+    userId: string,
+    dto: GenerateShareTokenDto,
+  ) {
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+    });
     if (!attachment) {
       throw new NotFoundException('Attachment not found');
     }
@@ -465,8 +511,13 @@ export class AttachmentsService implements OnModuleInit {
         return this.serializeAttachment(existing);
       }
     } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2021') {
-        this.logger.warn('Attachment table missing. Skip seeding seeded asset.');
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2021'
+      ) {
+        this.logger.warn(
+          'Attachment table missing. Skip seeding seeded asset.',
+        );
         return null;
       }
       throw error;
@@ -480,10 +531,15 @@ export class AttachmentsService implements OnModuleInit {
     // Attachment.ownerId 不可为空，需要指定一个用户 ID。为种子文件我们创建虚拟系统用户条目。
     const systemUser = await this.resolveSystemUser();
 
-    const folder = await this.resolveFolderByPath(systemUser.id, params.folderPath ?? []);
+    const folder = await this.resolveFolderByPath(
+      systemUser.id,
+      params.folderPath ?? [],
+    );
 
     const randomName = `${Date.now()}-${randomUUID()}${ext}`;
-    const storageKey = folder ? join(folder.path, randomName) : join('seed', randomName);
+    const storageKey = folder
+      ? join(folder.path, randomName)
+      : join('seed', randomName);
     const physicalPath = join(this.uploadRoot, storageKey);
     await fs.mkdir(dirname(physicalPath), { recursive: true });
     await fs.writeFile(physicalPath, buffer);
@@ -495,7 +551,9 @@ export class AttachmentsService implements OnModuleInit {
           })
         : [];
     if (params.tagKeys && tags.length !== params.tagKeys.length) {
-      const missing = params.tagKeys.filter((key) => !tags.find((tag) => tag.key === key));
+      const missing = params.tagKeys.filter(
+        (key) => !tags.find((tag) => tag.key === key),
+      );
       for (const key of missing) {
         const name = key
           .split('.')
@@ -566,7 +624,10 @@ export class AttachmentsService implements OnModuleInit {
     return systemUser;
   }
 
-  private async resolveFolderByPath(userId: string, segments: string[]): Promise<AttachmentFolder | null> {
+  private async resolveFolderByPath(
+    userId: string,
+    segments: string[],
+  ): Promise<AttachmentFolder | null> {
     if (segments.length === 0) {
       return null;
     }
@@ -635,7 +696,9 @@ export class AttachmentsService implements OnModuleInit {
     return join(this.uploadRoot, storageKey);
   }
 
-  private serializeAttachment(attachment: AttachmentWithRelations): AttachmentSummary {
+  private serializeAttachment(
+    attachment: AttachmentWithRelations,
+  ): AttachmentSummary {
     return {
       id: attachment.id,
       name: attachment.name,
@@ -660,11 +723,17 @@ export class AttachmentsService implements OnModuleInit {
         key: tag.tag.key,
         name: tag.tag.name,
       })),
-      publicUrl: attachment.isPublic ? `/attachments/public/${attachment.id}` : null,
+      publicUrl: attachment.isPublic
+        ? `/attachments/public/${attachment.id}`
+        : null,
     };
   }
 
-  private async ensureUniqueFolder(parentId: string | null | undefined, name: string, ignoreId?: string) {
+  private async ensureUniqueFolder(
+    parentId: string | null | undefined,
+    name: string,
+    ignoreId?: string,
+  ) {
     const existing = await this.prisma.attachmentFolder.findFirst({
       where: {
         parentId: parentId ?? null,

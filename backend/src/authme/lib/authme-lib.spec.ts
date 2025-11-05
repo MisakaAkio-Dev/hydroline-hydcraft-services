@@ -36,9 +36,13 @@ describe('MysqlAuthmeLib', () => {
   const passwordSample =
     '$SHA$71cd23e64f05609c$e2919c011a429b22ac7917cab2601a88037fd1ba8de144bb8b6f01a412f346bb';
 
-  function createPool(mockResponses: Array<{ sqlIncludes: string; rows: any[] }>): Pool {
+  function createPool(
+    mockResponses: Array<{ sqlIncludes: string; rows: any[] }>,
+  ): Pool {
     const query = jest.fn(async (sql: string) => {
-      const matched = mockResponses.find((entry) => sql.includes(entry.sqlIncludes));
+      const matched = mockResponses.find((entry) =>
+        sql.includes(entry.sqlIncludes),
+      );
       if (!matched) {
         throw new Error(`Unexpected SQL: ${sql}`);
       }
@@ -54,10 +58,18 @@ describe('MysqlAuthmeLib', () => {
 
   it('verifies $SHA$ passwords using official sample', async () => {
     const pool = createPool([]);
-    const lib = new MysqlAuthmeLib({ config: baseConfig, poolOverride: pool, metrics: METRICS_STUB });
+    const lib = new MysqlAuthmeLib({
+      config: baseConfig,
+      poolOverride: pool,
+      metrics: METRICS_STUB,
+    });
 
-    await expect(lib.verifyPassword(passwordSample, 'SLWorld')).resolves.toBe(true);
-    await expect(lib.verifyPassword(passwordSample, 'wrong')).resolves.toBe(false);
+    await expect(lib.verifyPassword(passwordSample, 'SLWorld')).resolves.toBe(
+      true,
+    );
+    await expect(lib.verifyPassword(passwordSample, 'wrong')).resolves.toBe(
+      false,
+    );
   });
 
   it('falls back to realname lookup when username misses', async () => {
@@ -82,7 +94,11 @@ describe('MysqlAuthmeLib', () => {
         ],
       },
     ]);
-    const lib = new MysqlAuthmeLib({ config: baseConfig, poolOverride: pool, metrics: METRICS_STUB });
+    const lib = new MysqlAuthmeLib({
+      config: baseConfig,
+      poolOverride: pool,
+      metrics: METRICS_STUB,
+    });
 
     const user = await lib.getByUsernameOrRealname('PlayerOne');
     expect(user).not.toBeNull();
@@ -91,8 +107,14 @@ describe('MysqlAuthmeLib', () => {
 
   it('wraps pool errors into AuthmeError instances', async () => {
     const pool = createPool([]);
-    (pool.query as jest.Mock).mockRejectedValueOnce(Object.assign(new Error('connection lost'), { code: 'ECONNRESET' }));
-    const lib = new MysqlAuthmeLib({ config: baseConfig, poolOverride: pool, metrics: METRICS_STUB });
+    (pool.query as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('connection lost'), { code: 'ECONNRESET' }),
+    );
+    const lib = new MysqlAuthmeLib({
+      config: baseConfig,
+      poolOverride: pool,
+      metrics: METRICS_STUB,
+    });
 
     await expect(lib.listAll()).rejects.toBeInstanceOf(AuthmeError);
   });
