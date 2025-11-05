@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
-import UserAvatar from '@/components/common/UserAvatar.vue'
+// UserAvatar 不再在本视图中直接使用
 import ProfileHeader from './components/ProfileHeader.vue'
-import EditBanner from './components/EditBanner.vue'
+// 顶部整体编辑横幅已移除，改为卡片内编辑
 import ProfileSidebar from './components/ProfileSidebar.vue'
 import BasicSection from './components/sections/BasicSection.vue'
 import MinecraftSection from './components/sections/MinecraftSection.vue'
@@ -44,14 +44,7 @@ type FormState = {
 
 type SectionKey = 'basic' | 'minecraft' | 'sessions'
 
-type FieldDefinition = {
-  key: keyof FormState
-  label: string
-  inputType?: 'text' | 'email' | 'date' | 'tel'
-  component?: 'textarea' | 'select'
-  placeholder?: string
-  readonly?: boolean
-}
+// 旧的字段定义移除
 
 type SessionItem = {
   id: string
@@ -77,12 +70,32 @@ const initialSnapshot = ref('')
 const bindingLoading = ref(false)
 const bindingError = ref('')
 const activeSection = ref<SectionKey>('basic')
-const isEditing = ref(false)
+// 任一卡片正在编辑
+const isEditingAny = ref(false)
+// 侧边栏切换拦截
+const showLeaveConfirm = ref(false)
+type PendingAction =
+  | { kind: 'sidebar'; target: SectionKey }
+  | { kind: 'card'; target: 'basic' | 'region' }
+const pendingAction = ref<PendingAction | null>(null)
+const leaveConfirmDescription = computed(() =>
+  pendingAction.value?.kind === 'card'
+    ? '切换卡片将放弃当前修改，是否确认？'
+    : '切换菜单将放弃本次编辑，是否确认？',
+)
+// 子组件重置编辑状态用
+const resetSignal = ref(0)
 const sessions = ref<SessionItem[]>([])
 const sessionsLoading = ref(false)
 const sessionsLoaded = ref(false)
 const sessionsError = ref('')
 const revokingSessionId = ref<string | null>(null)
+const basicSectionRef = ref<InstanceType<typeof BasicSection> | null>(null)
+// 解绑 / 终止会话确认弹窗
+const showUnbindConfirm = ref(false)
+const unbindTargetUsername = ref<string | null>(null)
+const showRevokeConfirm = ref(false)
+const revokeTargetId = ref<string | null>(null)
 
 const genderOptions: Array<{ label: string; value: GenderType }> = [
   { label: '未指定', value: 'UNSPECIFIED' },
@@ -110,7 +123,7 @@ const sections: Array<{
   },
   {
     id: 'minecraft',
-    label: '服务器账户',
+    label: '玩家绑定信息',
   },
   {
     id: 'sessions',
@@ -154,11 +167,7 @@ const showBindDialog = ref(false)
 
 const hasChanges = computed(() => serializeForm() !== initialSnapshot.value)
 
-const currentSection = computed(
-  () =>
-    sections.find((section) => section.id === activeSection.value) ??
-    sections[0],
-)
+// 顶部标题已移除，无需 currentSection
 
 const bindingEnabled = computed(() => featureStore.flags.authmeBindingEnabled)
 const authmeBindings = computed(() => {
@@ -279,13 +288,7 @@ watch(
   },
 )
 
-watch(isEditing, (value) => {
-  if (!value) {
-    bindingError.value = ''
-    authmeBindingForm.authmeId = ''
-    authmeBindingForm.password = ''
-  }
-})
+// 卡片级编辑由子组件管理
 
 watch(showBindDialog, (open) => {
   if (!open) {
@@ -308,6 +311,26 @@ onMounted(() => {
   }
 })
 
+function handleSidebarBlocked(id: string) {
+  if (id === activeSection.value) {
+    return
+  }
+  // 若没有任何改动，直接切换且重置编辑状态，无需弹窗
+  if (!hasChanges.value) {
+    resetSignal.value++
+    isEditingAny.value = false
+    activeSection.value = id as SectionKey
+    return
+  }
+  pendingAction.value = { kind: 'sidebar', target: id as SectionKey }
+  showLeaveConfirm.value = true
+}
+
+function handleCardGuard(target: 'basic' | 'region') {
+  pendingAction.value = { kind: 'card', target }
+  showLeaveConfirm.value = true
+}
+
 function resetForm() {
   form.name = ''
   form.displayName = ''
@@ -323,7 +346,6 @@ function resetForm() {
   form.phoneCountry = 'CN'
   lastSyncedAt.value = null
   initialSnapshot.value = serializeForm()
-  isEditing.value = false
 }
 
 function populateForm(user: Record<string, any>) {
@@ -357,20 +379,7 @@ function populateForm(user: Record<string, any>) {
   initialSnapshot.value = serializeForm()
 }
 
-function startEditing() {
-  if (!isAuthenticated.value) {
-    openLoginDialog()
-    return
-  }
-  isEditing.value = true
-}
-
-function cancelEditing() {
-  handleReset(false)
-  isEditing.value = false
-  authmeBindingForm.authmeId = ''
-  authmeBindingForm.password = ''
-}
+// 顶层不再提供整体编辑入口
 
 async function submitAuthmeBinding() {
   if (!bindingEnabled.value) {
@@ -497,6 +506,33 @@ async function handleRevokeSession(sessionId: string) {
   } finally {
     revokingSessionId.value = null
   }
+}
+
+// 弹窗触发与确认
+function askUnbind(username: string) {
+  unbindTargetUsername.value = username
+  showUnbindConfirm.value = true
+}
+
+function confirmUnbind() {
+  if (unbindTargetUsername.value) {
+    void handleUnbindAuthme(unbindTargetUsername.value)
+  }
+  showUnbindConfirm.value = false
+  unbindTargetUsername.value = null
+}
+
+function askRevoke(id: string) {
+  revokeTargetId.value = id
+  showRevokeConfirm.value = true
+}
+
+function confirmRevoke() {
+  if (revokeTargetId.value) {
+    void handleRevokeSession(revokeTargetId.value)
+  }
+  showRevokeConfirm.value = false
+  revokeTargetId.value = null
 }
 
 function serializeForm() {
@@ -670,7 +706,6 @@ async function handleSave() {
     const updated = await auth.updateCurrentUser(payload)
     lastSyncedAt.value = updated.updatedAt ?? lastSyncedAt.value
     initialSnapshot.value = serializeForm()
-    isEditing.value = false
     toast.add({
       title: '资料已更新',
       description: '您的账户信息已成功保存。',
@@ -715,6 +750,23 @@ function handleError(error: unknown, fallback: string) {
   })
   console.error('[profile-info]', error)
 }
+
+function confirmLeave() {
+  // 放弃当前编辑并执行待操作
+  const action = pendingAction.value
+  handleReset(false)
+  resetSignal.value++
+  isEditingAny.value = false
+  if (action?.kind === 'sidebar') {
+    activeSection.value = action.target
+  } else if (action?.kind === 'card') {
+    void nextTick(() => {
+      basicSectionRef.value?.forceEdit(action.target)
+    })
+  }
+  pendingAction.value = null
+  showLeaveConfirm.value = false
+}
 </script>
 
 <template>
@@ -739,122 +791,95 @@ function handleError(error: unknown, fallback: string) {
         :class="{ 'pointer-events-none opacity-60': loading && !saving }"
         @submit.prevent="handleSave"
       >
-        <Transition name="fade">
-          <EditBanner
-            v-if="isEditing"
-            :has-changes="hasChanges"
-            :saving="saving"
-            @cancel="cancelEditing"
-            @save="handleSave"
-          />
-        </Transition>
-
         <div class="flex flex-col gap-6 lg:flex-row">
           <ProfileSidebar
             :items="sections"
             :active-id="activeSection"
+            :editing="isEditingAny"
             @update:active-id="(id: string) => (activeSection = id as any)"
+            @blocked="handleSidebarBlocked"
           />
 
-          <div
-            class="flex-1 rounded-2xl border border-slate-200/70 bg-white/85 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-900/60"
-          >
-            <div
-              class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-5 dark:border-slate-800/70"
-            >
-              <div>
-                <h2
-                  class="text-lg font-semibold text-slate-900 dark:text-white"
-                >
-                  {{ currentSection.label }}
-                </h2>
-              </div>
-              <UButton
-                v-if="!isEditing"
-                type="button"
-                color="primary"
-                variant="soft"
-                :disabled="loading"
-                @click="startEditing"
-                >编辑</UButton
-              >
-            </div>
+          <div class="flex-1 space-y-6">
+            <BasicSection
+              ref="basicSectionRef"
+              v-if="activeSection === 'basic'"
+              :model-value="{
+                name: form.name,
+                displayName: form.displayName,
+                email: form.email,
+                gender: form.gender,
+                birthday: form.birthday,
+                motto: form.motto,
+                timezone: form.timezone,
+                locale: form.locale,
+                phone: form.phone,
+                phoneCountry: (form.phoneCountry as any) || 'CN',
+                region: {
+                  country: (form.regionCountry as any) || 'CN',
+                  province: form.regionProvince,
+                  city: form.regionCity,
+                  district: form.regionDistrict,
+                },
+                addressLine1: form.addressLine1,
+                postalCode: form.postalCode,
+              }"
+              :gender-options="genderOptions"
+              :timezone-options="timezoneOptions"
+              :language-options="languageOptions"
+              :meta="{
+                lastSyncedText: lastSyncedText,
+                registeredText: registeredText,
+                joinedText: joinedText,
+                lastLoginText: lastLoginText,
+                lastLoginIp: lastLoginIp,
+              }"
+              :saving="saving"
+              :reset-signal="resetSignal"
+              @editing-change="(v: boolean) => (isEditingAny = v)"
+              @request-save="handleSave"
+              @request-reset="handleReset"
+              @editing-guard="handleCardGuard"
+              @update:model-value="
+                (v: any) => {
+                  form.name = v.name
+                  form.displayName = v.displayName
+                  form.email = v.email
+                  form.gender = v.gender
+                  form.birthday = v.birthday
+                  form.motto = v.motto
+                  form.timezone = v.timezone
+                  form.locale = v.locale
+                  form.phone = v.phone
+                  form.phoneCountry = v.phoneCountry
+                  form.regionCountry = v.region.country
+                  form.regionProvince = v.region.province
+                  form.regionCity = v.region.city
+                  form.regionDistrict = v.region.district
+                  form.addressLine1 = v.addressLine1
+                  form.postalCode = v.postalCode
+                }
+              "
+            />
 
-            <div class="px-6 py-6">
-              <BasicSection
-                v-if="activeSection === 'basic'"
-                :model-value="{
-                  name: form.name,
-                  displayName: form.displayName,
-                  email: form.email,
-                  gender: form.gender,
-                  birthday: form.birthday,
-                  motto: form.motto,
-                  timezone: form.timezone,
-                  locale: form.locale,
-                  phone: form.phone,
-                  phoneCountry: (form.phoneCountry as any) || 'CN',
-                  region: {
-                    country: (form.regionCountry as any) || 'CN',
-                    province: form.regionProvince,
-                    city: form.regionCity,
-                    district: form.regionDistrict,
-                  },
-                  addressLine1: form.addressLine1,
-                  postalCode: form.postalCode,
-                }"
-                :is-editing="isEditing"
-                :gender-options="genderOptions"
-                :timezone-options="timezoneOptions"
-                :language-options="languageOptions"
-                :meta="{
-                  lastSyncedText: lastSyncedText,
-                  registeredText: registeredText,
-                  joinedText: joinedText,
-                  lastLoginText: lastLoginText,
-                  lastLoginIp: lastLoginIp,
-                }"
-                @update:model-value="
-                  (v: any) => {
-                    form.name = v.name
-                    form.displayName = v.displayName
-                    form.email = v.email
-                    form.gender = v.gender
-                    form.birthday = v.birthday
-                    form.motto = v.motto
-                    form.timezone = v.timezone
-                    form.locale = v.locale
-                    form.phone = v.phone
-                    form.phoneCountry = v.phoneCountry
-                    form.regionCountry = v.region.country
-                    form.regionProvince = v.region.province
-                    form.regionCity = v.region.city
-                    form.regionDistrict = v.region.district
-                    form.addressLine1 = v.addressLine1
-                    form.postalCode = v.postalCode
-                  }
-                "
-              />
+            <MinecraftSection
+              v-else-if="activeSection === 'minecraft'"
+              :bindings="authmeBindings"
+              :is-editing="false"
+              :loading="bindingLoading"
+              @add="showBindDialog = true"
+              @unbind="askUnbind"
+            />
 
-              <MinecraftSection
-                v-else-if="activeSection === 'minecraft'"
-                :bindings="authmeBindings"
-                :is-editing="isEditing"
-                :loading="bindingLoading"
-                @add="showBindDialog = true"
-                @unbind="handleUnbindAuthme"
-              />
-
-              <SessionsSection
-                v-else
-                :sessions="sessions"
-                :loading="sessionsLoading"
-                :error="sessionsError"
-                :revoking-id="revokingSessionId"
-                @refresh="refreshSessions"
-                @revoke="handleRevokeSession"
-              />
-            </div>
+            <SessionsSection
+              v-else
+              :sessions="sessions"
+              :loading="sessionsLoading"
+              :error="sessionsError"
+              :revoking-id="revokingSessionId"
+              @refresh="refreshSessions"
+              @revoke="askRevoke"
+            />
           </div>
         </div>
 
@@ -872,6 +897,93 @@ function handleError(error: unknown, fallback: string) {
           "
         />
       </form>
+
+      <!-- 离开编辑确认 -->
+      <UModal
+        :open="showLeaveConfirm"
+        @update:open="(value: boolean) => {
+          showLeaveConfirm = value
+          if (!value) pendingAction = null
+        }"
+      >
+        <template #content>
+          <UCard>
+            <template #header>
+              <div class="text-base font-semibold">退出编辑？</div>
+            </template>
+            <UAlert
+              icon="i-lucide-alert-triangle"
+              color="warning"
+              variant="soft"
+              title="当前有未保存的修改"
+              :description="leaveConfirmDescription"
+              class="mb-4"
+            />
+            <div class="flex justify-end gap-2">
+              <UButton variant="ghost" @click="showLeaveConfirm = false">继续编辑</UButton>
+              <UButton color="warning" :loading="saving" @click="confirmLeave">放弃并切换</UButton>
+            </div>
+          </UCard>
+        </template>
+  </UModal>
+
+      <!-- 解绑确认 -->
+      <UModal
+        :open="showUnbindConfirm"
+        @update:open="(value: boolean) => {
+          showUnbindConfirm = value
+          if (!value) unbindTargetUsername = null
+        }"
+      >
+        <template #content>
+          <UCard>
+            <template #header>
+              <div class="text-base font-semibold">解除绑定？</div>
+            </template>
+            <UAlert
+              icon="i-lucide-link-2-off"
+              color="warning"
+              variant="soft"
+              title="将解除与该 AuthMe 账户的绑定"
+              :description="`用户名：${unbindTargetUsername ?? ''}`"
+              class="mb-4"
+            />
+            <div class="flex justify-end gap-2">
+              <UButton variant="ghost" @click="showUnbindConfirm = false">取消</UButton>
+              <UButton color="warning" :loading="bindingLoading" @click="confirmUnbind">确认解除</UButton>
+            </div>
+          </UCard>
+        </template>
+  </UModal>
+
+      <!-- 终止会话确认 -->
+      <UModal
+        :open="showRevokeConfirm"
+        @update:open="(value: boolean) => {
+          showRevokeConfirm = value
+          if (!value) revokeTargetId = null
+        }"
+      >
+        <template #content>
+          <UCard>
+            <template #header>
+              <div class="text-base font-semibold">终止会话？</div>
+            </template>
+            <UAlert
+              icon="i-lucide-log-out"
+              color="error"
+              variant="soft"
+              title="该设备将退出登录"
+              description="操作不可撤销，确认要终止该会话吗？"
+              class="mb-4"
+            />
+            <div class="flex justify-end gap-2">
+              <UButton variant="ghost" @click="showRevokeConfirm = false">取消</UButton>
+              <UButton color="error" :loading="revokingSessionId === revokeTargetId" @click="confirmRevoke">确认终止</UButton>
+            </div>
+          </UCard>
+        </template>
+  </UModal>
     </div>
 
     <UCard

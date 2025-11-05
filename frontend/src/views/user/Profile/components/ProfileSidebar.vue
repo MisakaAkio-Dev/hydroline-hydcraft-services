@@ -3,8 +3,24 @@ type Item = { id: string; label: string; caption?: string }
 const props = defineProps<{
   items: Item[]
   activeId: string
+  // 当为 true 时，点击菜单将不会直接切换，而是触发 blocked 事件
+  editing?: boolean
 }>()
-const emit = defineEmits<{ (e: 'update:activeId', id: string): void }>()
+const emit = defineEmits<{
+  (e: 'update:activeId', id: string): void
+  (e: 'blocked', targetId: string): void
+}>()
+
+function handleClick(id: string) {
+  if (id === props.activeId) {
+    return
+  }
+  if (props.editing) {
+    emit('blocked', id)
+    return
+  }
+  emit('update:activeId', id)
+}
 </script>
 
 <template>
@@ -20,7 +36,7 @@ const emit = defineEmits<{ (e: 'update:activeId', id: string): void }>()
             ? 'bg-primary-100/80 text-primary-700 dark:bg-primary-500/15 dark:text-primary-200'
             : 'text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-slate-800/60',
         ]"
-        @click="emit('update:activeId', item.id)"
+        @click="handleClick(item.id)"
       >
         <div class="font-semibold">
           {{ item.label }}

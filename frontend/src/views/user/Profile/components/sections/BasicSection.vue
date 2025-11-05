@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { parseDate } from '@internationalized/date'
 import dayjs from 'dayjs'
 import type { GenderType } from '@/stores/auth'
@@ -36,7 +36,10 @@ const props = defineProps<{
     addressLine1: string
     postalCode: string
   }
-  isEditing: boolean
+  // 卡片内保存按钮 loading
+  saving?: boolean
+  // 外部强制退出编辑的信号（值变化即可触发）
+  resetSignal?: number
   genderOptions: Array<{ label: string; value: GenderType }>
   timezoneOptions: Array<{ label: string; value: string }>
   languageOptions: Array<{ label: string; value: string }>
@@ -51,6 +54,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: typeof props.modelValue): void
+  (e: 'editing-change', editing: boolean): void
+  (e: 'request-save'): void
+  (e: 'request-reset'): void
+  (e: 'editing-guard', target: 'basic' | 'region'): void
 }>()
 
 function update<K extends keyof typeof props.modelValue>(
@@ -82,15 +89,168 @@ const languageLabel = computed(() => {
 })
 
 const birthdayOpen = ref(false)
+const editingBasic = ref(false)
+const editingRegion = ref(false)
+const basicSnapshot = ref<string | null>(null)
+const regionSnapshot = ref<string | null>(null)
+
+function basicPayload() {
+  const source = props.modelValue
+  return {
+    name: source.name ?? '',
+    displayName: source.displayName ?? '',
+    email: source.email ?? '',
+    gender: source.gender ?? 'UNSPECIFIED',
+    birthday: source.birthday ?? '',
+    motto: source.motto ?? '',
+    timezone: source.timezone ?? '',
+    locale: source.locale ?? '',
+  }
+}
+
+function regionPayload() {
+  const source = props.modelValue
+  const region = source.region ?? {}
+  return {
+    phone: source.phone ?? '',
+    phoneCountry: source.phoneCountry ?? 'CN',
+    country: region.country ?? 'CN',
+    province: region.province ?? '',
+    city: region.city ?? '',
+    district: region.district ?? '',
+    addressLine1: source.addressLine1 ?? '',
+    postalCode: source.postalCode ?? '',
+  }
+}
+
+function hasBasicChanges() {
+  if (!basicSnapshot.value) return false
+  return basicSnapshot.value !== JSON.stringify(basicPayload())
+}
+
+function hasRegionChanges() {
+  if (!regionSnapshot.value) return false
+  return regionSnapshot.value !== JSON.stringify(regionPayload())
+}
+
+function captureSnapshot(which: 'basic' | 'region') {
+  if (which === 'basic') {
+    basicSnapshot.value = JSON.stringify(basicPayload())
+  } else {
+    regionSnapshot.value = JSON.stringify(regionPayload())
+  }
+}
+
+function clearSnapshot(which: 'basic' | 'region') {
+  if (which === 'basic') {
+    basicSnapshot.value = null
+  } else {
+    regionSnapshot.value = null
+  }
+}
+
+function setEditing(which: 'basic' | 'region', value: boolean, force = false) {
+  if (!force) {
+    if (which === 'basic' && editingBasic.value === value) return
+    if (which === 'region' && editingRegion.value === value) return
+  }
+  if (value) {
+    if (which === 'basic') {
+      if (!force && editingRegion.value) {
+        if (hasRegionChanges()) {
+          emit('editing-guard', 'basic')
+          return
+        }
+        editingRegion.value = false
+        clearSnapshot('region')
+      }
+      editingBasic.value = true
+      captureSnapshot('basic')
+    } else {
+      if (!force && editingBasic.value) {
+        if (hasBasicChanges()) {
+          emit('editing-guard', 'region')
+          return
+        }
+        editingBasic.value = false
+        clearSnapshot('basic')
+      }
+      editingRegion.value = true
+      captureSnapshot('region')
+    }
+  } else {
+    if (which === 'basic') {
+      editingBasic.value = false
+      clearSnapshot('basic')
+    } else {
+      editingRegion.value = false
+      clearSnapshot('region')
+    }
+  }
+  emit('editing-change', editingBasic.value || editingRegion.value)
+}
+
+watch(
+  () => props.resetSignal,
+  () => {
+    editingBasic.value = false
+    editingRegion.value = false
+    basicSnapshot.value = null
+    regionSnapshot.value = null
+    emit('editing-change', false)
+  },
+)
+
+function saveBasic() {
+  // 请求父组件保存（父负责实际提交）
+  emit('request-save')
+  setEditing('basic', false, true)
+}
+
+function cancelBasic() {
+  if (hasBasicChanges()) {
+    emit('request-reset')
+  }
+  setEditing('basic', false, true)
+}
+
+function saveRegion() {
+  emit('request-save')
+  setEditing('region', false, true)
+}
+
+function cancelRegion() {
+  if (hasRegionChanges()) {
+    emit('request-reset')
+  }
+  setEditing('region', false, true)
+}
+
+function forceEdit(which: 'basic' | 'region') {
+  setEditing(which, true, true)
+}
+
+defineExpose({ forceEdit })
 </script>
 
 <template>
   <div class="space-y-8">
     <!-- 基础信息 -->
     <div class="space-y-4">
-      <h3 class="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
-        基础信息
-      </h3>
+      <div class="flex items-center justify-between">
+        <h3 class="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+          基础信息
+        </h3>
+        <div>
+          <template v-if="!editingBasic">
+            <UButton size="sm" variant="ghost" @click="setEditing('basic', true)">编辑</UButton>
+          </template>
+          <template v-else>
+            <UButton size="sm" variant="solid" color="primary" :loading="props.saving" @click="saveBasic">保存</UButton>
+            <UButton size="sm" variant="ghost" class="ml-2" @click="cancelBasic">取消</UButton>
+          </template>
+        </div>
+      </div>
 
       <div
         class="flex flex-col gap-2 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
@@ -102,10 +262,11 @@ const birthdayOpen = ref(false)
         </div>
         <div class="flex-1">
           <UInput
-            v-if="isEditing"
-            v-model="props.modelValue.displayName"
+            v-if="editingBasic"
+            :model-value="props.modelValue.displayName"
             placeholder="用于站内展示的名字"
             class="w-full"
+            @update:model-value="(v: any) => update('displayName', v)"
           />
           <p v-else class="text-sm text-slate-900 dark:text-slate-100">
             {{ props.modelValue.displayName || '未填写' }}
@@ -123,7 +284,7 @@ const birthdayOpen = ref(false)
         </div>
         <div class="flex-1">
           <UInput
-            v-if="isEditing"
+            v-if="editingBasic"
             :model-value="props.modelValue.name"
             placeholder="例如：aurora"
             class="w-full"
@@ -145,7 +306,7 @@ const birthdayOpen = ref(false)
         </div>
         <div class="flex-1">
           <UInput
-            v-if="isEditing"
+            v-if="editingBasic"
             :model-value="props.modelValue.email"
             type="email"
             class="w-full"
@@ -167,7 +328,7 @@ const birthdayOpen = ref(false)
         </div>
         <div class="flex-1">
           <USelectMenu
-            v-if="isEditing"
+            v-if="editingBasic"
             :model-value="props.modelValue.gender"
             :items="props.genderOptions"
             value-key="value"
@@ -191,7 +352,7 @@ const birthdayOpen = ref(false)
         </div>
         <div class="flex-1">
           <UPopover
-            v-if="isEditing"
+            v-if="editingBasic"
             :open="birthdayOpen"
             @update:open="(v: boolean) => (birthdayOpen = v)"
           >
@@ -245,7 +406,7 @@ const birthdayOpen = ref(false)
         </div>
         <div class="flex-1">
           <USelectMenu
-            v-if="isEditing"
+            v-if="editingBasic"
             :model-value="props.modelValue.timezone"
             :items="props.timezoneOptions"
             value-key="value"
@@ -270,7 +431,7 @@ const birthdayOpen = ref(false)
         </div>
         <div class="flex-1">
           <USelectMenu
-            v-if="isEditing"
+            v-if="editingBasic"
             :model-value="props.modelValue.locale"
             :items="props.languageOptions"
             value-key="value"
@@ -304,7 +465,7 @@ const birthdayOpen = ref(false)
         </div>
         <div class="flex-1">
           <UTextarea
-            v-if="isEditing"
+            v-if="editingBasic"
             :model-value="props.modelValue.motto"
             :rows="3"
             placeholder="向社区介绍你自己，保持简洁有力。"
@@ -323,9 +484,20 @@ const birthdayOpen = ref(false)
 
     <!-- 地区 -->
     <div class="space-y-4">
-      <h3 class="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
-        地区
-      </h3>
+      <div class="flex items-center justify-between">
+        <h3 class="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+          地区
+        </h3>
+        <div>
+          <template v-if="!editingRegion">
+            <UButton size="sm" variant="ghost" @click="setEditing('region', true)">编辑</UButton>
+          </template>
+          <template v-else>
+            <UButton size="sm" variant="solid" color="primary" :loading="props.saving" @click="saveRegion">保存</UButton>
+            <UButton size="sm" variant="ghost" class="ml-2" @click="cancelRegion">取消</UButton>
+          </template>
+        </div>
+      </div>
 
       <div
         class="flex flex-col gap-3 rounded-xl px-4 py-3 md:flex-row md:items-center md:gap-6"
@@ -337,7 +509,7 @@ const birthdayOpen = ref(false)
         </div>
         <div class="flex-1 flex gap-2">
           <USelectMenu
-            v-if="isEditing"
+            v-if="editingRegion"
             :model-value="props.modelValue.phoneCountry"
             :items="[...phoneRegions]"
             value-key="code"
@@ -356,7 +528,7 @@ const birthdayOpen = ref(false)
           </template>
           <div class="flex-1">
             <UInput
-              v-if="isEditing"
+              v-if="editingRegion"
               :model-value="props.modelValue.phone"
               type="tel"
               placeholder="请输入手机号"
@@ -371,11 +543,11 @@ const birthdayOpen = ref(false)
       </div>
 
       <!-- 中国式地址选择（编辑时显示下拉，不编辑显示文本） -->
-      <template v-if="isEditing">
+      <template v-if="editingRegion">
         <div class="rounded-xl px-4 py-3">
           <RegionSelector
             :model-value="props.modelValue.region"
-            :disabled="!isEditing"
+            :disabled="!editingRegion"
             @update:model-value="(v: any) => update('region', v)"
           />
         </div>
@@ -448,8 +620,8 @@ const birthdayOpen = ref(false)
           详细地址
         </div>
         <div class="flex-1">
-          <div
-            v-if="isEditing"
+            <div
+            v-if="editingRegion"
             class="grid grid-cols-1 gap-2 sm:grid-cols-[140px,1fr]"
           >
             <div class="hidden sm:block"></div>
@@ -475,8 +647,8 @@ const birthdayOpen = ref(false)
           邮政编码
         </div>
         <div class="flex-1">
-          <div
-            v-if="isEditing"
+            <div
+            v-if="editingRegion"
             class="grid grid-cols-1 gap-2 sm:grid-cols-[140px,1fr]"
           >
             <div class="hidden sm:block"></div>

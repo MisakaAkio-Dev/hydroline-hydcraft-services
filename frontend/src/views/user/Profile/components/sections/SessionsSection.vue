@@ -38,13 +38,8 @@ function formatUserAgent(value: string | null | undefined) {
 <template>
   <div class="space-y-4">
     <div class="flex items-center justify-between gap-3">
-      <div>
-        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">活跃会话</h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400">管理常用的登录设备，必要时可远程退出。</p>
-      </div>
-      <UButton size="sm" variant="soft" :loading="props.loading" @click="emit('refresh')">
-        刷新
-      </UButton>
+      <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">会话管理</h3>
+      <UButton size="sm" variant="soft" :loading="props.loading" @click="emit('refresh')">刷新</UButton>
     </div>
 
     <div v-if="props.error" class="rounded-xl border border-rose-200/50 bg-rose-50/70 px-4 py-3 text-sm text-rose-600 dark:border-rose-500/40 dark:bg-rose-950/30 dark:text-rose-200">
