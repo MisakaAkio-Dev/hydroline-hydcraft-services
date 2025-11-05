@@ -2,6 +2,7 @@ import { GenderType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsEmail,
   IsEnum,
   IsOptional,
   IsString,
@@ -44,6 +45,33 @@ export class UpdateCurrentUserProfileExtraDto {
   @IsString()
   @MaxLength(40)
   phone?: string;
+
+  // Regionized phone code (limited to CN/HK/MO/TW on client side)
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  phoneCountry?: 'CN' | 'HK' | 'MO' | 'TW';
+
+  // Preferred region (for CN-style address UI)
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  regionCountry?: 'CN' | 'HK' | 'MO' | 'TW' | 'OTHER';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  regionProvince?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  regionCity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  regionDistrict?: string;
 }
 
 export class UpdateCurrentUserDto {
@@ -51,6 +79,12 @@ export class UpdateCurrentUserDto {
   @IsString()
   @MaxLength(128)
   name?: string;
+
+  // Allow updating email without verification for now
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(256)
+  email?: string;
 
   @IsOptional()
   @IsString()

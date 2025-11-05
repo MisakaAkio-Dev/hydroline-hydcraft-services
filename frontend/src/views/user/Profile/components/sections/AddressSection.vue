@@ -9,7 +9,7 @@ const props = defineProps<{
     country: string
     phone: string
     region: {
-      country: 'CN' | 'HK' | 'MO' | 'TW' | 'OTHER'
+      country: 'CN' | 'OTHER'
       province?: string | null
       city?: string | null
       district?: string | null

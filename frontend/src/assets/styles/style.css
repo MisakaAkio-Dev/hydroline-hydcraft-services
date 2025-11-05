@@ -4,7 +4,7 @@
 }
 
 @font-face {
-  font-family: 'BricolageGrotesque';
+  font-family: 'Bricolage Grotesque';
   src: url('@/assets/fonts/BricolageGrotesque.woff2') format('woff2');
 }
 
@@ -32,7 +32,7 @@
 
 :root {
   --font-family:
-    'BricolageGrotesque', 'Helvetica Neue', 'Helvetica', 'Roboto', 'BlinkMacSystemFont',
+    'Bricolage Grotesque', 'Helvetica Neue', 'Helvetica', 'Roboto', 'BlinkMacSystemFont',
     'MiSans', 'HarmonyOS Sans SC', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
   line-height: 1.5;

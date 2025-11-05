@@ -13,6 +13,7 @@ type GenderType = 'UNSPECIFIED' | 'MALE' | 'FEMALE' | 'NON_BINARY' | 'OTHER'
 type UpdateCurrentUserPayload = {
   name?: string
   image?: string
+  email?: string
   displayName?: string
   birthday?: string
   gender?: GenderType
@@ -27,6 +28,11 @@ type UpdateCurrentUserPayload = {
     postalCode?: string
     country?: string
     phone?: string
+    phoneCountry?: 'CN' | 'HK' | 'MO' | 'TW'
+    regionCountry?: 'CN' | 'OTHER'
+    regionProvince?: string
+    regionCity?: string
+    regionDistrict?: string
   }
 }
 

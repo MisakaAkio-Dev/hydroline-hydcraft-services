@@ -340,7 +340,7 @@ export class UsersService {
     const userUpdate: Prisma.UserUpdateInput = {};
     const current = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, nameChangedAt: true },
+      select: { name: true, nameChangedAt: true, email: true },
     });
 
     if (dto.name !== undefined) {
@@ -360,6 +360,23 @@ export class UsersService {
     if (dto.image !== undefined) {
       const normalizedImage = this.normalizeEmptyToNull(dto.image);
       userUpdate.image = normalizedImage ?? null;
+    }
+
+    if (dto.email !== undefined) {
+      const normalizedEmail = this.normalizeOptionalString(dto.email);
+      if (normalizedEmail !== undefined && normalizedEmail !== current?.email) {
+        // Ensure email uniqueness (DB has unique constraint as well)
+        const exists = await this.prisma.user.findUnique({
+          where: { email: normalizedEmail },
+          select: { id: true },
+        });
+        if (exists && exists.id !== userId) {
+          throw new BadRequestException('该邮箱已被其他账户使用');
+        }
+        userUpdate.email = normalizedEmail;
+        // Reset emailVerified when email changed
+        (userUpdate as any).emailVerified = false;
+      }
     }
 
     if (Object.keys(userUpdate).length > 0) {
@@ -938,6 +955,7 @@ export class UsersService {
       'postalCode',
       'country',
       'phone',
+      'phoneCountry',
       // region fields (CN/HK/MO/TW)
       'regionCountry',
       'regionProvince',

@@ -6,7 +6,6 @@ import ProfileHeader from './components/ProfileHeader.vue'
 import EditBanner from './components/EditBanner.vue'
 import ProfileSidebar from './components/ProfileSidebar.vue'
 import BasicSection from './components/sections/BasicSection.vue'
-import AddressSection from './components/sections/AddressSection.vue'
 import MinecraftSection from './components/sections/MinecraftSection.vue'
 import SessionsSection from './components/sections/SessionsSection.vue'
 import AuthmeBindDialog from './components/AuthmeBindDialog.vue'
@@ -36,13 +35,14 @@ type FormState = {
   postalCode: string
   country: string
   phone: string
+  phoneCountry?: 'CN' | 'HK' | 'MO' | 'TW'
   regionCountry?: string
   regionProvince?: string
   regionCity?: string
   regionDistrict?: string
 }
 
-type SectionKey = 'basic' | 'address' | 'minecraft' | 'sessions'
+type SectionKey = 'basic' | 'minecraft' | 'sessions'
 
 type FieldDefinition = {
   key: keyof FormState
@@ -107,10 +107,6 @@ const sections: Array<{
   {
     id: 'basic',
     label: '基础资料',
-  },
-  {
-    id: 'address',
-    label: '地址信息',
   },
   {
     id: 'minecraft',
@@ -222,6 +218,7 @@ const form = reactive<FormState>({
   postalCode: '',
   country: '',
   phone: '',
+  phoneCountry: 'CN',
   regionCountry: '',
   regionProvince: '',
   regionCity: '',
@@ -233,7 +230,7 @@ const authmeBindingForm = reactive({
   password: '',
 })
 
-const timezoneOptions = ref<string[]>(getTimezones())
+const timezoneOptions = ref(getTimezones().map((tz) => ({ label: tz, value: tz })))
 const languageOptions = ref([{ label: '中文（简体）', value: 'zh-CN' }])
 const showBindDialog = ref(false)
 
@@ -412,6 +409,7 @@ function resetForm() {
   for (const key of addressFields) {
     form[key] = ''
   }
+  form.phoneCountry = 'CN'
   lastSyncedAt.value = null
   initialSnapshot.value = serializeForm()
   isEditing.value = false
@@ -438,15 +436,12 @@ function populateForm(user: Record<string, any>) {
       extra && typeof extra[key] === 'string' ? (extra[key] as string) : ''
     form[key] = value
   }
-  // region in extra.region
-  const region =
-    extra && typeof (extra['region'] as any) === 'object'
-      ? (extra['region'] as Record<string, any>)
-      : null
-  form.regionCountry = (region?.country as string) || ''
-  form.regionProvince = (region?.province as string) || ''
-  form.regionCity = (region?.city as string) || ''
-  form.regionDistrict = (region?.district as string) || ''
+  // region fields are stored flat in extra
+  form.phoneCountry = (extra['phoneCountry'] as any) || 'CN'
+  form.regionCountry = (extra['regionCountry'] as any) || ''
+  form.regionProvince = (extra['regionProvince'] as any) || ''
+  form.regionCity = (extra['regionCity'] as any) || ''
+  form.regionDistrict = (extra['regionDistrict'] as any) || ''
   lastSyncedAt.value = user.updatedAt ?? null
   initialSnapshot.value = serializeForm()
 }
@@ -612,6 +607,7 @@ function serializeForm() {
   return JSON.stringify({
     name: form.name.trim(),
     displayName: form.displayName.trim(),
+    email: form.email.trim(),
     gender: form.gender,
     birthday: form.birthday,
     motto: form.motto.trim(),
@@ -624,6 +620,7 @@ function serializeForm() {
     postalCode: form.postalCode.trim(),
     country: form.country.trim(),
     phone: form.phone.trim(),
+    phoneCountry: form.phoneCountry ?? 'CN',
     regionCountry: form.regionCountry?.trim() ?? '',
     regionProvince: form.regionProvince?.trim() ?? '',
     regionCity: form.regionCity?.trim() ?? '',
@@ -639,6 +636,11 @@ function buildPayload(): UpdateCurrentUserPayload {
   const trimmedName = form.name.trim()
   if ((user.name ?? '') !== trimmedName) {
     payload.name = trimmedName
+  }
+
+  const trimmedEmail = form.email.trim()
+  if ((user.email ?? '') !== trimmedEmail) {
+    payload.email = trimmedEmail
   }
 
   const trimmedDisplayName = form.displayName.trim()
@@ -696,31 +698,17 @@ function buildPayload(): UpdateCurrentUserPayload {
       extraPayload[key] = newValue
     }
   }
-  // region
-  const regionExisting = (existingExtra['region'] ?? {}) as Record<
-    string,
-    string
-  >
-  const regionPayload = {
-    country: form.regionCountry || undefined,
-    province: form.regionProvince || undefined,
-    city: form.regionCity || undefined,
-    district: form.regionDistrict || undefined,
-  }
-  const regionChanged =
-    (regionExisting?.country ?? '') !== (regionPayload.country ?? '') ||
-    (regionExisting?.province ?? '') !== (regionPayload.province ?? '') ||
-    (regionExisting?.city ?? '') !== (regionPayload.city ?? '') ||
-    (regionExisting?.district ?? '') !== (regionPayload.district ?? '')
-  const hasRegion = !!(
-    regionPayload.country ||
-    regionPayload.province ||
-    regionPayload.city ||
-    regionPayload.district
-  )
-  if (regionChanged || hasRegion) {
-    extraChanged = true
-    ;(extraPayload as any).region = regionPayload
+  // phone country and region fields (flat)
+  const flatKeys = ['phoneCountry','regionCountry','regionProvince','regionCity','regionDistrict'] as const
+  for (const k of flatKeys) {
+    const newValue = String((form as any)[k] ?? '').trim()
+    const currentValue = typeof existingExtra[k] === 'string' ? String(existingExtra[k]).trim() : ''
+    if (newValue !== currentValue) {
+      extraChanged = true
+    }
+    if (newValue) {
+      ;(extraPayload as any)[k] = newValue
+    }
   }
   if (extraChanged) {
     payload.extra = extraPayload
@@ -899,6 +887,16 @@ function handleError(error: unknown, fallback: string) {
                   motto: form.motto,
                   timezone: form.timezone,
                   locale: form.locale,
+                  phone: form.phone,
+                  phoneCountry: (form.phoneCountry as any) || 'CN',
+                  region: {
+                    country: (form.regionCountry as any) || 'CN',
+                    province: form.regionProvince,
+                    city: form.regionCity,
+                    district: form.regionDistrict,
+                  },
+                  addressLine1: form.addressLine1,
+                  postalCode: form.postalCode,
                 }"
                 :is-editing="isEditing"
                 :gender-options="genderOptions"
@@ -915,46 +913,20 @@ function handleError(error: unknown, fallback: string) {
                   (v: any) => {
                     form.name = v.name
                     form.displayName = v.displayName
+                    form.email = v.email
                     form.gender = v.gender
                     form.birthday = v.birthday
                     form.motto = v.motto
                     form.timezone = v.timezone
                     form.locale = v.locale
-                  }
-                "
-              />
-
-              <AddressSection
-                v-else-if="activeSection === 'address'"
-                :model-value="{
-                  addressLine1: form.addressLine1,
-                  addressLine2: form.addressLine2,
-                  city: form.city,
-                  state: form.state,
-                  postalCode: form.postalCode,
-                  country: form.country,
-                  phone: form.phone,
-                  region: {
-                    country: (form.regionCountry as any) || 'OTHER',
-                    province: form.regionProvince,
-                    city: form.regionCity,
-                    district: form.regionDistrict,
-                  },
-                }"
-                :is-editing="isEditing"
-                @update:model-value="
-                  (v: any) => {
-                    form.addressLine1 = v.addressLine1
-                    form.addressLine2 = v.addressLine2
-                    form.city = v.city
-                    form.state = v.state
-                    form.postalCode = v.postalCode
-                    form.country = v.country
                     form.phone = v.phone
+                    form.phoneCountry = v.phoneCountry
                     form.regionCountry = v.region.country
                     form.regionProvince = v.region.province
                     form.regionCity = v.region.city
                     form.regionDistrict = v.region.district
+                    form.addressLine1 = v.addressLine1
+                    form.postalCode = v.postalCode
                   }
                 "
               />
