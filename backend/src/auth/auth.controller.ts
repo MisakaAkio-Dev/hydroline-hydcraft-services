@@ -219,8 +219,8 @@ export class AuthController {
         ]);
         return {
           ...binding,
-          ip_location: ipLocation?.display ?? null,
-          regip_location: regipLocation?.display ?? null,
+          ip_location: ipLocation?.raw ?? null,
+          regip_location: regipLocation?.raw ?? null,
         };
       }),
     );

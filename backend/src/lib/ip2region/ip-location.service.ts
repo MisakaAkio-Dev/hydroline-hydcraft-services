@@ -73,7 +73,11 @@ export class IpLocationService implements OnModuleInit, OnModuleDestroy {
       if (!searcher) {
         return null;
       }
-      const regionRaw = searcher.search(value) as unknown;
+      // searcher.search is async in the JS implementation; TypeScript typings declare string.
+      // Using Promise.resolve to support both forms safely.
+      const regionRaw = await Promise.resolve(
+        searcher.search(value as unknown as string),
+      );
       const regionText = this.toRegionString(regionRaw);
       if (!regionText) {
         return null;
@@ -200,16 +204,45 @@ export class IpLocationService implements OnModuleInit, OnModuleDestroy {
   }
 
   private parseRegion(regionText: string): IpLocationResult {
-    const segments = regionText.split('|');
-    while (segments.length < 5) {
-      segments.push('');
+    const parts = regionText.split('|').map((s) => (s ?? '').trim());
+    // ip2region variants may return 4 or 5 pipe-separated fields depending on DB/version
+    let country: string | null = null;
+    let region: string | null = null;
+    let province: string | null = null;
+    let city: string | null = null;
+    let isp: string | null = null;
+
+    if (parts.length >= 5) {
+      // country | region | province | city | isp
+      country = this.normalizeSegment(parts[0]);
+      region = this.normalizeSegment(parts[1]);
+      province = this.normalizeSegment(parts[2]);
+      city = this.normalizeSegment(parts[3]);
+      isp = this.normalizeSegment(parts[4]);
+    } else if (parts.length === 4) {
+      // country | province | city | isp
+      country = this.normalizeSegment(parts[0]);
+      province = this.normalizeSegment(parts[1]);
+      city = this.normalizeSegment(parts[2]);
+      isp = this.normalizeSegment(parts[3]);
+      region = null;
+    } else if (parts.length === 3) {
+      // country | province | city
+      country = this.normalizeSegment(parts[0]);
+      province = this.normalizeSegment(parts[1]);
+      city = this.normalizeSegment(parts[2]);
+      region = null;
+      isp = null;
+    } else if (parts.length === 2) {
+      // country | isp  (rare)
+      country = this.normalizeSegment(parts[0]);
+      isp = this.normalizeSegment(parts[1]);
+    } else if (parts.length === 1) {
+      // single token, could be '内网IP' etc
+      const token = this.normalizeSegment(parts[0]);
+      // treat as ISP-like label when no structured info
+      isp = token;
     }
-    const [countryRaw, regionRaw, provinceRaw, cityRaw, ispRaw] = segments;
-    const country = this.normalizeSegment(countryRaw);
-    const region = this.normalizeSegment(regionRaw);
-    const province = this.normalizeSegment(provinceRaw);
-    const city = this.normalizeSegment(cityRaw);
-    const isp = this.normalizeSegment(ispRaw);
 
     // ip2region does not provide district separately, reuse region if it looks specific enough.
     const district = region && region !== province ? region : null;
@@ -234,51 +267,62 @@ export class IpLocationService implements OnModuleInit, OnModuleDestroy {
     // Common cases first
     if (typeof input === 'string') return input;
 
-    // Buffer (Node.js)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const anyInput: any = input as any;
-    if (anyInput && typeof anyInput === 'object') {
-      // Node Buffer
-      if (typeof (anyInput as Buffer).toString === 'function' && typeof (anyInput as Buffer).length === 'number' && Buffer.isBuffer(anyInput)) {
-        return (anyInput as Buffer).toString('utf8');
-      }
-
-      // Uint8Array
-      if (typeof (anyInput as Uint8Array).BYTES_PER_ELEMENT === 'number' && anyInput instanceof Uint8Array) {
-        return Buffer.from(anyInput).toString('utf8');
-      }
-
-      // ArrayBuffer
-      if (typeof (anyInput as ArrayBuffer).byteLength === 'number' && anyInput instanceof ArrayBuffer) {
-        return Buffer.from(new Uint8Array(anyInput)).toString('utf8');
-      }
-
-      // Library may return object with region/text or structured fields
-      if (typeof anyInput.region === 'string') return anyInput.region as string;
-      if (typeof anyInput.text === 'string') return anyInput.text as string;
-
-      const parts: string[] = [];
-      if (typeof anyInput.country === 'string') parts.push(anyInput.country);
-      if (typeof anyInput.region === 'string') parts.push(anyInput.region);
-      if (typeof anyInput.province === 'string') parts.push(anyInput.province);
-      if (typeof anyInput.city === 'string') parts.push(anyInput.city);
-      if (typeof anyInput.isp === 'string') parts.push(anyInput.isp);
-      if (parts.length) return parts.join('|');
-
-      // Array-like of strings
-      if (Array.isArray(anyInput)) {
-        try {
-          const text = (anyInput as unknown[])
-            .map((v) => (typeof v === 'string' ? v : String(v ?? '')))
-            .join('|');
-          return text;
-        } catch {
-          // fallthrough
-        }
+    // Array-like of strings
+    if (Array.isArray(input)) {
+      try {
+        return input
+          .map((v) => (typeof v === 'string' ? v : String(v ?? '')))
+          .join('|');
+      } catch {
+        // ignore
       }
     }
 
+    // Node Buffer
+    if (this.isBuffer(input)) {
+      return input.toString('utf8');
+    }
+
+    // Typed arrays
+    if (this.isUint8Array(input)) {
+      return Buffer.from(input).toString('utf8');
+    }
+    if (this.isArrayBuffer(input)) {
+      return Buffer.from(new Uint8Array(input)).toString('utf8');
+    }
+
+    // Object with possible fields
+    if (this.isRecord(input)) {
+      const obj = input;
+      if (typeof obj.region === 'string') return obj.region;
+      if (typeof obj.text === 'string') return obj.text;
+
+      const parts: string[] = [];
+      if (typeof obj.country === 'string') parts.push(obj.country);
+      if (typeof obj.region === 'string') parts.push(obj.region);
+      if (typeof obj.province === 'string') parts.push(obj.province);
+      if (typeof obj.city === 'string') parts.push(obj.city);
+      if (typeof obj.isp === 'string') parts.push(obj.isp);
+      if (parts.length) return parts.join('|');
+    }
+
     return null;
+  }
+
+  private isBuffer(v: unknown): v is Buffer {
+    return typeof Buffer !== 'undefined' && Buffer.isBuffer(v);
+  }
+
+  private isUint8Array(v: unknown): v is Uint8Array {
+    return v instanceof Uint8Array;
+  }
+
+  private isArrayBuffer(v: unknown): v is ArrayBuffer {
+    return v instanceof ArrayBuffer;
+  }
+
+  private isRecord(v: unknown): v is Record<string, unknown> {
+    return !!v && typeof v === 'object' && !Array.isArray(v);
   }
 
   private normalizeSegment(segment: string | null | undefined): string | null {
