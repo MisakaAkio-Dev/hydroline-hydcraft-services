@@ -49,7 +49,12 @@ function getOrCreateCounter(
   return new Counter({ name, help, labelNames });
 }
 
-let metricsCollected = false;
+function ensureDefaultMetricsCollected() {
+  const defaultMetric = register.getSingleMetric('process_cpu_user_seconds_total');
+  if (!defaultMetric) {
+    collectDefaultMetrics();
+  }
+}
 
 export class PromAuthmeMetricsRecorder implements AuthmeMetricsRecorder {
   private readonly connectedGauge = getOrCreateGauge(
@@ -68,10 +73,7 @@ export class PromAuthmeMetricsRecorder implements AuthmeMetricsRecorder {
   );
 
   constructor() {
-    if (!metricsCollected) {
-      collectDefaultMetrics();
-      metricsCollected = true;
-    }
+    ensureDefaultMetricsCollected();
   }
 
   setConnected(connected: boolean): void {

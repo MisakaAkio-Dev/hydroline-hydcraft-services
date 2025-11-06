@@ -18,6 +18,10 @@ import {
 import { useFeatureStore } from '@/stores/feature'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/utils/api'
+import {
+  normalizeLuckpermsBinding,
+  type NormalizedLuckpermsBinding,
+} from '@/utils/luckperms'
 
 type FormState = {
   name: string
@@ -200,6 +204,7 @@ const authmeBindings = computed(() => {
       ),
       lastlogin: b.lastlogin ?? null,
       regdate: b.regdate ?? null,
+      permissions: extractLuckperms(b),
     }))
   }
   if (single) {
@@ -218,11 +223,31 @@ const authmeBindings = computed(() => {
         ),
         lastlogin: single.lastlogin ?? null,
         regdate: single.regdate ?? null,
+        permissions: extractLuckperms(single),
       },
     ]
   }
   return []
 })
+
+function extractLuckperms(entry: Record<string, any> | null): {
+  primaryGroup: string | null
+  groups: NormalizedLuckpermsBinding['groups']
+} | null {
+  if (!entry) return null
+  try {
+    const normalized = normalizeLuckpermsBinding(entry)
+    if (!normalized.primaryGroup && normalized.groups.length === 0) {
+      return null
+    }
+    return {
+      primaryGroup: normalized.primaryGroup,
+      groups: normalized.groups,
+    }
+  } catch {
+    return null
+  }
+}
 
 const avatarUrl = computed(() => {
   const user = auth.user as Record<string, any> | null

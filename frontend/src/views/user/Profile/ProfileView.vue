@@ -2,6 +2,10 @@
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import {
+  normalizeLuckpermsBinding,
+  type NormalizedLuckpermsBinding,
+} from '@/utils/luckperms'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -9,10 +13,18 @@ const ui = useUiStore()
 const isAuthenticated = computed(() => auth.isAuthenticated)
 const profile = computed(() => auth.user?.profile ?? {})
 const contacts = computed(() => auth.user?.contacts ?? [])
+const authmeBindings = computed<NormalizedLuckpermsBinding[]>(() => {
+  const raw = (auth.user as Record<string, any> | null)?.authmeBindings ?? []
+  if (!Array.isArray(raw)) return []
+  return raw.map((entry: Record<string, any>) =>
+    normalizeLuckpermsBinding(entry),
+  )
+})
 
 function openLoginDialog() {
   ui.openLoginDialog()
 }
+
 </script>
 
 <template>
@@ -115,6 +127,81 @@ function openLoginDialog() {
         </div>
       </UCard>
     </div>
+
+    <UCard
+      v-if="isAuthenticated"
+      class="bg-white/80 backdrop-blur-sm dark:bg-slate-900/60"
+    >
+      <template #header>
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+            Minecraft 权限组
+          </h2>
+          <UBadge color="primary" variant="soft">LuckPerms</UBadge>
+        </div>
+      </template>
+
+      <div v-if="authmeBindings.length" class="space-y-4">
+        <div
+          v-for="binding in authmeBindings"
+          :key="binding.username"
+          class="rounded-xl border border-slate-200/70 p-4 dark:border-slate-700/70"
+        >
+          <div class="flex items-center gap-3">
+            <img
+              :src="'https://mc-heads.net/avatar/' + (binding.realname || binding.username) + '/48'"
+              :alt="binding.realname || binding.username"
+              class="h-12 w-12 rounded-md border border-slate-200 object-cover dark:border-slate-700"
+            />
+            <div class="flex flex-col">
+              <span class="text-base font-semibold text-slate-800 dark:text-slate-100">
+                {{ binding.realname || binding.username }}
+              </span>
+              <span class="text-xs text-slate-500 dark:text-slate-400">
+                绑定账号：{{ binding.username }}
+              </span>
+            </div>
+          </div>
+          <div class="mt-3">
+            <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              权限组
+            </p>
+            <div
+              v-if="binding.primaryGroup || binding.groups.length"
+              class="mt-2 flex flex-wrap gap-2"
+            >
+              <UBadge
+                v-if="binding.primaryGroup"
+                color="primary"
+                variant="solid"
+                >主组 · {{ binding.primaryGroup }}</UBadge
+              >
+              <UBadge
+                v-for="(group, index) in binding.groups"
+                :key="group.name + index"
+                color="neutral"
+                variant="soft"
+                :title="group.detail ?? undefined"
+              >
+                {{ group.name }}
+              </UBadge>
+            </div>
+            <p
+              v-else
+              class="mt-2 text-sm text-slate-500 dark:text-slate-400"
+            >
+              暂未同步到 LuckPerms 权限数据。
+            </p>
+          </div>
+        </div>
+      </div>
+      <div
+        v-else
+        class="flex h-32 items-center justify-center text-sm text-slate-500 dark:text-slate-400"
+      >
+        尚未绑定 AuthMe 账号或 LuckPerms 数据未同步。
+      </div>
+    </UCard>
 
     <UCard
       v-else

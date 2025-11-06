@@ -105,6 +105,17 @@ export const adminRoutes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'luckperms',
+        name: 'admin.luckperms',
+        component: () =>
+          import('@/views/admin/DataSync/LuckpermsAdminView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['config.manage'],
+          layout: 'admin',
+        },
+      },
+      {
         path: 'rbac',
         name: 'admin.rbac',
         component: () => import('@/views/admin/Rbac/RbacConsole.vue'),

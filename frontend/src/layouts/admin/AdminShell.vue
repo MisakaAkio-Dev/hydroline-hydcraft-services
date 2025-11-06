@@ -68,6 +68,11 @@ const menuGroups = computed<MenuGroup[]>(() => [
         to: '/admin/data-sync',
         icon: 'i-lucide-refresh-cw',
       },
+      {
+        label: 'LuckPerms 管理',
+        to: '/admin/luckperms',
+        icon: 'i-lucide-database',
+      },
     ],
   },
   {

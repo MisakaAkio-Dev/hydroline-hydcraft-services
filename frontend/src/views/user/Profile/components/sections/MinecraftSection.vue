@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { NormalizedLuckpermsGroup } from '@/utils/luckperms'
+
 const props = defineProps<{
   bindings: Array<{
     username: string
@@ -10,6 +12,10 @@ const props = defineProps<{
     regipLocation?: string | null
     lastlogin?: number | null
     regdate?: number | null
+    permissions?: {
+      primaryGroup: string | null
+      groups: NormalizedLuckpermsGroup[]
+    } | null
   }>
   isEditing: boolean
   loading?: boolean
@@ -96,6 +102,37 @@ const emit = defineEmits<{
                 >（{{ b.regipLocation }}）</span
               >
             </div>
+          </div>
+          <div class="mt-3">
+            <p class="text-xs uppercase tracking-wide text-slate-500">
+              权限组
+            </p>
+            <div
+              v-if="b.permissions?.primaryGroup || b.permissions?.groups?.length"
+              class="mt-2 flex flex-wrap gap-2"
+            >
+              <UBadge
+                v-if="b.permissions?.primaryGroup"
+                color="primary"
+                variant="solid"
+                >主组 · {{ b.permissions.primaryGroup }}</UBadge
+              >
+              <UBadge
+                v-for="(group, index) in b.permissions?.groups ?? []"
+                :key="group.name + index"
+                color="neutral"
+                variant="soft"
+                :title="group.detail ?? undefined"
+              >
+                {{ group.name }}
+              </UBadge>
+            </div>
+            <p
+              v-else
+              class="mt-2 text-xs text-slate-500 dark:text-slate-400"
+            >
+              尚未同步 LuckPerms 权限数据。
+            </p>
           </div>
         </div>
         <div class="flex-1 flex items-center gap-2">

@@ -15,6 +15,7 @@ import {
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthmeService } from '../authme/authme.service';
+import { LuckpermsService } from '../luckperms/luckperms.service';
 import { CreateLifecycleEventDto } from './dto/create-lifecycle-event.dto';
 import { CreateMinecraftProfileDto } from './dto/create-minecraft-profile.dto';
 import { CreateStatusEventDto } from './dto/create-status-event.dto';
@@ -39,6 +40,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authmeService: AuthmeService,
+    private readonly luckpermsService: LuckpermsService,
     private readonly ipLocationService: IpLocationService,
   ) {}
 
@@ -321,9 +323,16 @@ export class UsersService {
       Promise.all(
         (user.authmeBindings ?? []).map(async (b) => {
           try {
-            const account = await this.authmeService.getAccount(
-              b.authmeUsername,
-            );
+            const [account, luckperms] = await Promise.all([
+              this.authmeService
+                .getAccount(b.authmeUsername)
+                .catch(() => null),
+              b.authmeRealname
+                ? this.luckpermsService
+                    .getPlayerByUsername(b.authmeRealname)
+                    .catch(() => null)
+                : Promise.resolve(null),
+            ]);
             return {
               authmeUsername: b.authmeUsername,
               authmeRealname: b.authmeRealname,
@@ -332,9 +341,15 @@ export class UsersService {
               regip: account?.regip ?? null,
               lastlogin: account?.lastlogin ?? null,
               regdate: account?.regdate ?? null,
+              luckperms: luckperms
+                ? {
+                    primaryGroup: luckperms.primaryGroup,
+                    groups: luckperms.groups,
+                  }
+                : null,
             } as const;
           } catch {
-            return { ...b } as const;
+            return { ...b, luckperms: null } as const;
           }
         }),
       ),
@@ -483,7 +498,16 @@ export class UsersService {
     const enrichedBindings = await Promise.all(
       (user.authmeBindings ?? []).map(async (b) => {
         try {
-          const account = await this.authmeService.getAccount(b.authmeUsername);
+          const [account, luckperms] = await Promise.all([
+            this.authmeService
+              .getAccount(b.authmeUsername)
+              .catch(() => null),
+            b.authmeRealname
+              ? this.luckpermsService
+                  .getPlayerByUsername(b.authmeRealname)
+                  .catch(() => null)
+              : Promise.resolve(null),
+          ]);
           return {
             authmeUsername: b.authmeUsername,
             authmeRealname: b.authmeRealname,
@@ -492,9 +516,15 @@ export class UsersService {
             regip: account?.regip ?? null,
             lastlogin: account?.lastlogin ?? null,
             regdate: account?.regdate ?? null,
+            luckperms: luckperms
+              ? {
+                  primaryGroup: luckperms.primaryGroup,
+                  groups: luckperms.groups,
+                }
+              : null,
           } as const;
         } catch {
-          return { ...b } as const;
+          return { ...b, luckperms: null } as const;
         }
       }),
     );

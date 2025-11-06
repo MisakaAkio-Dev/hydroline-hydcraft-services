@@ -1,0 +1,4 @@
+export const LUCKPERMS_DB_NAMESPACE = 'luckperms.db';
+export const LUCKPERMS_CONFIG_POLL_INTERVAL_MS = 15_000;
+export const LUCKPERMS_DEFAULT_SAFE_MESSAGE =
+  'LuckPerms 数据库暂时不可用，请稍后再试';

@@ -9,6 +9,7 @@ import { PortalConfigModule } from './portal-config/portal-config.module';
 import { PortalModule } from './portal/portal.module';
 import { AuthmeModule } from './authme/authme.module';
 import { Ip2RegionModule } from './lib/ip2region/ip2region.module';
+import { LuckpermsModule } from './luckperms/luckperms.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { Ip2RegionModule } from './lib/ip2region/ip2region.module';
     PortalModule,
     AuthmeModule,
     Ip2RegionModule,
+    LuckpermsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
