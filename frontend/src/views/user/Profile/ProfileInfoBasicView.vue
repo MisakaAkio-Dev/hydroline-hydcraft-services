@@ -2,16 +2,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { computed, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
-import { useRouter, useRoute } from 'vue-router'
-import ProfileHeader from './components/ProfileHeader.vue'
-import ProfileSidebar from './components/ProfileSidebar.vue'
 import BasicSection from './components/sections/BasicSection.vue'
 import { getTimezones } from '@/utils/timezones'
 import { useAuthStore, type GenderType, type UpdateCurrentUserPayload } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/utils/api'
 
-type SectionKey = 'basic' | 'minecraft' | 'sessions'
 
 type FormState = {
   name: string
@@ -34,8 +30,6 @@ type FormState = {
 
 const auth = useAuthStore()
 const ui = useUiStore()
-const router = useRouter()
-const route = useRoute()
 const toast = useToast()
 
 const isAuthenticated = computed(() => auth.isAuthenticated)
@@ -247,13 +241,6 @@ function handleError(error: unknown, fallback: string) {
   console.error('[profile-info-basic]', error)
 }
 
-const avatarUrl = computed(() => {
-  const user = auth.user as Record<string, any> | null
-  if (!user) return null
-  if (user.profile?.avatarUrl) return user.profile.avatarUrl as string
-  if (user.image) return user.image as string
-  return null
-})
 
 const registeredText = computed(() => {
   const user = auth.user as Record<string, any> | null
@@ -292,86 +279,45 @@ const lastLoginIpDisplay = computed(() => {
 
 watch(() => auth.isAuthenticated, (value) => { if (value) void loadUser(); else resetForm() })
 
-const sections: Array<{ id: SectionKey; label: string }> = [
-  { id: 'basic', label: '基础资料' },
-  { id: 'minecraft', label: '服务器账户' },
-  { id: 'sessions', label: '会话管理' },
-]
-const activeId = computed<SectionKey>(() => {
-  if (route.name === 'profile.info.sessions') return 'sessions'
-  if (route.name === 'profile.info.minecraft') return 'minecraft'
-  return 'basic'
-})
-function gotoSection(id: SectionKey) {
-  if (id === 'basic') router.push({ name: 'profile.info.basic' })
-  else if (id === 'minecraft') router.push({ name: 'profile.info.minecraft' })
-  else router.push({ name: 'profile.info.sessions' })
-}
 
 </script>
 
 <template>
-  <section class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pb-16 pt-8">
-    <div v-if="isAuthenticated" class="space-y-6">
-      <ProfileHeader
-        :avatar-url="avatarUrl"
-        :display-name="auth.displayName ?? form.email"
-        :email="form.email"
-        :last-synced-text="lastSyncedAt ? dayjs(lastSyncedAt).format('YYYY年MM月DD日 HH:mm') : '尚未同步'"
-        :joined-text="joinedText"
-        :registered-text="registeredText"
-        :last-login-text="lastLoginText"
-        :last-login-ip="lastLoginIp"
-        :loading="loading"
-        @refresh="loadUser"
-      />
-      <form id="profile-form-basic" class="flex flex-col gap-6 transition-opacity" :class="{ 'pointer-events-none opacity-60': loading && !saving }" @submit.prevent="handleSave">
-        <div class="flex flex-col gap-2 relative xl:flex-row xl:gap-6">
-          <ProfileSidebar :items="sections" :active-id="activeId" :editing="isEditingAny" @update:active-id="(id: string) => gotoSection(id as SectionKey)" />
-          <div class="flex-1 space-y-6">
-            <BasicSection
-              ref="basicSectionRef"
-              :model-value="{
-                name: form.name,
-                displayName: form.displayName,
-                email: form.email,
-                gender: form.gender,
-                birthday: form.birthday,
-                motto: form.motto,
-                timezone: form.timezone,
-                locale: form.locale,
-                phone: form.phone,
-                phoneCountry: (form.phoneCountry as any) || 'CN',
-                region: {
-                  country: (form.regionCountry as any) || 'CN',
-                  province: form.regionProvince,
-                  city: form.regionCity,
-                  district: form.regionDistrict,
-                },
-                addressLine1: form.addressLine1,
-                postalCode: form.postalCode,
-              }"
-              :gender-options="genderOptions"
-              :timezone-options="timezoneOptions"
-              :language-options="languageOptions"
-              :meta="{ lastSyncedText: lastSyncedAt ? dayjs(lastSyncedAt).format('YYYY年MM月DD日 HH:mm') : '尚未同步', registeredText: registeredText, joinedText: joinedText, lastLoginText: lastLoginText, lastLoginIp: lastLoginIp, lastLoginIpDisplay: lastLoginIpDisplay }"
-              :saving="saving"
-              :reset-signal="resetSignal"
-              @editing-change="(v: boolean) => (isEditingAny = v)"
-              @request-save="handleSave"
-              @request-reset="handleReset"
-              @update:model-value="(v: any) => { form.name = v.name; form.displayName = v.displayName; form.email = v.email; form.gender = v.gender; form.birthday = v.birthday; form.motto = v.motto; form.timezone = v.timezone; form.locale = v.locale; form.phone = v.phone; form.phoneCountry = v.phoneCountry; form.regionCountry = v.region.country; form.regionProvince = v.region.province; form.regionCity = v.region.city; form.regionDistrict = v.region.district; form.addressLine1 = v.addressLine1; form.postalCode = v.postalCode }"
-            />
-          </div>
-        </div>
-      </form>
-    </div>
-    <UCard v-else class="flex flex-col items-center gap-4 bg-white/85 py-12 text-center shadow-sm backdrop-blur-sm dark:bg-slate-900/65">
-      <h2 class="text-xl font-semibold text-slate-900 dark:text-white">需要登录</h2>
-      <p class="max-w-sm text-sm text-slate-600 dark:text-slate-300">登录后即可完善个人资料与联系地址，确保服务体验与通知准确触达。</p>
-      <UButton color="primary" @click="ui.openLoginDialog()">立即登录</UButton>
-    </UCard>
-  </section>
+  <form id="profile-form-basic" class="flex flex-col gap-6 transition-opacity" :class="{ 'pointer-events-none opacity-60': loading && !saving }" @submit.prevent="handleSave">
+    <BasicSection
+      ref="basicSectionRef"
+      :model-value="{
+        name: form.name,
+        displayName: form.displayName,
+        email: form.email,
+        gender: form.gender,
+        birthday: form.birthday,
+        motto: form.motto,
+        timezone: form.timezone,
+        locale: form.locale,
+        phone: form.phone,
+        phoneCountry: (form.phoneCountry as any) || 'CN',
+        region: {
+          country: (form.regionCountry as any) || 'CN',
+          province: form.regionProvince,
+          city: form.regionCity,
+          district: form.regionDistrict,
+        },
+        addressLine1: form.addressLine1,
+        postalCode: form.postalCode,
+      }"
+      :gender-options="genderOptions"
+      :timezone-options="timezoneOptions"
+      :language-options="languageOptions"
+      :meta="{ lastSyncedText: lastSyncedAt ? dayjs(lastSyncedAt).format('YYYY年MM月DD日 HH:mm') : '尚未同步', registeredText: registeredText, joinedText: joinedText, lastLoginText: lastLoginText, lastLoginIp: lastLoginIp, lastLoginIpDisplay: lastLoginIpDisplay }"
+      :saving="saving"
+      :reset-signal="resetSignal"
+      @editing-change="(v: boolean) => (isEditingAny = v)"
+      @request-save="handleSave"
+      @request-reset="handleReset"
+      @update:model-value="(v: any) => { form.name = v.name; form.displayName = v.displayName; form.email = v.email; form.gender = v.gender; form.birthday = v.birthday; form.motto = v.motto; form.timezone = v.timezone; form.locale = v.locale; form.phone = v.phone; form.phoneCountry = v.phoneCountry; form.regionCountry = v.region.country; form.regionProvince = v.region.province; form.regionCity = v.region.city; form.regionDistrict = v.region.district; form.addressLine1 = v.addressLine1; form.postalCode = v.postalCode }"
+    />
+  </form>
 </template>
 
 <style scoped></style>

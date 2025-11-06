@@ -1,9 +1,6 @@
 <script setup lang="ts">
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { computed, ref, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import ProfileHeader from './components/ProfileHeader.vue'
-import ProfileSidebar from './components/ProfileSidebar.vue'
 import MinecraftSection from './components/sections/MinecraftSection.vue'
 import AuthmeBindDialog from './components/AuthmeBindDialog.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -11,14 +8,9 @@ import { useFeatureStore } from '@/stores/feature'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/utils/api'
 import { normalizeLuckpermsBindings } from '@/utils/luckperms'
-
-type SectionKey = 'basic' | 'minecraft' | 'sessions'
-
 const auth = useAuthStore()
 const ui = useUiStore()
 const featureStore = useFeatureStore()
-const router = useRouter()
-const route = useRoute()
 const toast = useToast()
 
 const bindingLoading = ref(false)
@@ -33,23 +25,6 @@ const authmeBindingForm = ref({ authmeId: '', password: '' })
 const isAuthenticated = computed(() => auth.isAuthenticated)
 const bindingEnabled = computed(() => featureStore.flags.authmeBindingEnabled)
 
-const sections: Array<{ id: SectionKey; label: string }> = [
-  { id: 'basic', label: '基础资料' },
-  { id: 'minecraft', label: '服务器账户' },
-  { id: 'sessions', label: '会话管理' },
-]
-
-const activeId = computed<SectionKey>(() => {
-  if (route.name === 'profile.info.sessions') return 'sessions'
-  if (route.name === 'profile.info.minecraft') return 'minecraft'
-  return 'basic'
-})
-
-function gotoSection(id: SectionKey) {
-  if (id === 'basic') router.push({ name: 'profile.info.basic' })
-  else if (id === 'minecraft') router.push({ name: 'profile.info.minecraft' })
-  else router.push({ name: 'profile.info.sessions' })
-}
 
 function getObjectValue(source: unknown, key: string): unknown {
   if (!source || typeof source !== 'object') return null
@@ -219,93 +194,60 @@ function handleCloseUnbindDialog(force = false) {
 }
 
 function openLoginDialog() { ui.openLoginDialog() }
-
-const avatarUrl = computed(() => {
-  const user = auth.user as Record<string, any> | null
-  if (!user) return null
-  if (user.profile?.avatarUrl) return user.profile.avatarUrl as string
-  if (user.image) return user.image as string
-  return null
-})
 </script>
 
 <template>
-  <section class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pb-16 pt-8">
-    <div v-if="isAuthenticated" class="space-y-6">
-      <ProfileHeader
-        :avatar-url="avatarUrl"
-        :display-name="auth.displayName ?? auth.user?.email ?? ''"
-        :email="auth.user?.email ?? ''"
-        :last-synced-text="''"
-        :joined-text="''"
-        :registered-text="''"
-        :last-login-text="''"
-        :last-login-ip="null"
-        :loading="false"
-        @refresh="() => {}"
-      />
-      <div class="flex flex-col gap-2 relative xl:flex-row xl:gap-6">
-        <ProfileSidebar
-          :items="sections"
-          :active-id="activeId"
-          :editing="false"
-          @update:active-id="(id: string) => gotoSection(id as SectionKey)"
-        />
-        <div class="flex-1 space-y-6">
-          <MinecraftSection
-            :bindings="authmeBindings"
-            :is-editing="false"
-            :loading="bindingLoading"
-            @add="showBindDialog = true"
-            @unbind="requestUnbindAuthme"
-          />
-        </div>
-      </div>
+  <div v-if="isAuthenticated" class="space-y-6">
+    <MinecraftSection
+      :bindings="authmeBindings"
+      :is-editing="false"
+      :loading="bindingLoading"
+      @add="showBindDialog = true"
+      @unbind="requestUnbindAuthme"
+    />
 
-      <AuthmeBindDialog
-        :open="showBindDialog"
-        :loading="bindingLoading"
-        :error="bindingError"
-        @close="showBindDialog = false"
-        @submit="(p) => { authmeBindingForm.authmeId = p.authmeId; authmeBindingForm.password = p.password; submitAuthmeBinding() }"
-      />
+    <AuthmeBindDialog
+      :open="showBindDialog"
+      :loading="bindingLoading"
+      :error="bindingError"
+      @close="showBindDialog = false"
+      @submit="(p) => { authmeBindingForm.authmeId = p.authmeId; authmeBindingForm.password = p.password; submitAuthmeBinding() }"
+    />
 
-      <!-- AuthMe 解绑 -->
-      <UModal
-        :open="showUnbindDialog"
-        @update:open="(value: boolean) => { if (!value) handleCloseUnbindDialog() }"
-      >
-        <template #content>
-          <UCard>
-            <template #header>
-              <div class="text-base font-semibold">解除 AuthMe 绑定</div>
-            </template>
-            <div class="space-y-4">
-              <p class="text-sm text-slate-500 dark:text-slate-400">请输入对应 AuthMe 密码以确认解除绑定操作。</p>
-              <UAlert icon="i-lucide-link-2-off" color="warning" variant="soft" title="目标账户" :description="authmeUnbindForm.username || '未知账号'" />
-              <div class="space-y-2">
-                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300">AuthMe 密码</label>
-                <UInput v-model="authmeUnbindForm.password" type="password" placeholder="请输入 AuthMe 密码" autocomplete="current-password" :disabled="unbindLoading" @keyup.enter="submitUnbindAuthme()" />
-              </div>
-              <p v-if="unbindError" class="text-sm text-rose-500">{{ unbindError }}</p>
+    <UModal
+      :open="showUnbindDialog"
+      @update:open="(value: boolean) => { if (!value) handleCloseUnbindDialog() }"
+    >
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="text-base font-semibold">解除 AuthMe 绑定</div>
+          </template>
+          <div class="space-y-4">
+            <p class="text-sm text-slate-500 dark:text-slate-400">请输入对应 AuthMe 密码以确认解除绑定操作。</p>
+            <UAlert icon="i-lucide-link-2-off" color="warning" variant="soft" title="目标账户" :description="authmeUnbindForm.username || '未知账号'" />
+            <div class="space-y-2">
+              <label class="block text-sm font-medium text-slate-600 dark:text-slate-300">AuthMe 密码</label>
+              <UInput v-model="authmeUnbindForm.password" type="password" placeholder="请输入 AuthMe 密码" autocomplete="current-password" :disabled="unbindLoading" @keyup.enter="submitUnbindAuthme()" />
             </div>
-            <template #footer>
-              <div class="flex justify-end gap-2">
-                <UButton variant="ghost" :disabled="unbindLoading" @click="handleCloseUnbindDialog()">取消</UButton>
-                <UButton color="warning" :loading="unbindLoading" @click="submitUnbindAuthme">确认解除</UButton>
-              </div>
-            </template>
-          </UCard>
-        </template>
-      </UModal>
-    </div>
+            <p v-if="unbindError" class="text-sm text-rose-500">{{ unbindError }}</p>
+          </div>
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton variant="ghost" :disabled="unbindLoading" @click="handleCloseUnbindDialog()">取消</UButton>
+              <UButton color="warning" :loading="unbindLoading" @click="submitUnbindAuthme">确认解除</UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
+  </div>
 
-    <UCard v-else class="flex flex-col items-center gap-4 bg-white/85 py-12 text-center shadow-sm backdrop-blur-sm dark:bg-slate-900/65">
-      <h2 class="text-xl font-semibold text-slate-900 dark:text-white">需要登录</h2>
-      <p class="max-w-sm text-sm text-slate-600 dark:text-slate-300">登录后可查看与管理 Minecraft 绑定。</p>
-      <UButton color="primary" @click="openLoginDialog">立即登录</UButton>
-    </UCard>
-  </section>
+  <UCard v-else class="flex flex-col items-center gap-4 bg-white/85 py-12 text-center shadow-sm backdrop-blur-sm dark:bg-slate-900/65">
+    <h2 class="text-xl font-semibold text-slate-900 dark:text-white">需要登录</h2>
+    <p class="max-w-sm text-sm text-slate-600 dark:text-slate-300">登录后可查看与管理 Minecraft 绑定。</p>
+    <UButton color="primary" @click="openLoginDialog">立即登录</UButton>
+  </UCard>
 </template>
 
 <style scoped></style>

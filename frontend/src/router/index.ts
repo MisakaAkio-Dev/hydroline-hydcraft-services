@@ -22,26 +22,29 @@ export const userRoutes: RouteRecordRaw[] = [
       {
         path: 'profile/info',
         name: 'profile.info',
-        redirect: { name: 'profile.info.basic' },
+        component: () => import('@/views/user/Profile/ProfileInfoShell.vue'),
         meta: { layout: 'user' },
-      },
-      {
-        path: 'profile/info/basic',
-        name: 'profile.info.basic',
-        component: () => import('@/views/user/Profile/ProfileInfoBasicView.vue'),
-        meta: { layout: 'user' },
-      },
-      {
-        path: 'profile/info/minecraft',
-        name: 'profile.info.minecraft',
-        component: () => import('@/views/user/Profile/ProfileInfoMinecraftView.vue'),
-        meta: { layout: 'user' },
-      },
-      {
-        path: 'profile/info/sessions',
-        name: 'profile.info.sessions',
-        component: () => import('@/views/user/Profile/ProfileInfoSessionsView.vue'),
-        meta: { layout: 'user' },
+        children: [
+          { path: '', redirect: { name: 'profile.info.basic' } },
+          {
+            path: 'basic',
+            name: 'profile.info.basic',
+            component: () => import('@/views/user/Profile/ProfileInfoBasicView.vue'),
+            meta: { layout: 'user' },
+          },
+          {
+            path: 'minecraft',
+            name: 'profile.info.minecraft',
+            component: () => import('@/views/user/Profile/ProfileInfoMinecraftView.vue'),
+            meta: { layout: 'user' },
+          },
+          {
+            path: 'sessions',
+            name: 'profile.info.sessions',
+            component: () => import('@/views/user/Profile/ProfileInfoSessionsView.vue'),
+            meta: { layout: 'user' },
+          },
+        ],
       },
       {
         path: 'profile/preferences',

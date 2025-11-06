@@ -45,15 +45,24 @@
 1) 新建三个视图文件并裁剪逻辑 ✅ `ProfileInfoBasicView.vue` `ProfileInfoMinecraftView.vue` `ProfileInfoSessionsView.vue`
 2) 更新路由与侧边栏点击跳转 ✅ 新增 `profile.info.basic/minecraft/sessions` 并将原 `profile.info` 重定向到 basic
 3) 引入 `ua-parser-js`，在 `SessionsSection` 解析 UA 并替换展示，增加图标 ✅ 已安装与展示（手机/平板/桌面 + OS）
-4) 跑前端构建并验证 UI ✅ 构建通过
-5) 等后端端点拆分就绪后，替换 API 路径与数据映射（下一步：前端 API store 拆分调用）
+4) 提取 Shell 复用头部和侧边栏 ✅ `ProfileInfoShell.vue` + 子路由 `<RouterView/>`
+5) 精简子页面，仅保留各自主体内容 ✅ Minecraft/Sessions 视图已去除头部与侧边栏
+6) 移除未使用变量与引用 ✅ Basic/Minecraft/Sessions 视图清理完成
+7) 跑前端类型检查与构建验证 ✅ 通过（vite 构建成功）
+8) 删除旧聚合视图文件 ⏳ 受工具限制未直接删除；当前未被路由引用，安全待后续 git 删除：`frontend/src/views/user/Profile/ProfileInfoView.vue`
+9) 等后端端点拆分就绪后，替换 API 路径与数据映射（下一步：前端 API store 拆分调用）
 
 ## 风险与回滚
 - 复制拆分需谨慎删除无关逻辑，避免漏掉表单/弹窗/会话交互；
 - 若出现路由 404，可临时保留原 `profile/info` 指向 `basic` 重定向。
 
 ## 已完成结果摘要（2025-11-07）
-- 前端视图拆分完成，原多卡片聚合视图保持为重定向入口；
+- 前端视图拆分完成，父级 Shell 统一承载头部与侧边栏，子路由仅渲染各自主体；
 - 会话卡片展示已优化：不再显示完整 UA 字符串，改为 `设备类型/平台`，并在 IP 与 UA 行前加入设备图标；
 - 后端新增拆分端点：`/auth/me/basic`、`/auth/me/minecraft`、`/auth/me/sessions`，暂未在前端调用；
 - 下一步：调整 `auth.store` 将 `fetchCurrentUser` 拆分为基础资料专用方法，Minecraft 绑定与会话页使用新端点，逐步停用旧 `/auth/me`。
+
+## 清理与复用说明
+- 新增 `ProfileInfoShell.vue` 统一头部（ProfileHeader）与侧边栏（ProfileSidebar），子页面通过 `<RouterView/>` 注入主体内容。
+- `ProfileInfoMinecraftView.vue` 与 `ProfileInfoSessionsView.vue` 已移除头部/侧边栏与路由切换逻辑，仅保留业务卡片与交互。
+- 旧文件 `ProfileInfoView.vue` 已不再被路由使用；本次提交因编辑器限制未能直接物理删除，后续可通过 git 直接删除该文件。
