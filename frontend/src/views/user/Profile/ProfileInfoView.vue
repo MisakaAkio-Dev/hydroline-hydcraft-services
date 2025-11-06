@@ -130,7 +130,7 @@ const sections: Array<{
   },
   {
     id: 'minecraft',
-    label: '玩家绑定信息',
+    label: '服务器账户',
   },
   {
     id: 'sessions',

@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { NormalizedLuckpermsGroup } from '@/utils/luckperms'
+
+const imageLoadStates = ref<Record<string, boolean>>({})
 
 const props = defineProps<{
   bindings: Array<{
@@ -97,10 +100,20 @@ function resolveGroupLabel(
             class="flex gap-2 text-lg font-medium text-slate-700 dark:text-slate-200"
           >
             <div class="flex-1 flex items-center gap-2">
-              <span>
+              <span class="relative">
+                <USkeleton
+                  v-show="!imageLoadStates[b.username]"
+                  class="h-6 w-6 rounded"
+                  animated
+                />
                 <img
                   :src="'https://mc-heads.net/avatar/' + b.username"
                   class="block h-6 w-6 rounded"
+                  :class="{
+                    'opacity-0 absolute': !imageLoadStates[b.username],
+                  }"
+                  @load="imageLoadStates[b.username] = true"
+                  @error="imageLoadStates[b.username] = true"
                 />
               </span>
               <span class="leading-none">
@@ -132,7 +145,7 @@ function resolveGroupLabel(
           >
             <div v-if="b.boundAt" class="text-xs">
               <div class="text-xs text-slate-500 dark:text-slate-500">
-                绑定时间
+                账户绑定时间
               </div>
               <div
                 class="text-base font-semibold text-slate-800 dark:text-slate-300"
@@ -147,7 +160,7 @@ function resolveGroupLabel(
 
             <div v-if="b.lastlogin">
               <div class="text-xs text-slate-500 dark:text-slate-500">
-                上次登录
+                上次登录时间
               </div>
               <div
                 class="text-base font-semibold text-slate-800 dark:text-slate-300"
@@ -157,9 +170,13 @@ function resolveGroupLabel(
             </div>
 
             <div v-if="b.regdate">
-              <div class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500">
+              <div
+                class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
+              >
                 注册时间
-                <UTooltip text="服务器登录数据库在2023年7月重置过一次，此前已经登录服务器注册过的玩家的信息已丢失">
+                <UTooltip
+                  text="服务器登录数据库在2023年7月重置过一次，此前已经登录服务器注册过的玩家的信息已丢失"
+                >
                   <button
                     type="button"
                     class="text-slate-400 transition hover:text-slate-600 focus:outline-none dark:text-slate-500 dark:hover:text-slate-300"
@@ -203,42 +220,14 @@ function resolveGroupLabel(
               </div>
             </div>
 
-            <div
-              v-if="
-                b.permissions?.primaryGroup || b.permissions?.groups?.length
-              "
-            >
+            <div v-if="b.permissions?.primaryGroupDisplayName">
               <div class="text-xs text-slate-500 dark:text-slate-500">
-                权限组
+                服务器权限组
               </div>
               <div
                 class="text-base font-semibold text-slate-800 dark:text-slate-300"
               >
-                <UBadge
-                  v-if="
-                    b.permissions?.primaryGroup ||
-                    b.permissions?.primaryGroupDisplayName
-                  "
-                  color="primary"
-                  variant="solid"
-                >
-                  主组 ·
-                  {{
-                    resolveGroupLabel(
-                      b.permissions?.primaryGroup ?? null,
-                      b.permissions?.primaryGroupDisplayName ?? null,
-                    )
-                  }}
-                </UBadge>
-                <UBadge
-                  v-for="(group, index) in b.permissions?.groups ?? []"
-                  :key="group.name + index"
-                  color="neutral"
-                  variant="soft"
-                  :title="group.detail ?? undefined"
-                >
-                  {{ resolveGroupLabel(group.name, group.displayName) }}
-                </UBadge>
+                {{ b.permissions?.primaryGroupDisplayName }}
               </div>
             </div>
           </div>
