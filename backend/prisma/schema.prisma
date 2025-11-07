@@ -513,6 +513,7 @@ model MinecraftServer {
   updatedAt      DateTime               @updatedAt
   createdById    String?
   updatedById    String?
+  pingRecords    MinecraftServerPingRecord[]
 
   createdBy User? @relation("MinecraftServerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy User? @relation("MinecraftServerUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
@@ -520,6 +521,33 @@ model MinecraftServer {
   @@unique([internalCodeCn], map: "uq_minecraft_server_cn")
   @@index([displayOrder], map: "idx_minecraft_server_order")
   @@map("minecraft_servers")
+}
+
+model MinecraftServerPingRecord {
+  id            String                 @id @default(uuid())
+  serverId      String
+  edition       MinecraftServerEdition
+  latency       Int?
+  onlinePlayers Int?
+  maxPlayers    Int?
+  motd          String?
+  raw           Json?
+  createdAt     DateTime               @default(now())
+  server        MinecraftServer        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId], map: "idx_minecraft_ping_server")
+  @@index([createdAt], map: "idx_minecraft_ping_created")
+  @@map("minecraft_server_ping_records")
+}
+
+model MinecraftPingSettings {
+  id             String   @id @default(uuid())
+  intervalMinutes Int     @default(5)   // 自动 Ping 周期（分钟）
+  retentionDays   Int     @default(30)  // 历史保留天数
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@map("minecraft_ping_settings")
 }
 
 model AttachmentFolder {

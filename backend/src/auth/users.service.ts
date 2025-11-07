@@ -691,7 +691,6 @@ export class UsersService {
     };
   }
 
-
   async updateAuthmeBinding(
     userId: string,
     bindingId: string,
@@ -1389,6 +1388,67 @@ export class UsersService {
     }
 
     return binding;
+  }
+
+  async unbindAuthmeBinding(
+    userId: string,
+    bindingId: string,
+    actorId?: string,
+  ) {
+    await this.ensureUser(userId);
+    const binding = await this.prisma.userAuthmeBinding.findUnique({
+      where: { id: bindingId },
+    });
+    if (!binding || binding.userId !== userId) {
+      throw new NotFoundException('AuthMe 绑定不存在');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      // 清理 profile 主绑定
+      await tx.userProfile.updateMany({
+        where: { userId, primaryAuthmeBindingId: bindingId },
+        data: { primaryAuthmeBindingId: null },
+      });
+      // 清理 minecraft profile 引用
+      await tx.userMinecraftProfile.updateMany({
+        where: { userId, authmeBindingId: bindingId },
+        data: { authmeBindingId: null },
+      });
+      // 记录历史
+      await this.authmeBindingService.recordHistoryEntry(
+        {
+          bindingId: binding.id,
+          userId: binding.userId,
+          operatorId: actorId ?? userId,
+          authmeUsername: binding.authmeUsername,
+          authmeRealname: binding.authmeRealname,
+          authmeUuid: binding.authmeUuid,
+          action: AuthmeBindingAction.UNBIND,
+          reason: 'manual-unbind',
+        },
+        tx,
+      );
+      // 删除绑定记录
+      await tx.userAuthmeBinding.delete({ where: { id: bindingId } });
+      // 生命周期事件
+      await tx.userLifecycleEvent.create({
+        data: {
+          userId,
+          eventType: LifecycleEventType.ACCOUNT_UNBIND,
+          occurredAt: new Date(),
+          source: 'admin-unbind',
+          metadata: this.toJsonValue({ bindingId }),
+          createdById: actorId ?? userId,
+        },
+      });
+    });
+    await this.adminAuditService.record({
+      actorId,
+      action: 'unbind_authme',
+      targetType: 'authme_binding',
+      targetId: bindingId,
+      payload: { userId, authmeUsername: binding.authmeUsername },
+    });
+    return { success: true } as const;
   }
 
   async ensureUser(userId: string) {

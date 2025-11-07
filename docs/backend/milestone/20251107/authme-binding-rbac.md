@@ -59,5 +59,33 @@
 - [x] 为 AuthMe 同步与 RBAC 变更添加结构化日志 + 监控指标（成功率、延迟、失败原因）。
 
 ### 七、交付检查
-- [ ] 更新 `docs/backend` API 参考，附上新端点示例与字段。
-- [ ] 回顾待办并逐项勾选，确认无“等待功能完善”字样遗留。
+- [ ] 更新 `docs/backend` API 参考，附上新端点示例与字段（users / players / rbac 自助 / 角色标签编辑 / 绑定历史）。
+- [ ] 回顾待办并逐项勾选，确认无“等待功能完善”或占位符描述遗留。
+
+### 八、新增补充需求（2025-11-07 用户反馈）
+- [x] 确认多角色已通过 `user_roles` 表支持；仅需前端批量分配调用 `POST /auth/users/:id/roles`。
+- [x] 权限标签允许空权限：已验证 `CreatePermissionLabelDto.permissionKeys` 可为空数组。
+- [ ] 增加接口：批量自助申请权限返回差异（当前拥有 vs 请求新增），方便前端高亮缺失节点。
+- [ ] 增加接口：`GET /auth/users/:id/roles`（若详情未返回完整集合时兜底）—— 当前 `GET /auth/users/:id` 已含角色，可视情况省略。
+- [ ] 增加接口：`DELETE /auth/users/:id/roles` 支持移除单个或多个角色（当前仅覆盖“分配”不可移除）。
+- [ ] 增加接口：`DELETE /auth/users/:id/permission-labels` 移除标签（现只有分配）。
+- [ ] 增加接口：`PATCH /auth/users/:id/bindings/:bindingId` 已存在；确认是否需要支持解绑（DELETE）。
+- [ ] 增加接口：`DELETE /auth/users/:id/bindings/:bindingId` 解绑并写历史（统一使用 AuthmeBindingHistory）。
+- [ ] 增加接口：`POST /auth/players/:username/bind` 直接将玩家与指定用户绑定（目前只能在用户侧操作，需要玩家视角）。
+- [ ] 增加接口：`GET /auth/players/:username` 返回单玩家详情（含绑定与最新事件），当前仅列表与历史。
+- [ ] 增加接口：权限合并预览 `POST /auth/rbac/preview` 输入角色数组 + 标签数组，返回最终权限集合（前端在编辑界面实时展示）。
+- [ ] 增加接口：管理员自授权限时允许附加备注字段（audit payload）。
+- [ ] 增加接口：导出权限目录 `GET /auth/permissions/catalog/export?format=csv|json`。
+- [ ] 增加指标：`authme_binding_history_events_total` 已存在，再加失败计数器 `authme_binding_history_fail_total`。
+
+### 九、风险与边界
+- AuthMe 数据库不可用时：玩家列表返回 `sourceStatus=degraded` 已实现，后续需缓存最近 1 次成功快照（内存或 Redis）。
+- 自助权限滥用风险：需在审计中标记 `selfManaged: true` 并支持后续批量撤销脚本。
+- 角色/权限删除需校验是否被引用；目前角色删除阻止被分配用户，权限删除阻止被角色引用，后续还需阻止被标签引用。
+
+### 十、下一步实施优先级（后端）
+1. 解绑与玩家视角绑定 API（完成功能闭环）
+2. 角色 / 标签移除接口（前端编辑所需）
+3. 权限合并预览接口（提升前端交互）
+4. 自助申请差异返回与备注支持（审计合规）
+5. 权限目录导出与指标补充（可观测性）

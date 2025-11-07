@@ -68,4 +68,23 @@ export class MinecraftServerController {
   ping(@Param('id') id: string) {
     return this.service.pingManagedServer(id);
   }
+
+  @Get(':id/ping/history')
+  @ApiOperation({ summary: '获取服务器的 Ping 历史记录' })
+  history(@Param('id') id: string, @Query('days') days?: string) {
+    const n = days ? Number(days) : 30;
+    return this.service.listPingHistory(id, Number.isFinite(n) ? n : 30);
+  }
+
+  @Get('ping/settings')
+  @ApiOperation({ summary: '获取自动 Ping 设置' })
+  getSettings() {
+    return this.service.getPingSettings();
+  }
+
+  @Patch('ping/settings')
+  @ApiOperation({ summary: '更新自动 Ping 设置' })
+  updateSettings(@Body() dto: { intervalMinutes?: number; retentionDays?: number }) {
+    return this.service.updatePingSettings(dto);
+  }
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMinecraftServerStore } from '@/stores/minecraftServers'
 import { useUiStore } from '@/stores/ui'
@@ -8,7 +8,11 @@ import type {
   MinecraftPingResult,
   MinecraftServer,
   MinecraftServerEdition,
+  MinecraftPingHistoryItem,
+  MinecraftPingSettings,
 } from '@/types/minecraft'
+import VChart from 'vue-echarts'
+// ECharts modules are registered globally in main.ts; no need to register here.
 
 const serverStore = useMinecraftServerStore()
 const uiStore = useUiStore()
@@ -23,6 +27,61 @@ const deleting = ref(false)
 const pingLoading = ref(false)
 const lastPing = ref<MinecraftPingResult | null>(null)
 const motdHtml = ref<string | null>(null)
+const detailOpen = ref(false)
+// 每个服务器卡片内的单独加载态
+const pingLoadingById = reactive<Record<string, boolean>>({})
+
+// 自动 Ping 设置 & 历史数据
+const settings = ref<MinecraftPingSettings | null>(null)
+const settingsLoading = ref(false)
+const history = ref<MinecraftPingHistoryItem[]>([])
+const historyLoading = ref(false)
+const historyDays = ref(1)
+
+// 页面总览图表（与详情弹窗分离）
+const chartServerId = ref<string | undefined>(undefined)
+const chartDays = ref(1)
+const chartHistory = ref<MinecraftPingHistoryItem[]>([])
+const chartLoading = ref(false)
+const chartOption = computed(() => {
+  const points = chartHistory.value.slice().reverse()
+  return {
+    tooltip: { trigger: 'axis' },
+    grid: { left: 40, right: 20, top: 30, bottom: 30 },
+    xAxis: {
+      type: 'category',
+      data: points.map((p) => new Date(p.createdAt).toLocaleTimeString()),
+    },
+    yAxis: { type: 'value', min: 0 },
+    legend: { top: 0 },
+    series: [
+      {
+        type: 'line',
+        name: '在线人数',
+        smooth: true,
+        showSymbol: false,
+        data: points.map((p) => p.onlinePlayers ?? 0),
+      },
+      {
+        type: 'line',
+        name: '延迟(ms)',
+        smooth: true,
+        showSymbol: false,
+        data: points.map((p) => p.latency ?? 0),
+      },
+    ],
+  }
+})
+
+// 临时 Ping 工具
+const adhocDialog = ref(false)
+const adhocForm = reactive({
+  host: '',
+  port: undefined as number | undefined,
+  edition: 'JAVA' as MinecraftServerEdition,
+})
+const adhocResult = ref<MinecraftPingResult | null>(null)
+const adhocLoading = ref(false)
 
 const form = reactive({
   displayName: '',
@@ -44,8 +103,24 @@ const tableRows = computed(() =>
   })),
 )
 
+// 供选择器使用的兼容 items（避免类型不匹配：description 可能为 null）
+const serverSelectItems = computed(() =>
+  servers.value.map((s) => ({
+    id: s.id,
+    displayName: s.displayName,
+    internalCodeCn: s.internalCodeCn,
+    internalCodeEn: s.internalCodeEn,
+    host: s.host,
+    edition: s.edition,
+    // 统一保证为 undefined 而非 null，减少与 SelectMenuItem 类型冲突
+    description: s.description || undefined,
+  })),
+)
+
 const dialogTitle = computed(() =>
-  editingServer.value ? `编辑：${editingServer.value.displayName}` : '新建服务器',
+  editingServer.value
+    ? `编辑：${editingServer.value.displayName}`
+    : '新建服务器',
 )
 
 const editionOptions = [
@@ -57,9 +132,85 @@ onMounted(async () => {
   uiStore.startLoading()
   try {
     await serverStore.fetchAll()
+    await loadSettings()
+    // 默认选中第一个服务器用于图表
+    chartServerId.value = servers.value[0]?.id ?? undefined
+    await autoPingAll()
+    await loadChartHistory()
   } finally {
     uiStore.stopLoading()
   }
+})
+
+async function loadSettings() {
+  settingsLoading.value = true
+  try {
+    settings.value = await serverStore.getPingSettings()
+  } finally {
+    settingsLoading.value = false
+  }
+}
+
+async function saveSettings() {
+  if (!settings.value) return
+  settingsLoading.value = true
+  try {
+    const updated = await serverStore.updatePingSettings({
+      intervalMinutes: settings.value.intervalMinutes,
+      retentionDays: settings.value.retentionDays,
+    })
+    settings.value = updated
+    toast.add({ title: '设置已更新', color: 'success' })
+  } catch (e) {
+    toast.add({
+      title: '保存失败',
+      description: (e as Error).message,
+      color: 'error',
+    })
+  } finally {
+    settingsLoading.value = false
+  }
+}
+
+async function loadHistory(serverId: string | null) {
+  if (!serverId) return
+  historyLoading.value = true
+  try {
+    history.value = await serverStore.listPingHistory(
+      serverId,
+      historyDays.value,
+    )
+  } catch {
+    history.value = []
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+async function loadChartHistory() {
+  if (!chartServerId.value) {
+    chartHistory.value = []
+    return
+  }
+  chartLoading.value = true
+  try {
+    chartHistory.value = await serverStore.listPingHistory(
+      chartServerId.value,
+      chartDays.value,
+    )
+  } catch {
+    chartHistory.value = []
+  } finally {
+    chartLoading.value = false
+  }
+}
+
+watch([chartServerId, chartDays], () => {
+  void loadChartHistory()
+})
+
+watch(historyDays, () => {
+  void loadHistory(editingServer.value?.id ?? null)
 })
 
 function openCreateDialog() {
@@ -99,12 +250,15 @@ function resetForm() {
 }
 
 function buildPayload() {
+  const portNumber = Number(form.port)
+  const payloadPort =
+    Number.isFinite(portNumber) && portNumber > 0 ? portNumber : undefined
   return {
     displayName: form.displayName.trim(),
     internalCodeCn: form.internalCodeCn.trim(),
     internalCodeEn: form.internalCodeEn.trim(),
     host: form.host.trim(),
-    port: form.port,
+    port: payloadPort,
     edition: form.edition,
     description: form.description.trim() || undefined,
     isActive: form.isActive,
@@ -113,6 +267,7 @@ function buildPayload() {
 }
 
 async function saveServer() {
+  // 基础必填项校验
   if (!form.displayName || !form.host) {
     toast.add({
       title: '请完善表单',
@@ -121,10 +276,37 @@ async function saveServer() {
     })
     return
   }
+
+  // 与后端 DTO 保持一致的前端校验，避免提交后才失败
+  const cn = form.internalCodeCn.trim()
+  const en = form.internalCodeEn.trim()
+  if (cn.length < 1 || en.length < 2) {
+    toast.add({
+      title: '表单校验未通过',
+      description: '中文内部代号需 ≥1 字符；英文内部代号需 ≥2 字符',
+      color: 'warning',
+    })
+    return
+  }
+  if (form.port !== undefined && form.port !== null) {
+    const p = Number(form.port)
+    // 若用户不填或填 0，视为自动解析（默认端口或 SRV），不报错
+    if (Number.isFinite(p) && (p < 1 || p > 65535)) {
+      toast.add({
+        title: '端口不合法',
+        description: '端口范围应为 1-65535；留空则自动（默认或 SRV）',
+        color: 'warning',
+      })
+      return
+    }
+  }
   saving.value = true
   try {
     if (editingServer.value) {
-      const updated = await serverStore.update(editingServer.value.id, buildPayload())
+      const updated = await serverStore.update(
+        editingServer.value.id,
+        buildPayload(),
+      )
       toast.add({ title: '服务器已更新', color: 'success' })
       editingServer.value = updated
     } else {
@@ -189,10 +371,7 @@ async function triggerPing(serverId: string | null) {
       result.edition === 'JAVA'
         ? result.response.description
         : result.response.motd
-    motdHtml.value = await parseMotd(
-      motdPayload,
-      result.edition === 'BEDROCK',
-    )
+    motdHtml.value = await parseMotd(motdPayload, result.edition === 'BEDROCK')
     toast.add({ title: 'Ping 成功', color: 'success' })
   } catch (error) {
     lastPing.value = null
@@ -205,6 +384,30 @@ async function triggerPing(serverId: string | null) {
   } finally {
     pingLoading.value = false
   }
+}
+
+async function pingOnCard(server: MinecraftServer) {
+  pingLoadingById[server.id] = true
+  try {
+    await serverStore.ping(server.id)
+  } catch {}
+  pingLoadingById[server.id] = false
+}
+
+async function autoPingAll() {
+  const list = servers.value.slice()
+  // 控制并发：顺序执行，避免一次性大量 socket 连接
+  for (const srv of list) {
+    pingLoadingById[srv.id] = true
+    try {
+      await serverStore.ping(srv.id)
+    } catch {}
+    pingLoadingById[srv.id] = false
+  }
+}
+
+function getPingResult(id: string) {
+  return serverStore.pingResults.get(id) as MinecraftPingResult | undefined
 }
 
 function editionLabel(edition: MinecraftServerEdition) {
@@ -220,6 +423,45 @@ function confirmDelete(server: MinecraftServer) {
     void removeServer(server)
   }
 }
+
+function openDetail(server: MinecraftServer) {
+  editingServer.value = server
+  detailOpen.value = true
+  // 即时刷新一次
+  void triggerPing(server.id)
+  void loadHistory(server.id)
+}
+
+function openAdhoc() {
+  adhocDialog.value = true
+  adhocResult.value = null
+}
+
+async function submitAdhoc() {
+  if (!adhocForm.host.trim()) {
+    toast.add({ title: '请输入主机名', color: 'warning' })
+    return
+  }
+  adhocLoading.value = true
+  try {
+    const result = await serverStore.adhocPing({
+      host: adhocForm.host.trim(),
+      port: adhocForm.port || undefined,
+      edition: adhocForm.edition,
+    })
+    adhocResult.value = result
+    toast.add({ title: '临时 Ping 成功', color: 'success' })
+  } catch (e) {
+    adhocResult.value = null
+    toast.add({
+      title: '临时 Ping 失败',
+      description: (e as Error).message,
+      color: 'error',
+    })
+  } finally {
+    adhocLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -227,19 +469,169 @@ function confirmDelete(server: MinecraftServer) {
     <header class="flex flex-col gap-2">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">服务器状态</h1>
-          <p class="text-sm text-slate-600 dark:text-slate-300">
-            配置 Hydroline 专属的 Minecraft 服务器，并实时检查其在线状态与 MOTD。
-          </p>
+          <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
+            服务端状态
+          </h1>
         </div>
-        <UButton color="primary" icon="i-lucide-plus" @click="openCreateDialog">新建服务器</UButton>
+        <UButton color="primary" icon="i-lucide-plus" @click="openCreateDialog"
+          >新建服务器</UButton
+        >
+        <UButton variant="ghost" icon="i-lucide-zap" @click="openAdhoc"
+          >临时 Ping</UButton
+        >
       </div>
     </header>
 
-    <div class="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70">
-      <table class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
+    <!-- 自动 Ping 设置面板 -->
+    <div
+      v-if="settings"
+      class="rounded-2xl border border-slate-200/60 bg-white/70 p-4 text-xs dark:border-slate-700 dark:bg-slate-900/60"
+    >
+      <div class="mb-3 flex items-center justify-between">
+        <span class="font-medium text-slate-700 dark:text-slate-200"
+          >自动 Ping 设置</span
+        >
+        <UButton
+          size="xs"
+          variant="ghost"
+          :loading="settingsLoading"
+          icon="i-lucide-save"
+          @click="saveSettings"
+          >保存</UButton
+        >
+      </div>
+      <div class="grid gap-4 md:grid-cols-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-slate-500 dark:text-slate-400">周期 (分钟)</label>
+          <UInput
+            v-model.number="settings.intervalMinutes"
+            type="number"
+            min="1"
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-slate-500 dark:text-slate-400">保留天数</label>
+          <UInput
+            v-model.number="settings.retentionDays"
+            type="number"
+            min="1"
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-slate-500 dark:text-slate-400"
+            >查看历史 (天)</label
+          >
+          <UInput v-model.number="historyDays" type="number" min="1" max="30" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 总览图表面板 -->
+    <div
+      class="rounded-2xl border border-slate-200/60 bg-white/70 p-4 text-xs dark:border-slate-700 dark:bg-slate-900/60"
+    >
+      <div class="mb-3 flex items-center justify-between">
+        <span class="font-medium text-slate-700 dark:text-slate-200"
+          >服务器历史图表</span
+        >
+        <div class="flex items-center gap-2">
+          <USelectMenu
+            v-model="chartServerId"
+            :items="serverSelectItems"
+            value-key="id"
+            label-key="displayName"
+            :filter-fields="[
+              'displayName',
+              'internalCodeCn',
+              'internalCodeEn',
+              'host',
+            ]"
+            class="w-48"
+            placeholder="选择服务器"
+          />
+          <UButton
+            size="xs"
+            variant="ghost"
+            icon="i-lucide-refresh-ccw"
+            :loading="chartLoading"
+            @click="loadChartHistory()"
+            >刷新</UButton
+          >
+        </div>
+      </div>
+      <div class="h-64">
+        <VChart v-if="chartHistory.length" :option="chartOption" autoresize />
+        <div
+          v-else
+          class="flex h-full items-center justify-center text-xs text-slate-500 dark:text-slate-400"
+        >
+          {{ chartLoading ? '加载中...' : '暂无历史数据' }}
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
+    >
+      <!-- 顶部服务器信息卡片（始终显示），3 列布局；卡片内可直接 Ping 并显示结果 -->
+      <div
+        class="grid gap-3 border-b border-slate-100 p-3 dark:border-slate-800 md:grid-cols-3"
+      >
+        <div
+          v-for="srv in servers"
+          :key="srv.id"
+          class="rounded-xl border border-slate-200/70 bg-slate-50/50 p-3 text-xs dark:border-slate-700 dark:bg-slate-900/40"
+        >
+          <div class="flex items-center justify-between">
+            <div class="font-medium text-slate-900 dark:text-white">
+              {{ srv.displayName }}
+            </div>
+            <UBadge variant="soft" color="neutral">{{
+              editionLabel(srv.edition)
+            }}</UBadge>
+          </div>
+          <div class="mt-2 grid grid-cols-3 gap-2">
+            <div>
+              <p class="text-slate-500 dark:text-slate-400">玩家</p>
+              <p class="font-semibold text-slate-900 dark:text-white">
+                {{ getPingResult(srv.id)?.response.players?.online ?? 0 }} /
+                {{ getPingResult(srv.id)?.response.players?.max ?? 0 }}
+              </p>
+            </div>
+            <div>
+              <p class="text-slate-500 dark:text-slate-400">延迟</p>
+              <p class="font-semibold text-slate-900 dark:text-white">
+                {{ getPingResult(srv.id)?.response.latency ?? '—' }} ms
+              </p>
+            </div>
+            <div class="flex items-center justify-end gap-2">
+              <UButton size="xs" variant="ghost" @click="openDetail(srv)"
+                >详情</UButton
+              >
+              <UButton
+                size="xs"
+                variant="ghost"
+                :loading="pingLoadingById[srv.id]"
+                @click="pingOnCard(srv)"
+                >Ping</UButton
+              >
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="servers.length === 0"
+          class="text-xs text-slate-500 dark:text-slate-400"
+        >
+          暂无服务器配置
+        </div>
+      </div>
+      <table
+        class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800"
+      >
         <thead class="bg-slate-50/60 dark:bg-slate-900/60">
-          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <tr
+            class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          >
             <th class="px-4 py-3">名称</th>
             <th class="px-4 py-3">内部代号</th>
             <th class="px-4 py-3">服务器地址</th>
@@ -256,29 +648,45 @@ function confirmDelete(server: MinecraftServer) {
           >
             <td class="px-4 py-3">
               <div class="flex flex-col">
-                <span class="font-medium text-slate-900 dark:text-white">{{ row.displayName }}</span>
-                <span class="text-xs text-slate-500 dark:text-slate-400">{{ row.description || '无备注' }}</span>
+                <span class="font-medium text-slate-900 dark:text-white">{{
+                  row.displayName
+                }}</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400">{{
+                  row.description || '无备注'
+                }}</span>
               </div>
             </td>
             <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
               {{ row.code }}
             </td>
             <td class="px-4 py-3">
-              <div class="flex flex-col text-xs text-slate-500 dark:text-slate-400">
-                <span class="font-medium text-slate-900 dark:text-white">{{ row.hostLabel }}</span>
+              <div
+                class="flex flex-col text-xs text-slate-500 dark:text-slate-400"
+              >
+                <span class="font-medium text-slate-900 dark:text-white">{{
+                  row.hostLabel
+                }}</span>
                 <span>{{ row.host }}</span>
               </div>
             </td>
             <td class="px-4 py-3">
-              <UBadge variant="soft" color="neutral">{{ editionLabel(row.edition) }}</UBadge>
+              <UBadge variant="soft" color="neutral">{{
+                editionLabel(row.edition)
+              }}</UBadge>
             </td>
             <td class="px-4 py-3">
-              <UBadge :color="row.isActive ? 'success' : 'neutral'" variant="soft">
+              <UBadge
+                :color="row.isActive ? 'success' : 'neutral'"
+                variant="soft"
+              >
                 {{ row.isActive ? '启用' : '停用' }}
               </UBadge>
             </td>
             <td class="px-4 py-3 text-right">
               <div class="flex items-center justify-end gap-2">
+                <UButton size="xs" variant="ghost" @click="openDetail(row)"
+                  >查看</UButton
+                >
                 <UButton
                   size="xs"
                   variant="ghost"
@@ -287,87 +695,125 @@ function confirmDelete(server: MinecraftServer) {
                 >
                   Ping
                 </UButton>
-                <UButton size="xs" variant="ghost" color="primary" @click="openEditDialog(row)">编辑</UButton>
-                <UButton size="xs" color="error" variant="ghost" :loading="deleting" @click="confirmDelete(row)">
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  color="primary"
+                  @click="openEditDialog(row)"
+                  >编辑</UButton
+                >
+                <UButton
+                  size="xs"
+                  color="error"
+                  variant="ghost"
+                  :loading="deleting"
+                  @click="confirmDelete(row)"
+                >
                   删除
                 </UButton>
               </div>
             </td>
           </tr>
           <tr v-if="tableRows.length === 0">
-            <td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+            <td
+              colspan="6"
+              class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
+            >
               暂无服务器配置，点击右上角“新建服务器”开始。
             </td>
           </tr>
         </tbody>
       </table>
-      <div class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        <span>共 {{ servers.length }} 台服务器</span>
-        <UButton variant="ghost" size="2xs" icon="i-lucide-refresh-ccw" @click="serverStore.fetchAll()">刷新列表</UButton>
+      <div
+        class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400"
+      >
+        <span>共 {{ servers.length }} 个服务端</span>
+        <UButton
+          variant="ghost"
+          size="xs"
+          icon="i-lucide-refresh-ccw"
+          @click="serverStore.fetchAll()"
+          >刷新列表</UButton
+        >
       </div>
     </div>
 
-    <UCard v-if="lastPing">
-      <template #header>
-        <div class="flex items-center justify-between">
-          <div>
-            <h3 class="text-base font-semibold text-slate-900 dark:text-white">
-              最近一次 Ping · {{ editingServer?.displayName ?? '未选择服务器' }}
-            </h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">
-              {{ editionLabel(lastPing.edition) }} · 延迟 {{ lastPing.response.latency ?? '—' }} ms
+    <!-- 查看详情弹窗：展示当前选中服务器的 Ping 结果与 MOTD 与历史图表 -->
+    <UModal :open="detailOpen" @update:open="detailOpen = $event">
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div class="text-sm text-slate-600 dark:text-slate-300">
+                {{ editingServer?.displayName ?? '未选择服务器' }} ·
+                {{ editingServer ? editionLabel(editingServer.edition) : '' }}
+              </div>
+              <UButton
+                size="xs"
+                variant="ghost"
+                icon="i-lucide-refresh-ccw"
+                :loading="pingLoading"
+                @click="triggerPing(editingServer?.id ?? null)"
+              >
+                重新 Ping
+              </UButton>
+            </div>
+          </template>
+          <div v-if="lastPing" class="grid gap-4 md:grid-cols-3">
+            <div>
+              <p class="text-xs text-slate-500 dark:text-slate-400">版本</p>
+              <p class="text-base font-semibold text-slate-900 dark:text-white">
+                {{
+                  lastPing.edition === 'BEDROCK'
+                    ? lastPing.response.version
+                    : (lastPing.response.version?.name ?? '未知')
+                }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 dark:text-slate-400">玩家</p>
+              <p class="text-base font-semibold text-slate-900 dark:text-white">
+                {{ lastPing.response.players?.online ?? 0 }} /
+                {{ lastPing.response.players?.max ?? 0 }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 dark:text-slate-400">延迟</p>
+              <p class="text-base font-semibold text-slate-900 dark:text-white">
+                {{ lastPing.response.latency ?? '—' }} ms
+              </p>
+            </div>
+          </div>
+          <div
+            class="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 dark:border-slate-800/60 dark:bg-slate-900/60"
+          >
+            <p class="text-xs text-slate-500 dark:text-slate-400">MOTD</p>
+            <div
+              v-if="motdHtml"
+              class="prose prose-sm mt-2 dark:prose-invert"
+              v-html="motdHtml"
+            ></div>
+            <p v-else class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              暂无 MOTD 数据
             </p>
           </div>
-          <UButton
-            size="xs"
-            variant="ghost"
-            icon="i-lucide-refresh-ccw"
-            :loading="pingLoading"
-            @click="triggerPing(editingServer?.id ?? null)"
-          >
-            重新 Ping
-          </UButton>
-        </div>
+        </UCard>
       </template>
-      <div class="grid gap-4 md:grid-cols-3">
-        <div>
-          <p class="text-xs text-slate-500 dark:text-slate-400">版本</p>
-          <p class="text-base font-semibold text-slate-900 dark:text-white">
-            {{
-              lastPing.edition === 'BEDROCK'
-                ? lastPing.response.version
-                : lastPing.response.version?.name ?? '未知'
-            }}
-          </p>
-        </div>
-        <div>
-          <p class="text-xs text-slate-500 dark:text-slate-400">玩家</p>
-          <p class="text-base font-semibold text-slate-900 dark:text-white">
-            {{
-              lastPing.response.players?.online ?? 0
-            }} / {{ lastPing.response.players?.max ?? 0 }}
-          </p>
-        </div>
-        <div>
-          <p class="text-xs text-slate-500 dark:text-slate-400">延迟</p>
-          <p class="text-base font-semibold text-slate-900 dark:text-white">{{ lastPing.response.latency ?? '—' }} ms</p>
-        </div>
-      </div>
-      <div class="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 dark:border-slate-800/60 dark:bg-slate-900/60">
-        <p class="text-xs text-slate-500 dark:text-slate-400">MOTD</p>
-        <div v-if="motdHtml" class="prose prose-sm mt-2 dark:prose-invert" v-html="motdHtml"></div>
-        <p v-else class="mt-2 text-sm text-slate-500 dark:text-slate-400">暂无 MOTD 数据</p>
-      </div>
-    </UCard>
+    </UModal>
 
     <UModal :open="dialogOpen" @update:open="dialogOpen = $event">
       <template #content>
         <UCard>
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ dialogTitle }}</h3>
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                {{ dialogTitle }}
+              </h3>
               <UTooltip text="保存后可立即 Ping">
-                <UIcon name="i-lucide-info" class="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <UIcon
+                  name="i-lucide-info"
+                  class="h-4 w-4 text-slate-400 dark:text-slate-500"
+                />
               </UTooltip>
             </div>
           </template>
@@ -376,49 +822,127 @@ function confirmDelete(server: MinecraftServer) {
           <div class="grid gap-4 md:grid-cols-2">
             <!-- 显示名称 -->
             <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-              <label for="displayName" class="text-sm text-slate-600 dark:text-slate-300">显示名称<span class="text-red-500">*</span></label>
-              <UInput id="displayName" v-model="form.displayName" placeholder="示例：主城 Lobby" />
+              <label
+                for="displayName"
+                class="text-sm text-slate-600 dark:text-slate-300"
+                >显示名称<span class="text-red-500">*</span></label
+              >
+              <UInput
+                id="displayName"
+                v-model="form.displayName"
+                placeholder="示例：七周目"
+              />
             </div>
             <!-- 中文内部代号 -->
             <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-              <label for="internalCodeCn" class="text-sm text-slate-600 dark:text-slate-300">中文内部代号<span class="text-red-500">*</span></label>
-              <UInput id="internalCodeCn" v-model="form.internalCodeCn" placeholder="示例：主城" />
+              <label
+                for="internalCodeCn"
+                class="text-sm text-slate-600 dark:text-slate-300"
+                >中文内部代号<span class="text-red-500">*</span></label
+              >
+              <UInput
+                id="internalCodeCn"
+                v-model="form.internalCodeCn"
+                placeholder="示例：氮"
+              />
             </div>
             <!-- 英文内部代号 -->
             <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-              <label for="internalCodeEn" class="text-sm text-slate-600 dark:text-slate-300">英文内部代号<span class="text-red-500">*</span></label>
-              <UInput id="internalCodeEn" v-model="form.internalCodeEn" placeholder="示例：lobby" />
+              <label
+                for="internalCodeEn"
+                class="text-sm text-slate-600 dark:text-slate-300"
+                >英文内部代号<span class="text-red-500">*</span></label
+              >
+              <UInput
+                id="internalCodeEn"
+                v-model="form.internalCodeEn"
+                placeholder="示例：Nitrogen"
+              />
             </div>
             <!-- 版本 -->
             <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-              <label for="edition" class="text-sm text-slate-600 dark:text-slate-300">版本</label>
-              <USelectMenu id="edition" v-model="form.edition" :options="editionOptions" />
+              <label
+                for="edition"
+                class="text-sm text-slate-600 dark:text-slate-300"
+                >版本</label
+              >
+              <USelectMenu
+                id="edition"
+                v-model="form.edition"
+                :items="editionOptions"
+                value-key="value"
+                label-key="label"
+              />
             </div>
             <!-- Host -->
             <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-              <label for="host" class="text-sm text-slate-600 dark:text-slate-300">服务器 Host<span class="text-red-500">*</span></label>
-              <UInput id="host" v-model="form.host" placeholder="mc.hydroline.example" />
+              <label
+                for="host"
+                class="text-sm text-slate-600 dark:text-slate-300"
+                >服务器 Host<span class="text-red-500">*</span></label
+              >
+              <UInput
+                id="host"
+                v-model="form.host"
+                placeholder="mc.hydroline.example"
+              />
             </div>
             <!-- Port -->
             <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-              <label for="port" class="text-sm text-slate-600 dark:text-slate-300">端口</label>
-              <UInput id="port" v-model.number="form.port" type="number" min="1" max="65535" />
+              <label
+                for="port"
+                class="text-sm text-slate-600 dark:text-slate-300"
+                >端口</label
+              >
+              <UInput
+                id="port"
+                v-model.number="form.port"
+                type="number"
+                min="1"
+                max="65535"
+                placeholder="留空=自动（默认或 SRV）"
+              />
             </div>
             <!-- 描述 -->
-            <div class="grid grid-cols-[7rem,1fr] items-start gap-2 md:col-span-2">
-              <label for="description" class="mt-2 text-sm text-slate-600 dark:text-slate-300">描述</label>
-              <UTextarea id="description" v-model="form.description" placeholder="用于后台备注信息" />
+            <div
+              class="grid grid-cols-[7rem,1fr] items-start gap-2 md:col-span-2"
+            >
+              <label
+                for="description"
+                class="mt-2 text-sm text-slate-600 dark:text-slate-300"
+                >描述</label
+              >
+              <UTextarea
+                id="description"
+                v-model="form.description"
+                placeholder="用于后台备注信息"
+              />
             </div>
             <!-- 显示顺序 -->
             <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-              <label for="displayOrder" class="text-sm text-slate-600 dark:text-slate-300">显示顺序</label>
-              <UInput id="displayOrder" v-model.number="form.displayOrder" type="number" />
+              <label
+                for="displayOrder"
+                class="text-sm text-slate-600 dark:text-slate-300"
+                >显示顺序</label
+              >
+              <UInput
+                id="displayOrder"
+                v-model.number="form.displayOrder"
+                type="number"
+              />
             </div>
             <!-- 状态 -->
             <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-              <label for="isActive" class="text-sm text-slate-600 dark:text-slate-300">状态</label>
-              <div class="flex h-10 items-center rounded-xl border border-slate-200 px-3 dark:border-slate-700">
-                <UToggle id="isActive" v-model="form.isActive" label="启用" />
+              <label
+                for="isActive"
+                class="text-sm text-slate-600 dark:text-slate-300"
+                >状态</label
+              >
+              <div
+                class="flex h-10 items-center rounded-xl border border-slate-200 px-3 dark:border-slate-700"
+              >
+                <!-- UToggle 在当前 @nuxt/ui 版本中未被插件自动注册，替换为 UCheckbox 保持布尔开关功能 -->
+                <UCheckbox id="isActive" v-model="form.isActive" label="启用" />
               </div>
             </div>
           </div>
@@ -426,16 +950,174 @@ function confirmDelete(server: MinecraftServer) {
           <template #footer>
             <div class="flex justify-between">
               <div class="text-xs text-slate-500 dark:text-slate-400">
-                保存后会自动刷新服务器状态
+                保存后会自动刷新服务端状态。
               </div>
               <div class="flex gap-2">
-                <UButton variant="ghost" @click="dialogOpen = false">取消</UButton>
+                <UButton variant="ghost" @click="dialogOpen = false"
+                  >取消</UButton
+                >
                 <UButton color="primary" :loading="saving" @click="saveServer">
                   {{ editingServer ? '保存修改' : '创建' }}
                 </UButton>
               </div>
             </div>
           </template>
+          <!-- 历史图表 -->
+          <div class="mt-4">
+            <p class="mb-2 text-xs text-slate-500 dark:text-slate-400">
+              最近 {{ historyDays }} 天走势
+            </p>
+            <div class="h-60">
+              <VChart
+                v-if="history.length"
+                :option="{
+                  tooltip: { trigger: 'axis' },
+                  grid: { left: 40, right: 20, top: 30, bottom: 30 },
+                  xAxis: {
+                    type: 'category',
+                    data: history
+                      .slice()
+                      .reverse()
+                      .map((p) => new Date(p.createdAt).toLocaleTimeString()),
+                  },
+                  yAxis: { type: 'value', min: 0 },
+                  legend: { top: 0 },
+                  series: [
+                    {
+                      type: 'line',
+                      name: '在线人数',
+                      smooth: true,
+                      showSymbol: false,
+                      data: history
+                        .slice()
+                        .reverse()
+                        .map((p) => p.onlinePlayers ?? 0),
+                    },
+                    {
+                      type: 'line',
+                      name: '延迟(ms)',
+                      smooth: true,
+                      showSymbol: false,
+                      data: history
+                        .slice()
+                        .reverse()
+                        .map((p) => p.latency ?? 0),
+                    },
+                  ],
+                }"
+                autoresize
+              />
+              <div
+                v-else
+                class="flex h-full items-center justify-center text-xs text-slate-500 dark:text-slate-400"
+              >
+                {{ historyLoading ? '加载中...' : '暂无历史数据' }}
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </template>
+    </UModal>
+
+    <!-- 临时 Ping 弹窗 -->
+    <UModal :open="adhocDialog" @update:open="adhocDialog = $event">
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-slate-600 dark:text-slate-300"
+                >临时 Ping 工具</span
+              >
+              <UButton
+                size="xs"
+                variant="ghost"
+                icon="i-lucide-refresh-ccw"
+                :loading="adhocLoading"
+                @click="submitAdhoc"
+                >执行</UButton
+              >
+            </div>
+          </template>
+          <div class="space-y-4">
+            <div class="grid gap-4 md:grid-cols-3">
+              <div class="flex flex-col gap-1">
+                <label class="text-xs text-slate-500 dark:text-slate-400"
+                  >主机名 / 域名</label
+                >
+                <UInput
+                  v-model="adhocForm.host"
+                  placeholder="play.example.com"
+                />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-xs text-slate-500 dark:text-slate-400"
+                  >端口 (可选)</label
+                >
+                <UInput
+                  v-model.number="adhocForm.port"
+                  type="number"
+                  placeholder="留空自动/SRV"
+                />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-xs text-slate-500 dark:text-slate-400"
+                  >版本</label
+                >
+                <USelectMenu
+                  v-model="adhocForm.edition"
+                  :items="editionOptions"
+                  value-key="value"
+                  label-key="label"
+                />
+              </div>
+            </div>
+            <div
+              v-if="adhocResult"
+              class="rounded-xl border border-slate-200/60 bg-slate-50/70 p-3 text-xs dark:border-slate-700 dark:bg-slate-900/50"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-medium"
+                  >结果:
+                  {{
+                    adhocResult.edition === 'BEDROCK'
+                      ? adhocResult.response.version
+                      : adhocResult.response.version?.name
+                  }}</span
+                >
+                <UBadge variant="soft" color="neutral">{{
+                  editionLabel(adhocResult.edition)
+                }}</UBadge>
+              </div>
+              <div class="mt-2 grid grid-cols-3 gap-2">
+                <div>
+                  <p class="text-slate-500 dark:text-slate-400">玩家</p>
+                  <p class="font-semibold">
+                    {{ adhocResult.response.players?.online ?? 0 }} /
+                    {{ adhocResult.response.players?.max ?? 0 }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-slate-500 dark:text-slate-400">延迟</p>
+                  <p class="font-semibold">
+                    {{ adhocResult.response.latency ?? '—' }} ms
+                  </p>
+                </div>
+                <div class="col-span-1">
+                  <p class="text-slate-500 dark:text-slate-400">MOTD</p>
+                  <p class="line-clamp-3 break-all">
+                    {{
+                      adhocResult.edition === 'JAVA'
+                        ? adhocResult.response.description
+                        : adhocResult.response.motd
+                    }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-xs text-slate-500 dark:text-slate-400">
+              {{ adhocLoading ? '请求中...' : '填写参数后点击执行' }}
+            </div>
+          </div>
         </UCard>
       </template>
     </UModal>

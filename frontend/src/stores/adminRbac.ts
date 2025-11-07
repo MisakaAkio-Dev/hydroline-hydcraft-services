@@ -18,6 +18,7 @@ export const useAdminRbacStore = defineStore('admin-rbac', {
     loadingPermissions: false,
     loadingLabels: false,
     loadingCatalog: false,
+    submitting: false,
   }),
   actions: {
     async fetchRoles(force = false) {
@@ -106,6 +107,162 @@ export const useAdminRbacStore = defineStore('admin-rbac', {
         token: auth.token,
         body: { permissionKeys },
       })
+    },
+    // Role CRUD
+    async createRole(payload: { key: string; name: string; description?: string | null; permissionKeys: string[] }) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法创建角色')
+      this.submitting = true
+      try {
+        await apiFetch('/auth/roles', {
+          method: 'POST',
+          token: auth.token,
+          body: payload,
+        })
+        await this.fetchRoles(true)
+      } finally {
+        this.submitting = false
+      }
+    },
+    async updateRole(roleId: string, payload: { name?: string; description?: string | null }) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法更新角色')
+      this.submitting = true
+      try {
+        await apiFetch(`/auth/roles/${roleId}`, {
+          method: 'PATCH',
+          token: auth.token,
+          body: payload,
+        })
+        await this.fetchRoles(true)
+      } finally {
+        this.submitting = false
+      }
+    },
+    async updateRolePermissions(roleId: string, permissionKeys: string[]) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法更新角色权限')
+      this.submitting = true
+      try {
+        await apiFetch(`/auth/roles/${roleId}/permissions`, {
+          method: 'PATCH',
+          token: auth.token,
+          body: { permissionKeys },
+        })
+        await this.fetchRoles(true)
+      } finally {
+        this.submitting = false
+      }
+    },
+    async deleteRole(roleId: string) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法删除角色')
+      this.submitting = true
+      try {
+        await apiFetch(`/auth/roles/${roleId}`, {
+          method: 'DELETE',
+          token: auth.token,
+        })
+        this.roles = this.roles.filter(r => r.id !== roleId)
+      } finally {
+        this.submitting = false
+      }
+    },
+    // Permission CRUD
+    async createPermission(payload: { key: string; description?: string | null }) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法创建权限')
+      this.submitting = true
+      try {
+        await apiFetch('/auth/permissions', {
+          method: 'POST',
+          token: auth.token,
+          body: payload,
+        })
+        await this.fetchPermissions(true)
+        await this.fetchCatalog(true)
+      } finally {
+        this.submitting = false
+      }
+    },
+    async updatePermission(permissionId: string, payload: { description?: string | null }) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法更新权限')
+      this.submitting = true
+      try {
+        await apiFetch(`/auth/permissions/${permissionId}`, {
+          method: 'PATCH',
+          token: auth.token,
+          body: payload,
+        })
+        await this.fetchPermissions(true)
+        await this.fetchCatalog(true)
+      } finally {
+        this.submitting = false
+      }
+    },
+    async deletePermission(permissionId: string) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法删除权限')
+      this.submitting = true
+      try {
+        await apiFetch(`/auth/permissions/${permissionId}`, {
+          method: 'DELETE',
+          token: auth.token,
+        })
+        this.permissions = this.permissions.filter(p => p.id !== permissionId)
+        await this.fetchCatalog(true)
+      } finally {
+        this.submitting = false
+      }
+    },
+    // Permission Label CRUD
+    async createLabel(payload: { key: string; name: string; description?: string | null; color?: string | null; permissionKeys: string[] }) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法创建权限标签')
+      this.submitting = true
+      try {
+        await apiFetch('/auth/permission-labels', {
+          method: 'POST',
+          token: auth.token,
+          body: payload,
+        })
+        await this.fetchLabels(true)
+        await this.fetchCatalog(true)
+      } finally {
+        this.submitting = false
+      }
+    },
+    async updateLabel(labelId: string, payload: { name?: string; description?: string | null; color?: string | null; permissionKeys?: string[] }) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法更新权限标签')
+      this.submitting = true
+      try {
+        await apiFetch(`/auth/permission-labels/${labelId}`, {
+          method: 'PATCH',
+          token: auth.token,
+          body: payload,
+        })
+        await this.fetchLabels(true)
+        await this.fetchCatalog(true)
+      } finally {
+        this.submitting = false
+      }
+    },
+    async deleteLabel(labelId: string) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法删除权限标签')
+      this.submitting = true
+      try {
+        await apiFetch(`/auth/permission-labels/${labelId}`, {
+          method: 'DELETE',
+          token: auth.token,
+        })
+        this.labels = this.labels.filter(l => l.id !== labelId)
+        await this.fetchCatalog(true)
+      } finally {
+        this.submitting = false
+      }
     },
   },
 })

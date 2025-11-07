@@ -124,6 +124,20 @@ export class UsersController {
     );
   }
 
+  @Delete(':userId/bindings/:bindingId')
+  @ApiOperation({ summary: '解绑指定 AuthMe 绑定' })
+  async unbindAuthme(
+    @Param('userId') userId: string,
+    @Param('bindingId') bindingId: string,
+    @Req() req: Request,
+  ) {
+    return await this.usersService.unbindAuthmeBinding(
+      userId,
+      bindingId,
+      req.user?.id,
+    );
+  }
+
   @Get(':userId/bindings/history')
   @ApiOperation({ summary: '查看绑定流转记录' })
   async listBindingHistory(

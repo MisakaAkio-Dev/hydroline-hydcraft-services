@@ -54,3 +54,22 @@ export type MinecraftPingResult =
       edition: 'BEDROCK'
       response: BedrockPingResponse
     }
+
+export interface MinecraftPingHistoryItem {
+  id: string
+  serverId: string
+  edition: MinecraftServerEdition
+  latency: number | null
+  onlinePlayers: number | null
+  maxPlayers: number | null
+  motd?: string | null
+  createdAt: string
+}
+
+export interface MinecraftPingSettings {
+  id: string
+  intervalMinutes: number
+  retentionDays: number
+  createdAt: string
+  updatedAt: string
+}

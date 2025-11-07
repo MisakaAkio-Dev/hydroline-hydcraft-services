@@ -16,6 +16,7 @@ import { PermissionsGuard } from './permissions.guard';
 import { RequirePermissions } from './permissions.decorator';
 import { DEFAULT_PERMISSIONS } from './roles.service';
 import { CreateAuthmeHistoryEntryDto } from '../authme/dto/create-authme-history-entry.dto';
+// 使用内联 DTO 以降低耦合
 
 @ApiTags('AuthMe 玩家管理')
 @ApiBearerAuth()
@@ -60,5 +61,19 @@ export class PlayersController {
     @Req() req: Request,
   ) {
     return this.playersService.createHistoryEntry(username, dto, req.user?.id);
+  }
+
+  @Post(':username/bind')
+  @ApiOperation({ summary: '将指定 AuthMe 玩家绑定到站内用户' })
+  async bindPlayer(
+    @Param('username') username: string,
+    @Body() dto: { userId: string },
+    @Req() req: Request,
+  ) {
+    return await this.playersService.bindPlayerToUser(
+      username,
+      dto.userId,
+      req.user?.id,
+    );
   }
 }

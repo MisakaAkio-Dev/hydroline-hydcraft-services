@@ -45,7 +45,7 @@ async function fetchDetail() {
     // hydrate forms
     profileForm.displayName = data.profile?.displayName ?? ''
     profileForm.birthday = data.profile?.birthday ?? ''
-    profileForm.gender = (data.profile as any)?.gender ?? ''
+  profileForm.gender = data.profile?.gender ?? ''
     profileForm.motto = data.profile?.motto ?? ''
     profileForm.timezone = data.profile?.timezone ?? ''
     profileForm.locale = data.profile?.locale ?? ''
@@ -151,6 +151,16 @@ async function markPrimaryBinding(bindingId: string) {
   )
   await Promise.all([fetchDetail(), fetchBindingHistory()])
 }
+
+async function unbind(bindingId: string) {
+  if (!auth.token || !detail.value) return
+  if (!window.confirm('确定要解绑该 AuthMe 账号吗？')) return
+  await apiFetch(
+    `/auth/users/${detail.value.id}/bindings/${bindingId}`,
+    { method: 'DELETE', token: auth.token },
+  )
+  await Promise.all([fetchDetail(), fetchBindingHistory()])
+}
 </script>
 
 <template>
@@ -170,7 +180,7 @@ async function markPrimaryBinding(bindingId: string) {
       </div>
       <div class="flex gap-2">
         <UButton color="primary" variant="soft" size="xs" @click="handleResetPassword">重置密码</UButton>
-        <UButton color="red" variant="soft" size="xs" @click="handleDeleteUser">删除用户</UButton>
+  <UButton color="error" variant="soft" size="xs" @click="handleDeleteUser">删除用户</UButton>
       </div>
     </header>
     <p v-if="resetResult" class="text-xs text-emerald-600 dark:text-emerald-400">
@@ -268,6 +278,15 @@ async function markPrimaryBinding(bindingId: string) {
               >
                 设为主绑定
               </UButton>
+              <UButton
+                v-if="b.id"
+                size="xs"
+                color="error"
+                variant="soft"
+                @click="unbind(b.id)"
+              >
+                解绑
+              </UButton>
             </div>
           </div>
         </div>
@@ -332,7 +351,7 @@ async function markPrimaryBinding(bindingId: string) {
       </template>
       <div class="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
         <p>删除用户会同时清除其会话、绑定与档案，且无法恢复。</p>
-        <UButton color="red" variant="soft" size="sm" @click="handleDeleteUser">
+  <UButton color="error" variant="soft" size="sm" @click="handleDeleteUser">
           删除该用户
         </UButton>
       </div>

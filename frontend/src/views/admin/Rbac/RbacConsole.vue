@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useAdminRbacStore } from '@/stores/adminRbac'
 import { useUiStore } from '@/stores/ui'
 
@@ -12,6 +12,39 @@ const roles = computed(() => rbacStore.roles)
 const permissions = computed(() => rbacStore.permissions)
 const labels = computed(() => rbacStore.labels)
 const catalog = computed(() => rbacStore.catalog)
+const catalogKeyword = ref('')
+const filteredCatalog = computed(() => {
+  const k = catalogKeyword.value.trim().toLowerCase()
+  if (!k) return catalog.value
+  return catalog.value.filter((e) =>
+    e.key.toLowerCase().includes(k) || (e.description ?? '').toLowerCase().includes(k),
+  )
+})
+
+// 依据权限 key 模块前缀分组（按第一个 '.' 分隔，无则归于 global）
+const catalogGroups = computed(() => {
+  const groups: Record<string, typeof catalog.value> = {}
+  for (const entry of filteredCatalog.value) {
+    const module = entry.key.includes('.') ? entry.key.split('.')[0] : 'global'
+    if (!groups[module]) groups[module] = []
+    groups[module].push(entry)
+  }
+  return Object.entries(groups)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([module, entries]) => ({ module, entries }))
+})
+
+// 折叠状态管理
+const collapsed = reactive<Record<string, boolean>>({})
+function toggleGroup(module: string) {
+  collapsed[module] = !collapsed[module]
+}
+function expandAll() {
+  for (const g of catalogGroups.value) collapsed[g.module] = false
+}
+function collapseAll() {
+  for (const g of catalogGroups.value) collapsed[g.module] = true
+}
 
 const tabs = [
   { key: 'roles', label: '角色管理' },
@@ -62,6 +95,123 @@ async function submitSelfAssign() {
     selfSubmitting.value = false
   }
 }
+
+// ==== 角色编辑 ====
+const roleModalOpen = ref(false)
+const roleEditingId = ref<string | null>(null)
+const roleForm = reactive({
+  key: '',
+  name: '',
+  description: '' as string | null,
+  permissionKeys: [] as string[],
+})
+
+function openCreateRole() {
+  roleEditingId.value = null
+  roleForm.key = ''
+  roleForm.name = ''
+  roleForm.description = ''
+  roleForm.permissionKeys = []
+  roleModalOpen.value = true
+}
+
+function openEditRole(role: typeof roles.value[number]) {
+  roleEditingId.value = role.id
+  roleForm.key = role.key
+  roleForm.name = role.name
+  roleForm.description = role.description ?? ''
+  roleForm.permissionKeys = (role.rolePermissions ?? []).map((r) => r.permission.key)
+  roleModalOpen.value = true
+}
+
+async function submitRole() {
+  if (roleEditingId.value) {
+    await rbacStore.updateRole(roleEditingId.value, {
+      name: roleForm.name,
+      description: roleForm.description ?? null,
+    })
+    await rbacStore.updateRolePermissions(roleEditingId.value, roleForm.permissionKeys)
+  } else {
+    await rbacStore.createRole({
+      key: roleForm.key,
+      name: roleForm.name,
+      description: roleForm.description ?? null,
+      permissionKeys: roleForm.permissionKeys,
+    })
+  }
+  roleModalOpen.value = false
+}
+
+async function deleteRole(role: typeof roles.value[number]) {
+  if (role.isSystem) return
+  if (!confirm(`确定删除角色「${role.name}」吗？该操作不可恢复。`)) return
+  await rbacStore.deleteRole(role.id)
+}
+
+function switchPermission(key: string, value: boolean | 'indeterminate') {
+  const checked = value === true
+  const set = new Set(roleForm.permissionKeys)
+  if (checked) set.add(key)
+  else set.delete(key)
+  roleForm.permissionKeys = Array.from(set)
+}
+
+// ==== 标签编辑 ====
+const labelModalOpen = ref(false)
+const labelEditingId = ref<string | null>(null)
+const labelForm = reactive({
+  key: '',
+  name: '',
+  description: '' as string | null,
+  color: '' as string | null,
+  permissionKeys: [] as string[],
+})
+
+function openCreateLabel() {
+  labelEditingId.value = null
+  labelForm.key = ''
+  labelForm.name = ''
+  labelForm.description = ''
+  labelForm.color = ''
+  labelForm.permissionKeys = []
+  labelModalOpen.value = true
+}
+
+interface EditableLabel { id: string; key: string; name: string; description: string | null; color?: string | null; permissions: Array<{ id: string; permission: { key: string } }>; }
+function openEditLabel(label: EditableLabel) {
+  labelEditingId.value = label.id
+  labelForm.key = label.key
+  labelForm.name = label.name
+  labelForm.description = label.description ?? ''
+  labelForm.color = label.color ?? ''
+  labelForm.permissionKeys = (label.permissions ?? []).map((p) => p.permission.key)
+  labelModalOpen.value = true
+}
+
+async function submitLabel() {
+  if (labelEditingId.value) {
+    await rbacStore.updateLabel(labelEditingId.value, {
+      name: labelForm.name,
+      description: labelForm.description ?? null,
+      color: labelForm.color || null,
+      permissionKeys: labelForm.permissionKeys,
+    })
+  } else {
+    await rbacStore.createLabel({
+      key: labelForm.key,
+      name: labelForm.name,
+      description: labelForm.description ?? null,
+      color: labelForm.color || null,
+      permissionKeys: labelForm.permissionKeys,
+    })
+  }
+  labelModalOpen.value = false
+}
+
+async function deleteLabel(label: typeof labels.value[number]) {
+  if (!confirm(`确定删除标签「${label.name}」吗？`)) return
+  await rbacStore.deleteLabel(label.id)
+}
 </script>
 
 <template>
@@ -73,7 +223,7 @@ async function submitSelfAssign() {
       </p>
     </header>
 
-    <div class="flex flex-wrap gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <UButton
         v-for="tab in tabs"
         :key="tab.key"
@@ -84,6 +234,12 @@ async function submitSelfAssign() {
       >
         {{ tab.label }}
       </UButton>
+      <div class="ml-auto flex gap-2" v-if="activeTab === 'roles'">
+        <UButton size="sm" color="primary" variant="soft" @click="openCreateRole">新建角色</UButton>
+      </div>
+      <div class="ml-auto flex gap-2" v-else-if="activeTab === 'labels'">
+        <UButton size="sm" color="primary" variant="soft" @click="openCreateLabel">新建标签</UButton>
+      </div>
     </div>
 
     <div v-if="activeTab === 'roles'" class="space-y-4">
@@ -120,11 +276,18 @@ async function submitSelfAssign() {
                 {{ role.description ?? '—' }}
               </td>
               <td class="px-4 py-3 text-right">
-                <UTooltip text="后续迭代开放编辑">
-                  <UButton size="xs" color="neutral" variant="ghost" disabled>
-                    编辑
+                <div class="flex justify-end gap-2">
+                  <UButton size="xs" color="neutral" variant="outline" @click="openEditRole(role)">编辑</UButton>
+                  <UButton
+                    v-if="!role.isSystem"
+                    size="xs"
+                    color="error"
+                    variant="soft"
+                    @click="deleteRole(role)"
+                  >
+                    删除
                   </UButton>
-                </UTooltip>
+                </div>
               </td>
             </tr>
             <tr v-if="roles.length === 0">
@@ -136,7 +299,7 @@ async function submitSelfAssign() {
         </table>
       </div>
       <p class="text-xs text-slate-500 dark:text-slate-400">
-        注：角色与权限数据来自后端接口 `/auth/roles`，编辑能力将在权限审批流程完善后开放。
+        注：角色与权限数据实时来自后端，可编辑非系统角色并调整其权限集合。
       </p>
     </div>
 
@@ -184,58 +347,103 @@ async function submitSelfAssign() {
               </li>
               <li v-if="label.permissions.length === 0">该标签未附加任何权限，可用于纯标签标识。</li>
             </ul>
+            <div class="mt-3 flex justify-end gap-2">
+              <UButton size="xs" color="neutral" variant="outline" @click="openEditLabel(label)">编辑</UButton>
+              <UButton size="xs" color="error" variant="soft" @click="deleteLabel(label)">删除</UButton>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
     <div v-else-if="activeTab === 'catalog'" class="space-y-4">
-      <div class="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70">
-        <table class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
-          <thead class="bg-slate-50/60 dark:bg-slate-900/60">
-            <tr class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              <th class="px-4 py-3">权限点</th>
-              <th class="px-4 py-3">角色来源</th>
-              <th class="px-4 py-3">标签来源</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 dark:divide-slate-800/70">
-            <tr v-for="entry in catalog" :key="entry.id" class="transition hover:bg-slate-50/80 dark:hover:bg-slate-900/60">
-              <td class="px-4 py-3">
-                <div class="flex flex-col">
-                  <span class="font-medium text-slate-900 dark:text-white">{{ entry.key }}</span>
-                  <span class="text-xs text-slate-500 dark:text-slate-400">{{ entry.description ?? '—' }}</span>
-                </div>
-              </td>
-              <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                <div class="flex flex-wrap gap-1">
-                  <UBadge
-                    v-for="role in entry.roles"
-                    :key="role.id"
-                    color="primary"
-                    variant="soft"
+      <div class="flex flex-wrap items-center gap-2">
+        <UInput v-model="catalogKeyword" placeholder="搜索权限点或描述" class="max-w-md" />
+        <UButton color="neutral" variant="ghost" size="xs" @click="catalogKeyword = ''">清空</UButton>
+        <UButton color="neutral" variant="ghost" size="xs" @click="expandAll">全部展开</UButton>
+        <UButton color="neutral" variant="ghost" size="xs" @click="collapseAll">全部折叠</UButton>
+        <span class="ml-auto text-xs text-slate-500 dark:text-slate-400">共 {{ filteredCatalog.length }} 项，模块 {{ catalogGroups.length }}</span>
+      </div>
+      <div class="space-y-3">
+        <div
+          v-for="group in catalogGroups"
+          :key="group.module"
+          class="rounded-2xl border border-slate-200/70 bg-white/80 dark:border-slate-800/60 dark:bg-slate-900/70"
+        >
+          <div
+            class="flex cursor-pointer items-center justify-between px-4 py-2 text-sm"
+            @click="toggleGroup(group.module)"
+          >
+            <div class="flex items-center gap-3">
+              <UIcon
+                :name="collapsed[group.module] ? 'i-heroicons-chevron-right' : 'i-heroicons-chevron-down'"
+                class="text-slate-500 transition"
+              />
+              <span class="font-medium text-slate-900 dark:text-white">{{ group.module }}</span>
+              <UBadge variant="soft" color="neutral">{{ group.entries.length }}</UBadge>
+            </div>
+            <span class="text-xs text-slate-500 dark:text-slate-400" v-if="collapsed[group.module]">已折叠</span>
+          </div>
+          <transition name="fade" mode="out-in">
+            <div v-if="!collapsed[group.module]" class="border-t border-slate-100 dark:border-slate-800/50">
+              <table class="min-w-full divide-y divide-slate-100 text-xs dark:divide-slate-800/60">
+                <thead>
+                  <tr class="text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <th class="px-4 py-2">权限点</th>
+                    <th class="px-4 py-2">角色来源</th>
+                    <th class="px-4 py-2">标签来源</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 dark:divide-slate-800/50">
+                  <tr
+                    v-for="entry in group.entries"
+                    :key="entry.id"
+                    class="transition hover:bg-slate-50/80 dark:hover:bg-slate-900/60"
                   >
-                    {{ role.name }}
-                  </UBadge>
-                  <span v-if="entry.roles.length === 0">未纳入任何角色</span>
-                </div>
-              </td>
-              <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                <div class="flex flex-wrap gap-1">
-                  <UBadge
-                    v-for="label in entry.labels"
-                    :key="label.id"
-                    color="neutral"
-                    variant="soft"
-                  >
-                    {{ label.name }}
-                  </UBadge>
-                  <span v-if="entry.labels.length === 0">未被任何标签引用</span>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                    <td class="px-4 py-2">
+                      <div class="flex flex-col">
+                        <span class="font-medium text-slate-900 dark:text-white">{{ entry.key }}</span>
+                        <span class="text-[11px] text-slate-500 dark:text-slate-400">{{ entry.description ?? '—' }}</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-2 text-[11px] text-slate-500 dark:text-slate-400">
+                      <div class="flex flex-wrap gap-1">
+                        <UBadge
+                          v-for="role in entry.roles"
+                          :key="role.id"
+                          color="primary"
+                          variant="soft"
+                        >
+                          {{ role.name }}
+                        </UBadge>
+                        <span v-if="entry.roles.length === 0">—</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-2 text-[11px] text-slate-500 dark:text-slate-400">
+                      <div class="flex flex-wrap gap-1">
+                        <UBadge
+                          v-for="label in entry.labels"
+                          :key="label.id"
+                          color="neutral"
+                          variant="soft"
+                        >
+                          {{ label.name }}
+                        </UBadge>
+                        <span v-if="entry.labels.length === 0">—</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </transition>
+        </div>
+        <div
+          v-if="catalogGroups.length === 0"
+          class="rounded-xl border border-dashed border-slate-200 p-10 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400"
+        >
+          未找到匹配的权限节点。
+        </div>
       </div>
     </div>
 
@@ -258,4 +466,90 @@ async function submitSelfAssign() {
       </div>
     </div>
   </div>
+
+  <!-- 角色编辑弹窗 -->
+  <UModal v-model:open="roleModalOpen" :ui="{ content: 'w-full max-w-2xl' }">
+    <template #content>
+      <form class="space-y-4 p-6 text-sm" @submit.prevent="submitRole">
+        <header class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ roleEditingId ? '编辑角色' : '新建角色' }}</h3>
+        </header>
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="flex flex-col gap-1">
+            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Key</span>
+            <UInput v-model="roleForm.key" :disabled="!!roleEditingId" placeholder="如 moderator" required />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">名称</span>
+            <UInput v-model="roleForm.name" placeholder="展示名称" required />
+          </label>
+        </div>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">描述</span>
+          <UTextarea v-model="roleForm.description" :rows="2" placeholder="补充说明（可选）" />
+        </label>
+        <div>
+          <p class="mb-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">权限点</p>
+          <div class="grid max-h-64 grid-cols-1 gap-1 overflow-auto rounded-lg border border-slate-200/70 p-3 dark:border-slate-800/60 md:grid-cols-2">
+            <label v-for="perm in permissions" :key="perm.id" class="flex items-center gap-2 text-xs">
+              <UCheckbox :model-value="roleForm.permissionKeys.includes(perm.key)" @update:model-value="(v:boolean|'indeterminate')=>switchPermission(perm.key, v)" />
+              <span class="font-mono">{{ perm.key }}</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <UButton type="button" color="neutral" variant="ghost" @click="roleModalOpen = false">取消</UButton>
+          <UButton type="submit" color="primary" :loading="rbacStore.submitting">保存</UButton>
+        </div>
+      </form>
+    </template>
+  </UModal>
+
+  <!-- 标签编辑弹窗 -->
+  <UModal v-model:open="labelModalOpen" :ui="{ content: 'w-full max-w-2xl' }">
+    <template #content>
+      <form class="space-y-4 p-6 text-sm" @submit.prevent="submitLabel">
+        <header class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ labelEditingId ? '编辑权限标签' : '新建权限标签' }}</h3>
+        </header>
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="flex flex-col gap-1">
+            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Key</span>
+            <UInput v-model="labelForm.key" :disabled="!!labelEditingId" placeholder="如 vip" required />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">名称</span>
+            <UInput v-model="labelForm.name" placeholder="展示名称" required />
+          </label>
+        </div>
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="flex flex-col gap-1">
+            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">描述</span>
+            <UInput v-model="labelForm.description" placeholder="说明（可选）" />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">颜色</span>
+            <UInput v-model="labelForm.color" placeholder="#AABBCC 或主题色名（可选）" />
+          </label>
+        </div>
+        <div>
+          <p class="mb-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">权限点（可留空）</p>
+          <div class="grid max-h-64 grid-cols-1 gap-1 overflow-auto rounded-lg border border-slate-200/70 p-3 dark:border-slate-800/60 md:grid-cols-2">
+            <label v-for="perm in permissions" :key="perm.id" class="flex items-center gap-2 text-xs">
+              <UCheckbox :model-value="labelForm.permissionKeys.includes(perm.key)" @update:model-value="(v:boolean|'indeterminate')=>{
+                const set = new Set(labelForm.permissionKeys)
+                if (v === true) set.add(perm.key); else set.delete(perm.key)
+                labelForm.permissionKeys = Array.from(set)
+              }" />
+              <span class="font-mono">{{ perm.key }}</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <UButton type="button" color="neutral" variant="ghost" @click="labelModalOpen = false">取消</UButton>
+          <UButton type="submit" color="primary" :loading="rbacStore.submitting">保存</UButton>
+        </div>
+      </form>
+    </template>
+  </UModal>
 </template>

@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { MinecraftServerEdition, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMinecraftServerDto } from './dto/create-minecraft-server.dto';
 import { UpdateMinecraftServerDto } from './dto/update-minecraft-server.dto';
 import { MinecraftService } from './minecraft.service';
+import { MinecraftPingScheduler } from './ping.scheduler';
 import { PingMinecraftRequestDto } from './dto/ping-minecraft.dto';
 
 @Injectable()
@@ -11,7 +12,35 @@ export class MinecraftServerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly minecraftService: MinecraftService,
+    private readonly pingScheduler: MinecraftPingScheduler,
   ) {}
+
+  // 递归移除字符串中的 \u0000，避免 Postgres 22P05（text/json 不允许零字节）
+  private sanitizeForPg(input: unknown): unknown {
+    if (input == null) return input;
+    if (typeof input === 'string') {
+      // 仅移除 NUL，不动其他控制字符，避免破坏 MOTD 颜色码等
+      // 使用字符代码过滤，避免正则中的控制字符误报
+      let out = '';
+      for (let i = 0; i < input.length; i++) {
+        const ch = input.charCodeAt(i);
+        if (ch === 0) continue; // 跳过 NUL
+        out += input[i];
+      }
+      return out;
+    }
+    if (Array.isArray(input)) {
+      return input.map((v) => this.sanitizeForPg(v));
+    }
+    if (typeof input === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+        out[k] = this.sanitizeForPg(v);
+      }
+      return out;
+    }
+    return input;
+  }
 
   listServers(params: { keyword?: string } = {}) {
     const where: Prisma.MinecraftServerWhereInput | undefined = params.keyword
@@ -88,12 +117,84 @@ export class MinecraftServerService {
         (server.edition === MinecraftServerEdition.BEDROCK ? 19132 : 25565),
       edition: server.edition,
     };
-    const result = await this.minecraftService.pingServer(pingInput);
-    return {
-      server,
-      edition: result.edition,
-      response: result.response,
-    };
+    try {
+      const result = await this.minecraftService.pingServer(pingInput);
+      // 记录历史（持久化前内容清洗，避免 22P05 Postgres NUL 问题）
+      const safeRaw = this.sanitizeForPg(result.response) as object;
+      const safeMotd = ((): string | null | undefined => {
+        if (result.edition === MinecraftServerEdition.BEDROCK) {
+          const v = (result.response as unknown as { motd?: string })?.motd;
+          return (this.sanitizeForPg(v) as string | null | undefined) ?? null;
+        }
+        return undefined;
+      })();
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      await this.prisma.minecraftServerPingRecord.create({
+        data: {
+          serverId: server.id,
+          edition: result.edition,
+          latency: result.response.latency ?? null,
+          onlinePlayers: result.response.players?.online ?? null,
+          maxPlayers: result.response.players?.max ?? null,
+          motd: safeMotd,
+          raw: safeRaw,
+        },
+      });
+      return {
+        server,
+        edition: result.edition,
+        response: result.response,
+      };
+    } catch (err) {
+      // 网络错误优雅处理
+      if (err && typeof err === 'object' && 'message' in err) {
+        const message = (err as Error).message;
+        const isNetErr = /ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN/i.test(
+          message,
+        );
+        if (isNetErr) {
+          // 写入失败记录（仅时间戳 + 空字段）以便统计可用性
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+          await this.prisma.minecraftServerPingRecord.create({
+            data: {
+              serverId: server.id,
+              edition: server.edition,
+              latency: null,
+              onlinePlayers: null,
+              maxPlayers: null,
+              motd: null,
+              raw: { error: message },
+            },
+          });
+          throw new HttpException(`无法连接到服务器 (${message})`, 400);
+        }
+      }
+      throw err;
+    }
+  }
+
+  listPingHistory(serverId: string, days = 30) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    return (this.prisma as any).minecraftServerPingRecord.findMany({
+      where: { serverId, createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
+    }) as unknown;
+  }
+
+  async getPingSettings() {
+    // 通过调度器读取以确保默认值已初始化
+    return (await this.pingScheduler.getSettings()) as unknown;
+  }
+
+  async updatePingSettings(dto: {
+    intervalMinutes?: number;
+    retentionDays?: number;
+  }) {
+    // 委托调度器更新并动态调整定时任务
+    return (await this.pingScheduler.updateSettings(dto)) as unknown;
   }
 
   private toCreatePayload(

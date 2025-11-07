@@ -79,16 +79,13 @@ export class PlayersService {
           : [],
       ]);
 
-      const bindingMap = new Map<
-        string,
-        (typeof bindings)[number]
-      >(
+      const bindingMap = new Map<string, (typeof bindings)[number]>(
         bindings.map(
-          (binding) =>
-            [binding.authmeUsernameLower, binding] as [
-              string,
-              (typeof bindings)[number],
-            ],
+          (
+            binding: {
+              authmeUsernameLower: string;
+            } & (typeof bindings)[number],
+          ) => [binding.authmeUsernameLower, binding] as const,
         ),
       );
       const historyMap = new Map<string, typeof histories>();
@@ -282,6 +279,41 @@ export class PlayersService {
         ...(dto.payload ?? {}),
         manual: true,
       },
+    });
+  }
+
+  async bindPlayerToUser(username: string, userId: string, actorId?: string) {
+    const authme = await this.authmeService.getAccount(username);
+    if (!authme) {
+      // 即使 AuthMe 不可用，也允许通过历史/缓存信息绑定，但此处需要 authme 基础字段；若获取失败则用最小信息绑定
+      return this.authmeBindingService.bindUser({
+        userId,
+        authmeUser: {
+          username,
+          realname: username,
+          password: '',
+          ip: null,
+          regip: null,
+          lastlogin: null,
+          regdate: 0,
+          id: 0,
+          // 补齐位置/世界字段占位（AuthmeUser接口要求）
+          x: 0,
+          y: 0,
+          z: 0,
+          world: 'unknown',
+          isLogged: 0,
+          hasSession: 0,
+        },
+        operatorUserId: actorId ?? userId,
+        sourceIp: null,
+      });
+    }
+    return this.authmeBindingService.bindUser({
+      userId,
+      authmeUser: authme,
+      operatorUserId: actorId ?? userId,
+      sourceIp: null,
     });
   }
 }

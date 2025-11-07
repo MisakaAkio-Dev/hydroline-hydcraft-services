@@ -5,6 +5,8 @@ import type {
   MinecraftPingResult,
   MinecraftServer,
   MinecraftServerEdition,
+  MinecraftPingHistoryItem,
+  MinecraftPingSettings,
 } from '@/types/minecraft'
 
 type CreateServerPayload = {
@@ -88,6 +90,42 @@ export const useMinecraftServerStore = defineStore('minecraft-servers', {
       })
       this.pingResults.set(id, result as MinecraftPingResult)
       return result as MinecraftPingResult
+    },
+    async getPingSettings() {
+      const token = this.authHeaders()
+      return await apiFetch<MinecraftPingSettings>(
+        '/admin/minecraft/servers/ping/settings',
+        { token },
+      )
+    },
+    async updatePingSettings(payload: Partial<{
+      intervalMinutes: number
+      retentionDays: number
+    }>) {
+      const token = this.authHeaders()
+      return await apiFetch<MinecraftPingSettings>(
+        '/admin/minecraft/servers/ping/settings',
+        { method: 'PATCH', token, body: payload },
+      )
+    },
+    async listPingHistory(id: string, days = 1) {
+      const token = this.authHeaders()
+      const q = new URLSearchParams({ days: String(days) }).toString()
+      return await apiFetch<MinecraftPingHistoryItem[]>(
+        `/admin/minecraft/servers/${id}/ping/history?${q}`,
+        { token },
+      )
+    },
+    async adhocPing(payload: {
+      host: string
+      port?: number
+      edition: MinecraftServerEdition
+    }) {
+      // 工具接口不要求鉴权
+      return await apiFetch<MinecraftPingResult>('/minecraft/ping/adhoc', {
+        method: 'POST',
+        body: payload,
+      })
     },
   },
 })

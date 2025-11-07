@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { apiFetch } from '@/utils/api'
 import { useAuthStore } from './auth'
-import type { AdminPlayerEntry, AdminPlayerListResponse } from '@/types/admin'
+import type { AdminPlayerEntry, AdminPlayerListResponse, AdminBindingHistoryEntry } from '@/types/admin'
 
 interface FetchPlayersOptions {
   keyword?: string;
@@ -62,6 +62,23 @@ export const useAdminPlayersStore = defineStore('admin-players', {
         method: 'POST',
         token: auth.token,
         body: payload,
+      })
+    },
+  async fetchHistory(username: string, page = 1, pageSize = 20) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法查询历史')
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+      return apiFetch<{ items: AdminBindingHistoryEntry[]; pagination: { total: number; page: number; pageSize: number; pageCount: number } }>(`/auth/players/${encodeURIComponent(username)}/history?${params.toString()}`, {
+        token: auth.token,
+      })
+    },
+    async bindToUser(username: string, userId: string) {
+      const auth = useAuthStore()
+      if (!auth.token) throw new Error('未登录，无法绑定玩家')
+      return apiFetch(`/auth/players/${encodeURIComponent(username)}/bind`, {
+        method: 'POST',
+        token: auth.token,
+        body: { userId },
       })
     },
   },

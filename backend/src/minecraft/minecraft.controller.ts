@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MinecraftService } from './minecraft.service';
 import { PingMinecraftRequestDto } from './dto/ping-minecraft.dto';
 import { ParseMotdDto } from './dto/parse-motd.dto';
+// extra imports removed
 import { ValidatePlayerNameDto } from './dto/validate-player-name.dto';
 import { ValidateUuidDto } from './dto/validate-uuid.dto';
 
@@ -14,6 +15,12 @@ export class MinecraftController {
   @Post('ping')
   @ApiOperation({ summary: 'Ping Minecraft 服务器状态' })
   async ping(@Body() dto: PingMinecraftRequestDto) {
+    return this.minecraftService.pingServer(dto);
+  }
+
+  @Post('ping/adhoc')
+  @ApiOperation({ summary: '临时 Ping 指定服务器 （不保存记录）' })
+  adhoc(@Body() dto: PingMinecraftRequestDto) {
     return this.minecraftService.pingServer(dto);
   }
 

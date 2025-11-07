@@ -19,7 +19,7 @@ export class UpdateMinecraftServerDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(2)
+  @MinLength(1) // 允许 1 个字符
   @MaxLength(64)
   internalCodeCn?: string;
 

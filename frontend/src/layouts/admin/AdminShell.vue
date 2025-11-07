@@ -74,7 +74,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
         icon: 'i-lucide-database',
       },
       {
-        label: '服务器状态',
+        label: '服务端状态',
         to: '/admin/minecraft/servers',
         icon: 'i-lucide-server',
       },

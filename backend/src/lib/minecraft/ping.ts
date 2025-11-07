@@ -24,21 +24,31 @@ export async function pingJava(
   options: PingOptions = {},
 ): Promise<JavaPingResponse> {
   const { port = 25565, timeout = 10000, protocolVersion = 758 } = options;
+  const startTime = Date.now();
 
   const srv = await resolveSrv(host);
   const targetHost = srv?.host ?? host;
   const targetPort = srv?.port ?? port;
 
-  return new Promise((resolve, reject) => {
+  return new Promise<JavaPingResponse>((resolve, reject) => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     const server = new MinecraftServer(targetHost, targetPort);
-
-    server.ping(timeout, protocolVersion, (err, res) => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    server.ping(timeout, protocolVersion, (err: unknown, res: unknown) => {
       if (err) {
-        return reject(err);
+        // 确保 Promise 使用 Error 实例作为拒绝原因
+        const reason =
+          err instanceof Error
+            ? err
+            : new Error(typeof err === 'string' ? err : 'Ping 请求失败');
+        return reject(reason);
       }
-      // mcping-js 的响应格式与我们的 JavaPingResponse 几乎一致，直接返回即可。
-      // 注意：它返回的延迟可能不准确，我们这里自己计算。
-      resolve(res as JavaPingResponse);
+      const raw = res as JavaPingResponse;
+      const latency = Date.now() - startTime;
+      resolve({
+        ...raw,
+        latency,
+      });
     });
   });
 }
@@ -126,7 +136,8 @@ export function pingBedrock(
 
         resolve(response);
       } catch (error) {
-        reject(new Error(`解析基岩版 Ping 响应失败：${error.message}`));
+        const msg = error instanceof Error ? error.message : String(error);
+        reject(new Error(`解析基岩版 Ping 响应失败：${msg}`));
       }
     });
 
@@ -154,7 +165,7 @@ async function resolveSrv(
       return { host: records[0].name, port: records[0].port };
     }
     return null;
-  } catch (e) {
+  } catch {
     return null;
   }
 }

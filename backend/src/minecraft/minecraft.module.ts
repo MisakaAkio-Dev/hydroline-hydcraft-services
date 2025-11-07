@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { MinecraftService } from './minecraft.service';
 import { MinecraftController } from './minecraft.controller';
 import { MinecraftServerService } from './minecraft-server.service';
 import { MinecraftServerController } from './minecraft-server.controller';
+import { MinecraftPingScheduler } from './ping.scheduler';
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, ScheduleModule.forRoot()],
   controllers: [MinecraftController, MinecraftServerController],
-  providers: [MinecraftService, MinecraftServerService],
+  providers: [MinecraftService, MinecraftServerService, MinecraftPingScheduler],
   exports: [MinecraftService, MinecraftServerService],
 })
 export class MinecraftModule {}

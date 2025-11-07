@@ -99,7 +99,7 @@ const secondaryCards = computed(() =>
 
 const cardMetadata: Record<string, { title: string; description: string }> = {
   'server-status': {
-    title: '服务器状态',
+    title: '服务端状态',
     description: '实时掌握在线人数与运行状态。',
   },
   tasks: {

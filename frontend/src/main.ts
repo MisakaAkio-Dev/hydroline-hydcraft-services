@@ -17,6 +17,14 @@ import App from './App.vue'
 
 addCollection(lucideIcons)
 
+// Register ECharts renderer and components globally for vue-echarts
+// Fixes: Error: Renderer 'undefined' is not imported
+import { use as echartsUse } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+echartsUse([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
+
 const app = createApp(App)
 const pinia = createPinia()
 const head = createHead()
