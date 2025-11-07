@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { AuthRegisterDto } from './dto/auth-register.dto';
@@ -7,6 +8,7 @@ import { rethrowAuthmeError } from './helpers/authme-error.helper';
 import { AuthmeService } from '../authme/authme.service';
 import { buildRequestContext } from './helpers/request-context.helper';
 
+@ApiTags('认证')
 @Controller('auth')
 export class ApiAuthController {
   constructor(
@@ -15,6 +17,7 @@ export class ApiAuthController {
   ) {}
 
   @Post('register')
+  @ApiOperation({ summary: '注册（支持邮箱或 AuthMe）' })
   async register(
     @Body() dto: AuthRegisterDto,
     @Req() req: Request,
@@ -36,6 +39,7 @@ export class ApiAuthController {
   }
 
   @Post('login')
+  @ApiOperation({ summary: '登录（支持邮箱或 AuthMe）' })
   async login(
     @Body() dto: AuthLoginDto,
     @Req() req: Request,
@@ -57,11 +61,13 @@ export class ApiAuthController {
   }
 
   @Get('features')
+  @ApiOperation({ summary: '获取认证功能开关' })
   async getFeatures() {
     return this.authService.getFeatureFlags();
   }
 
   @Get('health/authme')
+  @ApiOperation({ summary: '检测 AuthMe 连接状态' })
   async getAuthmeHealth() {
     return this.authmeService.health();
   }

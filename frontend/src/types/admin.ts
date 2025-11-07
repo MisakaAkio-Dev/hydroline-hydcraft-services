@@ -8,6 +8,8 @@ export interface AdminUserListItem {
   profile: {
     displayName: string | null;
     piic: string | null;
+    primaryAuthmeBindingId?: string | null;
+    primaryMinecraft?: PortalMinecraftProfile | null;
   } | null;
   statusSnapshot?: {
     status: string;
@@ -31,13 +33,16 @@ export interface AdminUserListResponse {
 }
 
 export interface AdminAuthmeBindingEntry {
+  id?: string;
   authmeUsername: string;
   authmeRealname: string | null;
+  authmeUuid?: string | null;
   boundAt: string;
   ip?: string | null;
   regip?: string | null;
   lastlogin?: number | null;
   regdate?: number | null;
+  isPrimary?: boolean;
 }
 
 export interface AdminUserDetail extends AdminUserListItem {

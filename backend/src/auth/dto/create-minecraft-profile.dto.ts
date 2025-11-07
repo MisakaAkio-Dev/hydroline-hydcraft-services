@@ -12,11 +12,12 @@ import {
 export class CreateMinecraftProfileDto {
   @IsOptional()
   @IsUUID()
-  playerUuid?: string;
+  authmeBindingId?: string;
 
+  @IsOptional()
   @IsString()
   @MaxLength(64)
-  minecraftId!: string;
+  authmeUuid?: string;
 
   @IsOptional()
   @IsString()

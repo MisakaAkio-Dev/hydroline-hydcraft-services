@@ -6,6 +6,8 @@ import { usePortalStore } from '@/stores/portal'
 import { useUiStore } from '@/stores/ui'
 import { getApiBaseUrl } from '@/utils/api'
 
+import type { PortalMinecraftProfile } from '@/types/portal'
+
 const portalStore = usePortalStore()
 const uiStore = useUiStore()
 
@@ -61,6 +63,10 @@ onMounted(async () => {
 function formatDate(value: string | undefined) {
   if (!value) return '-'
   return new Date(value).toLocaleString()
+}
+
+function displayMinecraftAccount(player: PortalMinecraftProfile) {
+  return player.authmeBinding?.username ?? player.nickname ?? '未命名'
 }
 </script>
 
@@ -186,8 +192,10 @@ function formatDate(value: string | undefined) {
               :key="player.id"
               class="rounded-xl border border-slate-200/70 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
             >
-              <p class="text-sm font-medium text-slate-900 dark:text-white">{{ player.minecraftId }}</p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">{{ player.nickname ?? '待同步昵称' }}</p>
+              <p class="text-sm font-medium text-slate-900 dark:text-white">{{ displayMinecraftAccount(player) }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                {{ player.nickname ?? player.authmeBinding?.realname ?? '待同步昵称' }}
+              </p>
             </li>
             <li v-if="unlinkedCount === 0" class="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
               没有未绑定的玩家

@@ -371,6 +371,18 @@ export const useAuthStore = defineStore('auth', {
       this.setUser(result.user)
       return result.user
     },
+    async setPrimaryAuthmeBinding(bindingId: string) {
+      if (!this.token) {
+        throw new ApiError(401, '未登录')
+      }
+      const result = await apiFetch<{ user: RawUser }>('/authme/bind/primary', {
+        method: 'PATCH',
+        token: this.token,
+        body: { bindingId },
+      })
+      this.setUser(result.user)
+      return result.user
+    },
     clear() {
       this.setToken(null)
       this.setRefreshToken(null)

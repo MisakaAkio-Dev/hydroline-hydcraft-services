@@ -27,8 +27,14 @@ export interface PortalHomeData {
 
 export interface PortalMinecraftProfile {
   id: string;
-  minecraftId: string;
   nickname?: string | null;
+  authmeUuid?: string | null;
+  authmeBinding?: {
+    id: string;
+    username: string;
+    realname: string | null;
+    uuid: string | null;
+  } | null;
 }
 
 export interface PortalRole {
@@ -51,6 +57,7 @@ export interface AdminOverviewUser {
   profile: {
     displayName: string | null;
     piic: string | null;
+    primaryAuthmeBindingId?: string | null;
     primaryMinecraft: PortalMinecraftProfile | null;
   } | null;
   minecraftProfiles: Array<PortalMinecraftProfile & { isPrimary: boolean }>;

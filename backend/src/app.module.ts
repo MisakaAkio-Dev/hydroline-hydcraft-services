@@ -10,6 +10,7 @@ import { PortalModule } from './portal/portal.module';
 import { AuthmeModule } from './authme/authme.module';
 import { Ip2RegionModule } from './lib/ip2region/ip2region.module';
 import { LuckpermsModule } from './luckperms/luckperms.module';
+import { MinecraftModule } from './minecraft/minecraft.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { LuckpermsModule } from './luckperms/luckperms.module';
     AuthmeModule,
     Ip2RegionModule,
     LuckpermsModule,
+    MinecraftModule,
   ],
   controllers: [AppController],
   providers: [AppService],

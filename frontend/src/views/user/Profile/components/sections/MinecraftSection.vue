@@ -6,6 +6,7 @@ const imageLoadStates = ref<Record<string, boolean>>({})
 
 const props = defineProps<{
   bindings: Array<{
+    id?: string | null
     username: string
     realname?: string | null
     boundAt?: string | Date | null
@@ -20,13 +21,16 @@ const props = defineProps<{
       primaryGroupDisplayName: string | null
       groups: NormalizedLuckpermsGroup[]
     } | null
+    isPrimary?: boolean
   }>
   isEditing: boolean
   loading?: boolean
+  primaryLoadingId?: string | null
 }>()
 const emit = defineEmits<{
   (e: 'add'): void
   (e: 'unbind', payload: { username: string; realname?: string | null }): void
+  (e: 'set-primary', payload: { id: string | null }): void
 }>()
 
 function resolveGroupLabel(
@@ -119,9 +123,28 @@ function resolveGroupLabel(
               <span class="leading-none">
                 {{ b.realname || b.username }}
               </span>
+              <UBadge
+                v-if="b.isPrimary"
+                size="xs"
+                color="primary"
+                variant="soft"
+              >
+                主账号
+              </UBadge>
             </div>
 
-            <div>
+            <div class="flex items-center gap-1">
+              <UTooltip v-if="!b.isPrimary && b.id" text="设为主账号">
+                <UButton
+                  type="button"
+                  color="primary"
+                  variant="ghost"
+                  icon="i-lucide-star"
+                  aria-label="设为主账号"
+                  :loading="props.primaryLoadingId === b.id"
+                  @click="emit('set-primary', { id: b.id ?? null })"
+                />
+              </UTooltip>
               <UTooltip text="解除绑定">
                 <UButton
                   type="button"

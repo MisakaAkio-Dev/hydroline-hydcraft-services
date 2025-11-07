@@ -4,12 +4,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthmeUser } from './authme.interfaces';
 import { businessError } from './authme.errors';
 import { normalizeIpAddress } from '../lib/ip2region/ip-normalizer';
+import { LuckpermsService } from '../luckperms/luckperms.service';
 
 @Injectable()
 export class AuthmeBindingService {
   private readonly logger = new Logger(AuthmeBindingService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly luckpermsService: LuckpermsService,
+  ) {}
 
   listBindingsByUserId(userId: string) {
     return this.prisma.userAuthmeBinding.findMany({
@@ -31,6 +35,10 @@ export class AuthmeBindingService {
     sourceIp?: string | null;
   }) {
     const normalizedUsername = options.authmeUser.username.toLowerCase();
+    const resolvedUuid = await this.resolvePlayerUuid(
+      options.authmeUser.username,
+      options.authmeUser.realname,
+    );
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.userAuthmeBinding.findUnique({
         where: { authmeUsernameLower: normalizedUsername },
@@ -50,6 +58,7 @@ export class AuthmeBindingService {
           userId: options.userId,
           authmeUsername: options.authmeUser.username,
           authmeRealname: options.authmeUser.realname,
+          authmeUuid: resolvedUuid ?? existing?.authmeUuid ?? null,
           boundAt: new Date(),
           boundByUserId: options.operatorUserId ?? options.userId,
           boundByIp: sanitizeIp(options.sourceIp),
@@ -59,10 +68,29 @@ export class AuthmeBindingService {
           authmeUsername: options.authmeUser.username,
           authmeUsernameLower: normalizedUsername,
           authmeRealname: options.authmeUser.realname,
+          authmeUuid: resolvedUuid,
           boundByUserId: options.operatorUserId ?? options.userId,
           boundByIp: sanitizeIp(options.sourceIp),
         },
       });
+
+      const profile = await tx.userProfile.findUnique({
+        where: { userId: options.userId },
+        select: { primaryAuthmeBindingId: true },
+      });
+      if (!profile) {
+        await tx.userProfile.create({
+          data: {
+            userId: options.userId,
+            primaryAuthmeBindingId: binding.id,
+          },
+        });
+      } else if (!profile.primaryAuthmeBindingId) {
+        await tx.userProfile.update({
+          where: { userId: options.userId },
+          data: { primaryAuthmeBindingId: binding.id },
+        });
+      }
 
       await tx.userLifecycleEvent.create({
         data: {
@@ -99,6 +127,7 @@ export class AuthmeBindingService {
         await tx.userAuthmeBinding.delete({
           where: { authmeUsernameLower: options.usernameLower },
         });
+        await this.handleBindingRemoval(tx, target);
         await tx.userLifecycleEvent.create({
           data: {
             userId: options.userId,
@@ -120,6 +149,7 @@ export class AuthmeBindingService {
         where: { userId: options.userId },
       });
       for (const b of bindings) {
+        await this.handleBindingRemoval(tx, b);
         await tx.userLifecycleEvent.create({
           data: {
             userId: options.userId,
@@ -137,6 +167,44 @@ export class AuthmeBindingService {
 
   private toJson(value: Record<string, unknown>): Prisma.InputJsonValue {
     return value as Prisma.InputJsonValue;
+  }
+
+  private async resolvePlayerUuid(
+    authmeUsername: string,
+    authmeRealname: string | null,
+  ): Promise<string | null> {
+    try {
+      const identifier =
+        typeof authmeRealname === 'string' && authmeRealname.length > 0
+          ? authmeRealname
+          : authmeUsername;
+      const player = await this.luckpermsService
+        .getPlayerByUsername(identifier)
+        .catch(() => null);
+      return player?.uuid ?? null;
+    } catch (error) {
+      this.logger.debug(
+        `Failed to resolve LuckPerms UUID for ${authmeUsername}: ${String(error)}`,
+      );
+      return null;
+    }
+  }
+
+  private async handleBindingRemoval(
+    tx: Prisma.TransactionClient,
+    binding: { id: string; userId: string },
+  ) {
+    await tx.userProfile.updateMany({
+      where: {
+        userId: binding.userId,
+        primaryAuthmeBindingId: binding.id,
+      },
+      data: { primaryAuthmeBindingId: null },
+    });
+    await tx.userMinecraftProfile.updateMany({
+      where: { userId: binding.userId, authmeBindingId: binding.id },
+      data: { authmeBindingId: null },
+    });
   }
 }
 

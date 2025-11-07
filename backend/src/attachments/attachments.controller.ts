@@ -14,6 +14,7 @@ import {
   UseInterceptors,
   NotFoundException,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AttachmentsService } from './attachments.service';
@@ -33,6 +34,7 @@ import type { StoredUploadedFile } from './uploaded-file.interface';
 
 const multer = require('multer');
 
+@ApiTags('附件管理')
 @Controller('attachments')
 export class AttachmentsController {
   constructor(private readonly attachmentsService: AttachmentsService) {}
@@ -40,6 +42,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Get()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '查询附件列表' })
   async list(@Query() query: QueryAttachmentsDto) {
     return this.attachmentsService.listAttachments(query);
   }
@@ -53,6 +57,8 @@ export class AttachmentsController {
       limits: { fileSize: 64 * 1024 * 1024 },
     }),
   )
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '上传附件' })
   async upload(
     @Req() req: Request,
     @UploadedFile() file: StoredUploadedFile,
@@ -64,6 +70,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Patch(':attachmentId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新附件信息' })
   async update(
     @Param('attachmentId') attachmentId: string,
     @Req() req: Request,
@@ -79,6 +87,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Delete(':attachmentId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '删除附件' })
   async remove(@Param('attachmentId') attachmentId: string) {
     await this.attachmentsService.deleteAttachment(attachmentId);
     return { success: true };
@@ -87,6 +97,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Get('folders/all')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取全部附件文件夹' })
   async folders() {
     return this.attachmentsService.listFolders();
   }
@@ -94,6 +106,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Post('folders')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '创建附件文件夹' })
   async createFolder(@Req() req: Request, @Body() body: CreateFolderDto) {
     return this.attachmentsService.createFolder(req.user!.id, body);
   }
@@ -101,6 +115,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Patch('folders/:folderId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新附件文件夹' })
   async updateFolder(
     @Param('folderId') folderId: string,
     @Body() body: UpdateFolderDto,
@@ -111,6 +127,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Get('tags/all')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取附件标签列表' })
   async tags() {
     return this.attachmentsService.listTags();
   }
@@ -118,6 +136,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Post('tags')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '创建附件标签' })
   async createTag(@Req() req: Request, @Body() body: CreateTagDto) {
     return this.attachmentsService.createTag(req.user!.id, body);
   }
@@ -125,6 +145,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Patch('tags/:tagId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新附件标签' })
   async updateTag(@Param('tagId') tagId: string, @Body() body: UpdateTagDto) {
     return this.attachmentsService.updateTag(tagId, body);
   }
@@ -132,6 +154,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Delete('tags/:tagId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '删除附件标签' })
   async deleteTag(@Param('tagId') tagId: string) {
     await this.attachmentsService.deleteTag(tagId);
     return { success: true };
@@ -140,6 +164,8 @@ export class AttachmentsController {
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Post(':attachmentId/share')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '生成附件分享链接' })
   async share(
     @Param('attachmentId') attachmentId: string,
     @Req() req: Request,
@@ -153,6 +179,7 @@ export class AttachmentsController {
   }
 
   @Get('public/:attachmentId')
+  @ApiOperation({ summary: '公开下载附件' })
   async publicDownload(
     @Param('attachmentId') attachmentId: string,
     @Res() res: Response,
@@ -176,6 +203,7 @@ export class AttachmentsController {
   }
 
   @Get('share/:token')
+  @ApiOperation({ summary: '通过分享令牌下载附件' })
   async shareDownload(@Param('token') token: string, @Res() res: Response) {
     const attachment = await this.attachmentsService.resolveShareToken(token);
     const stream =

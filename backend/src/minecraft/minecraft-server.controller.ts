@@ -1,0 +1,71 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { Request } from 'express';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { MinecraftServerService } from './minecraft-server.service';
+import { CreateMinecraftServerDto } from './dto/create-minecraft-server.dto';
+import { UpdateMinecraftServerDto } from './dto/update-minecraft-server.dto';
+import { AuthGuard } from '../auth/auth.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
+import { DEFAULT_PERMISSIONS } from '../auth/roles.service';
+
+@ApiTags('Minecraft 服务器')
+@ApiBearerAuth()
+@Controller('admin/minecraft/servers')
+@UseGuards(AuthGuard, PermissionsGuard)
+@RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_MINECRAFT)
+export class MinecraftServerController {
+  constructor(private readonly service: MinecraftServerService) {}
+
+  @Get()
+  @ApiOperation({ summary: '列出已配置的 Minecraft 服务器' })
+  list(@Query('keyword') keyword?: string) {
+    return this.service.listServers({ keyword });
+  }
+
+  @Post()
+  @ApiOperation({ summary: '创建新的服务器配置' })
+  create(@Body() dto: CreateMinecraftServerDto, @Req() req: Request) {
+    return this.service.createServer(dto, req.user?.id);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: '查看单个服务器配置详情' })
+  detail(@Param('id') id: string) {
+    return this.service.getServerById(id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: '更新服务器配置' })
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateMinecraftServerDto,
+    @Req() req: Request,
+  ) {
+    return this.service.updateServer(id, dto, req.user?.id);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: '删除服务器配置' })
+  async remove(@Param('id') id: string) {
+    await this.service.deleteServer(id);
+    return { success: true };
+  }
+
+  @Post(':id/ping')
+  @ApiOperation({ summary: 'Ping 指定服务器并返回状态' })
+  ping(@Param('id') id: string) {
+    return this.service.pingManagedServer(id);
+  }
+}

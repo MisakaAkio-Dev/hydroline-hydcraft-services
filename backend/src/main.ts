@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { ApiExceptionFilter } from './lib/shared/http-exception.filter';
 import { TransformInterceptor } from './lib/shared/transform.interceptor';
 import { PrismaService } from './prisma/prisma.service';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -29,6 +30,20 @@ async function bootstrap() {
 
   app.useGlobalInterceptors(new TransformInterceptor());
   app.useGlobalFilters(new ApiExceptionFilter());
+
+  if (process.env.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Hydroline')
+      .setDescription('Hydroline API 文档')
+      .setVersion('0.1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, document, {
+      jsonDocumentUrl: '/docs/json',
+      swaggerOptions: { persistAuthorization: true },
+    });
+  }
 
   const prismaService = app.get(PrismaService);
   await prismaService.enableShutdownHooks(app);

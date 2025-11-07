@@ -73,6 +73,11 @@ const menuGroups = computed<MenuGroup[]>(() => [
         to: '/admin/luckperms',
         icon: 'i-lucide-database',
       },
+      {
+        label: '服务器状态',
+        to: '/admin/minecraft/servers',
+        icon: 'i-lucide-server',
+      },
     ],
   },
   {

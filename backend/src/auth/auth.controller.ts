@@ -11,6 +11,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { UsersService } from './users.service';
@@ -22,6 +23,7 @@ import { AuthGuard } from './auth.guard';
 import { buildRequestContext } from './helpers/request-context.helper';
 import { IpLocationService } from '../lib/ip2region/ip-location.service';
 
+@ApiTags('认证')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -31,6 +33,7 @@ export class AuthController {
   ) {}
 
   @Post('signup')
+  @ApiOperation({ summary: '邮箱注册' })
   async signUp(
     @Body() dto: SignUpDto,
     @Req() req: Request,
@@ -48,6 +51,7 @@ export class AuthController {
   }
 
   @Post('signin')
+  @ApiOperation({ summary: '邮箱登录' })
   async signIn(
     @Body() dto: SignInDto,
     @Req() req: Request,
@@ -65,6 +69,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @ApiOperation({ summary: '刷新访问令牌' })
   async refreshToken(
     @Body() dto: RefreshTokenDto,
     @Res({ passthrough: true }) res: Response,
@@ -81,6 +86,7 @@ export class AuthController {
   }
 
   @Post('signout')
+  @ApiOperation({ summary: '退出登录' })
   async signOut(@Req() req: Request) {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
@@ -92,6 +98,8 @@ export class AuthController {
 
   @Get('session')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取当前会话用户' })
   getSession(@Req() req: Request) {
     return {
       user: req.user,
@@ -100,6 +108,8 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取当前用户资料' })
   async getCurrentUser(@Req() req: Request) {
     const userId = req.user?.id;
     if (!userId) {
@@ -123,6 +133,8 @@ export class AuthController {
   // split: basic profile only
   @Get('me/basic')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取当前用户基础资料' })
   async getCurrentUserBasic(@Req() req: Request) {
     const userId = req.user?.id;
     if (!userId) {
@@ -146,6 +158,8 @@ export class AuthController {
 
   @Patch('me/basic')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新当前用户基础资料' })
   async updateCurrentUserBasic(
     @Req() req: Request,
     @Body() dto: UpdateCurrentUserDto,
@@ -161,6 +175,8 @@ export class AuthController {
   // split: minecraft bindings + luckperms
   @Get('me/minecraft')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取当前用户的 AuthMe 与 LuckPerms 数据' })
   async getCurrentUserMinecraft(@Req() req: Request) {
     const userId = req.user?.id;
     if (!userId) {
@@ -183,6 +199,8 @@ export class AuthController {
   // split: sessions only (same shape as GET /auth/sessions)
   @Get('me/sessions')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取当前用户会话列表' })
   async getCurrentUserSessions(@Req() req: Request) {
     const userId = req.user?.id;
     if (!userId) {
@@ -218,6 +236,8 @@ export class AuthController {
 
   @Get('sessions')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '列出会话记录' })
   async listSessions(@Req() req: Request) {
     const userId = req.user?.id;
     if (!userId) {
@@ -256,6 +276,8 @@ export class AuthController {
 
   @Post('sessions/identify')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '标记会话设备信息' })
   async identifySession(
     @Req() req: Request,
     @Body()
@@ -275,6 +297,8 @@ export class AuthController {
 
   @Delete('sessions/:sessionId')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '撤销指定会话' })
   async revokeSession(
     @Req() req: Request,
     @Param('sessionId') sessionId: string,
@@ -293,6 +317,8 @@ export class AuthController {
 
   @Patch('me')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新当前用户资料' })
   async updateCurrentUser(
     @Req() req: Request,
     @Body() dto: UpdateCurrentUserDto,

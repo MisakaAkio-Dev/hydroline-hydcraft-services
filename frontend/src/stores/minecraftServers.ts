@@ -1,0 +1,93 @@
+import { defineStore } from 'pinia'
+import { apiFetch } from '@/utils/api'
+import { useAuthStore } from './auth'
+import type {
+  MinecraftPingResult,
+  MinecraftServer,
+  MinecraftServerEdition,
+} from '@/types/minecraft'
+
+type CreateServerPayload = {
+  displayName: string
+  internalCodeCn: string
+  internalCodeEn: string
+  host: string
+  port?: number
+  edition: MinecraftServerEdition
+  description?: string
+  isActive?: boolean
+  displayOrder?: number
+}
+
+type UpdateServerPayload = Partial<CreateServerPayload>
+
+export const useMinecraftServerStore = defineStore('minecraft-servers', {
+  state: () => ({
+    items: [] as MinecraftServer[],
+    pingResults: new Map<string, MinecraftPingResult>(),
+    loading: false,
+  }),
+  actions: {
+    authHeaders() {
+      const auth = useAuthStore()
+      if (!auth.token) {
+        throw new Error('未登录，无法请求服务器配置')
+      }
+      return auth.token
+    },
+    async fetchAll() {
+      this.loading = true
+      try {
+        const token = this.authHeaders()
+        const data = await apiFetch<MinecraftServer[]>('/admin/minecraft/servers', {
+          token,
+        })
+        this.items = data
+        return data
+      } finally {
+        this.loading = false
+      }
+    },
+    async create(payload: CreateServerPayload) {
+      const token = this.authHeaders()
+      const server = await apiFetch<MinecraftServer>('/admin/minecraft/servers', {
+        method: 'POST',
+        token,
+        body: payload,
+      })
+      this.items.push(server)
+      return server
+    },
+    async update(id: string, payload: UpdateServerPayload) {
+      const token = this.authHeaders()
+      const server = await apiFetch<MinecraftServer>(`/admin/minecraft/servers/${id}`, {
+        method: 'PATCH',
+        token,
+        body: payload,
+      })
+      this.items = this.items.map((item) => (item.id === id ? server : item))
+      return server
+    },
+    async remove(id: string) {
+      const token = this.authHeaders()
+      await apiFetch(`/admin/minecraft/servers/${id}`, {
+        method: 'DELETE',
+        token,
+      })
+      this.items = this.items.filter((item) => item.id !== id)
+      this.pingResults.delete(id)
+    },
+    async ping(id: string) {
+      const token = this.authHeaders()
+      const result = await apiFetch<{
+        edition: MinecraftPingResult['edition']
+        response: MinecraftPingResult['response']
+      }>(`/admin/minecraft/servers/${id}/ping`, {
+        method: 'POST',
+        token,
+      })
+      this.pingResults.set(id, result as MinecraftPingResult)
+      return result as MinecraftPingResult
+    },
+  },
+})

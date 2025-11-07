@@ -10,6 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { UsersService } from './users.service';
 import { AuthGuard } from './auth.guard';
@@ -27,6 +28,8 @@ import { RegeneratePiicDto } from './dto/regenerate-piic.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
 import { UpdateJoinDateDto } from './dto/update-join-date.dto';
 
+@ApiTags('用户管理')
+@ApiBearerAuth()
 @Controller('auth/users')
 @UseGuards(AuthGuard, PermissionsGuard)
 @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_USERS)
@@ -34,6 +37,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
+  @ApiOperation({ summary: '分页查询用户' })
   async list(
     @Query('keyword') keyword?: string,
     @Query('page') page?: string,
@@ -47,11 +51,13 @@ export class UsersController {
   }
 
   @Get(':userId')
+  @ApiOperation({ summary: '获取用户详情' })
   async detail(@Param('userId') userId: string) {
     return this.usersService.getUserDetail(userId);
   }
 
   @Patch(':userId/profile')
+  @ApiOperation({ summary: '更新用户档案' })
   async updateProfile(
     @Param('userId') userId: string,
     @Body() dto: UpdateUserProfileDto,
@@ -61,6 +67,7 @@ export class UsersController {
 
   // Update user's in-game join date (admin only). Registration time is immutable.
   @Patch(':userId/join-date')
+  @ApiOperation({ summary: '调整入服日期' })
   async updateJoinDate(
     @Param('userId') userId: string,
     @Body() dto: UpdateJoinDateDto,
@@ -69,6 +76,7 @@ export class UsersController {
   }
 
   @Post(':userId/minecraft-profiles')
+  @ApiOperation({ summary: '新增玩家昵称或别名记录' })
   async addMinecraftProfile(
     @Param('userId') userId: string,
     @Body() dto: CreateMinecraftProfileDto,
@@ -77,6 +85,7 @@ export class UsersController {
   }
 
   @Patch(':userId/minecraft-profiles/:profileId')
+  @ApiOperation({ summary: '更新玩家昵称或别名记录' })
   async updateMinecraftProfile(
     @Param('userId') userId: string,
     @Param('profileId') profileId: string,
@@ -86,6 +95,7 @@ export class UsersController {
   }
 
   @Delete(':userId/minecraft-profiles/:profileId')
+  @ApiOperation({ summary: '删除玩家昵称或别名记录' })
   async removeMinecraftProfile(
     @Param('userId') userId: string,
     @Param('profileId') profileId: string,
@@ -95,6 +105,7 @@ export class UsersController {
   }
 
   @Post(':userId/status-events')
+  @ApiOperation({ summary: '新增状态事件' })
   async addStatusEvent(
     @Param('userId') userId: string,
     @Body() dto: CreateStatusEventDto,
@@ -104,6 +115,7 @@ export class UsersController {
   }
 
   @Post(':userId/lifecycle-events')
+  @ApiOperation({ summary: '新增生命周期事件' })
   async addLifecycleEvent(
     @Param('userId') userId: string,
     @Body() dto: CreateLifecycleEventDto,
@@ -113,6 +125,7 @@ export class UsersController {
   }
 
   @Post(':userId/contacts')
+  @ApiOperation({ summary: '新增联系信息' })
   async addContact(
     @Param('userId') userId: string,
     @Body() dto: CreateUserContactDto,
@@ -121,6 +134,7 @@ export class UsersController {
   }
 
   @Patch(':userId/contacts/:contactId')
+  @ApiOperation({ summary: '更新联系信息' })
   async updateContact(
     @Param('userId') userId: string,
     @Param('contactId') contactId: string,
@@ -130,6 +144,7 @@ export class UsersController {
   }
 
   @Delete(':userId/contacts/:contactId')
+  @ApiOperation({ summary: '删除联系信息' })
   async removeContact(
     @Param('userId') userId: string,
     @Param('contactId') contactId: string,
@@ -139,6 +154,7 @@ export class UsersController {
   }
 
   @Post(':userId/piic/regenerate')
+  @ApiOperation({ summary: '重新生成 PIIC' })
   async regeneratePiic(
     @Param('userId') userId: string,
     @Body() dto: RegeneratePiicDto,
@@ -148,6 +164,7 @@ export class UsersController {
   }
 
   @Post(':userId/roles')
+  @ApiOperation({ summary: '分配角色' })
   async assignRoles(
     @Param('userId') userId: string,
     @Body() dto: AssignRolesDto,

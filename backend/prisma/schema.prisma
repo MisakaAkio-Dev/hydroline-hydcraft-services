@@ -51,6 +51,11 @@ enum MinecraftProfileSource {
   OTHER
 }
 
+enum MinecraftServerEdition {
+  JAVA
+  BEDROCK
+}
+
 enum GenderType {
   UNSPECIFIED
   MALE
@@ -65,58 +70,60 @@ enum PIICStatus {
 }
 
 model User {
-  id             String   @id @default(uuid())
-  name           String?
-  nameChangedAt  DateTime?
-  email          String   @unique
-  password       String?
-  emailVerified  Boolean  @default(false)
-  image          String?
-  joinDate       DateTime?
-  lastLoginAt    DateTime?
-  lastLoginIp    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String    @id @default(uuid())
+  name          String?
+  nameChangedAt DateTime?
+  email         String    @unique
+  password      String?
+  emailVerified Boolean   @default(false)
+  image         String?
+  joinDate      DateTime?
+  lastLoginAt   DateTime?
+  lastLoginIp   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  profile        UserProfile?
-  minecraftIds   UserMinecraftProfile[]
-  statusEvents   UserStatusEvent[]
-  statusSnapshot UserStatusSnapshot?
-  lifecycle      UserLifecycleEvent[]
-  contacts       UserContact[]
-  piicHistory    UserPiicHistory[]
-  roles          UserRole[]
-  uploadedAttachments Attachment[] @relation("AttachmentUploader")
-  createdFolders AttachmentFolder[] @relation("AttachmentFolderCreator")
-  createdTags AttachmentTag[] @relation("AttachmentTagCreator")
-  tagAssignments AttachmentTagging[] @relation("AttachmentTaggingAssignee")
-  shareTokens AttachmentShareToken[] @relation("AttachmentShareCreator")
-  updatedConfigEntries ConfigEntry[] @relation("ConfigEntryUpdater")
-  authmeBindings UserAuthmeBinding[]
-  authmeBindingOperations UserAuthmeBinding[] @relation("AuthmeBindingOperator")
+  accounts                Account[]
+  sessions                Session[]
+  profile                 UserProfile?
+  minecraftIds            UserMinecraftProfile[]
+  statusEvents            UserStatusEvent[]
+  statusSnapshot          UserStatusSnapshot?
+  lifecycle               UserLifecycleEvent[]
+  contacts                UserContact[]
+  piicHistory             UserPiicHistory[]
+  roles                   UserRole[]
+  uploadedAttachments     Attachment[]           @relation("AttachmentUploader")
+  createdFolders          AttachmentFolder[]     @relation("AttachmentFolderCreator")
+  createdTags             AttachmentTag[]        @relation("AttachmentTagCreator")
+  tagAssignments          AttachmentTagging[]    @relation("AttachmentTaggingAssignee")
+  shareTokens             AttachmentShareToken[] @relation("AttachmentShareCreator")
+  updatedConfigEntries    ConfigEntry[]          @relation("ConfigEntryUpdater")
+  authmeBindings          UserAuthmeBinding[]
+  authmeBindingOperations UserAuthmeBinding[]    @relation("AuthmeBindingOperator")
+  createdMinecraftServers MinecraftServer[]      @relation("MinecraftServerCreatedBy")
+  updatedMinecraftServers MinecraftServer[]      @relation("MinecraftServerUpdatedBy")
 
   @@map("users")
 }
 
 model Account {
-  id                String  @id @default(uuid())
-  accountId         String  @unique
-  userId            String
-  providerId        String
-  provider          String
-  providerAccountId String
-  type              String
-  accessToken       String?
-  refreshToken      String?
-  idToken           String?
+  id                    String    @id @default(uuid())
+  accountId             String    @unique
+  userId                String
+  providerId            String
+  provider              String
+  providerAccountId     String
+  type                  String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
   accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
-  scope             String?
-  password          String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -125,15 +132,15 @@ model Account {
 }
 
 model Session {
-  id         String   @id @default(uuid())
-  token      String   @unique
-  userId     String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  ipAddress  String?
-  userAgent  String?
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
 }
@@ -151,113 +158,117 @@ model Verification {
 }
 
 model UserProfile {
-  id                         String   @id @default(uuid())
-  userId                     String   @unique
-  primaryMinecraftProfileId  String?
-  piic                       String?  @unique
-  piicAssignedAt             DateTime?
-  displayName                String?
-  birthday                   DateTime?
-  gender                     GenderType? @default(UNSPECIFIED)
-  motto                      String?
-  timezone                   String?
-  locale                     String?
-  extra                      Json?
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  id                        String      @id @default(uuid())
+  userId                    String      @unique
+  primaryMinecraftProfileId String?
+  primaryAuthmeBindingId    String?
+  piic                      String?     @unique
+  piicAssignedAt            DateTime?
+  displayName               String?
+  birthday                  DateTime?
+  gender                    GenderType? @default(UNSPECIFIED)
+  motto                     String?
+  timezone                  String?
+  locale                    String?
+  extra                     Json?
+  createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @updatedAt
 
-  user                       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  primaryMinecraftProfile    UserMinecraftProfile? @relation("PrimaryMinecraftProfile", fields: [primaryMinecraftProfileId], references: [id])
+  user                    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primaryMinecraftProfile UserMinecraftProfile? @relation("PrimaryMinecraftProfile", fields: [primaryMinecraftProfileId], references: [id])
+  primaryAuthmeBinding    UserAuthmeBinding?    @relation("PrimaryAuthmeBinding", fields: [primaryAuthmeBindingId], references: [id], onDelete: SetNull)
 
   @@map("user_profiles")
 }
 
 model UserPiicHistory {
-  id              String     @id @default(uuid())
-  userId          String
-  piic            String
-  status          PIICStatus @default(ACTIVE)
-  reason          String?
-  metadata        Json?
-  generatedAt     DateTime   @default(now())
-  revokedAt       DateTime?
-  generatedById   String?
-  revokedById     String?
+  id            String     @id @default(uuid())
+  userId        String
+  piic          String
+  status        PIICStatus @default(ACTIVE)
+  reason        String?
+  metadata      Json?
+  generatedAt   DateTime   @default(now())
+  revokedAt     DateTime?
+  generatedById String?
+  revokedById   String?
 
-  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("user_piic_history")
   @@index([piic], map: "idx_user_piic_history_piic")
   @@index([userId, generatedAt], map: "idx_user_piic_history_user")
+  @@map("user_piic_history")
 }
 
 model UserMinecraftProfile {
-  id                String                  @id @default(uuid())
-  userId            String
-  playerUuid        String?                 @unique
-  minecraftId       String
-  nickname          String?
-  isPrimary         Boolean                 @default(false)
-  source            MinecraftProfileSource  @default(MANUAL)
-  verifiedAt        DateTime?
-  verificationNote  String?
-  metadata          Json?
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
+  id               String                 @id @default(uuid())
+  userId           String
+  authmeBindingId  String?
+  authmeUuid       String?
+  nickname         String?
+  isPrimary        Boolean                @default(false)
+  source           MinecraftProfileSource @default(MANUAL)
+  verifiedAt       DateTime?
+  verificationNote String?
+  metadata         Json?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 
-  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  primaryProfileFor UserProfile[]           @relation("PrimaryMinecraftProfile")
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authmeBinding     UserAuthmeBinding? @relation(fields: [authmeBindingId], references: [id], onDelete: SetNull)
+  primaryProfileFor UserProfile[]      @relation("PrimaryMinecraftProfile")
 
-  @@map("user_minecraft_profiles")
   @@index([userId, isPrimary], map: "idx_user_minecraft_primary")
-  @@index([minecraftId], map: "idx_user_minecraft_id")
+  @@index([authmeBindingId], map: "idx_user_minecraft_binding")
+  @@index([authmeUuid], map: "idx_user_minecraft_authme_uuid")
+  @@map("user_minecraft_profiles")
 }
 
 model UserStatusEvent {
-  id             String       @id @default(uuid())
-  userId         String
-  status         PlayerStatus
-  reasonCode     String?
-  reasonDetail   String?
-  source         StatusSource @default(SYSTEM)
-  metadata       Json?
-  createdAt      DateTime     @default(now())
-  createdById    String?
+  id           String       @id @default(uuid())
+  userId       String
+  status       PlayerStatus
+  reasonCode   String?
+  reasonDetail String?
+  source       StatusSource @default(SYSTEM)
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+  createdById  String?
 
-  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  snapshot       UserStatusSnapshot? @relation("StatusSnapshotEvent")
+  user     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshot UserStatusSnapshot? @relation("StatusSnapshotEvent")
 
-  @@map("user_status_events")
   @@index([userId, createdAt], map: "idx_user_status_user_time")
+  @@map("user_status_events")
 }
 
 model UserStatusSnapshot {
-  userId        String   @id
-  statusEventId String   @unique
+  userId        String       @id
+  statusEventId String       @unique
   status        PlayerStatus
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime     @updatedAt
 
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  event         UserStatusEvent @relation("StatusSnapshotEvent", fields: [statusEventId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event UserStatusEvent @relation("StatusSnapshotEvent", fields: [statusEventId], references: [id], onDelete: Cascade)
 
   @@map("user_status_snapshot")
 }
 
 model UserLifecycleEvent {
-  id           String              @id @default(uuid())
-  userId       String
-  eventType    LifecycleEventType
-  occurredAt   DateTime
-  source       String?
-  notes        String?
-  metadata     Json?
-  createdAt    DateTime            @default(now())
-  createdById  String?
+  id          String             @id @default(uuid())
+  userId      String
+  eventType   LifecycleEventType
+  occurredAt  DateTime
+  source      String?
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+  createdById String?
 
-  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("user_lifecycle_events")
   @@index([userId, eventType], map: "idx_user_lifecycle_type")
+  @@map("user_lifecycle_events")
 }
 
 model ContactChannel {
@@ -273,43 +284,43 @@ model ContactChannel {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  contacts        UserContact[]
+  contacts UserContact[]
 
   @@map("contact_channels")
 }
 
 model UserContact {
-  id             String                     @id @default(uuid())
-  userId         String
-  channelId      String
-  value          String
-  isPrimary      Boolean                    @default(false)
-  verification   ContactVerificationStatus @default(UNVERIFIED)
-  verifiedAt     DateTime?
+  id               String                    @id @default(uuid())
+  userId           String
+  channelId        String
+  value            String
+  isPrimary        Boolean                   @default(false)
+  verification     ContactVerificationStatus @default(UNVERIFIED)
+  verifiedAt       DateTime?
   verificationCode String?
-  metadata       Json?
-  createdAt      DateTime                   @default(now())
-  updatedAt      DateTime                   @updatedAt
+  metadata         Json?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
 
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  channel        ContactChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel ContactChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
-  @@map("user_contacts")
   @@unique([userId, channelId, value], map: "uq_user_contact_value")
+  @@map("user_contacts")
 }
 
 model Role {
-  id           String   @id @default(uuid())
-  key          String   @unique
-  name         String
-  description  String?
-  isSystem     Boolean  @default(false)
-  metadata     Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  userRoles        UserRole[]
-  rolePermissions  RolePermission[]
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
 
   @@map("roles")
 }
@@ -328,110 +339,138 @@ model Permission {
 }
 
 model RolePermission {
-  id           String  @id @default(uuid())
+  id           String @id @default(uuid())
   roleId       String
   permissionId String
 
-  role        Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission  Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
-  @@map("role_permissions")
   @@unique([roleId, permissionId], map: "uq_role_permission")
+  @@map("role_permissions")
 }
 
 model UserRole {
-  id             String   @id @default(uuid())
-  userId         String
-  roleId         String
-  assignedById   String?
-  assignedAt     DateTime @default(now())
-  metadata       Json?
+  id           String   @id @default(uuid())
+  userId       String
+  roleId       String
+  assignedById String?
+  assignedAt   DateTime @default(now())
+  metadata     Json?
 
-  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role           Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  @@map("user_roles")
   @@unique([userId, roleId], map: "uq_user_role")
   @@index([roleId], map: "idx_user_roles_role")
+  @@map("user_roles")
 }
 
 model UserAuthmeBinding {
-  id                  String  @id @default(uuid())
+  id                  String   @id @default(uuid())
   userId              String
   authmeUsername      String
-  authmeUsernameLower String  @unique
+  authmeUsernameLower String   @unique
   authmeRealname      String?
+  authmeUuid          String?  @unique
   boundAt             DateTime @default(now())
   boundByUserId       String?
   boundByIp           String?
   updatedAt           DateTime @updatedAt
 
-  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  boundBy    User? @relation("AuthmeBindingOperator", fields: [boundByUserId], references: [id], onDelete: SetNull)
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boundBy           User?                  @relation("AuthmeBindingOperator", fields: [boundByUserId], references: [id], onDelete: SetNull)
+  minecraftProfiles UserMinecraftProfile[]
+  primaryProfileFor UserProfile[]          @relation("PrimaryAuthmeBinding")
 
-  @@map("user_authme_binding")
   @@index([authmeUsernameLower], map: "idx_authme_binding_username_lower")
+  @@map("user_authme_binding")
+}
+
+model MinecraftServer {
+  id             String                 @id @default(uuid())
+  displayName    String
+  internalCodeCn String
+  internalCodeEn String                 @unique
+  host           String
+  port           Int                    @default(25565)
+  edition        MinecraftServerEdition @default(JAVA)
+  description    String?
+  isActive       Boolean                @default(true)
+  displayOrder   Int                    @default(0)
+  metadata       Json?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  createdById    String?
+  updatedById    String?
+
+  createdBy User? @relation("MinecraftServerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy User? @relation("MinecraftServerUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([internalCodeCn], map: "uq_minecraft_server_cn")
+  @@index([displayOrder], map: "idx_minecraft_server_order")
+  @@map("minecraft_servers")
 }
 
 model AttachmentFolder {
-  id          String             @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   slug        String
   description String?
   parentId    String?
   path        String
   createdById String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   parent      AttachmentFolder?  @relation("AttachmentFolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children    AttachmentFolder[] @relation("AttachmentFolderHierarchy")
   attachments Attachment[]
   createdBy   User?              @relation("AttachmentFolderCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
-  @@map("attachment_folders")
   @@unique([parentId, name], map: "uq_attachment_folder_parent_name")
+  @@map("attachment_folders")
 }
 
 model Attachment {
-  id            String            @id @default(uuid())
-  folderId      String?
-  ownerId       String
-  name          String
-  originalName  String
-  fileName      String
-  mimeType      String?
-  size          Int
-  storageKey    String
-  hash          String?
-  isPublic      Boolean           @default(false)
-  externalUrl   String?
-  metadata      Json?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  deletedAt     DateTime?
+  id           String    @id @default(uuid())
+  folderId     String?
+  ownerId      String
+  name         String
+  originalName String
+  fileName     String
+  mimeType     String?
+  size         Int
+  storageKey   String
+  hash         String?
+  isPublic     Boolean   @default(false)
+  externalUrl  String?
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
-  folder        AttachmentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  owner         User              @relation("AttachmentUploader", fields: [ownerId], references: [id], onDelete: Cascade)
-  tags          AttachmentTagging[]
-  shareTokens   AttachmentShareToken[]
+  folder      AttachmentFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  owner       User                   @relation("AttachmentUploader", fields: [ownerId], references: [id], onDelete: Cascade)
+  tags        AttachmentTagging[]
+  shareTokens AttachmentShareToken[]
 
-  @@map("attachments")
   @@index([folderId], map: "idx_attachments_folder")
   @@index([ownerId], map: "idx_attachments_owner")
+  @@map("attachments")
 }
 
 model AttachmentTag {
-  id          String            @id @default(uuid())
-  key         String            @unique
+  id          String   @id @default(uuid())
+  key         String   @unique
   name        String
   description String?
   createdById String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  createdBy   User?             @relation("AttachmentTagCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  taggings    AttachmentTagging[]
+  createdBy User?               @relation("AttachmentTagCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  taggings  AttachmentTagging[]
 
   @@map("attachment_tags")
 }
@@ -442,57 +481,57 @@ model AttachmentTagging {
   assignedById String?
   assignedAt   DateTime @default(now())
 
-  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
-  tag          AttachmentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  assignedBy   User? @relation("AttachmentTaggingAssignee", fields: [assignedById], references: [id], onDelete: SetNull)
+  attachment Attachment    @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  tag        AttachmentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  assignedBy User?         @relation("AttachmentTaggingAssignee", fields: [assignedById], references: [id], onDelete: SetNull)
 
   @@id([attachmentId, tagId])
   @@map("attachment_tagging")
 }
 
 model AttachmentShareToken {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   attachmentId String
-  token        String    @unique
+  token        String   @unique
   expiresAt    DateTime
   createdById  String?
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime @default(now())
 
-  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
-  createdBy    User? @relation("AttachmentShareCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  attachment Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  createdBy  User?      @relation("AttachmentShareCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
-  @@map("attachment_share_tokens")
   @@index([attachmentId], map: "idx_attachment_share_tokens_attachment")
+  @@map("attachment_share_tokens")
 }
 
 model ConfigNamespace {
-  id          String         @id @default(uuid())
-  key         String         @unique
+  id          String   @id @default(uuid())
+  key         String   @unique
   name        String
   description String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  entries     ConfigEntry[]
+  entries ConfigEntry[]
 
   @@map("config_namespaces")
 }
 
 model ConfigEntry {
-  id           String          @id @default(uuid())
-  namespaceId  String
-  key          String
-  value        Json
-  description  String?
-  version      Int             @default(1)
-  updatedById  String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id          String   @id @default(uuid())
+  namespaceId String
+  key         String
+  value       Json
+  description String?
+  version     Int      @default(1)
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  namespace    ConfigNamespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade)
-  updatedBy    User?           @relation("ConfigEntryUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  namespace ConfigNamespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade)
+  updatedBy User?           @relation("ConfigEntryUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  @@map("config_entries")
   @@unique([namespaceId, key], map: "uq_config_entry_namespace_key")
   @@index([namespaceId], map: "idx_config_entries_namespace")
+  @@map("config_entries")
 }

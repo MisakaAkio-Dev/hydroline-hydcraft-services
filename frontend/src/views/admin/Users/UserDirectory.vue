@@ -31,7 +31,13 @@ function roleNames(roleLinks: typeof rows.value[number]['roles']) {
 function minecraftIds(item: typeof rows.value[number]) {
   const profiles = item.minecraftIds ?? []
   if (profiles.length === 0) return '未绑定'
-  return profiles.map((profile) => profile.minecraftId).join('、')
+  return profiles
+    .map((profile) => {
+      const name =
+        profile.authmeBinding?.username ?? profile.nickname ?? '未命名'
+      return profile.isPrimary ? `${name}（主）` : name
+    })
+    .join('、')
 }
 
 onMounted(async () => {

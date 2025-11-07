@@ -18,6 +18,7 @@ export const DEFAULT_PERMISSIONS = {
   MANAGE_ATTACHMENTS: 'assets.manage.attachments',
   MANAGE_CONFIG: 'config.manage',
   MANAGE_PORTAL_HOME: 'portal.manage.home',
+  MANAGE_MINECRAFT: 'minecraft.manage.servers',
 };
 
 export const DEFAULT_ROLES = {

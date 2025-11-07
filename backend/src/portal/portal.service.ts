@@ -89,10 +89,32 @@ export class PortalService {
         include: {
           profile: {
             include: {
-              primaryMinecraftProfile: true,
+              primaryMinecraftProfile: {
+                include: {
+                  authmeBinding: {
+                    select: {
+                      id: true,
+                      authmeUsername: true,
+                      authmeRealname: true,
+                      authmeUuid: true,
+                    },
+                  },
+                },
+              },
             },
           },
-          minecraftIds: true,
+          minecraftIds: {
+            include: {
+              authmeBinding: {
+                select: {
+                  id: true,
+                  authmeUsername: true,
+                  authmeRealname: true,
+                  authmeUuid: true,
+                },
+              },
+            },
+          },
           roles: {
             include: {
               role: true,
@@ -127,21 +149,47 @@ export class PortalService {
             ? {
                 displayName: user.profile.displayName,
                 piic: user.profile.piic,
+                primaryAuthmeBindingId:
+                  user.profile.primaryAuthmeBindingId ?? null,
                 primaryMinecraft: user.profile.primaryMinecraftProfile
                   ? {
                       id: user.profile.primaryMinecraftProfile.id,
-                      minecraftId:
-                        user.profile.primaryMinecraftProfile.minecraftId,
                       nickname: user.profile.primaryMinecraftProfile.nickname,
+                      authmeUuid:
+                        user.profile.primaryMinecraftProfile.authmeUuid,
+                      authmeBinding: user.profile.primaryMinecraftProfile
+                        .authmeBinding
+                        ? {
+                            id: user.profile.primaryMinecraftProfile
+                              .authmeBinding.id,
+                            username:
+                              user.profile.primaryMinecraftProfile
+                                .authmeBinding.authmeUsername,
+                            realname:
+                              user.profile.primaryMinecraftProfile
+                                .authmeBinding.authmeRealname,
+                            uuid:
+                              user.profile.primaryMinecraftProfile
+                                .authmeBinding.authmeUuid,
+                          }
+                        : null,
                     }
                   : null,
               }
             : null,
           minecraftProfiles: user.minecraftIds.map((profile) => ({
             id: profile.id,
-            minecraftId: profile.minecraftId,
             nickname: profile.nickname,
             isPrimary: profile.isPrimary,
+            authmeUuid: profile.authmeUuid,
+            authmeBinding: profile.authmeBinding
+              ? {
+                  id: profile.authmeBinding.id,
+                  username: profile.authmeBinding.authmeUsername,
+                  realname: profile.authmeBinding.authmeRealname,
+                  uuid: profile.authmeBinding.authmeUuid,
+                }
+              : null,
           })),
           roles: user.roles.map(({ role }) => ({
             id: role.id,

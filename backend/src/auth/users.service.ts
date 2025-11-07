@@ -35,8 +35,10 @@ import { normalizeIpAddress } from '../lib/ip2region/ip-normalizer';
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient;
 
 type AuthmeBindingSnapshot = {
+  id: string | null;
   authmeUsername: string;
   authmeRealname: string | null;
+  authmeUuid: string | null;
   boundAt: Date | string | null;
   ip: string | null;
   regip: string | null;
@@ -150,15 +152,14 @@ export class UsersService {
         },
       });
 
-      if (options.minecraftId) {
+      if (options.minecraftId || options.minecraftNick) {
         const hasPrimary = await tx.userMinecraftProfile.findFirst({
           where: { userId, isPrimary: true },
         });
         const profile = await tx.userMinecraftProfile.create({
           data: {
             userId,
-            minecraftId: options.minecraftId,
-            nickname: options.minecraftNick,
+            nickname: options.minecraftNick ?? options.minecraftId ?? null,
             isPrimary: hasPrimary ? false : true,
             source: options.source ?? MinecraftProfileSource.MANUAL,
           },
@@ -188,7 +189,24 @@ export class UsersService {
             {
               minecraftIds: {
                 some: {
-                  minecraftId: { contains: keyword, mode: 'insensitive' },
+                  OR: [
+                    { nickname: { contains: keyword, mode: 'insensitive' } },
+                    {
+                      authmeBinding: {
+                        authmeUsername: {
+                          contains: keyword,
+                          mode: 'insensitive',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              authmeBindings: {
+                some: {
+                  authmeUsername: { contains: keyword, mode: 'insensitive' },
                 },
               },
             },
@@ -206,6 +224,18 @@ export class UsersService {
           profile: true,
           statusSnapshot: true,
           roles: { include: { role: true } },
+          minecraftIds: {
+            include: {
+              authmeBinding: {
+                select: {
+                  id: true,
+                  authmeUsername: true,
+                  authmeRealname: true,
+                  authmeUuid: true,
+                },
+              },
+            },
+          },
         },
       }),
       this.prisma.user.count({ where }),
@@ -244,6 +274,7 @@ export class UsersService {
             piic: true,
             piicAssignedAt: true,
             primaryMinecraftProfileId: true,
+            primaryAuthmeBindingId: true,
             timezone: true,
             locale: true,
             motto: true,
@@ -274,9 +305,13 @@ export class UsersService {
         },
         authmeBindings: {
           select: {
+            id: true,
             authmeUsername: true,
             authmeRealname: true,
+            authmeUuid: true,
             boundAt: true,
+            boundByUserId: true,
+            boundByIp: true,
           },
           orderBy: { boundAt: 'asc' },
         },
@@ -455,7 +490,18 @@ export class UsersService {
       where: { id: userId },
       include: {
         profile: true,
-        minecraftIds: true,
+        minecraftIds: {
+          include: {
+            authmeBinding: {
+              select: {
+                id: true,
+                authmeUsername: true,
+                authmeRealname: true,
+                authmeUuid: true,
+              },
+            },
+          },
+        },
         authmeBindings: true,
         statusSnapshot: {
           include: { event: true },
@@ -553,23 +599,27 @@ export class UsersService {
   async addMinecraftProfile(userId: string, dto: CreateMinecraftProfileDto) {
     await this.ensureUser(userId);
 
-    if (dto.playerUuid) {
-      const duplicate = await this.prisma.userMinecraftProfile.findUnique({
-        where: { playerUuid: dto.playerUuid },
-      });
-      if (duplicate && duplicate.userId !== userId) {
-        throw new BadRequestException(
-          'playerUuid already associated with another user',
-        );
-      }
+    const binding = dto.authmeBindingId
+      ? await this.prisma.userAuthmeBinding.findUnique({
+          where: { id: dto.authmeBindingId },
+        })
+      : null;
+    if (binding && binding.userId !== userId) {
+      throw new BadRequestException('AuthMe 绑定不属于该用户');
     }
 
+    if (!binding && !dto.nickname) {
+      throw new BadRequestException('请至少填写昵称或关联一个 AuthMe 账户');
+    }
+
+    const authmeUuid = dto.authmeUuid ?? binding?.authmeUuid ?? null;
+    const nickname = dto.nickname ?? binding?.authmeRealname ?? null;
     const profile = await this.prisma.userMinecraftProfile.create({
       data: {
         userId,
-        playerUuid: dto.playerUuid,
-        minecraftId: dto.minecraftId,
-        nickname: dto.nickname,
+        authmeBindingId: binding?.id ?? null,
+        authmeUuid,
+        nickname,
         isPrimary: dto.isPrimary ?? false,
         source: dto.source ?? MinecraftProfileSource.MANUAL,
         verifiedAt: dto.verifiedAt ? new Date(dto.verifiedAt) : undefined,
@@ -598,23 +648,32 @@ export class UsersService {
       throw new NotFoundException('Minecraft profile not found for user');
     }
 
-    if (dto.playerUuid && dto.playerUuid !== target.playerUuid) {
-      const duplicate = await this.prisma.userMinecraftProfile.findUnique({
-        where: { playerUuid: dto.playerUuid },
-      });
-      if (duplicate && duplicate.userId !== userId) {
-        throw new BadRequestException(
-          'playerUuid already associated with another user',
-        );
-      }
+    const binding = dto.authmeBindingId
+      ? await this.prisma.userAuthmeBinding.findUnique({
+          where: { id: dto.authmeBindingId },
+        })
+      : null;
+    if (binding && binding.userId !== userId) {
+      throw new BadRequestException('AuthMe 绑定不属于该用户');
+    }
+
+    if (!binding && dto.authmeBindingId) {
+      throw new NotFoundException('指定的 AuthMe 绑定不存在');
+    }
+
+    if (!binding && !dto.nickname && !target.nickname) {
+      throw new BadRequestException('请至少填写昵称或关联一个 AuthMe 账户');
     }
 
     const updated = await this.prisma.userMinecraftProfile.update({
       where: { id: profileId },
       data: {
-        playerUuid: dto.playerUuid,
-        minecraftId: dto.minecraftId,
-        nickname: dto.nickname,
+        authmeBindingId: binding?.id ?? dto.authmeBindingId ?? target.authmeBindingId,
+        authmeUuid:
+          dto.authmeUuid ??
+          binding?.authmeUuid ??
+          target.authmeUuid,
+        nickname: dto.nickname ?? target.nickname,
         source: dto.source,
         isPrimary: dto.isPrimary ?? target.isPrimary,
         verifiedAt: dto.verifiedAt ? new Date(dto.verifiedAt) : undefined,
@@ -898,6 +957,27 @@ export class UsersService {
     return this.getUserDetail(userId);
   }
 
+  async setPrimaryAuthmeBinding(userId: string, bindingId: string) {
+    await this.ensureUser(userId);
+    const binding = await this.prisma.userAuthmeBinding.findUnique({
+      where: { id: bindingId },
+    });
+    if (!binding || binding.userId !== userId) {
+      throw new NotFoundException('AuthMe 绑定不存在');
+    }
+
+    await this.prisma.userProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        primaryAuthmeBindingId: bindingId,
+      },
+      update: { primaryAuthmeBindingId: bindingId },
+    });
+
+    return binding;
+  }
+
   async ensureUser(userId: string) {
     const exists = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -948,8 +1028,10 @@ export class UsersService {
   private async composeAuthmeBindingSnapshots(
     entries:
       | ReadonlyArray<{
+          id?: string;
           authmeUsername: string;
           authmeRealname: string | null;
+          authmeUuid?: string | null;
           boundAt: Date | string | null;
         }>
       | null
@@ -967,9 +1049,19 @@ export class UsersService {
           username = String(rawUsername).trim();
         }
 
+        const id =
+          typeof payload.id === 'string' && payload.id.length > 0
+            ? payload.id
+            : null;
         const rawRealname = payload.authmeRealname;
         const realnameRaw =
           typeof rawRealname === 'string' ? rawRealname.trim() : null;
+
+        const rawUuid = payload.authmeUuid;
+        const authmeUuid =
+          typeof rawUuid === 'string' && rawUuid.trim().length > 0
+            ? rawUuid.trim()
+            : null;
 
         const boundAtValue = (payload.boundAt ?? null) as Date | string | null;
         let boundAt: Date | string | null = null;
@@ -977,9 +1069,11 @@ export class UsersService {
           boundAt = boundAtValue;
         }
         return {
+          id,
           authmeUsername: username,
           authmeRealname:
             realnameRaw && realnameRaw.length > 0 ? realnameRaw : null,
+          authmeUuid,
           boundAt,
         };
       })
@@ -996,8 +1090,10 @@ export class UsersService {
       list.map(async (binding) => {
         const fallback = {
           binding: {
+            id: binding.id,
             authmeUsername: binding.authmeUsername,
             authmeRealname: binding.authmeRealname,
+            authmeUuid: binding.authmeUuid,
             boundAt: binding.boundAt,
             ip: null,
             regip: null,
@@ -1008,6 +1104,7 @@ export class UsersService {
             binding.authmeUsername,
             binding.authmeRealname,
             null,
+            binding.authmeUuid,
           ),
         };
 
@@ -1016,17 +1113,38 @@ export class UsersService {
             this.authmeService
               .getAccount(binding.authmeUsername)
               .catch(() => null),
-            binding.authmeRealname
+            binding.authmeUuid
               ? this.luckpermsService
-                  .getPlayerByUsername(binding.authmeRealname)
+                  .getPlayerByUuid(binding.authmeUuid)
                   .catch(() => null)
-              : Promise.resolve(null),
+              : this.luckpermsService
+                  .getPlayerByUsername(
+                    binding.authmeRealname ?? binding.authmeUsername,
+                  )
+                  .catch(() => null),
           ]);
+
+          if (
+            binding.id &&
+            !binding.authmeUuid &&
+            luckperms?.uuid &&
+            luckperms.uuid.length > 0
+          ) {
+            await this.prisma.userAuthmeBinding
+              .update({
+                where: { id: binding.id },
+                data: { authmeUuid: luckperms.uuid },
+              })
+              .catch(() => undefined);
+            binding.authmeUuid = luckperms.uuid;
+          }
 
           return {
             binding: {
+              id: binding.id,
               authmeUsername: binding.authmeUsername,
               authmeRealname: binding.authmeRealname,
+              authmeUuid: binding.authmeUuid ?? luckperms?.uuid ?? null,
               boundAt: binding.boundAt,
               ip: account?.ip ?? null,
               regip: account?.regip ?? null,
@@ -1037,6 +1155,7 @@ export class UsersService {
               binding.authmeUsername,
               binding.authmeRealname,
               luckperms,
+              binding.authmeUuid ?? luckperms?.uuid ?? null,
             ),
           };
         } catch {
@@ -1055,6 +1174,7 @@ export class UsersService {
     authmeUsername: string,
     authmeRealname: string | null,
     player: LuckpermsPlayer | null,
+    resolvedUuid: string | null,
   ): LuckpermsSnapshot {
     const trimmedRealname =
       typeof authmeRealname === 'string' && authmeRealname.trim().length > 0
@@ -1073,7 +1193,7 @@ export class UsersService {
     return {
       authmeUsername,
       username: resolvedUsername,
-      uuid: player?.uuid ?? null,
+      uuid: resolvedUuid,
       primaryGroup,
       primaryGroupDisplayName:
         this.luckpermsService.getGroupDisplayName(primaryGroup),

@@ -21,9 +21,13 @@ const unbindError = ref('')
 const showUnbindDialog = ref(false)
 const authmeUnbindForm = ref({ username: '', password: '' })
 const authmeBindingForm = ref({ authmeId: '', password: '' })
+const primaryBindingLoading = ref<string | null>(null)
 
 const isAuthenticated = computed(() => auth.isAuthenticated)
 const bindingEnabled = computed(() => featureStore.flags.authmeBindingEnabled)
+const primaryBindingId = computed(
+  () => auth.user?.profile?.primaryAuthmeBindingId ?? null,
+)
 
 
 function getObjectValue(source: unknown, key: string): unknown {
@@ -98,6 +102,8 @@ const authmeBindings = computed(() => {
   const normalizedMap = normalizedBindingMap.value
   const result: any[] = []
   for (const entry of rawAuthmeBindings.value) {
+    const bindingId =
+      typeof (entry as any).id === 'string' ? (entry as any).id : null
     const username = normalizeUsername((entry as any).authmeUsername ?? (entry as any).username ?? null)
     if (!username) continue
     const key = username.toLowerCase()
@@ -113,6 +119,7 @@ const authmeBindings = computed(() => {
           }
         : null
     result.push({
+      id: bindingId,
       username,
       realname,
       boundAt: ((entry as any).boundAt ?? (entry as any).bound_at ?? null) as string | Date | null,
@@ -123,6 +130,7 @@ const authmeBindings = computed(() => {
       lastlogin: typeof (entry as any).lastlogin === 'number' ? (entry as any).lastlogin : null,
       regdate: typeof (entry as any).regdate === 'number' ? (entry as any).regdate : null,
       permissions,
+      isPrimary: bindingId ? bindingId === primaryBindingId.value : false,
     })
   }
   return result
@@ -194,6 +202,23 @@ function handleCloseUnbindDialog(force = false) {
 }
 
 function openLoginDialog() { ui.openLoginDialog() }
+
+async function setPrimaryBinding(bindingId: string | null) {
+  if (!bindingId || bindingId === primaryBindingId.value) return
+  primaryBindingLoading.value = bindingId
+  try {
+    await auth.setPrimaryAuthmeBinding(bindingId)
+    toast.add({ title: '已设为主账号', color: 'success' })
+  } catch (error) {
+    toast.add({
+      title: '设置失败',
+      description: error instanceof ApiError ? error.message : '请稍后再试',
+      color: 'error',
+    })
+  } finally {
+    primaryBindingLoading.value = null
+  }
+}
 </script>
 
 <template>
@@ -202,8 +227,10 @@ function openLoginDialog() { ui.openLoginDialog() }
       :bindings="authmeBindings"
       :is-editing="false"
       :loading="bindingLoading"
+      :primary-loading-id="primaryBindingLoading"
       @add="showBindDialog = true"
       @unbind="requestUnbindAuthme"
+      @set-primary="(payload) => setPrimaryBinding(payload.id)"
     />
 
     <AuthmeBindDialog

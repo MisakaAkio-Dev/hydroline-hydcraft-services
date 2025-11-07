@@ -243,6 +243,12 @@ export class AuthService {
     return { user };
   }
 
+  async setPrimaryAuthmeBinding(userId: string, bindingId: string) {
+    await this.usersService.setPrimaryAuthmeBinding(userId, bindingId);
+    const user = await this.usersService.getSessionUser(userId);
+    return { user };
+  }
+
   async getFeatureFlags(): Promise<AuthFeatureFlags> {
     return this.authFeatureService.getFlags();
   }

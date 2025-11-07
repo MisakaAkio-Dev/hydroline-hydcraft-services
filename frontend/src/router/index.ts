@@ -137,6 +137,17 @@ export const adminRoutes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'minecraft/servers',
+        name: 'admin.minecraft.servers',
+        component: () =>
+          import('@/views/admin/ServerStatus/MinecraftServerStatusView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['minecraft.manage.servers'],
+          layout: 'admin',
+        },
+      },
+      {
         path: 'rbac',
         name: 'admin.rbac',
         component: () => import('@/views/admin/Rbac/RbacConsole.vue'),

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
@@ -8,6 +9,8 @@ import { LuckpermsService } from './luckperms.service';
 import { UpdateLuckpermsConfigDto } from './dto/update-luckperms-config.dto';
 import { UpdateLuckpermsGroupLabelsDto } from './dto/update-luckperms-group-labels.dto';
 
+@ApiTags('LuckPerms 管理')
+@ApiBearerAuth()
 @Controller('luckperms/admin')
 @UseGuards(AuthGuard, PermissionsGuard)
 @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_CONFIG)
@@ -15,6 +18,7 @@ export class LuckpermsAdminController {
   constructor(private readonly luckpermsService: LuckpermsService) {}
 
   @Get('overview')
+  @ApiOperation({ summary: '获取 LuckPerms 配置与状态' })
   async getOverview() {
     const [health, configSnapshot, groupLabels] = await Promise.all([
       this.luckpermsService.health().catch((error: unknown) => ({
@@ -39,6 +43,7 @@ export class LuckpermsAdminController {
   }
 
   @Patch('config')
+  @ApiOperation({ summary: '更新 LuckPerms 连接配置' })
   async updateConfig(
     @Body() dto: UpdateLuckpermsConfigDto,
     @Req() req: Request,
@@ -48,6 +53,7 @@ export class LuckpermsAdminController {
   }
 
   @Patch('group-labels')
+  @ApiOperation({ summary: '批量更新权限组标签' })
   async updateGroupLabels(
     @Body() dto: UpdateLuckpermsGroupLabelsDto,
     @Req() req: Request,
