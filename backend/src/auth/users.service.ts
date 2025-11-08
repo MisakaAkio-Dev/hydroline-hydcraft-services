@@ -873,6 +873,55 @@ export class UsersService {
     return updated;
   }
 
+  async createAuthmeBindingAdmin(
+    userId: string,
+    dto: { identifier: string; setPrimary?: boolean },
+    actorId?: string,
+  ) {
+    await this.ensureUser(userId);
+    const identifier = dto.identifier.trim();
+    if (!identifier) {
+      throw new BadRequestException('identifier 不能为空');
+    }
+    // 优先尝试通过 AuthMe 数据源获取账户；不可用或不存在则用最小信息占位
+    const account = await this.authmeService
+      .getAccount(identifier)
+      .catch(() => null);
+    if (!account) {
+      // 未找到账号直接报业务错误，减少异常绑定；若需要允许“占位绑定”可调整为 fallback
+      throw new NotFoundException('未找到对应的 AuthMe 账户');
+    }
+
+    const binding = await this.authmeBindingService.bindUser({
+      userId,
+      authmeUser: account,
+      operatorUserId: actorId ?? userId,
+      sourceIp: null,
+    });
+
+    // 若请求设为主绑定
+    if (dto.setPrimary) {
+      await this.setPrimaryAuthmeBinding(userId, binding.id, actorId ?? userId);
+    }
+
+    // 查询当前 profile 主绑定判定 isPrimary
+    const profile = await this.prisma.userProfile.findUnique({
+      where: { userId },
+      select: { primaryAuthmeBindingId: true },
+    });
+    const isPrimary = profile?.primaryAuthmeBindingId === binding.id;
+
+    // 返回精简绑定结构（与 AdminAuthmeBindingEntry 接近）
+    return {
+      id: binding.id,
+      authmeUsername: binding.authmeUsername,
+      authmeRealname: binding.authmeRealname,
+      authmeUuid: binding.authmeUuid,
+      boundAt: binding.boundAt,
+      isPrimary,
+    };
+  }
+
   async listAuthmeBindingHistoryByUser(
     userId: string,
     params: { page?: number; pageSize?: number } = {},
@@ -1587,6 +1636,8 @@ export class UsersService {
           authmeRealname: string | null;
           authmeUuid?: string | null;
           boundAt: Date | string | null;
+          status?: string | null;
+          notes?: string | null;
         }>
       | null
       | undefined,
@@ -1617,6 +1668,16 @@ export class UsersService {
             ? rawUuid.trim()
             : null;
 
+        // 尝试安全读取 status / notes 字段
+        let status: string | null = null;
+        let notes: string | null = null;
+        if (typeof (payload as { status?: unknown }).status === 'string') {
+          status = (payload as { status?: string }).status ?? null;
+        }
+        if (typeof (payload as { notes?: unknown }).notes === 'string') {
+          const rawNotes = (payload as { notes?: string }).notes?.trim() ?? '';
+          notes = rawNotes.length > 0 ? rawNotes : null;
+        }
         const boundAtValue = (payload.boundAt ?? null) as Date | string | null;
         let boundAt: Date | string | null = null;
         if (boundAtValue instanceof Date || typeof boundAtValue === 'string') {
@@ -1628,6 +1689,8 @@ export class UsersService {
           authmeRealname:
             realnameRaw && realnameRaw.length > 0 ? realnameRaw : null,
           authmeUuid,
+          status,
+          notes,
           boundAt,
         };
       })
@@ -1704,6 +1767,8 @@ export class UsersService {
               regip: account?.regip ?? null,
               lastlogin: account?.lastlogin ?? null,
               regdate: account?.regdate ?? null,
+              status: (binding as { status?: string | null }).status ?? null,
+              notes: (binding as { notes?: string | null }).notes ?? null,
             } as AuthmeBindingSnapshot,
             luckperms: this.buildLuckpermsSnapshot(
               binding.authmeUsername,

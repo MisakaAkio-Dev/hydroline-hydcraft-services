@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAdminUsersStore } from '@/stores/adminUsers'
 import { useAdminRbacStore } from '@/stores/adminRbac'
 import { useUiStore } from '@/stores/ui'
 import type { AdminUserListItem } from '@/types/admin'
+import UserDetail from './UserDetail.vue'
 
 type SortOrder = 'asc' | 'desc'
 type RefreshOptions = {
@@ -41,6 +42,9 @@ const piicDialogOpen = ref(false)
 const piicDialogUser = ref<AdminUserListItem | null>(null)
 const piicReason = ref('')
 const piicSubmitting = ref(false)
+
+const detailDialogOpen = ref(false)
+const detailSelectedUser = ref<AdminUserListItem | null>(null)
 
 const maxMinecraftBadges = 3
 
@@ -145,6 +149,34 @@ function closePiicDialog() {
   piicDialogOpen.value = false
   piicDialogUser.value = null
   piicReason.value = ''
+}
+
+watch(piicDialogOpen, (value) => {
+  if (!value) {
+    piicDialogUser.value = null
+    piicReason.value = ''
+  }
+})
+
+function openDetailDialog(user: AdminUserListItem) {
+  detailSelectedUser.value = user
+  detailDialogOpen.value = true
+}
+
+function closeDetailDialog() {
+  detailDialogOpen.value = false
+}
+
+watch(detailDialogOpen, (value) => {
+  if (!value) {
+    detailSelectedUser.value = null
+  }
+})
+
+async function handleUserDeleted() {
+  detailDialogOpen.value = false
+  detailSelectedUser.value = null
+  await refresh({ page: pagination.value.page })
 }
 
 async function confirmPiicRegeneration() {
@@ -380,7 +412,7 @@ onMounted(async () => {
                   color="neutral"
                   variant="ghost"
                   size="xs"
-                  class="h-6 w-6 rounded-full p-0"
+                  class="h-6 w-6 rounded-full p-0 flex justify-center items-center"
                   icon="i-lucide-refresh-cw"
                   :disabled="usersStore.loading"
                   @click="openPiicDialog(item)"
@@ -403,23 +435,6 @@ onMounted(async () => {
                 :loading="roleUpdatingId === item.id"
                 @update:model-value="(value) => handleRolesChange(item, value)"
               />
-              <div class="mt-2 flex flex-wrap gap-1">
-                <UBadge
-                  v-for="role in item.roles"
-                  :key="role.id"
-                  color="primary"
-                  variant="soft"
-                  class="text-[11px]"
-                >
-                  {{ role.role.name ?? role.role.key }}
-                </UBadge>
-                <span
-                  v-if="item.roles.length === 0"
-                  class="text-xs text-slate-400"
-                >
-                  未分配
-                </span>
-              </div>
             </td>
             <td class="px-4 py-4 text-sm">
               <USelectMenu
@@ -435,31 +450,6 @@ onMounted(async () => {
                 :loading="labelUpdatingId === item.id"
                 @update:model-value="(value) => handleLabelsChange(item, value)"
               />
-              <div class="mt-2 flex flex-wrap gap-1">
-                <UBadge
-                  v-for="link in item.permissionLabels ?? []"
-                  :key="link.id"
-                  :style="
-                    link.label.color
-                      ? {
-                          backgroundColor: link.label.color + '20',
-                          color: link.label.color,
-                        }
-                      : undefined
-                  "
-                  color="neutral"
-                  variant="soft"
-                  class="text-[11px]"
-                >
-                  {{ link.label.name }}
-                </UBadge>
-                <span
-                  v-if="(item.permissionLabels?.length ?? 0) === 0"
-                  class="text-xs text-slate-400"
-                >
-                  未分配
-                </span>
-              </div>
             </td>
             <td class="px-4 py-4 text-sm">
               <div class="flex flex-wrap items-center gap-2">
@@ -525,14 +515,14 @@ onMounted(async () => {
               <span v-else>—</span>
             </td>
             <td class="px-4 py-4 text-right">
-              <RouterLink
-                :to="{
-                  name: 'admin.users.detail',
-                  params: { userId: item.id },
-                }"
+              <UButton
+                color="primary"
+                size="xs"
+                variant="soft"
+                @click="openDetailDialog(item)"
               >
-                <UButton color="primary" size="xs" variant="soft">查看</UButton>
-              </RouterLink>
+                查看
+              </UButton>
             </td>
           </tr>
           <tr v-if="rows.length === 0">
@@ -578,11 +568,54 @@ onMounted(async () => {
       </div>
     </div>
 
-    <UModal v-model="piicDialogOpen">
-      <UCard>
-        <template #header>
+    <UModal v-model:open="detailDialogOpen" :ui="{ content: 'w-full max-w-5xl' }">
+      <template #content>
+        <div class="flex h-full max-h-[85vh] flex-col">
+          <div
+            class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800/60"
+          >
+            <div>
+              <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                用户详情
+              </p>
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                {{
+                  detailSelectedUser?.profile?.displayName ??
+                    detailSelectedUser?.email ??
+                    '用户详情'
+                }}
+              </h3>
+            </div>
+            <UButton
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="closeDetailDialog"
+            />
+          </div>
+          <div class="flex-1 overflow-y-auto px-6 py-4">
+            <UserDetail
+              v-if="detailDialogOpen && detailSelectedUser"
+              :user-id="detailSelectedUser.id"
+              @deleted="handleUserDeleted"
+            />
+            <div
+              v-else
+              class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400"
+            >
+              未选择用户。
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal :open="piicDialogOpen" @update:open="piicDialogOpen = $event" :ui="{ content: 'w-full max-w-lg' }">
+      <template #content>
+        <div class="space-y-4 p-6 text-sm">
           <div class="flex items-center justify-between">
-            <h2 class="text-base font-medium">重新生成 PIIC</h2>
+            <h3 class="text-lg font-semibold">重新生成 PIIC</h3>
             <UButton
               icon="i-lucide-x"
               color="neutral"
@@ -591,34 +624,25 @@ onMounted(async () => {
               @click="closePiicDialog"
             />
           </div>
-        </template>
-        <div class="space-y-3">
-          <p class="text-sm text-slate-600 dark:text-slate-300">
+          <p class="text-xs text-slate-500 dark:text-slate-400">
             将为用户重新生成 PIIC 编号，历史编号会作废。请填写备注以便审计记录。
           </p>
-          <UFormGroup label="备注（可选）">
+          <div class="space-y-1">
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300">
+              备注（可选）
+            </label>
             <UTextarea
               v-model="piicReason"
-              :rows="3"
+              :rows="4"
               placeholder="说明原因或操作背景"
             />
-          </UFormGroup>
-        </div>
-        <template #footer>
-          <div class="flex justify-end gap-2">
-            <UButton color="neutral" variant="ghost" @click="closePiicDialog"
-              >取消</UButton
-            >
-            <UButton
-              color="primary"
-              :loading="piicSubmitting"
-              @click="confirmPiicRegeneration"
-            >
-              确认重新生成
-            </UButton>
           </div>
-        </template>
-      </UCard>
+          <div class="flex justify-end gap-2">
+            <UButton color="neutral" variant="ghost" @click="closePiicDialog">取消</UButton>
+            <UButton color="primary" :loading="piicSubmitting" @click="confirmPiicRegeneration">确认重新生成</UButton>
+          </div>
+        </div>
+      </template>
     </UModal>
   </div>
 </template>

@@ -104,17 +104,6 @@ export const adminRoutes: RouteRecordRaw[] = [
         },
       },
       {
-        path: 'users/:userId',
-        name: 'admin.users.detail',
-        component: () => import('@/views/admin/Users/UserDetail.vue'),
-        meta: {
-          requiresAuth: true,
-          requiresPermissions: ['auth.manage.users'],
-          layout: 'admin',
-        },
-        props: true,
-      },
-      {
         path: 'attachments',
         name: 'admin.attachments',
         component: () =>

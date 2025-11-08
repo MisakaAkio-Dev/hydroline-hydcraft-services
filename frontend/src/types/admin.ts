@@ -30,7 +30,6 @@ export interface AdminUserListItem {
   statusSnapshot?: {
     status: string
   } | null
-  minecraftIds?: AdminMinecraftProfile[]
   roles: Array<{
     id: string
     roleId: string
@@ -81,6 +80,7 @@ export interface AdminUserDetail extends AdminUserListItem {
       })
     | null
   authmeBindings: AdminAuthmeBindingEntry[]
+  contacts?: Array<AdminContactEntry>
   permissionLabels?: Array<{
     id: string
     labelId: string
@@ -93,6 +93,23 @@ export interface AdminUserDetail extends AdminUserListItem {
     ipAddress: string | null
     userAgent: string | null
   }>
+}
+
+export interface AdminContactEntry {
+  id: string
+  userId?: string
+  channelId: string
+  value: string | null
+  isPrimary?: boolean
+  verifiedAt?: string | null
+  verification?: string | null
+  metadata?: unknown
+  channel?: {
+    id: string
+    key: string
+    displayName: string | null
+    description?: string | null
+  } | null
 }
 
 export interface AdminAttachmentSummary {

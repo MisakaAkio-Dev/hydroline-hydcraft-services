@@ -31,6 +31,9 @@ import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 import { UpdateAuthmeBindingAdminDto } from './dto/update-authme-binding-admin.dto';
 import { AssignPermissionLabelsDto } from './dto/assign-permission-labels.dto';
 
+// 为避免类型信息获取不全导致的 ESLint 误报，这里定义一个局部结构类型（结构兼容 DTO）
+type CreateBindingBody = { identifier: string; setPrimary?: boolean };
+
 @ApiTags('用户管理')
 @ApiBearerAuth()
 @Controller('auth/users')
@@ -110,6 +113,24 @@ export class UsersController {
       userId,
       bindingId,
       dto,
+      req.user?.id,
+    );
+  }
+
+  @Post(':userId/bindings')
+  @ApiOperation({ summary: '创建新的 AuthMe 绑定（管理员直接绑定）' })
+  async createBinding(
+    @Param('userId') userId: string,
+    @Body() dto: CreateBindingBody,
+    @Req() req: Request,
+  ) {
+    const safeDto: { identifier: string; setPrimary?: boolean } = {
+      identifier: String(dto.identifier ?? ''),
+      setPrimary: dto.setPrimary,
+    };
+    return this.usersService.createAuthmeBindingAdmin(
+      userId,
+      safeDto,
       req.user?.id,
     );
   }
