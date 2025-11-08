@@ -44,7 +44,8 @@ const menuGroups = computed<MenuGroup[]>(() => [
     collapsible: true,
     defaultCollapsed: false,
     items: [
-      { label: '用户与玩家', to: '/admin/users', icon: 'i-lucide-users' },
+      { label: '用户信息', to: '/admin/users', icon: 'i-lucide-user-round' },
+      { label: '玩家信息', to: '/admin/players', icon: 'i-lucide-users' },
       { label: 'RBAC 管理', to: '/admin/rbac', icon: 'i-lucide-shield-check' },
     ],
   },

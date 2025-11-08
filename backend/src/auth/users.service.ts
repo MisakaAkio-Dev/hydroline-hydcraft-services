@@ -1402,6 +1402,12 @@ export class UsersService {
     if (!binding || binding.userId !== userId) {
       throw new NotFoundException('AuthMe 绑定不存在');
     }
+    // 预获取当前主绑定，供自动流转判定
+    const profileBefore = await this.prisma.userProfile.findUnique({
+      where: { userId },
+      select: { primaryAuthmeBindingId: true },
+    });
+    const wasPrimary = profileBefore?.primaryAuthmeBindingId === bindingId;
     await this.prisma.$transaction(async (tx) => {
       // 清理 profile 主绑定
       await tx.userProfile.updateMany({
@@ -1440,6 +1446,34 @@ export class UsersService {
           createdById: actorId ?? userId,
         },
       });
+      // 自动主绑定流转：若删除的是当前主绑定，则选择剩余最早绑定设为主
+      if (wasPrimary) {
+        const next = await tx.userAuthmeBinding.findFirst({
+          where: { userId },
+          orderBy: { boundAt: 'asc' },
+        });
+        if (next) {
+          await tx.userProfile.upsert({
+            where: { userId },
+            update: { primaryAuthmeBindingId: next.id },
+            create: { userId, primaryAuthmeBindingId: next.id },
+          });
+          await this.authmeBindingService.recordHistoryEntry(
+            {
+              bindingId: next.id,
+              userId: next.userId,
+              operatorId: actorId ?? userId,
+              authmeUsername: next.authmeUsername,
+              authmeRealname: next.authmeRealname,
+              authmeUuid: next.authmeUuid,
+              action: AuthmeBindingAction.PRIMARY_SET,
+              reason: 'auto-reassign-primary-unbind',
+              payload: { auto: true },
+            },
+            tx,
+          );
+        }
+      }
     });
     await this.adminAuditService.record({
       actorId,

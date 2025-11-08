@@ -85,10 +85,12 @@ export class AuthmeBindingService {
         },
       });
 
+      // 自动主绑定：若用户尚无 profile 或尚未设置主绑定，则将当前绑定设为主并记录历史
       const profile = await tx.userProfile.findUnique({
         where: { userId: options.userId },
         select: { primaryAuthmeBindingId: true },
       });
+      let autoPrimary = false;
       if (!profile) {
         await tx.userProfile.create({
           data: {
@@ -96,11 +98,13 @@ export class AuthmeBindingService {
             primaryAuthmeBindingId: binding.id,
           },
         });
+        autoPrimary = true;
       } else if (!profile.primaryAuthmeBindingId) {
         await tx.userProfile.update({
           where: { userId: options.userId },
           data: { primaryAuthmeBindingId: binding.id },
         });
+        autoPrimary = true;
       }
 
       await tx.userLifecycleEvent.create({
@@ -134,6 +138,23 @@ export class AuthmeBindingService {
         },
         tx,
       );
+
+      if (autoPrimary) {
+        await this.recordHistoryEntry(
+          {
+            bindingId: binding.id,
+            userId: binding.userId,
+            operatorId: options.operatorUserId ?? options.userId,
+            authmeUsername: binding.authmeUsername,
+            authmeRealname: binding.authmeRealname,
+            authmeUuid: binding.authmeUuid,
+            action: AuthmeBindingAction.PRIMARY_SET,
+            reason: 'auto-initial-primary',
+            payload: { auto: true },
+          },
+          tx,
+        );
+      }
 
       return binding;
     });
@@ -257,6 +278,7 @@ export class AuthmeBindingService {
     tx: Prisma.TransactionClient,
     binding: { id: string; userId: string },
   ) {
+    // 若当前被删除的是主绑定，则先清空主绑定
     await tx.userProfile.updateMany({
       where: {
         userId: binding.userId,
@@ -268,6 +290,33 @@ export class AuthmeBindingService {
       where: { userId: binding.userId, authmeBindingId: binding.id },
       data: { authmeBindingId: null },
     });
+
+    // 尝试自动流转主绑定到剩余最早绑定
+    const next = await tx.userAuthmeBinding.findFirst({
+      where: { userId: binding.userId },
+      orderBy: { boundAt: 'asc' },
+    });
+    if (next) {
+      await tx.userProfile.upsert({
+        where: { userId: binding.userId },
+        update: { primaryAuthmeBindingId: next.id },
+        create: { userId: binding.userId, primaryAuthmeBindingId: next.id },
+      });
+      await this.recordHistoryEntry(
+        {
+          bindingId: next.id,
+          userId: next.userId,
+          operatorId: binding.userId, // 系统自动流转，默认归属为本人
+          authmeUsername: next.authmeUsername,
+          authmeRealname: next.authmeRealname ?? null,
+          authmeUuid: next.authmeUuid ?? null,
+          action: AuthmeBindingAction.PRIMARY_SET,
+          reason: 'auto-reassign-primary-unbind',
+          payload: { auto: true },
+        },
+        tx,
+      );
+    }
   }
 
   async recordHistoryEntry(
@@ -298,7 +347,7 @@ export class AuthmeBindingService {
         reason: params.reason ?? null,
         payload: params.payload
           ? this.toJson(params.payload)
-          : ((Prisma.JsonNull as unknown) as Prisma.InputJsonValue),
+          : (Prisma.JsonNull as unknown as Prisma.InputJsonValue),
       },
     });
     authmeBindingHistoryCounter.inc({ action: params.action });

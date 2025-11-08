@@ -53,7 +53,12 @@ const chartOption = computed(() => {
       data: points.map((p) => new Date(p.createdAt).toLocaleTimeString()),
     },
     yAxis: { type: 'value', min: 0 },
-    legend: { top: 0 },
+    // 默认仅展示“在线人数”，隐藏“延迟(ms)”图层，可通过图例手动开启
+    legend: {
+      top: 0,
+      selected: { 在线人数: true, '延迟(ms)': false },
+      selectedMode: 'single',
+    },
     series: [
       {
         type: 'line',
@@ -981,7 +986,12 @@ async function submitAdhoc() {
                       .map((p) => new Date(p.createdAt).toLocaleTimeString()),
                   },
                   yAxis: { type: 'value', min: 0 },
-                  legend: { top: 0 },
+                  // 默认隐藏延迟图层
+                  legend: {
+                    top: 0,
+                    selected: { 在线人数: true, '延迟(ms)': false },
+                    selectedMode: 'single',
+                  },
                   series: [
                     {
                       type: 'line',
