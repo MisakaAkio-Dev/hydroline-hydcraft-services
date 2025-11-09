@@ -6,6 +6,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useAdminUsersStore } from '@/stores/adminUsers'
 import { useAdminRbacStore } from '@/stores/adminRbac'
 import type { AdminBindingHistoryEntry, AdminUserDetail } from '@/types/admin'
+import UserDetailSectionOverview from './components/UserDetailSectionOverview.vue'
+import UserDetailSectionProfile from './components/UserDetailSectionProfile.vue'
+import UserDetailSectionServerAccounts from './components/UserDetailSectionServerAccounts.vue'
+import UserBindingHistoryDialog from './components/UserBindingHistoryDialog.vue'
+import UserSessionsDialog from './components/UserSessionsDialog.vue'
+import ResetPasswordResultDialog from './components/ResetPasswordResultDialog.vue'
+import ErrorDialog from './components/ErrorDialog.vue'
 
 type PasswordMode = 'temporary' | 'custom'
 
@@ -79,45 +86,8 @@ const labelOptions = computed(() =>
 
 const sessions = computed(() => detail.value?.sessions ?? [])
 
-interface UIMinecraftProfile {
-  id: string
-  isPrimary?: boolean
-  nickname: string | null
-}
-
-// 主 Minecraft 概览（将 UUID、Minecraft ID 与昵称区分开）
-interface PrimaryMinecraftSummary {
-  // Minecraft 账户的 UUID（来自 AuthMe 绑定的 authmeUuid）
-  id: string
-  // Minecraft ID（用户名/Realname）
-  realname: string | null
-  username: string | null
-  // 平时使用的昵称（来自昵称表 nicknames 的主项）
-  nickname: string | null
-}
-
-const primaryMinecraft = computed<PrimaryMinecraftSummary | null>(() => {
-  const d = detail.value
-  if (!d) return null
-  const primaryBindId = d.profile?.primaryAuthmeBindingId
-  if (!primaryBindId) return null
-  const b = (d.authmeBindings ?? []).find((x) => x.id === primaryBindId)
-  if (!b || !b.id) return null
-  // 取主昵称（如果有）
-  const primaryNick =
-    (d.nicknames ?? []).find((n) => n.isPrimary)?.nickname ?? null
-  return {
-    // 使用 AuthMe 的 UUID 作为 id（用于显示 UUID）
-    id: b.authmeUuid ?? '',
-    // Minecraft ID（优先 Realname，否则 Username）
-    realname: b.authmeRealname ?? null,
-    username: b.authmeUsername ?? null,
-    // 独立的昵称
-    nickname: primaryNick,
-  }
-})
-
-const minecraftProfiles = computed<UIMinecraftProfile[]>(() => {
+// 已迁移到分离的 Section 组件中计算主 Minecraft 信息与昵称列表。
+const minecraftProfiles = computed(() => {
   const list = detail.value?.nicknames ?? []
   return list.map((n) => ({
     id: n.id,
@@ -360,10 +330,7 @@ async function deleteMinecraftProfile(profileId: string) {
   }
 }
 
-function fmtDateTime(ts?: string | null, format = 'YYYY-MM-DD HH:mm') {
-  if (!ts) return '—'
-  return dayjs(ts).format(format)
-}
+// fmtDateTime: 原本用于本文件模态内部，现已由各子组件自行实现
 
 function hydratedRoleKeys(data: AdminUserDetail | null) {
   return data?.roles.map((link) => link.role.key).sort() ?? []
@@ -634,13 +601,9 @@ function closeResetPasswordDialog() {
   passwordDialogOpen.value = false
 }
 
-function closeResetResultDialog() {
-  resetResultDialogOpen.value = false
-}
+// closeResetResultDialog: 已由组件 ResetPasswordResultDialog 通过 v-model 处理
 
-function closeErrorDialog() {
-  errorDialogOpen.value = false
-}
+// closeErrorDialog: 已由组件 ErrorDialog 通过 v-model 处理
 
 function copyTemporaryPassword() {
   const pwd = resetResult.value?.temporaryPassword
@@ -746,6 +709,8 @@ onMounted(async () => {
   }
 })
 
+// inline typed handler used in template for joinDate updates
+
 watch(
   () => props.userId,
   async (next) => {
@@ -769,666 +734,78 @@ watch(
 
 <template>
   <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 text-sm">
-    <section
-      class="rounded-2xl p-6 border border-slate-200/70 dark:border-slate-800/70"
-    >
-      <div
-        class="flex flex-col gap-4 relative md:flex-row md:items-start md:justify-between"
-      >
-        <div class="flex-1">
-          <div>
-            <UserAvatar
-              :src="(detail?.profile as any)?.avatarUrl || undefined"
-              :alt="detail?.profile?.displayName || detail?.email || '用户头像'"
-              size="lg"
-              class="mb-2"
-            />
-          </div>
-          <div>
-            <span
-              class="line-clamp-1 truncate text-2xl font-semibold text-slate-900 dark:text-white"
-            >
-              {{ detail?.profile?.displayName ?? detail?.email ?? '用户详情' }}
-            </span>
-            <span class="text-sm">{{ detail?.id ?? '—' }}</span>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 md:absolute md:top-0 md:right-0">
-          <UButton
-            class="flex items-center justify-center leading-none"
-            color="neutral"
-            variant="soft"
-            size="sm"
-            :loading="loading"
-            @click="fetchDetail"
-          >
-            重新载入
-          </UButton>
-          <UButton
-            class="flex items-center justify-center leading-none"
-            color="neutral"
-            variant="soft"
-            size="sm"
-            :disabled="!detail"
-            @click="contactsListDialogOpen = true"
-          >
-            管理联系方式
-          </UButton>
-          <UButton
-            class="flex items-center justify-center leading-none"
-            color="primary"
-            variant="soft"
-            size="sm"
-            :disabled="loading || !detail"
-            @click="openResetPasswordDialog"
-          >
-            重置密码
-          </UButton>
-          <UButton
-            class="flex items-center justify-center leading-none"
-            color="error"
-            variant="soft"
-            size="sm"
-            :disabled="!detail"
-            @click="openDeleteDialog"
-          >
-            删除该用户
-          </UButton>
-        </div>
-      </div>
-
-      <div class="mt-6 grid gap-2 sm:grid-cols-3">
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">邮箱</div>
-          <div
-            class="text-base font-semibold text-slate-800 dark:text-slate-300"
-          >
-            <template v-if="detail?.email">{{ detail.email }}</template>
-            <template v-else>
-              <UIcon
-                name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
-              />
-            </template>
-          </div>
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">用户名</div>
-          <div
-            class="text-base font-semibold text-slate-800 dark:text-slate-300"
-          >
-            <template v-if="detail?.name">
-              {{ detail.name }}
-            </template>
-            <template v-else>
-              <UIcon
-                name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
-              />
-            </template>
-          </div>
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">状态</div>
-          <div
-            class="text-base font-semibold text-slate-800 dark:text-slate-300"
-          >
-            <template v-if="detail?.statusSnapshot?.status">
-              {{ detail.statusSnapshot.status }}
-            </template>
-            <template v-else>
-              <UIcon
-                name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
-              />
-            </template>
-          </div>
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">PIIC</div>
-          <div
-            class="text-base font-semibold text-slate-800 dark:text-slate-300 flex items-center gap-1"
-          >
-            <template v-if="detail?.profile?.piic"
-              ><span>
-                {{ detail?.profile?.piic ?? '—' }}
-              </span>
-              <UButton
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                class="h-7 w-7 rounded-full p-0 flex justify-center items-center"
-                icon="i-lucide-refresh-cw"
-                :disabled="!detail || loading"
-                @click="openPiicDialog"
-              >
-                <span class="sr-only">刷新 PIIC</span>
-              </UButton>
-            </template>
-            <template v-else>
-              <UIcon
-                name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
-              />
-            </template>
-          </div>
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">注册时间</div>
-          <div
-            class="text-base font-semibold text-slate-800 dark:text-slate-300"
-          >
-            <template v-if="detail?.createdAt">
-              {{ fmtDateTime(detail.createdAt) }}
-            </template>
-            <template v-else>
-              <UIcon
-                name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
-              />
-            </template>
-          </div>
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">入服时间</div>
-          <div class="flex flex-col gap-1 sm:flex-row sm:items-center">
-            <div class="flex-1">
-              <UInput
-                v-model="joinDateEditing"
-                type="date"
-                class="w-full"
-                :disabled="!detail"
-              />
-            </div>
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              class="h-7 w-7 rounded-full p-0 flex justify-center items-center"
-              icon="i-lucide-refresh-cw"
-              :loading="joinDateSaving"
-              :disabled="!detail || !joinDateEditing"
-              @click="saveJoinDate"
-            >
-              <span class="sr-only">更新</span>
-            </UButton>
-          </div>
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">
-            主 Minecraft 昵称
-          </div>
-          <div
-            class="text-base font-semibold text-slate-800 dark:text-slate-300"
-          >
-            <template v-if="primaryMinecraft">
-              {{ primaryMinecraft.nickname || '—' }}
-            </template>
-            <template v-else>
-              <UIcon
-                name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
-              />
-            </template>
-          </div>
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">
-            主 Minecraft ID
-          </div>
-          <div
-            class="text-base font-semibold text-slate-800 dark:text-slate-300"
-          >
-            <template v-if="primaryMinecraft">
-              <span class="flex items-center gap-1">
-                <img
-                  :src="
-                    'https://mc-heads.net/avatar/' + primaryMinecraft.username
-                  "
-                  class="block h-4 w-4 rounded-xs"
-                />
-                {{ primaryMinecraft.realname || '—' }}
-              </span>
-              <span
-                class="block line-clamp-1 truncate font-medium text-xs text-slate-600 dark:text-slate-600"
-                >{{ primaryMinecraft.id }}</span
-              >
-            </template>
-            <template v-else>
-              <UIcon
-                name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
-              />
-            </template>
-          </div>
-        </div>
-
-        <div>
-          <div
-            class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
-          >
-            最近登录时间
-            <span>
-              <UButton
-                size="xs"
-                class="p-0 leading-none font-medium"
-                color="primary"
-                variant="link"
-                :disabled="!detail"
-                @click="sessionsDialogOpen = true"
-              >
-                查看全部
-              </UButton>
-            </span>
-          </div>
-          <div
-            class="text-base font-semibold text-slate-800 dark:text-slate-300"
-          >
-            {{ fmtDateTime(detail?.lastLoginAt) }}
-            <span
-              class="block line-clamp-1 truncate font-medium text-xs text-slate-600 dark:text-slate-600"
-              >{{ detail?.lastLoginIp ?? '—' }}</span
-            >
-          </div>
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">
-            RBAC 角色
-          </div>
-          <div>
-            <USelect
-              class="w-full"
-              :model-value="roleSelection"
-              :items="roleOptions"
-              multiple
-              searchable
-              value-key="value"
-              label-key="label"
-              :disabled="roleSaving || loading"
-              :loading="roleSaving || loading"
-              placeholder="选择角色"
-              @update:model-value="handleRolesUpdate"
-            />
-          </div>
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">
-            RBAC 标签
-          </div>
-          <div>
-            <USelect
-              class="w-full"
-              :model-value="labelSelection"
-              :items="labelOptions"
-              multiple
-              searchable
-              value-key="value"
-              label-key="label"
-              :disabled="labelSaving || loading"
-              :loading="labelSaving || loading"
-              placeholder="选择标签"
-              @update:model-value="handleLabelsUpdate"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section
-      class="rounded-2xl p-6 border border-slate-200/70 dark:border-slate-800/70"
-    >
-      <div class="flex items-center justify-between">
-        <div class="text-sm tracking-wide text-slate-500 dark:text-slate-400">
-          基础资料
-        </div>
-        <UButton
-          :loading="profileSaving"
-          variant="ghost"
-          color="neutral"
-          size="sm"
-          :disabled="!detail"
-          @click="saveProfile"
-        >
-          保存资料
-        </UButton>
-      </div>
-
-      <div class="mt-4 grid gap-4 md:grid-cols-3">
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">显示名称</div>
-          <UInput
-            v-model="profileForm.displayName"
-            placeholder="显示名称"
-            class="w-full"
-          />
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">语言</div>
-          <USelect
-            v-model="profileForm.locale"
-            :items="[{ label: '中文（简体）', value: 'zh-CN' }]"
-            placeholder="选择语言"
-            class="w-full"
-          />
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">时区</div>
-          <UInput
-            v-model="profileForm.timezone"
-            placeholder="例如 Asia/Shanghai"
-            class="w-full"
-          />
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">性别</div>
-          <USelect
-            v-model="profileForm.gender"
-            :items="[
-              { label: '未指定', value: 'UNSPECIFIED' },
-              { label: '男', value: 'MALE' },
-              { label: '女', value: 'FEMALE' },
-            ]"
-            placeholder="选择性别"
-            class="w-full"
-          />
-        </div>
-
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">生日</div>
-          <UInput v-model="profileForm.birthday" type="date" class="w-full" />
-        </div>
-
-        <div class="md:col-span-3">
-          <div class="text-xs text-slate-500 dark:text-slate-500">签名</div>
-          <UTextarea
-            v-model="profileForm.motto"
-            :rows="3"
-            placeholder="个人签名或座右铭"
-            class="w-full"
-          />
-        </div>
-      </div>
-    </section>
-
-    <section
-      class="rounded-2xl p-6 border border-slate-200/70 dark:border-slate-800/70"
-    >
-      <div class="flex gap-2 items-center justify-between">
-        <div class="text-sm tracking-wide text-slate-500 dark:text-slate-400">
-          服务器账户
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <UButton
-            size="sm"
-            color="neutral"
-            variant="ghost"
-            :disabled="!detail"
-            @click="openMinecraftProfileDialog"
-          >
-            添加昵称
-          </UButton>
-          <UButton
-            size="sm"
-            color="primary"
-            variant="ghost"
-            :disabled="!detail"
-            @click="openCreateBindingDialog"
-          >
-            新增绑定
-          </UButton>
-          <UButton
-            size="sm"
-            color="neutral"
-            variant="ghost"
-            :disabled="!detail"
-            @click="bindingHistoryDialogOpen = true"
-          >
-            流转记录
-          </UButton>
-        </div>
-      </div>
-
-      <div class="mt-2 flex flex-row gap-6 md:grid md:grid-cols-2">
-        <!-- MC ID -->
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">
-            Minecraft ID
-          </div>
-
-          <ul class="space-y-2">
-            <li
-              v-for="binding in detail?.authmeBindings ?? []"
-              :key="binding.id"
-              class="rounded-lg bg-slate-50/80 px-4 py-3 text-slate-600 dark:bg-slate-900/40 dark:text-slate-300"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <div>
-                  <span class="font-medium text-slate-900 dark:text-white">{{
-                    binding.authmeRealname ?? binding.authmeUsername ?? '未知'
-                  }}</span>
-                  <UBadge
-                    v-if="
-                      binding.id &&
-                      binding.id === detail?.profile?.primaryAuthmeBindingId
-                    "
-                    variant="soft"
-                    class="ml-2"
-                    size="sm"
-                    >主绑定</UBadge
-                  >
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <UButton
-                    v-if="
-                      binding.id &&
-                      binding.id !== detail?.profile?.primaryAuthmeBindingId
-                    "
-                    size="xs"
-                    color="primary"
-                    variant="link"
-                    @click="markPrimaryBinding(binding.id)"
-                    >设为主绑定</UButton
-                  >
-                  <UButton
-                    v-if="binding.id"
-                    size="xs"
-                    color="error"
-                    variant="link"
-                    @click="unbind(binding.id)"
-                    >解绑</UButton
-                  >
-                </div>
-              </div>
-              <div class="mt-2">
-                <span class="text-xs font-semibold" v-if="binding.authmeUuid">{{
-                  binding.authmeUuid
-                }}</span>
-              </div>
-            </li>
-            <li
-              v-if="(detail?.authmeBindings?.length ?? 0) === 0"
-              class="text-xs text-slate-500 dark:text-slate-400"
-            >
-              <UIcon
-                name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
-              />
-            </li>
-          </ul>
-        </div>
-
-        <!-- Minecraft 昵称列表 -->
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-500">昵称</div>
-          <ul class="space-y-2">
-            <li
-              v-for="p in minecraftProfiles"
-              :key="p.id"
-              class="rounded-lg bg-slate-100/60 px-4 py-2 text-[11px] text-slate-600 dark:bg-slate-900/40 dark:text-slate-300"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <div>
-                  <span class="font-medium text-slate-900 dark:text-white">{{
-                    p.nickname || '未命名'
-                  }}</span>
-                  <UBadge
-                    v-if="p.isPrimary"
-                    variant="soft"
-                    class="ml-2"
-                    size="sm"
-                    >主称呼</UBadge
-                  >
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <UButton
-                    v-if="!p.isPrimary"
-                    size="xs"
-                    color="primary"
-                    variant="link"
-                    @click="markPrimaryMinecraft(p.id)"
-                    >设为主</UButton
-                  >
-                  <UButton
-                    size="xs"
-                    color="error"
-                    variant="link"
-                    @click="deleteMinecraftProfile(p.id)"
-                    >删除</UButton
-                  >
-                </div>
-              </div>
-            </li>
-            <li
-              v-if="minecraftProfiles.length === 0"
-              class="text-xs text-slate-500 dark:text-slate-400"
-            >
-              <UIcon
-                name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
-              />
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
+    <UserDetailSectionOverview
+      :detail="detail"
+      :loading="loading"
+      :role-selection="roleSelection"
+      :label-selection="labelSelection"
+      :role-options="roleOptions"
+      :label-options="labelOptions"
+      :role-saving="roleSaving"
+      :label-saving="labelSaving"
+      :join-date-editing="joinDateEditing"
+      :join-date-saving="joinDateSaving"
+      @reload="fetchDetail"
+      @openContacts="contactsListDialogOpen = true"
+      @resetPassword="openResetPasswordDialog"
+      @deleteUser="openDeleteDialog"
+      @editJoinDate="(val: string | null) => (joinDateEditing = val)"
+      @saveJoinDate="saveJoinDate"
+      @updateRoles="handleRolesUpdate"
+      @updateLabels="handleLabelsUpdate"
+      @refreshPiic="openPiicDialog"
+      @openSessions="sessionsDialogOpen = true"
+    />
+    <UserDetailSectionProfile
+      :detail="detail"
+      :profile-form="profileForm"
+      :profile-saving="profileSaving"
+      @save="saveProfile"
+    />
+    <UserDetailSectionServerAccounts
+      :detail="detail"
+      :minecraft-profiles="minecraftProfiles"
+      @openAddNickname="openMinecraftProfileDialog"
+      @openCreateBinding="openCreateBindingDialog"
+      @openBindingHistory="bindingHistoryDialogOpen = true"
+      @markPrimaryBinding="markPrimaryBinding"
+      @unbind="unbind"
+      @markPrimaryMinecraft="markPrimaryMinecraft"
+      @deleteMinecraftProfile="deleteMinecraftProfile"
+    />
   </div>
 
-  <!-- 绑定流转记录 对话框 -->
-  <UModal
+  <!-- 绑定流转记录 对话框（组件化） -->
+  <UserBindingHistoryDialog
     :open="bindingHistoryDialogOpen"
+    :items="bindingHistory"
+    :loading="historyLoading"
     @update:open="bindingHistoryDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-2xl' }"
-  >
-    <template #content>
-      <div class="space-y-5 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3
-            class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
-          >
-            绑定流转记录
-          </h3>
-          <div class="flex items-center gap-2">
-            <USkeleton v-if="historyLoading" class="h-4 w-20" />
-            <UButton
-              icon="i-lucide-x"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              @click="bindingHistoryDialogOpen = false"
-            />
-          </div>
-        </div>
-        <ul class="space-y-3">
-          <li
-            v-for="entry in bindingHistory"
-            :key="entry.id"
-            class="rounded-lg bg-slate-100/60 px-4 py-3 text-[11px] text-slate-600 dark:bg-slate-900/40 dark:text-slate-300"
-          >
-            <div class="flex items-center justify-between">
-              <span class="font-medium text-slate-900 dark:text-white">
-                {{ entry.action }}
-              </span>
-              <span>{{ fmtDateTime(entry.createdAt) }}</span>
-            </div>
-            <p class="mt-1">{{ entry.reason ?? '无备注' }}</p>
-            <p class="mt-1">
-              操作人：{{
-                entry.operator?.profile?.displayName ??
-                entry.operator?.email ??
-                '系统'
-              }}
-            </p>
-          </li>
-          <li
-            v-if="!historyLoading && bindingHistory.length === 0"
-            class="text-xs text-slate-500 dark:text-slate-400"
-          >
-            暂无流转记录。
-          </li>
-        </ul>
-      </div>
-    </template>
-  </UModal>
+  />
+
+  <!-- 登录轨迹对话框组件化 -->
+  <UserSessionsDialog
+    :open="sessionsDialogOpen"
+    :sessions="sessions"
+    @update:open="sessionsDialogOpen = $event"
+  />
+
+  <!-- 密码重置结果对话框组件化 -->
+  <ResetPasswordResultDialog
+    :open="resetResultDialogOpen"
+    :result="resetResult"
+    @update:open="resetResultDialogOpen = $event"
+    @copy="copyTemporaryPassword"
+  />
+
+  <!-- 错误信息对话框组件化 -->
+  <ErrorDialog
+    :open="errorDialogOpen"
+    :message="errorMsg"
+    @update:open="errorDialogOpen = $event"
+  />
 
   <!-- 登录轨迹 对话框 -->
-  <UModal
-    :open="sessionsDialogOpen"
-    @update:open="sessionsDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-2xl' }"
-  >
-    <template #content>
-      <div class="space-y-5 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3
-            class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
-          >
-            登录轨迹
-          </h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="sessionsDialogOpen = false"
-          />
-        </div>
-        <ul class="space-y-3">
-          <li
-            v-for="session in sessions"
-            :key="session.id"
-            class="rounded-lg bg-slate-100/60 px-3 py-2 text-[11px] text-slate-600 dark:bg-slate-900/40 dark:text-slate-300"
-          >
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-medium text-slate-900 dark:text-white">
-                {{ fmtDateTime(session.createdAt) }}
-              </span>
-              <span>IP：{{ session.ipAddress ?? '—' }}</span>
-            </div>
-            <p class="mt-1">过期：{{ fmtDateTime(session.expiresAt) }}</p>
-            <p class="mt-1 break-all">UA：{{ session.userAgent ?? '—' }}</p>
-          </li>
-          <li
-            v-if="sessions.length === 0"
-            class="text-xs text-slate-500 dark:text-slate-400"
-          >
-            暂无登录记录。
-          </li>
-        </ul>
-      </div>
-    </template>
-  </UModal>
 
   <!-- 联系方式列表 对话框 -->
   <UModal
@@ -1509,91 +886,8 @@ watch(
       </div>
     </template>
   </UModal>
-  <UModal
-    :open="resetResultDialogOpen"
-    @update:open="resetResultDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-md' }"
-  >
-    <template #content>
-      <div class="space-y-5 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold">密码重置结果</h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="closeResetResultDialog"
-          />
-        </div>
-        <p class="text-xs text-emerald-700 dark:text-emerald-200 font-medium">
-          {{ resetResult?.message }}
-        </p>
-        <div
-          v-if="resetResult?.temporaryPassword"
-          class="rounded-lg border border-emerald-200/70 bg-white/80 px-4 py-3 font-mono text-sm tracking-wide text-emerald-700 shadow-sm dark:border-emerald-800/60 dark:bg-slate-900/70 dark:text-emerald-200"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <span class="break-all">{{ resetResult?.temporaryPassword }}</span>
-            <UButton
-              color="primary"
-              variant="ghost"
-              size="xs"
-              @click="copyTemporaryPassword"
-              >复制</UButton
-            >
-          </div>
-        </div>
-        <div class="flex justify-end">
-          <UButton
-            color="primary"
-            variant="soft"
-            size="sm"
-            @click="closeResetResultDialog"
-            >关闭</UButton
-          >
-        </div>
-      </div>
-    </template>
-  </UModal>
 
   <!-- 错误信息弹窗 -->
-  <UModal
-    :open="errorDialogOpen"
-    @update:open="errorDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-sm' }"
-  >
-    <template #content>
-      <div class="space-y-5 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-red-600 dark:text-red-300">
-            操作失败
-          </h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="closeErrorDialog"
-          />
-        </div>
-        <p
-          class="rounded-lg border border-red-300/70 bg-red-50/90 px-4 py-3 text-xs text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200"
-        >
-          {{ errorMsg }}
-        </p>
-        <div class="flex justify-end">
-          <UButton
-            color="neutral"
-            variant="soft"
-            size="sm"
-            @click="closeErrorDialog"
-            >关闭</UButton
-          >
-        </div>
-      </div>
-    </template>
-  </UModal>
 
   <UModal
     :open="piicDialogOpen"
