@@ -356,14 +356,15 @@ function openBoundUser() {
                     游戏 ID
                   </div>
                   <div
-                    class="flex flex-col text-base font-semibold text-slate-900 dark:text-white"
+                    class="flex flex-col text-lg font-semibold text-slate-900 dark:text-white"
                   >
                     <span>
                       {{ realnameDisplay }}
                     </span>
-                    <span class="text-slate-700 text-xs">{{
-                      uuidDisplay
-                    }}</span>
+                    <span
+                      class="text-slate-500 dark:text-slate-400 text-xs font-medium"
+                      >{{ uuidDisplay }}</span
+                    >
                   </div>
                 </div>
 
@@ -372,7 +373,7 @@ function openBoundUser() {
                     绑定状态
                   </div>
                   <div
-                    class="text-base font-semibold text-slate-900 dark:text-white"
+                    class="text-lg font-semibold text-slate-900 dark:text-white"
                   >
                     {{ bindingStatus }}
                   </div>
@@ -389,7 +390,7 @@ function openBoundUser() {
                     最近登录时间
                   </div>
                   <div
-                    class="text-base font-semibold text-slate-900 dark:text-white"
+                    class="text-lg font-semibold text-slate-900 dark:text-white"
                   >
                     {{ lastLoginInfo.time }}
                   </div>
@@ -406,7 +407,7 @@ function openBoundUser() {
                     注册时间
                   </div>
                   <div
-                    class="text-base font-semibold text-slate-900 dark:text-white"
+                    class="text-lg font-semibold text-slate-900 dark:text-white"
                   >
                     {{ registerInfo.time }}
                   </div>
