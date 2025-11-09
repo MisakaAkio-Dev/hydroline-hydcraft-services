@@ -129,7 +129,6 @@ export class MinecraftServerService {
         return undefined;
       })();
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       await this.prisma.minecraftServerPingRecord.create({
         data: {
           serverId: server.id,
@@ -155,7 +154,7 @@ export class MinecraftServerService {
         );
         if (isNetErr) {
           // 写入失败记录（仅时间戳 + 空字段）以便统计可用性
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+
           await this.prisma.minecraftServerPingRecord.create({
             data: {
               serverId: server.id,

@@ -84,7 +84,9 @@ export class MinecraftServerController {
 
   @Patch('ping/settings')
   @ApiOperation({ summary: '更新自动 Ping 设置' })
-  updateSettings(@Body() dto: { intervalMinutes?: number; retentionDays?: number }) {
+  updateSettings(
+    @Body() dto: { intervalMinutes?: number; retentionDays?: number },
+  ) {
     return this.service.updatePingSettings(dto);
   }
 }

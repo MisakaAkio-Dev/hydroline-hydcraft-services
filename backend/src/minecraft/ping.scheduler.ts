@@ -39,8 +39,8 @@ export class MinecraftPingScheduler implements OnModuleInit {
   }
 
   async onModuleInit() {
-  const settings = await this.getSettings();
-  this.setupInterval(settings.intervalMinutes);
+    const settings = await this.getSettings();
+    this.setupInterval(settings.intervalMinutes);
   }
 
   async getSettings() {
@@ -53,7 +53,10 @@ export class MinecraftPingScheduler implements OnModuleInit {
     return s;
   }
 
-  async updateSettings(partial: { intervalMinutes?: number; retentionDays?: number }) {
+  async updateSettings(partial: {
+    intervalMinutes?: number;
+    retentionDays?: number;
+  }) {
     const current = await this.getSettings();
     const next = await this.prisma.minecraftPingSettings.update({
       where: { id: current.id },
@@ -85,16 +88,26 @@ export class MinecraftPingScheduler implements OnModuleInit {
   }
 
   private async pingAllActiveSafely() {
-    const servers = await this.prisma.minecraftServer.findMany({ where: { isActive: true } });
+    const servers = await this.prisma.minecraftServer.findMany({
+      where: { isActive: true },
+    });
     for (const s of servers) {
       try {
         const res = await this.minecraft.pingServer({
           host: s.host,
-          port: s.port ?? (s.edition === MinecraftServerEdition.BEDROCK ? 19132 : 25565),
+          port:
+            s.port ??
+            (s.edition === MinecraftServerEdition.BEDROCK ? 19132 : 25565),
           edition: s.edition,
         });
         const safeRaw = this.sanitizeForPg(res.response) as any;
-        const safeMotd = res.edition === 'BEDROCK' ? (this.sanitizeForPg((res.response as any).motd) as string | null | undefined) ?? null : undefined;
+        const safeMotd =
+          res.edition === 'BEDROCK'
+            ? ((this.sanitizeForPg((res.response as any).motd) as
+                | string
+                | null
+                | undefined) ?? null)
+            : undefined;
         await this.prisma.minecraftServerPingRecord.create({
           data: {
             serverId: s.id,
@@ -131,6 +144,8 @@ export class MinecraftPingScheduler implements OnModuleInit {
     const r = await this.prisma.minecraftServerPingRecord.deleteMany({
       where: { createdAt: { lt: since } },
     });
-    this.logger.log(`Cleaned ${r.count} old ping records (older than ${s.retentionDays} days)`); 
+    this.logger.log(
+      `Cleaned ${r.count} old ping records (older than ${s.retentionDays} days)`,
+    );
   }
 }

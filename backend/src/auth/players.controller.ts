@@ -32,11 +32,16 @@ export class PlayersController {
     @Query('keyword') keyword?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('sortField') sortField?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     return this.playersService.listPlayers({
       keyword,
       page: page ? Number(page) : undefined,
       pageSize: pageSize ? Number(pageSize) : undefined,
+      sortField,
+      sortOrder:
+        sortOrder === 'asc' ? 'asc' : sortOrder === 'desc' ? 'desc' : undefined,
     });
   }
 

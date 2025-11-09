@@ -84,7 +84,10 @@ export class RolesController {
 
   @Post('permissions')
   @ApiOperation({ summary: '创建权限点' })
-  async createPermission(@Body() dto: CreatePermissionDto, @Req() req: Request) {
+  async createPermission(
+    @Body() dto: CreatePermissionDto,
+    @Req() req: Request,
+  ) {
     return this.rolesService.createPermission(dto, req.user?.id);
   }
 
@@ -95,11 +98,7 @@ export class RolesController {
     @Body() dto: UpdatePermissionDto,
     @Req() req: Request,
   ) {
-    return this.rolesService.updatePermission(
-      permissionId,
-      dto,
-      req.user?.id,
-    );
+    return this.rolesService.updatePermission(permissionId, dto, req.user?.id);
   }
 
   @Delete('permissions/:permissionId')

@@ -386,19 +386,27 @@ const primaryMinecraft = computed(() => {
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">RBAC 标签</div>
         <div>
-          <USelect
-            class="w-full"
-            :model-value="labelSelection"
-            :items="labelOptions"
-            multiple
-            searchable
-            value-key="value"
-            label-key="label"
-            :disabled="labelSaving || loading"
-            :loading="labelSaving || loading"
-            placeholder="选择标签"
-            @update:model-value="emit('updateLabels', $event)"
-          />
+          <template v-if="labelOptions.length > 0">
+            <USelect
+              class="w-full"
+              :model-value="labelSelection"
+              :items="labelOptions"
+              multiple
+              searchable
+              value-key="value"
+              label-key="label"
+              :disabled="labelSaving || loading"
+              :loading="labelSaving || loading"
+              placeholder="选择标签"
+              @update:model-value="emit('updateLabels', $event)"
+            />
+          </template>
+          <template v-else>
+            <span
+              class="line-clamp-1 truncate text-base font-semibold text-slate-800 dark:text-slate-300"
+              >暂无可用标签</span
+            >
+          </template>
         </div>
       </div>
     </div>

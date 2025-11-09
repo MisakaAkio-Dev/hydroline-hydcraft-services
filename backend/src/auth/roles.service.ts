@@ -411,10 +411,7 @@ export class RolesService {
     });
   }
 
-  async createPermissionLabel(
-    dto: CreatePermissionLabelDto,
-    actorId?: string,
-  ) {
+  async createPermissionLabel(dto: CreatePermissionLabelDto, actorId?: string) {
     const existing = await this.prisma.permissionLabel.findUnique({
       where: { key: dto.key },
     });

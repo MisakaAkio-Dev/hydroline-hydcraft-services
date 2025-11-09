@@ -223,6 +223,12 @@ export interface AdminPlayerEntry {
     regdate: number
     ip: string | null
     regip: string | null
+    ipLocation?: string | null
+    regipLocation?: string | null
+    ip_location?: string | null
+    ip_location_display?: string | null
+    regip_location?: string | null
+    regip_location_display?: string | null
   } | null
   binding:
     | (AdminAuthmeBindingEntry & {

@@ -100,9 +100,38 @@ export class AuthController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前会话用户' })
-  getSession(@Req() req: Request) {
+  async getSession(@Req() req: Request) {
+    // 为会话端点补充 authmeBindings 的 IP 地理位置（展示字段）
+    const userAny = req.user as unknown;
+    if (!userAny || typeof userAny !== 'object') {
+      return { user: null };
+    }
+    const user = userAny as Record<string, unknown>;
+    const rawBindings = Array.isArray(user.authmeBindings)
+      ? (user.authmeBindings as Array<Record<string, unknown>>)
+      : [];
+    const enrichedBindings = await Promise.all(
+      rawBindings.map(async (binding) => {
+        const ip = (binding.ip as string | null | undefined) ?? null;
+        const regip = (binding.regip as string | null | undefined) ?? null;
+        const [ipLoc, regipLoc] = await Promise.all([
+          this.ipLocationService.lookup(ip),
+          this.ipLocationService.lookup(regip),
+        ]);
+        return {
+          ...binding,
+          ip_location: ipLoc?.raw ?? null,
+          ip_location_display: ipLoc?.display ?? null,
+          regip_location: regipLoc?.raw ?? null,
+          regip_location_display: regipLoc?.display ?? null,
+        };
+      }),
+    );
     return {
-      user: req.user,
+      user: {
+        ...user,
+        authmeBindings: enrichedBindings,
+      },
     };
   }
 
@@ -142,16 +171,20 @@ export class AuthController {
     }
     const user = await this.usersService.getSessionUser(userId);
     // pick basic fields only
+    const usr = user as Record<string, unknown>;
     const picked = {
-      id: (user as any)?.id ?? null,
-      name: (user as any)?.name ?? null,
-      email: (user as any)?.email ?? null,
-      profile: (user as any)?.profile ?? null,
-      createdAt: (user as any)?.createdAt ?? null,
-      updatedAt: (user as any)?.updatedAt ?? null,
-      lastLoginAt: (user as any)?.lastLoginAt ?? null,
-      lastLoginIp: (user as any)?.lastLoginIp ?? null,
-      lastLoginIpLocation: (user as any)?.lastLoginIpLocation ?? (user as any)?.lastLoginIpLocationRaw ?? null,
+      id: usr.id ?? null,
+      name: usr.name ?? null,
+      email: usr.email ?? null,
+      profile: usr.profile ?? null,
+      createdAt: usr.createdAt ?? null,
+      updatedAt: usr.updatedAt ?? null,
+      lastLoginAt: usr.lastLoginAt ?? null,
+      lastLoginIp: usr.lastLoginIp ?? null,
+      lastLoginIpLocation:
+        (usr.lastLoginIpLocation as string | null | undefined) ??
+        (usr.lastLoginIpLocationRaw as string | null | undefined) ??
+        null,
     };
     return { user: picked };
   }
@@ -186,12 +219,13 @@ export class AuthController {
     const enrichedBindings = await this.enrichAuthmeBindings(
       (user as Record<string, unknown>)?.['authmeBindings'],
     );
+    const usr = user as Record<string, unknown>;
     return {
       user: {
-        id: (user as any)?.id ?? null,
-        updatedAt: (user as any)?.updatedAt ?? null,
+        id: usr.id ?? null,
+        updatedAt: usr.updatedAt ?? null,
         authmeBindings: enrichedBindings ?? null,
-        luckperms: (user as any)?.luckperms ?? undefined,
+        luckperms: usr.luckperms ?? undefined,
       },
     };
   }
@@ -211,7 +245,9 @@ export class AuthController {
         req.sessionToken as string,
         buildRequestContext(req),
       );
-    } catch {}
+    } catch {
+      // ignore touch errors
+    }
     const sessions = await this.authService.listUserSessions(userId);
     const currentToken = req.sessionToken ?? null;
     const enriched = await Promise.all(

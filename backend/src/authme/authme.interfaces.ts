@@ -42,6 +42,15 @@ export interface AuthmeLib {
     keyword?: string | null;
     offset?: number;
     limit?: number;
+    sortField?:
+      | 'id'
+      | 'username'
+      | 'realname'
+      | 'lastlogin'
+      | 'regdate'
+      | 'ip'
+      | 'regip';
+    sortOrder?: 'asc' | 'desc';
   }): Promise<{ rows: AuthmeUser[]; total: number }>;
   listAllByIp(
     ip: string,

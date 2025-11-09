@@ -249,7 +249,7 @@ export class IpLocationService implements OnModuleInit, OnModuleDestroy {
 
     const locationPieces = [country, province, city].filter(Boolean);
     const base = locationPieces.join(' ');
-    const display = base && isp ? `${base} · ${isp}` : base || isp || null;
+    const display = base && isp ? `${base} ${isp}` : base || isp || null;
 
     return {
       raw: regionText || null,

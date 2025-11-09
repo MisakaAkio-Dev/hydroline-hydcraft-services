@@ -6,7 +6,9 @@ import { useUiStore } from '@/stores/ui'
 const uiStore = useUiStore()
 const rbacStore = useAdminRbacStore()
 
-const activeTab = ref<'roles' | 'permissions' | 'labels' | 'catalog' | 'self'>('roles')
+const activeTab = ref<'roles' | 'permissions' | 'labels' | 'catalog' | 'self'>(
+  'roles',
+)
 
 const roles = computed(() => rbacStore.roles)
 const permissions = computed(() => rbacStore.permissions)
@@ -16,8 +18,10 @@ const catalogKeyword = ref('')
 const filteredCatalog = computed(() => {
   const k = catalogKeyword.value.trim().toLowerCase()
   if (!k) return catalog.value
-  return catalog.value.filter((e) =>
-    e.key.toLowerCase().includes(k) || (e.description ?? '').toLowerCase().includes(k),
+  return catalog.value.filter(
+    (e) =>
+      e.key.toLowerCase().includes(k) ||
+      (e.description ?? '').toLowerCase().includes(k),
   )
 })
 
@@ -63,7 +67,7 @@ onMounted(async () => {
   }
 })
 
-function switchTab(key: typeof tabs[number]['key']) {
+function switchTab(key: (typeof tabs)[number]['key']) {
   activeTab.value = key
   if (key === 'labels' && labels.value.length === 0) {
     void rbacStore.fetchLabels()
@@ -73,7 +77,7 @@ function switchTab(key: typeof tabs[number]['key']) {
   }
 }
 
-function permissionCount(role: typeof roles.value[number]) {
+function permissionCount(role: (typeof roles.value)[number]) {
   return role.rolePermissions?.length ?? 0
 }
 
@@ -115,12 +119,14 @@ function openCreateRole() {
   roleModalOpen.value = true
 }
 
-function openEditRole(role: typeof roles.value[number]) {
+function openEditRole(role: (typeof roles.value)[number]) {
   roleEditingId.value = role.id
   roleForm.key = role.key
   roleForm.name = role.name
   roleForm.description = role.description ?? ''
-  roleForm.permissionKeys = (role.rolePermissions ?? []).map((r) => r.permission.key)
+  roleForm.permissionKeys = (role.rolePermissions ?? []).map(
+    (r) => r.permission.key,
+  )
   roleModalOpen.value = true
 }
 
@@ -130,7 +136,10 @@ async function submitRole() {
       name: roleForm.name,
       description: roleForm.description ?? null,
     })
-    await rbacStore.updateRolePermissions(roleEditingId.value, roleForm.permissionKeys)
+    await rbacStore.updateRolePermissions(
+      roleEditingId.value,
+      roleForm.permissionKeys,
+    )
   } else {
     await rbacStore.createRole({
       key: roleForm.key,
@@ -142,7 +151,7 @@ async function submitRole() {
   roleModalOpen.value = false
 }
 
-async function deleteRole(role: typeof roles.value[number]) {
+async function deleteRole(role: (typeof roles.value)[number]) {
   if (role.isSystem) return
   if (!confirm(`确定删除角色「${role.name}」吗？该操作不可恢复。`)) return
   await rbacStore.deleteRole(role.id)
@@ -177,14 +186,23 @@ function openCreateLabel() {
   labelModalOpen.value = true
 }
 
-interface EditableLabel { id: string; key: string; name: string; description: string | null; color?: string | null; permissions: Array<{ id: string; permission: { key: string } }>; }
+interface EditableLabel {
+  id: string
+  key: string
+  name: string
+  description: string | null
+  color?: string | null
+  permissions: Array<{ id: string; permission: { key: string } }>
+}
 function openEditLabel(label: EditableLabel) {
   labelEditingId.value = label.id
   labelForm.key = label.key
   labelForm.name = label.name
   labelForm.description = label.description ?? ''
   labelForm.color = label.color ?? ''
-  labelForm.permissionKeys = (label.permissions ?? []).map((p) => p.permission.key)
+  labelForm.permissionKeys = (label.permissions ?? []).map(
+    (p) => p.permission.key,
+  )
   labelModalOpen.value = true
 }
 
@@ -208,7 +226,7 @@ async function submitLabel() {
   labelModalOpen.value = false
 }
 
-async function deleteLabel(label: typeof labels.value[number]) {
+async function deleteLabel(label: (typeof labels.value)[number]) {
   if (!confirm(`确定删除标签「${label.name}」吗？`)) return
   await rbacStore.deleteLabel(label.id)
 }
@@ -217,9 +235,12 @@ async function deleteLabel(label: typeof labels.value[number]) {
 <template>
   <div class="space-y-6">
     <header class="flex flex-col gap-2">
-      <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">RBAC 权限控制</h1>
+      <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
+        RBAC 权限控制
+      </h1>
       <p class="text-sm text-slate-600 dark:text-slate-300">
-        维护 Hydroline 管理后台的角色、权限以及组织结构，确保资源访问满足最小权限原则。
+        维护 Hydroline
+        管理后台的角色、权限以及组织结构，确保资源访问满足最小权限原则。
       </p>
     </header>
 
@@ -235,18 +256,36 @@ async function deleteLabel(label: typeof labels.value[number]) {
         {{ tab.label }}
       </UButton>
       <div class="ml-auto flex gap-2" v-if="activeTab === 'roles'">
-        <UButton size="sm" color="primary" variant="soft" @click="openCreateRole">新建角色</UButton>
+        <UButton
+          size="sm"
+          color="primary"
+          variant="soft"
+          @click="openCreateRole"
+          >新建角色</UButton
+        >
       </div>
       <div class="ml-auto flex gap-2" v-else-if="activeTab === 'labels'">
-        <UButton size="sm" color="primary" variant="soft" @click="openCreateLabel">新建标签</UButton>
+        <UButton
+          size="sm"
+          color="primary"
+          variant="soft"
+          @click="openCreateLabel"
+          >新建标签</UButton
+        >
       </div>
     </div>
 
     <div v-if="activeTab === 'roles'" class="space-y-4">
-      <div class="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70">
-        <table class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
+      <div
+        class="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
+      >
+        <table
+          class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800"
+        >
           <thead class="bg-slate-50/60 dark:bg-slate-900/60">
-            <tr class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <tr
+              class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+            >
               <th class="px-4 py-3">角色</th>
               <th class="px-4 py-3">权限数量</th>
               <th class="px-4 py-3">系统角色</th>
@@ -262,13 +301,22 @@ async function deleteLabel(label: typeof labels.value[number]) {
             >
               <td class="px-4 py-3">
                 <div class="flex flex-col">
-                  <span class="font-medium text-slate-900 dark:text-white">{{ role.name }}</span>
-                  <span class="text-xs text-slate-500 dark:text-slate-400">{{ role.key }}</span>
+                  <span class="font-medium text-slate-900 dark:text-white">{{
+                    role.name
+                  }}</span>
+                  <span class="text-xs text-slate-500 dark:text-slate-400">{{
+                    role.key
+                  }}</span>
                 </div>
               </td>
-              <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{{ permissionCount(role) }}</td>
+              <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
+                {{ permissionCount(role) }}
+              </td>
               <td class="px-4 py-3">
-                <UBadge :color="role.isSystem ? 'neutral' : 'primary'" variant="soft">
+                <UBadge
+                  :color="role.isSystem ? 'neutral' : 'primary'"
+                  variant="soft"
+                >
                   {{ role.isSystem ? '系统内置' : '自定义' }}
                 </UBadge>
               </td>
@@ -277,7 +325,13 @@ async function deleteLabel(label: typeof labels.value[number]) {
               </td>
               <td class="px-4 py-3 text-right">
                 <div class="flex justify-end gap-2">
-                  <UButton size="xs" color="neutral" variant="outline" @click="openEditRole(role)">编辑</UButton>
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                    @click="openEditRole(role)"
+                    >编辑</UButton
+                  >
                   <UButton
                     v-if="!role.isSystem"
                     size="xs"
@@ -291,21 +345,25 @@ async function deleteLabel(label: typeof labels.value[number]) {
               </td>
             </tr>
             <tr v-if="roles.length === 0">
-              <td colspan="5" class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+              <td
+                colspan="5"
+                class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
+              >
                 尚未创建任何角色。
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-      <p class="text-xs text-slate-500 dark:text-slate-400">
-        注：角色与权限数据实时来自后端，可编辑非系统角色并调整其权限集合。
-      </p>
     </div>
 
     <div v-else-if="activeTab === 'permissions'" class="space-y-4">
-      <div class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70">
-        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">权限列表</h2>
+      <div
+        class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
+      >
+        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+          权限列表
+        </h2>
         <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
           当前系统共记录 {{ permissions.length }} 项权限点。
         </p>
@@ -315,16 +373,24 @@ async function deleteLabel(label: typeof labels.value[number]) {
             :key="permission.id"
             class="rounded-2xl border border-slate-200/70 bg-white/60 p-4 text-sm dark:border-slate-800/60 dark:bg-slate-900/60"
           >
-            <p class="font-medium text-slate-900 dark:text-white">{{ permission.key }}</p>
-            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ permission.description ?? '暂无描述' }}</p>
+            <p class="font-medium text-slate-900 dark:text-white">
+              {{ permission.key }}
+            </p>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {{ permission.description ?? '暂无描述' }}
+            </p>
           </li>
         </ul>
       </div>
     </div>
 
     <div v-else-if="activeTab === 'labels'" class="space-y-4">
-      <div class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70">
-        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">权限标签</h2>
+      <div
+        class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
+      >
+        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+          权限标签
+        </h2>
         <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
           标签可用于为玩家/用户打标，并附带一组权限点，支持叠加及空标签。
         </p>
@@ -336,20 +402,40 @@ async function deleteLabel(label: typeof labels.value[number]) {
           >
             <div class="flex items-center justify-between">
               <div>
-                <p class="font-semibold text-slate-900 dark:text-white">{{ label.name }}</p>
-                <p class="text-xs text-slate-500 dark:text-slate-400">{{ label.key }}</p>
+                <p class="font-semibold text-slate-900 dark:text-white">
+                  {{ label.name }}
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ label.key }}
+                </p>
               </div>
-              <UBadge color="primary" variant="soft">{{ label.permissions.length }} 项权限</UBadge>
+              <UBadge color="primary" variant="soft"
+                >{{ label.permissions.length }} 项权限</UBadge
+              >
             </div>
             <ul class="mt-2 text-xs text-slate-500 dark:text-slate-400">
               <li v-for="perm in label.permissions" :key="perm.id">
                 {{ perm.permission.key }}
               </li>
-              <li v-if="label.permissions.length === 0">该标签未附加任何权限，可用于纯标签标识。</li>
+              <li v-if="label.permissions.length === 0">
+                该标签未附加任何权限，可用于纯标签标识。
+              </li>
             </ul>
             <div class="mt-3 flex justify-end gap-2">
-              <UButton size="xs" color="neutral" variant="outline" @click="openEditLabel(label)">编辑</UButton>
-              <UButton size="xs" color="error" variant="soft" @click="deleteLabel(label)">删除</UButton>
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="outline"
+                @click="openEditLabel(label)"
+                >编辑</UButton
+              >
+              <UButton
+                size="xs"
+                color="error"
+                variant="soft"
+                @click="deleteLabel(label)"
+                >删除</UButton
+              >
             </div>
           </div>
         </div>
@@ -358,11 +444,28 @@ async function deleteLabel(label: typeof labels.value[number]) {
 
     <div v-else-if="activeTab === 'catalog'" class="space-y-4">
       <div class="flex flex-wrap items-center gap-2">
-        <UInput v-model="catalogKeyword" placeholder="搜索权限点或描述" class="max-w-md" />
-        <UButton color="neutral" variant="ghost" size="xs" @click="catalogKeyword = ''">清空</UButton>
-        <UButton color="neutral" variant="ghost" size="xs" @click="expandAll">全部展开</UButton>
-        <UButton color="neutral" variant="ghost" size="xs" @click="collapseAll">全部折叠</UButton>
-        <span class="ml-auto text-xs text-slate-500 dark:text-slate-400">共 {{ filteredCatalog.length }} 项，模块 {{ catalogGroups.length }}</span>
+        <UInput
+          v-model="catalogKeyword"
+          placeholder="搜索权限点或描述"
+          class="max-w-md"
+        />
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          @click="catalogKeyword = ''"
+          >清空</UButton
+        >
+        <UButton color="neutral" variant="ghost" size="xs" @click="expandAll"
+          >全部展开</UButton
+        >
+        <UButton color="neutral" variant="ghost" size="xs" @click="collapseAll"
+          >全部折叠</UButton
+        >
+        <span class="ml-auto text-xs text-slate-500 dark:text-slate-400"
+          >共 {{ filteredCatalog.length }} 项，模块
+          {{ catalogGroups.length }}</span
+        >
       </div>
       <div class="space-y-3">
         <div
@@ -376,25 +479,46 @@ async function deleteLabel(label: typeof labels.value[number]) {
           >
             <div class="flex items-center gap-3">
               <UIcon
-                :name="collapsed[group.module] ? 'i-heroicons-chevron-right' : 'i-heroicons-chevron-down'"
+                :name="
+                  collapsed[group.module]
+                    ? 'i-heroicons-chevron-right'
+                    : 'i-heroicons-chevron-down'
+                "
                 class="text-slate-500 transition"
               />
-              <span class="font-medium text-slate-900 dark:text-white">{{ group.module }}</span>
-              <UBadge variant="soft" color="neutral">{{ group.entries.length }}</UBadge>
+              <span class="font-medium text-slate-900 dark:text-white">{{
+                group.module
+              }}</span>
+              <UBadge variant="soft" color="neutral">{{
+                group.entries.length
+              }}</UBadge>
             </div>
-            <span class="text-xs text-slate-500 dark:text-slate-400" v-if="collapsed[group.module]">已折叠</span>
+            <span
+              class="text-xs text-slate-500 dark:text-slate-400"
+              v-if="collapsed[group.module]"
+              >已折叠</span
+            >
           </div>
           <transition name="fade" mode="out-in">
-            <div v-if="!collapsed[group.module]" class="border-t border-slate-100 dark:border-slate-800/50">
-              <table class="min-w-full divide-y divide-slate-100 text-xs dark:divide-slate-800/60">
+            <div
+              v-if="!collapsed[group.module]"
+              class="border-t border-slate-100 dark:border-slate-800/50"
+            >
+              <table
+                class="min-w-full divide-y divide-slate-100 text-xs dark:divide-slate-800/60"
+              >
                 <thead>
-                  <tr class="text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <tr
+                    class="text-left uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                  >
                     <th class="px-4 py-2">权限点</th>
                     <th class="px-4 py-2">角色来源</th>
                     <th class="px-4 py-2">标签来源</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-50 dark:divide-slate-800/50">
+                <tbody
+                  class="divide-y divide-slate-50 dark:divide-slate-800/50"
+                >
                   <tr
                     v-for="entry in group.entries"
                     :key="entry.id"
@@ -402,11 +526,19 @@ async function deleteLabel(label: typeof labels.value[number]) {
                   >
                     <td class="px-4 py-2">
                       <div class="flex flex-col">
-                        <span class="font-medium text-slate-900 dark:text-white">{{ entry.key }}</span>
-                        <span class="text-[11px] text-slate-500 dark:text-slate-400">{{ entry.description ?? '—' }}</span>
+                        <span
+                          class="font-medium text-slate-900 dark:text-white"
+                          >{{ entry.key }}</span
+                        >
+                        <span
+                          class="text-[11px] text-slate-500 dark:text-slate-400"
+                          >{{ entry.description ?? '—' }}</span
+                        >
                       </div>
                     </td>
-                    <td class="px-4 py-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    <td
+                      class="px-4 py-2 text-[11px] text-slate-500 dark:text-slate-400"
+                    >
                       <div class="flex flex-wrap gap-1">
                         <UBadge
                           v-for="role in entry.roles"
@@ -419,7 +551,9 @@ async function deleteLabel(label: typeof labels.value[number]) {
                         <span v-if="entry.roles.length === 0">—</span>
                       </div>
                     </td>
-                    <td class="px-4 py-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    <td
+                      class="px-4 py-2 text-[11px] text-slate-500 dark:text-slate-400"
+                    >
                       <div class="flex flex-wrap gap-1">
                         <UBadge
                           v-for="label in entry.labels"
@@ -448,8 +582,12 @@ async function deleteLabel(label: typeof labels.value[number]) {
     </div>
 
     <div v-else class="space-y-4">
-      <div class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300">
-        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">管理员自助申请</h2>
+      <div
+        class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
+      >
+        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+          管理员自助申请
+        </h2>
         <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
           当新增模块尚未授权时，可在此输入权限键（用逗号分隔）并立即获取。
         </p>
@@ -459,7 +597,11 @@ async function deleteLabel(label: typeof labels.value[number]) {
             placeholder="例如 auth.manage.users, assets.manage.attachments"
             class="flex-1"
           />
-          <UButton :loading="selfSubmitting" color="primary" @click="submitSelfAssign">
+          <UButton
+            :loading="selfSubmitting"
+            color="primary"
+            @click="submitSelfAssign"
+          >
             申请
           </UButton>
         </div>
@@ -472,34 +614,78 @@ async function deleteLabel(label: typeof labels.value[number]) {
     <template #content>
       <form class="space-y-4 p-6 text-sm" @submit.prevent="submitRole">
         <header class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ roleEditingId ? '编辑角色' : '新建角色' }}</h3>
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            {{ roleEditingId ? '编辑角色' : '新建角色' }}
+          </h3>
         </header>
         <div class="grid gap-4 md:grid-cols-2">
           <label class="flex flex-col gap-1">
-            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Key</span>
-            <UInput v-model="roleForm.key" :disabled="!!roleEditingId" placeholder="如 moderator" required />
+            <span
+              class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >Key</span
+            >
+            <UInput
+              v-model="roleForm.key"
+              :disabled="!!roleEditingId"
+              placeholder="如 moderator"
+              required
+            />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">名称</span>
+            <span
+              class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >名称</span
+            >
             <UInput v-model="roleForm.name" placeholder="展示名称" required />
           </label>
         </div>
         <label class="flex flex-col gap-1">
-          <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">描述</span>
-          <UTextarea v-model="roleForm.description" :rows="2" placeholder="补充说明（可选）" />
+          <span
+            class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+            >描述</span
+          >
+          <UTextarea
+            v-model="roleForm.description"
+            :rows="2"
+            placeholder="补充说明（可选）"
+          />
         </label>
         <div>
-          <p class="mb-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">权限点</p>
-          <div class="grid max-h-64 grid-cols-1 gap-1 overflow-auto rounded-lg border border-slate-200/70 p-3 dark:border-slate-800/60 md:grid-cols-2">
-            <label v-for="perm in permissions" :key="perm.id" class="flex items-center gap-2 text-xs">
-              <UCheckbox :model-value="roleForm.permissionKeys.includes(perm.key)" @update:model-value="(v:boolean|'indeterminate')=>switchPermission(perm.key, v)" />
+          <p
+            class="mb-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          >
+            权限点
+          </p>
+          <div
+            class="grid max-h-64 grid-cols-1 gap-1 overflow-auto rounded-lg border border-slate-200/70 p-3 dark:border-slate-800/60 md:grid-cols-2"
+          >
+            <label
+              v-for="perm in permissions"
+              :key="perm.id"
+              class="flex items-center gap-2 text-xs"
+            >
+              <UCheckbox
+                :model-value="roleForm.permissionKeys.includes(perm.key)"
+                @update:model-value="
+                  (v: boolean | 'indeterminate') =>
+                    switchPermission(perm.key, v)
+                "
+              />
               <span class="font-mono">{{ perm.key }}</span>
             </label>
           </div>
         </div>
         <div class="flex justify-end gap-2">
-          <UButton type="button" color="neutral" variant="ghost" @click="roleModalOpen = false">取消</UButton>
-          <UButton type="submit" color="primary" :loading="rbacStore.submitting">保存</UButton>
+          <UButton
+            type="button"
+            color="neutral"
+            variant="ghost"
+            @click="roleModalOpen = false"
+            >取消</UButton
+          >
+          <UButton type="submit" color="primary" :loading="rbacStore.submitting"
+            >保存</UButton
+          >
         </div>
       </form>
     </template>
@@ -510,44 +696,93 @@ async function deleteLabel(label: typeof labels.value[number]) {
     <template #content>
       <form class="space-y-4 p-6 text-sm" @submit.prevent="submitLabel">
         <header class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ labelEditingId ? '编辑权限标签' : '新建权限标签' }}</h3>
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            {{ labelEditingId ? '编辑权限标签' : '新建权限标签' }}
+          </h3>
         </header>
         <div class="grid gap-4 md:grid-cols-2">
           <label class="flex flex-col gap-1">
-            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Key</span>
-            <UInput v-model="labelForm.key" :disabled="!!labelEditingId" placeholder="如 vip" required />
+            <span
+              class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >Key</span
+            >
+            <UInput
+              v-model="labelForm.key"
+              :disabled="!!labelEditingId"
+              placeholder="如 vip"
+              required
+            />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">名称</span>
+            <span
+              class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >名称</span
+            >
             <UInput v-model="labelForm.name" placeholder="展示名称" required />
           </label>
         </div>
         <div class="grid gap-4 md:grid-cols-2">
           <label class="flex flex-col gap-1">
-            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">描述</span>
-            <UInput v-model="labelForm.description" placeholder="说明（可选）" />
+            <span
+              class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >描述</span
+            >
+            <UInput
+              v-model="labelForm.description"
+              placeholder="说明（可选）"
+            />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">颜色</span>
-            <UInput v-model="labelForm.color" placeholder="#AABBCC 或主题色名（可选）" />
+            <span
+              class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >颜色</span
+            >
+            <UInput
+              v-model="labelForm.color"
+              placeholder="#AABBCC 或主题色名（可选）"
+            />
           </label>
         </div>
         <div>
-          <p class="mb-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">权限点（可留空）</p>
-          <div class="grid max-h-64 grid-cols-1 gap-1 overflow-auto rounded-lg border border-slate-200/70 p-3 dark:border-slate-800/60 md:grid-cols-2">
-            <label v-for="perm in permissions" :key="perm.id" class="flex items-center gap-2 text-xs">
-              <UCheckbox :model-value="labelForm.permissionKeys.includes(perm.key)" @update:model-value="(v:boolean|'indeterminate')=>{
-                const set = new Set(labelForm.permissionKeys)
-                if (v === true) set.add(perm.key); else set.delete(perm.key)
-                labelForm.permissionKeys = Array.from(set)
-              }" />
+          <p
+            class="mb-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          >
+            权限点（可留空）
+          </p>
+          <div
+            class="grid max-h-64 grid-cols-1 gap-1 overflow-auto rounded-lg border border-slate-200/70 p-3 dark:border-slate-800/60 md:grid-cols-2"
+          >
+            <label
+              v-for="perm in permissions"
+              :key="perm.id"
+              class="flex items-center gap-2 text-xs"
+            >
+              <UCheckbox
+                :model-value="labelForm.permissionKeys.includes(perm.key)"
+                @update:model-value="
+                  (v: boolean | 'indeterminate') => {
+                    const set = new Set(labelForm.permissionKeys)
+                    if (v === true) set.add(perm.key)
+                    else set.delete(perm.key)
+                    labelForm.permissionKeys = Array.from(set)
+                  }
+                "
+              />
               <span class="font-mono">{{ perm.key }}</span>
             </label>
           </div>
         </div>
         <div class="flex justify-end gap-2">
-          <UButton type="button" color="neutral" variant="ghost" @click="labelModalOpen = false">取消</UButton>
-          <UButton type="submit" color="primary" :loading="rbacStore.submitting">保存</UButton>
+          <UButton
+            type="button"
+            color="neutral"
+            variant="ghost"
+            @click="labelModalOpen = false"
+            >取消</UButton
+          >
+          <UButton type="submit" color="primary" :loading="rbacStore.submitting"
+            >保存</UButton
+          >
         </div>
       </form>
     </template>

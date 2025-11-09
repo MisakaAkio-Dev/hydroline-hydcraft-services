@@ -74,7 +74,9 @@ describe('ping', () => {
           b.writeInt32BE(num, 0);
           return b;
         },
-        decode: jest.fn().mockImplementation((buf: Buffer) => buf.readInt32BE(0)),
+        decode: jest
+          .fn()
+          .mockImplementation((buf: Buffer) => buf.readInt32BE(0)),
       };
 
       Object.defineProperty(manualVarintMock.decode, 'bytes', { value: 4 });

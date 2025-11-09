@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useAdminPlayersStore } from '@/stores/adminPlayers'
 import { useUiStore } from '@/stores/ui'
 import { useAdminUsersStore } from '@/stores/adminUsers'
+import PlayerDetailDialog from '@/views/admin/components/PlayerDetailDialog.vue'
+import UserDetailDialog from '@/views/admin/components/UserDetailDialog.vue'
+import type { AdminPlayerEntry } from '@/types/admin'
 
 const uiStore = useUiStore()
 const playersStore = useAdminPlayersStore()
@@ -11,20 +14,76 @@ const usersStore = useAdminUsersStore()
 const keyword = ref(playersStore.keyword)
 const rows = computed(() => playersStore.items)
 const pagination = computed(() => playersStore.pagination)
+const sortField = computed(() => playersStore.sortField)
+const sortOrder = computed(() => playersStore.sortOrder)
 const sourceStatus = computed(() => playersStore.sourceStatus)
 const degradedMessage = computed(() => playersStore.error)
+const safePageCount = computed(() =>
+  Math.max(pagination.value?.pageCount ?? 1, 1),
+)
+const isFirstPage = computed(() => (pagination.value?.page ?? 1) <= 1)
+const isLastPage = computed(
+  () => (pagination.value?.page ?? 1) >= safePageCount.value,
+)
+const pageInput = ref<number | null>(null)
 
-async function refresh(page?: number) {
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
+type SortOrder = 'asc' | 'desc'
+
+async function refresh(
+  page?: number,
+  options: { sortField?: string; sortOrder?: SortOrder } = {},
+) {
   uiStore.startLoading()
   try {
     await playersStore.fetch({
       keyword: keyword.value,
       page,
+      sortField: options.sortField ?? sortField.value,
+      sortOrder: options.sortOrder ?? sortOrder.value,
     })
   } finally {
     uiStore.stopLoading()
   }
 }
+
+function debouncedSearch() {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    refresh(1)
+  }, 800)
+}
+
+function toggleSort(field: string) {
+  const nextOrder: SortOrder =
+    sortField.value === field
+      ? sortOrder.value === 'asc'
+        ? 'desc'
+        : 'asc'
+      : field === 'username'
+        ? 'asc'
+        : 'desc'
+  playersStore.setSort(field, nextOrder)
+  void refresh(1, { sortField: field, sortOrder: nextOrder })
+}
+
+function sortIcon(field: string) {
+  if (sortField.value !== field) return 'i-lucide-arrow-up-down'
+  return sortOrder.value === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down'
+}
+
+// 监听关键词变化，自动搜索
+watch(keyword, (newVal) => {
+  if (newVal === '') {
+    // 清空搜索框，立即还原到初始状态
+    if (searchTimeout) clearTimeout(searchTimeout)
+    refresh(1)
+  } else {
+    // 有内容则防抖搜索
+    debouncedSearch()
+  }
+})
 
 onMounted(async () => {
   if (rows.value.length === 0) {
@@ -32,21 +91,36 @@ onMounted(async () => {
   }
 })
 
-async function handleSubmit() {
-  await refresh(1)
-}
+watch(
+  () => pagination.value.page,
+  (page) => {
+    pageInput.value = page ?? 1
+  },
+  { immediate: true },
+)
 
 async function goToPage(page: number) {
-  if (
-    page === pagination.value.page ||
-    page < 1 ||
-    page > pagination.value.pageCount
-  )
+  if (page === pagination.value.page || page < 1 || page > safePageCount.value)
     return
   await refresh(page)
 }
 
-function bindingUser(entry: typeof rows.value[number]['binding']) {
+function handlePageInput() {
+  const currentPage = pagination.value.page ?? 1
+  const pageCount = safePageCount.value
+  if (pageInput.value === null || Number.isNaN(pageInput.value)) {
+    pageInput.value = currentPage
+    return
+  }
+  const normalized = Math.min(
+    Math.max(Math.trunc(pageInput.value), 1),
+    pageCount,
+  )
+  pageInput.value = normalized
+  void goToPage(normalized)
+}
+
+function bindingUser(entry: (typeof rows.value)[number]['binding']) {
   if (!entry?.user) return '未关联'
   return entry.user.profile?.displayName ?? entry.user.email ?? entry.user.id
 }
@@ -56,15 +130,25 @@ const timelineOpen = ref(false)
 import type { AdminBindingHistoryEntry } from '@/types/admin'
 const timelineItems = ref<AdminBindingHistoryEntry[]>([])
 const timelineTitle = ref('')
+const timelineUsername = ref('')
 const historyLoading = ref(false)
+const timelineError = ref<string | null>(null)
 
-async function openTimeline(username: string) {
-  timelineTitle.value = username
+async function openTimeline(username: string, displayName?: string) {
+  timelineUsername.value = username
+  timelineTitle.value = displayName?.trim() || username
   timelineOpen.value = true
   historyLoading.value = true
+  timelineError.value = null
+  timelineItems.value = []
   try {
     const res = await playersStore.fetchHistory(username, 1, 50)
-    timelineItems.value = res.items
+    const items = Array.isArray(res?.items) ? res.items : []
+    timelineItems.value = items.slice()
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : '无法加载流转记录，请稍后再试。'
+    timelineError.value = message
   } finally {
     historyLoading.value = false
   }
@@ -96,8 +180,23 @@ async function submitBind() {
 }
 
 const entryDialogOpen = ref(false)
-const entryForm = reactive({ username: '', action: 'MANUAL_ENTRY', reason: '', payload: '' })
+const entryForm = reactive({
+  username: '',
+  action: 'MANUAL_ENTRY',
+  reason: '',
+  payload: '',
+})
 const entrySubmitting = ref(false)
+
+const playerDetailDialogOpen = ref(false)
+const playerDetailDialogUsername = ref<string | null>(null)
+const playerDetailDialogInitial = ref<AdminPlayerEntry | null>(null)
+const userDetailDialogOpen = ref(false)
+const userDetailDialogUserId = ref<string | null>(null)
+const userDetailDialogSummary = ref<{
+  displayName?: string | null
+  email?: string | null
+} | null>(null)
 
 function openEntryDialog(username: string) {
   entryForm.username = username
@@ -111,10 +210,14 @@ async function submitEntry() {
   entrySubmitting.value = true
   try {
     const payloadJson = entryForm.payload ? JSON.parse(entryForm.payload) : {}
-    await playersStore.createHistory(entryForm.username, { action: entryForm.action, reason: entryForm.reason, payload: payloadJson })
+    await playersStore.createHistory(entryForm.username, {
+      action: entryForm.action,
+      reason: entryForm.reason,
+      payload: payloadJson,
+    })
     entryDialogOpen.value = false
-    if (timelineOpen.value && timelineTitle.value === entryForm.username) {
-      await openTimeline(entryForm.username)
+    if (timelineOpen.value && timelineUsername.value === entryForm.username) {
+      await openTimeline(timelineUsername.value, timelineTitle.value)
     }
   } catch {
     // 忽略解析异常，交由后端校验并由后端返回错误提示
@@ -122,21 +225,90 @@ async function submitEntry() {
     entrySubmitting.value = false
   }
 }
+
+function resolvedPlayerUsername(player: AdminPlayerEntry | null) {
+  return (
+    player?.authme?.username ??
+    player?.binding?.authmeUsername ??
+    null
+  )
+}
+
+function openPlayerDetail(player: AdminPlayerEntry) {
+  const username = resolvedPlayerUsername(player)
+  if (!username) return
+  playerDetailDialogUsername.value = username
+  playerDetailDialogInitial.value = player
+  playerDetailDialogOpen.value = true
+}
+
+function openBoundUserDetail(player: AdminPlayerEntry) {
+  const user = player.binding?.user
+  if (!user?.id) return
+  userDetailDialogUserId.value = user.id
+  userDetailDialogSummary.value = {
+    displayName: user.profile?.displayName ?? user.name ?? null,
+    email: user.email ?? null,
+  }
+  userDetailDialogOpen.value = true
+}
+
+watch(playerDetailDialogOpen, (value) => {
+  if (!value) {
+    playerDetailDialogUsername.value = null
+    playerDetailDialogInitial.value = null
+  }
+})
+
+watch(userDetailDialogOpen, (value) => {
+  if (!value) {
+    userDetailDialogUserId.value = null
+    userDetailDialogSummary.value = null
+  }
+})
+
+function openUserDetailFromPlayerDialog(summary: {
+  id: string
+  email?: string | null
+  displayName?: string | null
+}) {
+  if (!summary?.id) return
+  playerDetailDialogOpen.value = false
+  playerDetailDialogUsername.value = null
+  playerDetailDialogInitial.value = null
+  userDetailDialogUserId.value = summary.id
+  userDetailDialogSummary.value = {
+    displayName: summary.displayName ?? null,
+    email: summary.email ?? null,
+  }
+  userDetailDialogOpen.value = true
+}
+
+async function handleUserDeletedFromDialog() {
+  userDetailDialogOpen.value = false
+  userDetailDialogUserId.value = null
+  userDetailDialogSummary.value = null
+  await refresh(pagination.value.page)
+}
 </script>
 
 <template>
   <div class="space-y-6">
-    <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">AuthMe 玩家列表</h1>
-        <p class="text-sm text-slate-600 dark:text-slate-300">
-          从 AuthMe 数据库拉取的玩家数据，包含当前绑定的站内用户与绑定流转摘要。
-        </p>
+    <!-- 搜索框 -->
+    <header class="flex justify-end w-full">
+      <div class="flex gap-2 w-full max-w-lg items-center">
+        <UIcon
+          v-if="playersStore.loading"
+          name="i-lucide-loader-2"
+          class="inline-block h-4 w-4 animate-spin"
+        />
+        <UInput
+          v-model="keyword"
+          type="search"
+          placeholder="搜索登录过服务器的玩家 ID"
+          class="flex-1"
+        />
       </div>
-      <form class="flex w-full max-w-md gap-2" @submit.prevent="handleSubmit">
-        <UInput v-model="keyword" type="search" placeholder="搜索 AuthMe 用户名 / Realname" class="flex-1" />
-        <UButton type="submit" color="primary">搜索</UButton>
-      </form>
     </header>
 
     <UAlert
@@ -149,34 +321,112 @@ async function submitEntry() {
       将展示最近缓存的绑定数据。{{ degradedMessage ?? '请稍后重试连接。' }}
     </UAlert>
 
-    <div class="overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70">
-      <table class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
+    <div
+      class="overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
+    >
+      <table
+        class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800"
+      >
         <thead class="bg-slate-50/60 dark:bg-slate-900/60">
-          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <tr
+            class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          >
             <th class="px-4 py-3">玩家</th>
             <th class="px-4 py-3">绑定用户</th>
             <th class="px-4 py-3">最近事件</th>
-            <th class="px-4 py-3">上次登录</th>
+            <th class="px-4 py-3">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 hover:underline"
+                @click="toggleSort('regdate')"
+              >
+                注册时间
+                <UIcon :name="sortIcon('regdate')" class="h-3 w-3" />
+              </button>
+            </th>
+            <th class="px-4 py-3">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 hover:underline"
+                @click="toggleSort('regip_region')"
+              >
+                注册 IP
+                <UIcon :name="sortIcon('regip_region')" class="h-3 w-3" />
+              </button>
+            </th>
+            <th class="px-4 py-3">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 hover:underline"
+                @click="toggleSort('lastlogin')"
+              >
+                最近登录时间
+                <UIcon :name="sortIcon('lastlogin')" class="h-3 w-3" />
+              </button>
+            </th>
+            <th class="px-4 py-3">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 hover:underline"
+                @click="toggleSort('ip_region')"
+              >
+                最近登录 IP
+                <UIcon :name="sortIcon('ip_region')" class="h-3 w-3" />
+              </button>
+            </th>
+            <th class="px-4 py-3 text-right">操作</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800/70">
           <tr
             v-for="(player, idx) in rows"
-            :key="player.authme?.username ?? player.binding?.id ?? `fallback-${idx}`"
+            :key="
+              player.authme?.username ?? player.binding?.id ?? `fallback-${idx}`
+            "
             class="transition hover:bg-slate-50/80 dark:hover:bg-slate-900/60"
           >
             <td class="px-4 py-3">
-              <div class="flex flex-col">
-                <span class="font-medium text-slate-900 dark:text-white">
-                  {{ player.authme?.username ?? player.binding?.authmeUsername ?? '未知玩家' }}
-                </span>
-                <span class="text-xs text-slate-500 dark:text-slate-400">
-                  Realname：{{ player.authme?.realname ?? player.binding?.authmeRealname ?? '—' }}
+              <div
+                class="flex flex-col cursor-pointer rounded-lg p-1 transition focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white hover:bg-slate-100/70 dark:focus-visible:ring-offset-slate-900 dark:hover:bg-slate-800/50"
+                role="button"
+                tabindex="0"
+                @click="openPlayerDetail(player)"
+                @keydown.enter.prevent="openPlayerDetail(player)"
+                @keydown.space.prevent="openPlayerDetail(player)"
+              >
+                <span
+                  class="flex items-center gap-2 font-medium text-slate-900 dark:text-white"
+                >
+                  <img
+                    :src="
+                      'https://mc-heads.net/avatar/' +
+                      (player.authme?.username ??
+                        player.binding?.authmeUsername ??
+                        '') +
+                      '/64'
+                    "
+                    class="h-6 w-6 rounded-md border border-slate-200 object-cover dark:border-slate-700"
+                  />
+                  {{
+                    player.authme?.realname ??
+                    player.binding?.authmeRealname ??
+                    '—'
+                  }}
                 </span>
               </div>
             </td>
             <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-              {{ bindingUser(player.binding) }}
+              <template v-if="player.binding?.user">
+                <UButton
+                  size="xs"
+                  variant="link"
+                  class="px-0 text-xs font-medium"
+                  @click="openBoundUserDetail(player)"
+                >
+                  {{ bindingUser(player.binding) }}
+                </UButton>
+              </template>
+              <span v-else>未关联</span>
             </td>
             <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
               <div v-if="player.history.length > 0" class="space-y-0.5">
@@ -191,21 +441,108 @@ async function submitEntry() {
               <span v-else>—</span>
             </td>
             <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
+              <span v-if="player.authme?.regdate">
+                {{ new Date(player.authme.regdate).toLocaleString() }}
+              </span>
+              <span v-else>—</span>
+            </td>
+            <td
+              class="px-4 py-3 text-[11px] text-slate-500 dark:text-slate-400 whitespace-pre-line"
+            >
+              <span v-if="player.authme?.regip">
+                {{ player.authme.regip }}
+                <span
+                  class="block leading-tight"
+                  v-if="
+                    player.authme.regipLocation ||
+                    player.authme.regip_location_display
+                  "
+                >
+                  {{
+                    player.authme.regipLocation ||
+                    player.authme.regip_location_display
+                  }}
+                </span>
+              </span>
+              <span v-else>—</span>
+            </td>
+            <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
               <span v-if="player.authme?.lastlogin">
                 {{ new Date(player.authme.lastlogin).toLocaleString() }}
               </span>
               <span v-else>—</span>
             </td>
+            <td
+              class="px-4 py-3 text-[11px] text-slate-500 dark:text-slate-400 whitespace-pre-line"
+            >
+              <span v-if="player.authme?.ip">
+                {{ player.authme.ip }}
+                <span
+                  class="block leading-tight"
+                  v-if="
+                    player.authme.ipLocation ||
+                    player.authme.ip_location_display
+                  "
+                >
+                  {{
+                    player.authme.ipLocation ||
+                    player.authme.ip_location_display
+                  }}
+                </span>
+              </span>
+              <span v-else>—</span>
+            </td>
             <td class="px-4 py-3 text-right">
               <div class="flex justify-end gap-2">
-                <UButton size="xs" color="neutral" variant="outline" @click="openTimeline(player.authme?.username ?? player.binding?.authmeUsername ?? '')">时间线</UButton>
-                <UButton size="xs" color="primary" variant="soft" @click="openEntryDialog(player.authme?.username ?? player.binding?.authmeUsername ?? '')">补录事件</UButton>
-                <UButton size="xs" color="primary" @click="openBindDialog(player.authme?.username ?? player.binding?.authmeUsername ?? '')">绑定到用户</UButton>
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="outline"
+                  @click="
+                    openTimeline(
+                      player.authme?.username ??
+                        player.binding?.authmeUsername ??
+                        '',
+                      player.authme?.realname ??
+                        player.binding?.authmeRealname ??
+                        '',
+                    )
+                  "
+                  >时间线</UButton
+                >
+                <UButton
+                  size="xs"
+                  color="primary"
+                  variant="soft"
+                  @click="
+                    openEntryDialog(
+                      player.authme?.username ??
+                        player.binding?.authmeUsername ??
+                        '',
+                    )
+                  "
+                  >补录事件</UButton
+                >
+                <UButton
+                  size="xs"
+                  color="primary"
+                  @click="
+                    openBindDialog(
+                      player.authme?.username ??
+                        player.binding?.authmeUsername ??
+                        '',
+                    )
+                  "
+                  >绑定到用户</UButton
+                >
               </div>
             </td>
           </tr>
           <tr v-if="rows.length === 0">
-            <td colspan="5" class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+            <td
+              colspan="8"
+              class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
+            >
               暂无玩家数据。
             </td>
           </tr>
@@ -213,103 +550,246 @@ async function submitEntry() {
       </table>
     </div>
 
-    <div class="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300">
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
+    >
       <span>
-        第 {{ pagination.page }} / {{ pagination.pageCount }} 页，共 {{ pagination.total }} 名玩家
+        第 {{ pagination.page }} / {{ pagination.pageCount }} 页，共
+        {{ pagination.total }} 名玩家
       </span>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <UButton
           color="neutral"
           variant="ghost"
           size="xs"
-          :disabled="pagination.page <= 1 || playersStore.loading"
-          @click="goToPage(pagination.page - 1)"
+          :disabled="isFirstPage || playersStore.loading"
+          @click="goToPage(1)"
         >
-          上一页
+          首页
         </UButton>
         <UButton
           color="neutral"
           variant="ghost"
           size="xs"
-          :disabled="pagination.page >= pagination.pageCount || playersStore.loading"
+          :disabled="isFirstPage || playersStore.loading"
+          @click="goToPage(pagination.page - 1)"
+        >
+          上一页
+        </UButton>
+        <div class="flex items-center gap-1">
+          <UInput
+            v-model.number="pageInput"
+            type="number"
+            size="xs"
+            class="w-16 text-center"
+            :disabled="playersStore.loading"
+            min="1"
+            :max="safePageCount"
+            @keydown.enter.prevent="handlePageInput"
+          />
+          <span class="text-xs text-slate-500 dark:text-slate-400">
+            / {{ safePageCount }}
+          </span>
+        </div>
+        <UButton
+          color="neutral"
+          variant="soft"
+          size="xs"
+          :disabled="playersStore.loading"
+          @click="handlePageInput"
+        >
+          跳转
+        </UButton>
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :disabled="isLastPage || playersStore.loading"
           @click="goToPage(pagination.page + 1)"
         >
           下一页
+        </UButton>
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :disabled="isLastPage || playersStore.loading"
+          @click="goToPage(pagination.pageCount)"
+        >
+          末页
         </UButton>
       </div>
     </div>
   </div>
 
   <!-- 时间线抽屉 -->
-  <USlideover v-model:open="timelineOpen">
-    <template #title>玩家 {{ timelineTitle }} 绑定流转</template>
-    <div class="space-y-3 p-4">
-      <USkeleton v-if="historyLoading" class="h-4 w-24" />
-      <ul class="space-y-2">
-        <li v-for="e in timelineItems" :key="e.id" class="rounded-xl border border-slate-200/70 p-3 text-xs dark:border-slate-800/60">
-          <div class="flex items-center justify-between">
-            <span class="font-semibold">{{ e.action }}</span>
-            <span>{{ new Date(e.createdAt).toLocaleString() }}</span>
-          </div>
-          <div class="mt-1 text-[11px] text-slate-500">{{ e.reason ?? '无备注' }}</div>
-          <div class="mt-1 text-[11px] text-slate-500">操作人：{{ e.operator?.profile?.displayName ?? e.operator?.email ?? '系统' }}</div>
-        </li>
-        <li v-if="!historyLoading && timelineItems.length === 0" class="text-center text-sm text-slate-500">暂无记录。</li>
-      </ul>
-    </div>
+  <USlideover
+    v-model:open="timelineOpen"
+    :title="`玩家 ${timelineTitle} 绑定流转`"
+    aria-describedby="timeline-history"
+  >
+    <template #body>
+      <div v-if="timelineOpen" id="timeline-history" class="space-y-3">
+        <USkeleton v-if="historyLoading" class="h-4 w-24" />
+        <UAlert
+          v-if="timelineError"
+          color="error"
+          variant="soft"
+          class="rounded-xl"
+        >
+          {{ timelineError }}
+        </UAlert>
+        <ul class="space-y-2">
+          <li
+            v-for="e in timelineItems"
+            :key="e.id"
+            class="rounded-xl border border-slate-200/70 p-3 text-xs dark:border-slate-800/60"
+          >
+            <div class="flex items-center justify-between">
+              <span class="font-semibold">{{ e.action }}</span>
+              <span>{{ new Date(e.createdAt).toLocaleString() }}</span>
+            </div>
+            <div class="mt-1 text-[11px] text-slate-500">
+              {{ e.reason ?? '无备注' }}
+            </div>
+            <div class="mt-1 text-[11px] text-slate-500">
+              操作人：{{
+                e.operator?.profile?.displayName ?? e.operator?.email ?? '系统'
+              }}
+            </div>
+          </li>
+          <li
+            v-if="!historyLoading && timelineItems.length === 0"
+            class="text-center text-sm text-slate-500"
+          >
+            暂无记录。
+          </li>
+        </ul>
+      </div>
+    </template>
   </USlideover>
 
   <!-- 绑定到用户对话框 -->
-  <UModal :open="bindDialogOpen" @update:open="bindDialogOpen = $event" :ui="{ content: 'w-full max-w-2xl' }">
+  <UModal
+    :open="bindDialogOpen"
+    @update:open="bindDialogOpen = $event"
+    :ui="{ content: 'w-full max-w-2xl' }"
+  >
     <template #content>
       <div class="space-y-4 p-6 text-sm">
         <h3 class="text-lg font-semibold">绑定玩家到用户</h3>
         <p class="text-xs text-slate-500">玩家：{{ bindForm.username }}</p>
         <label class="flex flex-col gap-1">
-          <span class="text-xs uppercase tracking-wide text-slate-500">选择用户</span>
-          <select v-model="bindForm.userId" class="rounded-lg border border-slate-200 p-2 dark:border-slate-800">
+          <span class="text-xs uppercase tracking-wide text-slate-500"
+            >选择用户</span
+          >
+          <select
+            v-model="bindForm.userId"
+            class="rounded-lg border border-slate-200 p-2 dark:border-slate-800"
+          >
             <option value="" disabled>请选择用户</option>
-            <option v-for="u in usersStore.items" :key="u.id" :value="u.id">{{ u.profile?.displayName ?? u.email }}</option>
+            <option v-for="u in usersStore.items" :key="u.id" :value="u.id">
+              {{ u.profile?.displayName ?? u.email }}
+            </option>
           </select>
         </label>
         <div class="flex justify-end gap-2">
-          <UButton color="neutral" variant="ghost" @click="bindDialogOpen = false">取消</UButton>
-          <UButton color="primary" :loading="bindingSubmitting" @click="submitBind">绑定</UButton>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            @click="bindDialogOpen = false"
+            >取消</UButton
+          >
+          <UButton
+            color="primary"
+            :loading="bindingSubmitting"
+            @click="submitBind"
+            >绑定</UButton
+          >
         </div>
       </div>
     </template>
   </UModal>
 
   <!-- 补录历史 -->
-  <UModal :open="entryDialogOpen" @update:open="entryDialogOpen = $event" :ui="{ content: 'w-full max-w-2xl' }">
+  <UModal
+    :open="entryDialogOpen"
+    @update:open="entryDialogOpen = $event"
+    :ui="{ content: 'w-full max-w-2xl' }"
+  >
     <template #content>
       <form class="space-y-4 p-6 text-sm" @submit.prevent="submitEntry">
         <h3 class="text-lg font-semibold">补录玩家事件</h3>
         <p class="text-xs text-slate-500">玩家：{{ entryForm.username }}</p>
         <div class="grid grid-cols-2 gap-4">
           <label class="flex flex-col gap-1">
-            <span class="text-xs uppercase tracking-wide text-slate-500">Action</span>
-            <USelect v-model="entryForm.action" :options="[
-              { label: 'MANUAL_ENTRY', value: 'MANUAL_ENTRY' },
-              { label: 'BIND', value: 'BIND' },
-              { label: 'UNBIND', value: 'UNBIND' },
-              { label: 'TRANSFER', value: 'TRANSFER' },
-            ]" />
+            <span class="text-xs uppercase tracking-wide text-slate-500"
+              >Action</span
+            >
+            <USelect
+              v-model="entryForm.action"
+              :items="[
+                { label: 'MANUAL_ENTRY', value: 'MANUAL_ENTRY' },
+                { label: 'BIND', value: 'BIND' },
+                { label: 'UNBIND', value: 'UNBIND' },
+                { label: 'TRANSFER', value: 'TRANSFER' },
+              ]"
+            />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs uppercase tracking-wide text-slate-500">备注</span>
+            <span class="text-xs uppercase tracking-wide text-slate-500"
+              >备注</span
+            >
             <UInput v-model="entryForm.reason" placeholder="原因（可选）" />
           </label>
         </div>
         <label class="flex flex-col gap-1">
-          <span class="text-xs uppercase tracking-wide text-slate-500">Payload JSON（可选）</span>
+          <span class="text-xs uppercase tracking-wide text-slate-500"
+            >Payload JSON（可选）</span
+          >
           <UTextarea v-model="entryForm.payload" :rows="6" />
         </label>
         <div class="flex justify-end gap-2">
-          <UButton type="button" color="neutral" variant="ghost" @click="entryDialogOpen = false">取消</UButton>
-          <UButton type="submit" color="primary" :loading="entrySubmitting">保存</UButton>
+          <UButton
+            type="button"
+            color="neutral"
+            variant="ghost"
+            @click="entryDialogOpen = false"
+            >取消</UButton
+          >
+          <UButton type="submit" color="primary" :loading="entrySubmitting"
+            >保存</UButton
+          >
         </div>
       </form>
     </template>
   </UModal>
+
+  <PlayerDetailDialog
+    :open="playerDetailDialogOpen"
+    :username="playerDetailDialogUsername"
+    :initial-player="playerDetailDialogInitial"
+    @update:open="(value) => {
+      playerDetailDialogOpen = value
+      if (!value) {
+        playerDetailDialogUsername = null
+        playerDetailDialogInitial = null
+      }
+    }"
+    @open-user="openUserDetailFromPlayerDialog"
+  />
+
+  <UserDetailDialog
+    :open="userDetailDialogOpen"
+    :user-id="userDetailDialogUserId"
+    :user-summary="userDetailDialogSummary"
+    @update:open="(value) => {
+      userDetailDialogOpen = value
+      if (!value) {
+        userDetailDialogUserId = null
+        userDetailDialogSummary = null
+      }
+    }"
+    @deleted="handleUserDeletedFromDialog"
+  />
 </template>

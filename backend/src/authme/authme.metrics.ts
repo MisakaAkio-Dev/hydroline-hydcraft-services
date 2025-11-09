@@ -50,7 +50,9 @@ function getOrCreateCounter(
 }
 
 function ensureDefaultMetricsCollected() {
-  const defaultMetric = register.getSingleMetric('process_cpu_user_seconds_total');
+  const defaultMetric = register.getSingleMetric(
+    'process_cpu_user_seconds_total',
+  );
   if (!defaultMetric) {
     collectDefaultMetrics();
   }

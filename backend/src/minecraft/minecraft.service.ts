@@ -38,11 +38,7 @@ export class MinecraftService {
   }
 
   parseMotd(motd: unknown, isBedrock = false) {
-    if (
-      typeof motd !== 'string' &&
-      typeof motd !== 'object' &&
-      motd !== null
-    ) {
+    if (typeof motd !== 'string' && typeof motd !== 'object' && motd !== null) {
       throw new BadRequestException('无效的 MOTD 内容');
     }
     return motdToHtml(motd as never, isBedrock);

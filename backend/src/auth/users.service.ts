@@ -220,7 +220,8 @@ export class UsersService {
     if (sort) {
       orderBy.push(sort);
     }
-    orderBy.push({ createdAt: 'desc' });
+    // 默认注册时间最早的排在前（createdAt 升序）
+    orderBy.push({ createdAt: 'asc' });
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({

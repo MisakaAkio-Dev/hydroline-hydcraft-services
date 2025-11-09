@@ -32,6 +32,16 @@ export interface AuthmeLibOptions {
 
 const DEFAULT_LIMIT = 50;
 
+const AUTHME_SORT_FIELDS = {
+  id: { expression: 'id', type: 'number' as const },
+  username: { expression: 'LOWER(username)', type: 'string' as const },
+  realname: { expression: 'LOWER(realname)', type: 'string' as const },
+  lastlogin: { expression: 'COALESCE(lastlogin, 0)', type: 'number' as const },
+  regdate: { expression: 'COALESCE(regdate, 0)', type: 'number' as const },
+  ip: { expression: "COALESCE(ip, '')", type: 'string' as const },
+  regip: { expression: "COALESCE(regip, '')", type: 'string' as const },
+} as const;
+
 export class MysqlAuthmeLib implements AuthmeLib {
   readonly pool: Pool;
   private readonly logger?: LoggerLike;
@@ -133,6 +143,15 @@ export class MysqlAuthmeLib implements AuthmeLib {
     keyword?: string | null;
     offset?: number;
     limit?: number;
+    sortField?:
+      | 'id'
+      | 'username'
+      | 'realname'
+      | 'lastlogin'
+      | 'regdate'
+      | 'ip'
+      | 'regip';
+    sortOrder?: 'asc' | 'desc';
   }): Promise<{ rows: AuthmeUser[]; total: number }> {
     const limit = Math.min(Math.max(params.limit ?? DEFAULT_LIMIT, 1), 500);
     const offset = Math.max(params.offset ?? 0, 0);
@@ -140,6 +159,15 @@ export class MysqlAuthmeLib implements AuthmeLib {
       typeof params.keyword === 'string' && params.keyword.trim().length > 0
         ? params.keyword.trim().toLowerCase()
         : null;
+    const requestedSortField =
+      typeof params.sortField === 'string'
+        ? (params.sortField.toLowerCase() as keyof typeof AUTHME_SORT_FIELDS)
+        : 'lastlogin';
+    const sortMeta =
+      AUTHME_SORT_FIELDS[requestedSortField] ?? AUTHME_SORT_FIELDS.lastlogin;
+    const direction = params.sortOrder === 'asc' ? 'ASC' : 'DESC';
+    const tieBreaker = direction === 'ASC' ? 'ASC' : 'DESC';
+    const orderClause = `ORDER BY ${sortMeta.expression} ${direction}, id ${tieBreaker}`;
     const filters: string[] = [];
     const values: Array<string> = [];
     if (keyword) {
@@ -151,7 +179,7 @@ export class MysqlAuthmeLib implements AuthmeLib {
     }
     const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const rows = await this.query<AuthmeUserRow[]>(
-      `SELECT * FROM authme ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
+      `SELECT * FROM authme ${whereClause} ${orderClause} LIMIT ? OFFSET ?`,
       [...values, limit, offset],
       'listPaged',
     );

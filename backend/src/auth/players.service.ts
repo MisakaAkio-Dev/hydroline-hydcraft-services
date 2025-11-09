@@ -3,12 +3,38 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthmeService } from '../authme/authme.service';
 import { AuthmeBindingService } from '../authme/authme-binding.service';
 import { CreateAuthmeHistoryEntryDto } from '../authme/dto/create-authme-history-entry.dto';
-import { AuthmeBindingAction } from '@prisma/client';
+import { AuthmeBindingAction, Prisma } from '@prisma/client';
+import { IpLocationService } from '../lib/ip2region/ip-location.service';
+import type { AuthmeUser } from '../authme/authme.interfaces';
+
+type SortOrder = 'asc' | 'desc';
+
+type RegionSortField = 'ip_region' | 'regip_region';
+
+type AuthmeSortField =
+  | 'lastlogin'
+  | 'regdate'
+  | 'username'
+  | 'ip'
+  | 'regip'
+  | 'id';
+
+type LocationSummary = {
+  raw: string | null;
+  display: string | null;
+};
+
+type AuthmeUserWithLocation = AuthmeUser & {
+  __ipLocation: LocationSummary;
+  __regipLocation: LocationSummary;
+};
 
 interface ListPlayersParams {
   keyword?: string;
   page?: number;
   pageSize?: number;
+  sortField?: string;
+  sortOrder?: SortOrder;
 }
 
 interface HistoryQuery {
@@ -24,104 +50,37 @@ export class PlayersService {
     private readonly authmeService: AuthmeService,
     private readonly prisma: PrismaService,
     private readonly authmeBindingService: AuthmeBindingService,
+    private readonly ipLocationService: IpLocationService,
   ) {}
 
   async listPlayers(params: ListPlayersParams) {
     const page = Math.max(params.page ?? 1, 1);
     const pageSize = Math.min(Math.max(params.pageSize ?? 20, 1), 100);
     try {
-      const result = await this.authmeService.listPlayers({
+      const sortField = (params.sortField ?? 'lastlogin').toLowerCase();
+      const sortOrder: SortOrder =
+        params.sortOrder === 'asc' || params.sortOrder === 'desc'
+          ? params.sortOrder
+          : 'desc';
+
+      if (this.isRegionSortField(sortField)) {
+        return await this.listPlayersSortedByRegion({
+          keyword: params.keyword,
+          page,
+          pageSize,
+          sortField,
+          sortOrder,
+        });
+      }
+
+      const authmeSortField = this.resolveAuthmeSortField(sortField);
+      return await this.listPlayersSortedByDatabase({
         keyword: params.keyword,
         page,
         pageSize,
+        sortField: authmeSortField,
+        sortOrder,
       });
-      const usernameKeys = result.items.map((player) =>
-        player.username.toLowerCase(),
-      );
-      const [bindings, histories] = await Promise.all([
-        usernameKeys.length
-          ? this.prisma.userAuthmeBinding.findMany({
-              where: { authmeUsernameLower: { in: usernameKeys } },
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    profile: { select: { displayName: true } },
-                  },
-                },
-              },
-            })
-          : [],
-        usernameKeys.length
-          ? this.prisma.authmeBindingHistory.findMany({
-              where: { authmeUsernameLower: { in: usernameKeys } },
-              orderBy: { createdAt: 'desc' },
-              include: {
-                operator: {
-                  select: {
-                    id: true,
-                    email: true,
-                    profile: { select: { displayName: true } },
-                  },
-                },
-                binding: {
-                  select: {
-                    id: true,
-                    authmeUsername: true,
-                    authmeRealname: true,
-                    authmeUuid: true,
-                  },
-                },
-              },
-            })
-          : [],
-      ]);
-
-      const bindingMap = new Map<string, (typeof bindings)[number]>(
-        bindings.map(
-          (
-            binding: {
-              authmeUsernameLower: string;
-            } & (typeof bindings)[number],
-          ) => [binding.authmeUsernameLower, binding] as const,
-        ),
-      );
-      const historyMap = new Map<string, typeof histories>();
-      for (const entry of histories) {
-        const bucket = historyMap.get(entry.authmeUsernameLower) ?? [];
-        bucket.push(entry);
-        historyMap.set(entry.authmeUsernameLower, bucket);
-      }
-
-      const items = result.items.map((player) => {
-        const key = player.username.toLowerCase();
-        return {
-          authme: {
-            username: player.username,
-            realname: player.realname,
-            uuid: player.id,
-            lastlogin: player.lastlogin,
-            regdate: player.regdate,
-            ip: player.ip ?? null,
-            regip: player.regip ?? null,
-          },
-          binding: bindingMap.get(key) ?? null,
-          history: (historyMap.get(key) ?? []).slice(0, 10),
-        };
-      });
-
-      return {
-        items,
-        pagination: {
-          total: result.total,
-          page: result.page,
-          pageSize: result.pageSize,
-          pageCount: Math.max(1, Math.ceil(result.total / result.pageSize)),
-        },
-        sourceStatus: 'ok' as const,
-      };
     } catch (error) {
       this.logger.warn(`AuthMe players degraded: ${String(error)}`);
       const keyword = params.keyword?.toLowerCase();
@@ -154,10 +113,18 @@ export class PlayersService {
       const usernameKeys = bindings.map(
         (binding) => binding.authmeUsernameLower,
       );
+      const bindingIds = bindings.map((binding) => binding.id);
+      const degradedOr: Prisma.AuthmeBindingHistoryWhereInput[] = [];
+      if (usernameKeys.length) {
+        degradedOr.push({ authmeUsernameLower: { in: usernameKeys } });
+        if (bindingIds.length) {
+          degradedOr.push({ bindingId: { in: bindingIds } });
+        }
+      }
+      const degradedHistoryWhere =
+        degradedOr.length > 0 ? { OR: degradedOr } : undefined;
       const histories = await this.prisma.authmeBindingHistory.findMany({
-        where: usernameKeys.length
-          ? { authmeUsernameLower: { in: usernameKeys } }
-          : undefined,
+        where: degradedHistoryWhere,
         orderBy: { createdAt: 'desc' },
         include: {
           operator: {
@@ -205,11 +172,289 @@ export class PlayersService {
     }
   }
 
+  private isRegionSortField(field: string): field is RegionSortField {
+    return field === 'ip_region' || field === 'regip_region';
+  }
+
+  private resolveAuthmeSortField(field: string): AuthmeSortField {
+    switch (field) {
+      case 'username':
+        return 'username';
+      case 'regdate':
+        return 'regdate';
+      case 'lastlogin':
+        return 'lastlogin';
+      case 'ip':
+        return 'ip';
+      case 'regip':
+        return 'regip';
+      case 'id':
+        return 'id';
+      default:
+        return 'lastlogin';
+    }
+  }
+
+  private async listPlayersSortedByDatabase(options: {
+    keyword?: string;
+    page: number;
+    pageSize: number;
+    sortField: AuthmeSortField;
+    sortOrder: SortOrder;
+  }) {
+    const result = await this.authmeService.listPlayers({
+      keyword: options.keyword,
+      page: options.page,
+      pageSize: options.pageSize,
+      sortField: options.sortField,
+      sortOrder: options.sortOrder,
+    });
+    const enriched = await this.enrichWithLocations(result.items);
+    return this.buildPlayersPayload(enriched, {
+      total: result.total,
+      page: options.page,
+      pageSize: options.pageSize,
+    });
+  }
+
+  private async listPlayersSortedByRegion(options: {
+    keyword?: string;
+    page: number;
+    pageSize: number;
+    sortField: RegionSortField;
+    sortOrder: SortOrder;
+  }) {
+    const { items, total } = await this.collectAllAuthmePlayers(
+      options.keyword,
+    );
+    const enrichedAll = await this.enrichWithLocations(items);
+    const orderFactor = options.sortOrder === 'asc' ? 1 : -1;
+    const sorted = [...enrichedAll].sort((a, b) => {
+      const aKey =
+        options.sortField === 'ip_region'
+          ? (a.__ipLocation.display ?? '')
+          : (a.__regipLocation.display ?? '');
+      const bKey =
+        options.sortField === 'ip_region'
+          ? (b.__ipLocation.display ?? '')
+          : (b.__regipLocation.display ?? '');
+      const cmp = aKey.localeCompare(bKey);
+      if (cmp !== 0) {
+        return cmp * orderFactor;
+      }
+      const lastLoginDiff = (a.lastlogin ?? 0) - (b.lastlogin ?? 0);
+      if (lastLoginDiff !== 0) {
+        return lastLoginDiff * orderFactor;
+      }
+      return (
+        a.username.toLowerCase().localeCompare(b.username.toLowerCase()) *
+        orderFactor
+      );
+    });
+
+    const totalCount = Math.max(total, sorted.length);
+    const start = (options.page - 1) * options.pageSize;
+    const paged = sorted.slice(start, start + options.pageSize);
+
+    return this.buildPlayersPayload(paged, {
+      total: totalCount,
+      page: options.page,
+      pageSize: options.pageSize,
+    });
+  }
+
+  private async collectAllAuthmePlayers(keyword?: string) {
+    const aggregated: AuthmeUser[] = [];
+    const pageSize = 100;
+    let page = 1;
+    let total = 0;
+    while (true) {
+      const result = await this.authmeService.listPlayers({
+        keyword,
+        page,
+        pageSize,
+        sortField: 'id',
+        sortOrder: 'asc',
+      });
+      aggregated.push(...result.items);
+      total = result.total;
+      if (aggregated.length >= total || result.items.length < pageSize) {
+        break;
+      }
+      page += 1;
+      if (page > 1000) {
+        break;
+      }
+    }
+    return { items: aggregated, total };
+  }
+
+  private async enrichWithLocations(
+    rows: AuthmeUser[],
+    cache = new Map<string, LocationSummary>(),
+  ): Promise<AuthmeUserWithLocation[]> {
+    return Promise.all(
+      rows.map(async (row) => {
+        const [ipLocation, regipLocation] = await Promise.all([
+          this.lookupLocationCached(row.ip ?? null, cache),
+          this.lookupLocationCached(row.regip ?? null, cache),
+        ]);
+        return {
+          ...row,
+          __ipLocation: ipLocation,
+          __regipLocation: regipLocation,
+        };
+      }),
+    );
+  }
+
+  private async lookupLocationCached(
+    ip: string | null | undefined,
+    cache: Map<string, LocationSummary>,
+  ): Promise<LocationSummary> {
+    if (!ip) {
+      return { raw: null, display: null };
+    }
+    const normalized = ip.trim();
+    if (!normalized) {
+      return { raw: null, display: null };
+    }
+    const cached = cache.get(normalized);
+    if (cached) {
+      return cached;
+    }
+    const result = await this.ipLocationService.lookup(normalized);
+    const summary: LocationSummary = {
+      raw: result?.raw ?? null,
+      display: result?.display ?? null,
+    };
+    cache.set(normalized, summary);
+    return summary;
+  }
+
+  private async buildPlayersPayload(
+    rows: AuthmeUserWithLocation[],
+    pagination: { total: number; page: number; pageSize: number },
+  ) {
+    const usernameKeys = rows.map((player) => player.username.toLowerCase());
+    const bindings = usernameKeys.length
+      ? await this.prisma.userAuthmeBinding.findMany({
+          where: { authmeUsernameLower: { in: usernameKeys } },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                profile: { select: { displayName: true } },
+              },
+            },
+          },
+        })
+      : [];
+    const bindingIds = bindings.map((binding) => binding.id);
+    const historyOr: Prisma.AuthmeBindingHistoryWhereInput[] = [];
+    if (usernameKeys.length) {
+      historyOr.push({ authmeUsernameLower: { in: usernameKeys } });
+      if (bindingIds.length) {
+        historyOr.push({ bindingId: { in: bindingIds } });
+      }
+    }
+    const histories =
+      historyOr.length > 0
+        ? await this.prisma.authmeBindingHistory.findMany({
+            where: { OR: historyOr },
+            orderBy: { createdAt: 'desc' },
+            include: {
+              operator: {
+                select: {
+                  id: true,
+                  email: true,
+                  profile: { select: { displayName: true } },
+                },
+              },
+              binding: {
+                select: {
+                  id: true,
+                  authmeUsername: true,
+                  authmeRealname: true,
+                  authmeUuid: true,
+                },
+              },
+            },
+          })
+        : [];
+
+    const bindingMap = new Map<string, (typeof bindings)[number]>(
+      bindings.map(
+        (
+          binding: {
+            authmeUsernameLower: string;
+          } & (typeof bindings)[number],
+        ) => [binding.authmeUsernameLower, binding] as const,
+      ),
+    );
+    const historyMap = new Map<string, typeof histories>();
+    for (const entry of histories) {
+      const bucket = historyMap.get(entry.authmeUsernameLower) ?? [];
+      bucket.push(entry);
+      historyMap.set(entry.authmeUsernameLower, bucket);
+    }
+
+    const items = rows.map((player) => {
+      const key = player.username.toLowerCase();
+      return {
+        authme: {
+          username: player.username,
+          realname: player.realname,
+          uuid: player.id,
+          lastlogin: player.lastlogin ?? null,
+          regdate: player.regdate ?? null,
+          ip: player.ip ?? null,
+          regip: player.regip ?? null,
+          ipLocation: player.__ipLocation.display ?? null,
+          regipLocation: player.__regipLocation.display ?? null,
+          ip_location: player.__ipLocation.raw ?? null,
+          ip_location_display: player.__ipLocation.display ?? null,
+          regip_location: player.__regipLocation.raw ?? null,
+          regip_location_display: player.__regipLocation.display ?? null,
+        },
+        binding: bindingMap.get(key) ?? null,
+        history: (historyMap.get(key) ?? []).slice(0, 10),
+      };
+    });
+
+    return {
+      items,
+      pagination: {
+        total: pagination.total,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        pageCount: Math.max(
+          1,
+          Math.ceil(pagination.total / Math.max(pagination.pageSize, 1)),
+        ),
+      },
+      sourceStatus: 'ok' as const,
+    };
+  }
+
   async getHistoryByUsername(username: string, params: HistoryQuery = {}) {
     const usernameLower = username.toLowerCase();
     const page = Math.max(params.page ?? 1, 1);
     const pageSize = Math.min(Math.max(params.pageSize ?? 20, 1), 100);
-    const where = { authmeUsernameLower: usernameLower };
+    const relatedBindings = await this.prisma.userAuthmeBinding.findMany({
+      where: { authmeUsernameLower: usernameLower },
+      select: { id: true },
+    });
+    const bindingIds = relatedBindings.map((binding) => binding.id);
+    const historyOr: Prisma.AuthmeBindingHistoryWhereInput[] = [
+      { authmeUsernameLower: usernameLower },
+    ];
+    if (bindingIds.length) {
+      historyOr.push({ bindingId: { in: bindingIds } });
+    }
+    const where: Prisma.AuthmeBindingHistoryWhereInput = { OR: historyOr };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.authmeBindingHistory.findMany({
         where,

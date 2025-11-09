@@ -4,7 +4,8 @@ import { useAdminUsersStore } from '@/stores/adminUsers'
 import { useAdminRbacStore } from '@/stores/adminRbac'
 import { useUiStore } from '@/stores/ui'
 import type { AdminUserListItem } from '@/types/admin'
-import UserDetail from './UserDetail.vue'
+import UserDetailDialog from '@/views/admin/components/UserDetailDialog.vue'
+import PlayerDetailDialog from '@/views/admin/components/PlayerDetailDialog.vue'
 
 type SortOrder = 'asc' | 'desc'
 type RefreshOptions = {
@@ -23,6 +24,14 @@ const rows = computed(() => usersStore.items)
 const pagination = computed(() => usersStore.pagination)
 const sortField = computed(() => usersStore.sortField)
 const sortOrder = computed(() => usersStore.sortOrder)
+const safePageCount = computed(() =>
+  Math.max(pagination.value?.pageCount ?? 1, 1),
+)
+const isFirstPage = computed(() => (pagination.value?.page ?? 1) <= 1)
+const isLastPage = computed(
+  () => (pagination.value?.page ?? 1) >= safePageCount.value,
+)
+const pageInput = ref<number | null>(null)
 
 const roleOptions = computed(() =>
   rbacStore.roles.map((role) => ({ label: role.name, value: role.key })),
@@ -44,7 +53,18 @@ const piicReason = ref('')
 const piicSubmitting = ref(false)
 
 const detailDialogOpen = ref(false)
-const detailSelectedUser = ref<AdminUserListItem | null>(null)
+const detailDialogUserId = ref<string | null>(null)
+const detailDialogSummary = ref<{
+  displayName?: string | null
+  email?: string | null
+} | null>(null)
+const playerDialogOpen = ref(false)
+const playerDialogUsername = ref<string | null>(null)
+type PlayerUserSummary = {
+  id: string
+  email?: string | null
+  displayName?: string | null
+}
 
 const maxMinecraftAvatars = 3
 
@@ -108,19 +128,59 @@ async function refresh(options: RefreshOptions = {}) {
   }
 }
 
-async function handleSubmit() {
-  await refresh({ page: 1 })
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
+function debouncedSearch() {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    refresh({ page: 1 })
+  }, 800)
 }
+
+// 监听关键词变化，自动搜索
+watch(keyword, (newVal) => {
+  if (newVal === '') {
+    // 清空搜索框，立即还原到初始状态
+    if (searchTimeout) clearTimeout(searchTimeout)
+    refresh({ page: 1 })
+  } else {
+    // 有内容则防抖搜索
+    debouncedSearch()
+  }
+})
+
+watch(
+  () => pagination.value.page,
+  (page) => {
+    pageInput.value = page ?? 1
+  },
+  { immediate: true },
+)
 
 async function goToPage(page: number) {
   if (
     page === pagination.value.page ||
     page < 1 ||
-    page > pagination.value.pageCount
+    page > safePageCount.value
   ) {
     return
   }
   await refresh({ page })
+}
+
+function handlePageInput() {
+  const currentPage = pagination.value.page ?? 1
+  const pageCount = safePageCount.value
+  if (pageInput.value === null || Number.isNaN(pageInput.value)) {
+    pageInput.value = currentPage
+    return
+  }
+  const normalized = Math.min(
+    Math.max(Math.trunc(pageInput.value), 1),
+    pageCount,
+  )
+  pageInput.value = normalized
+  void goToPage(normalized)
 }
 
 function toggleSort(field: string) {
@@ -159,23 +219,49 @@ watch(piicDialogOpen, (value) => {
 })
 
 function openDetailDialog(user: AdminUserListItem) {
-  detailSelectedUser.value = user
+  detailDialogUserId.value = user.id
+  detailDialogSummary.value = {
+    displayName: user.profile?.displayName ?? user.name ?? null,
+    email: user.email ?? null,
+  }
   detailDialogOpen.value = true
-}
-
-function closeDetailDialog() {
-  detailDialogOpen.value = false
 }
 
 watch(detailDialogOpen, (value) => {
   if (!value) {
-    detailSelectedUser.value = null
+    detailDialogUserId.value = null
+    detailDialogSummary.value = null
   }
 })
 
+function openPlayerDialog(username: string | null | undefined) {
+  if (!username) return
+  playerDialogUsername.value = username
+  playerDialogOpen.value = true
+}
+
+watch(playerDialogOpen, (value) => {
+  if (!value) {
+    playerDialogUsername.value = null
+  }
+})
+
+function openUserDetailFromPlayer(summary: PlayerUserSummary | null) {
+  if (!summary?.id) return
+  playerDialogOpen.value = false
+  playerDialogUsername.value = null
+  detailDialogUserId.value = summary.id
+  detailDialogSummary.value = {
+    displayName: summary.displayName ?? null,
+    email: summary.email ?? null,
+  }
+  detailDialogOpen.value = true
+}
+
 async function handleUserDeleted() {
   detailDialogOpen.value = false
-  detailSelectedUser.value = null
+  detailDialogUserId.value = null
+  detailDialogSummary.value = null
   await refresh({ page: pagination.value.page })
 }
 
@@ -339,30 +425,21 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-6">
-    <header
-      class="flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-white/80 p-4 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div class="space-y-1">
-        <h1 class="text-xl font-semibold text-slate-900 dark:text-white">
-          站内用户
-        </h1>
-        <p class="text-sm text-slate-600 dark:text-slate-300">
-          快速浏览账号资料、权限角色、PIIC 与 AuthMe/Minecraft
-          绑定，支持就地调整。
-        </p>
-      </div>
-      <form
-        class="flex w-full gap-2 sm:max-w-xl"
-        @submit.prevent="handleSubmit"
-      >
+    <!-- 搜索框 -->
+    <header class="flex justify-end w-full">
+      <div class="flex gap-2 w-full max-w-lg items-center">
+        <UIcon
+          v-if="usersStore.loading"
+          name="i-lucide-loader-2"
+          class="inline-block h-4 w-4 animate-spin"
+        />
         <UInput
           v-model="keyword"
           type="search"
           placeholder="搜索邮箱、显示名、用户名或 PIIC"
           class="flex-1"
         />
-        <UButton type="submit" color="primary">搜索</UButton>
-      </form>
+      </div>
     </header>
 
     <div
@@ -535,7 +612,14 @@ onMounted(async () => {
                     :key="bind.id || bind.username || 'unknown'"
                     :text="bind.realname || bind.username || '—'"
                   >
-                    <div class="relative">
+                    <div
+                      class="relative cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900"
+                      role="button"
+                      tabindex="0"
+                      @click="openPlayerDialog(bind.username ?? bind.realname)"
+                      @keydown.enter.prevent="openPlayerDialog(bind.username ?? bind.realname)"
+                      @keydown.space.prevent="openPlayerDialog(bind.username ?? bind.realname)"
+                    >
                       <img
                         :src="mcAvatarUrl(bind.username)"
                         :alt="bind.username || 'minecraft avatar'"
@@ -598,79 +682,89 @@ onMounted(async () => {
     </div>
 
     <div
-      class="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
     >
       <span
         >第 {{ pagination.page }} / {{ pagination.pageCount }} 页，共
         {{ pagination.total }} 人</span
       >
-      <div class="flex gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <UButton
           color="neutral"
           variant="ghost"
           size="xs"
-          :disabled="pagination.page <= 1 || usersStore.loading"
+          :disabled="isFirstPage || usersStore.loading"
+          @click="goToPage(1)"
+        >
+          首页
+        </UButton>
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :disabled="isFirstPage || usersStore.loading"
           @click="goToPage(pagination.page - 1)"
         >
           上一页
         </UButton>
+        <div class="flex items-center gap-1">
+          <UInput
+            v-model.number="pageInput"
+            type="number"
+            size="xs"
+            class="w-16 text-center"
+            :disabled="usersStore.loading"
+            min="1"
+            :max="safePageCount"
+            @keydown.enter.prevent="handlePageInput"
+          />
+          <span class="text-xs text-slate-500 dark:text-slate-400">
+            / {{ safePageCount }}
+          </span>
+        </div>
+        <UButton
+          color="neutral"
+          variant="soft"
+          size="xs"
+          :disabled="usersStore.loading"
+          @click="handlePageInput"
+        >
+          跳转
+        </UButton>
         <UButton
           color="neutral"
           variant="ghost"
           size="xs"
-          :disabled="
-            pagination.page >= pagination.pageCount || usersStore.loading
-          "
+          :disabled="isLastPage || usersStore.loading"
           @click="goToPage(pagination.page + 1)"
         >
           下一页
         </UButton>
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :disabled="isLastPage || usersStore.loading"
+          @click="goToPage(pagination.pageCount)"
+        >
+          末页
+        </UButton>
       </div>
     </div>
 
-    <UModal
-      v-model:open="detailDialogOpen"
-      :ui="{ content: 'w-full max-w-3xl' }"
-    >
-      <template #content>
-        <div class="flex h-full max-h-[85vh] flex-col">
-          <div
-            class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800"
-          >
-            <div>
-              <p
-                class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
-              >
-                用户详情
-              </p>
-              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-                {{ detailSelectedUser?.email ?? '无用户信息' }}
-              </h3>
-            </div>
-            <UButton
-              icon="i-lucide-x"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              @click="closeDetailDialog"
-            />
-          </div>
-          <div class="flex-1 overflow-y-auto px-6 py-4">
-            <UserDetail
-              v-if="detailDialogOpen && detailSelectedUser"
-              :user-id="detailSelectedUser.id"
-              @deleted="handleUserDeleted"
-            />
-            <div
-              v-else
-              class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400"
-            >
-              未选择用户。
-            </div>
-          </div>
-        </div>
-      </template>
-    </UModal>
+    <UserDetailDialog
+      :open="detailDialogOpen"
+      :user-id="detailDialogUserId"
+      :user-summary="detailDialogSummary"
+      @update:open="(value) => {
+        detailDialogOpen = value
+        if (!value) {
+          detailDialogUserId = null
+          detailDialogSummary = null
+        }
+      }"
+      @deleted="handleUserDeleted"
+    />
 
     <UModal
       :open="piicDialogOpen"
@@ -787,5 +881,17 @@ onMounted(async () => {
         </div>
       </template>
     </UModal>
+
+    <PlayerDetailDialog
+      :open="playerDialogOpen"
+      :username="playerDialogUsername"
+      @update:open="(value) => {
+        playerDialogOpen = value
+        if (!value) {
+          playerDialogUsername = null
+        }
+      }"
+      @open-user="openUserDetailFromPlayer"
+    />
   </div>
 </template>

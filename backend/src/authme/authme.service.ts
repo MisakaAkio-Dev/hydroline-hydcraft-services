@@ -113,14 +113,27 @@ export class AuthmeService implements OnModuleInit, OnModuleDestroy {
     keyword?: string;
     page?: number;
     pageSize?: number;
+    sortField?:
+      | 'id'
+      | 'username'
+      | 'realname'
+      | 'lastlogin'
+      | 'regdate'
+      | 'ip'
+      | 'regip';
+    sortOrder?: 'asc' | 'desc';
   }) {
     const lib = await this.ensureLib();
     const pageSize = Math.min(Math.max(params.pageSize ?? 20, 1), 100);
     const page = Math.max(params.page ?? 1, 1);
+    const sortField = this.normalizeSortField(params.sortField);
+    const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc';
     const result = await lib.listPaged({
       keyword: params.keyword?.trim().toLowerCase() ?? null,
       offset: (page - 1) * pageSize,
       limit: pageSize,
+      sortField,
+      sortOrder,
     });
     return {
       items: result.rows,
@@ -134,6 +147,7 @@ export class AuthmeService implements OnModuleInit, OnModuleDestroy {
     return Boolean(this.currentConfig?.enabled && this.lib);
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   private async ensureLib(): Promise<AuthmeLib> {
     if (this.lib && this.currentConfig?.enabled) {
       return this.lib;
@@ -278,12 +292,12 @@ export class AuthmeService implements OnModuleInit, OnModuleDestroy {
         acquireTimeoutMillis: toNumber(poolRaw.acquireTimeoutMillis, 10_000),
       };
       const config: AuthmeDbConfig = {
-        host: String(payload.host ?? '').trim(),
+        host: toStringSafe(payload.host, '').trim(),
         port: toNumber(payload.port, 3306),
-        database: String(payload.database ?? '').trim(),
-        user: String(payload.user ?? '').trim(),
-        password: String(payload.password ?? ''),
-        charset: String(payload.charset ?? 'utf8mb4'),
+        database: toStringSafe(payload.database, '').trim(),
+        user: toStringSafe(payload.user, '').trim(),
+        password: toStringSafe(payload.password, ''),
+        charset: toStringSafe(payload.charset, 'utf8mb4'),
         connectTimeoutMillis: toNumber(payload.connectTimeoutMillis, 5000),
         readonly: toBoolean(payload.readonly, false),
         enabled: toBoolean(payload.enabled, false),
@@ -301,6 +315,25 @@ export class AuthmeService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.logger.error(`Failed to parse AuthMe config: ${String(error)}`);
       return null;
+    }
+  }
+
+  private normalizeSortField(
+    sortField?: string,
+  ): 'id' | 'username' | 'realname' | 'lastlogin' | 'regdate' | 'ip' | 'regip' {
+    const normalized =
+      typeof sortField === 'string' ? sortField.toLowerCase() : '';
+    switch (normalized) {
+      case 'id':
+      case 'username':
+      case 'realname':
+      case 'lastlogin':
+      case 'regdate':
+      case 'ip':
+      case 'regip':
+        return normalized;
+      default:
+        return 'lastlogin';
     }
   }
 }
@@ -340,6 +373,16 @@ function toNumber(value: unknown, fallback: number): number {
     if (Number.isFinite(parsed)) {
       return parsed;
     }
+  }
+  return fallback;
+}
+
+function toStringSafe(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
   }
   return fallback;
 }
