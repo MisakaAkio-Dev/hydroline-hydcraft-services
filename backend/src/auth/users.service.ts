@@ -236,9 +236,21 @@ export class UsersService {
           },
           statusSnapshot: true,
           roles: { include: { role: true } },
-          minecraftIds: {
-            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
-            take: 5,
+          authmeBindings: {
+            orderBy: { boundAt: 'asc' },
+            select: {
+              id: true,
+              userId: true,
+              authmeUsername: true,
+              authmeUsernameLower: true,
+              authmeRealname: true,
+              authmeUuid: true,
+              boundAt: true,
+              boundByUserId: true,
+              boundByIp: true,
+              status: true,
+              updatedAt: true,
+            },
           },
           permissionLabels: {
             include: {
@@ -255,80 +267,43 @@ export class UsersService {
       }),
       this.prisma.user.count({ where }),
     ]);
-
-    const mappedItems = items.map((user) => {
-      const nicknames = (user.minecraftIds ?? []).map((p) => {
-        const res: {
-          id: string;
-          userId: string;
-          nickname: string | null;
-          isPrimary: boolean;
-          createdAt: Date;
-          updatedAt: Date;
-          source?: string | null;
-          verifiedAt?: Date | null;
-          verificationNote?: string | null;
-          metadata?: unknown;
-        } = {
-          id: p.id,
-          userId: p.userId,
-          nickname: p.nickname,
-          isPrimary: p.isPrimary,
-          createdAt: p.createdAt,
-          updatedAt: p.updatedAt,
+    type UserListQueryResult = Prisma.UserGetPayload<{
+      include: {
+        profile: { include: { primaryMinecraftProfile: true } };
+        statusSnapshot: true;
+        roles: { include: { role: true } };
+        permissionLabels: {
+          include: {
+            label: {
+              include: {
+                permissions: { include: { permission: true } };
+              };
+            };
+          };
         };
-        const anyP = p as unknown as Partial<{
-          source: string | null;
-          verifiedAt: Date | null;
-          verificationNote: string | null;
-          metadata: unknown;
-        }>;
-        if (Object.prototype.hasOwnProperty.call(anyP, 'source')) {
-          res.source = anyP.source ?? null;
-        }
-        if (Object.prototype.hasOwnProperty.call(anyP, 'verifiedAt')) {
-          res.verifiedAt = anyP.verifiedAt ?? null;
-        }
-        if (Object.prototype.hasOwnProperty.call(anyP, 'verificationNote')) {
-          res.verificationNote = anyP.verificationNote ?? null;
-        }
-        if (Object.prototype.hasOwnProperty.call(anyP, 'metadata')) {
-          res.metadata = anyP.metadata ?? null;
-        }
-        return res;
-      });
+        authmeBindings: true;
+      };
+    }>;
 
-      // 提供简化的 primaryMinecraft 以便前端列表显示（无 authme 绑定信息）
-      const primaryMinecraft = user.profile?.primaryMinecraftProfile
-        ? {
-            id: user.profile.primaryMinecraftProfile.id,
-            nickname: user.profile.primaryMinecraftProfile.nickname,
-            isPrimary: true,
-          }
-        : null;
+    const itemsTyped = items as unknown as UserListQueryResult[];
+
+    const mappedItems = itemsTyped.map((user) => {
+      const authmeBindings = (user.authmeBindings ?? []).map((b) => ({
+        id: b.id,
+        authmeUsername: b.authmeUsername,
+        authmeRealname: b.authmeRealname ?? null,
+        authmeUuid: b.authmeUuid ?? null,
+        boundAt: b.boundAt,
+        status: b.status,
+        isPrimary: (user.profile?.primaryAuthmeBindingId ?? null) === b.id,
+      }));
 
       return {
         ...user,
-        profile: user.profile
-          ? { ...user.profile, primaryMinecraft }
-          : user.profile,
-        nicknames,
+        authmeBindings,
+        // 不返回 minecraftIds 以避免前端误用昵称数据
         minecraftIds: undefined,
-      } as typeof user & {
-        nicknames: typeof nicknames;
-        minecraftIds?: undefined;
-        profile: typeof user.profile extends infer P
-          ? P extends object
-            ? Omit<P, 'primaryMinecraftProfile'> & {
-                primaryMinecraft: {
-                  id: string;
-                  nickname: string | null;
-                  isPrimary: boolean;
-                } | null;
-              }
-            : P
-          : typeof user.profile;
-      };
+      } as unknown as Record<string, unknown>;
     });
 
     return {
@@ -688,9 +663,35 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    // Mirror compose logic from session user to expose LuckPerms snapshots for detail view
+    // 镜像 session 用户的绑定快照逻辑，并在管理端详情补充 IP 地理位置字段
     const bindingData = await this.composeAuthmeBindingSnapshots(
       user.authmeBindings,
+    );
+    // 最近登录 IP 归一化 + 地理位置查询
+    const normalizedLastLoginIp = normalizeIpAddress(user.lastLoginIp);
+    const lastLoginLocation = normalizedLastLoginIp
+      ? await this.ipLocationService.lookup(normalizedLastLoginIp)
+      : null;
+    // 为每个绑定补充 ip/regip 的地理位置（保持 Promise.all 并发以减少延迟）
+    const enrichedBindings = await Promise.all(
+      bindingData.bindings.map(async (b) => {
+        const [ipLoc, regipLoc] = await Promise.all([
+          this.ipLocationService.lookup(b.ip ?? null),
+          this.ipLocationService.lookup(b.regip ?? null),
+        ]);
+        return {
+          ...b,
+          ipLocationRaw: ipLoc?.raw ?? null,
+          ipLocation: ipLoc?.display ?? null,
+          regipLocationRaw: regipLoc?.raw ?? null,
+          regipLocation: regipLoc?.display ?? null,
+        } as AuthmeBindingSnapshot & {
+          ipLocationRaw: string | null;
+          ipLocation: string | null;
+          regipLocationRaw: string | null;
+          regipLocation: string | null;
+        };
+      }),
     );
 
     return {
@@ -736,10 +737,13 @@ export class UsersService {
         return res;
       }),
       minecraftIds: undefined,
-      authmeBindings: bindingData.bindings,
+      authmeBindings: enrichedBindings,
       luckperms: bindingData.luckperms,
+      lastLoginIp: normalizedLastLoginIp,
+      lastLoginIpLocation: lastLoginLocation?.display ?? null,
+      lastLoginIpLocationRaw: lastLoginLocation?.raw ?? null,
     } as typeof user & {
-      authmeBindings: typeof bindingData.bindings;
+      authmeBindings: typeof enrichedBindings;
       luckperms: typeof bindingData.luckperms;
       nicknames: Array<{
         id: string;
@@ -754,6 +758,9 @@ export class UsersService {
         metadata?: unknown;
       }>;
       minecraftIds?: undefined;
+      lastLoginIp: typeof normalizedLastLoginIp;
+      lastLoginIpLocation: string | null;
+      lastLoginIpLocationRaw: string | null;
     };
   }
 

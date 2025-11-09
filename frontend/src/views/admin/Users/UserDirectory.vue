@@ -46,7 +46,7 @@ const piicSubmitting = ref(false)
 const detailDialogOpen = ref(false)
 const detailSelectedUser = ref<AdminUserListItem | null>(null)
 
-const maxMinecraftBadges = 3
+const maxMinecraftAvatars = 3
 
 function fmtDateTime(
   input?: string | null,
@@ -240,22 +240,88 @@ async function handleLabelsChange(user: AdminUserListItem, value: unknown) {
   }
 }
 
-function minecraftBadges(user: AdminUserListItem) {
-  const list =
-    (
-      user as unknown as {
-        nicknames?: Array<{
-          id: string
-          nickname?: string | null
-          isPrimary?: boolean
-        }>
-      }
-    ).nicknames ?? []
-  return list.map((p) => ({
-    id: p.id,
-    label: p.nickname ?? '未命名',
-    isPrimary: p.isPrimary ?? false,
+type AdminUserAuthmeBinding = {
+  id?: string | null
+  authmeUsername?: string | null
+  authmeRealname?: string | null
+  isPrimary?: boolean | null
+}
+
+function minecraftBindings(user: AdminUserListItem) {
+  // 优先使用后端提供的 authmeBindings（若列表接口已扩展）
+  const anyUser = user as unknown as {
+    authmeBindings?: AdminUserAuthmeBinding[]
+  }
+  const raw: AdminUserAuthmeBinding[] = Array.isArray(anyUser.authmeBindings)
+    ? anyUser.authmeBindings.filter((x): x is AdminUserAuthmeBinding =>
+        Boolean(x),
+      )
+    : []
+
+  if (raw.length > 0) {
+    return raw.map((b) => ({
+      id: b.id ?? null,
+      username:
+        typeof b.authmeUsername === 'string' ? b.authmeUsername.trim() : null,
+      realname:
+        typeof b.authmeRealname === 'string' ? b.authmeRealname.trim() : null,
+      isPrimary: Boolean(b.isPrimary),
+    }))
+  }
+
+  // 兜底：从 nicknames 推导（仅用于占位显示，无 realname）
+  const fallback = (
+    user as unknown as {
+      nicknames?: Array<{
+        id: string
+        nickname?: string | null
+        isPrimary?: boolean
+      }>
+    }
+  ).nicknames
+  return (fallback ?? []).map((n) => ({
+    id: n.id,
+    username: n.nickname ?? null,
+    realname: null as string | null,
+    isPrimary: Boolean(n.isPrimary),
   }))
+}
+
+const avatarPreviewOpen = ref(false)
+const avatarPreviewUser = ref<AdminUserListItem | null>(null)
+
+function openAvatarPreview(user: AdminUserListItem) {
+  avatarPreviewUser.value = user
+  avatarPreviewOpen.value = true
+}
+
+function closeAvatarPreview() {
+  avatarPreviewOpen.value = false
+  avatarPreviewUser.value = null
+}
+
+function mcAvatarUrl(username: string | null | undefined) {
+  const u =
+    typeof username === 'string' && username.trim().length > 0
+      ? username.trim()
+      : 'Steve'
+  return `https://mc-heads.net/avatar/${encodeURIComponent(u)}`
+}
+
+function onAvatarError(ev: Event) {
+  const img = ev.target as HTMLImageElement | null
+  if (!img) return
+  // 避免循环触发
+  const ds: DOMStringMap | undefined = (img as HTMLImageElement).dataset
+  if (ds && ds.fallback === '1') return
+  if (ds) ds.fallback = '1'
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+  <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+    <rect width="128" height="128" fill="#0f172a"/>
+    <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="48" fill="#ffffff">MC</text>
+  </svg>`
+  const url = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg)
+  img.src = url
 }
 
 onMounted(async () => {
@@ -355,7 +421,7 @@ onMounted(async () => {
                 class="flex items-center gap-1 text-xs font-semibold"
                 @click="toggleSort('minecraft')"
               >
-                <span>Minecraft</span>
+                <span>服务器档案</span>
                 <UIcon :name="sortIcon('minecraft')" class="h-4 w-4" />
               </button>
             </th>
@@ -432,7 +498,8 @@ onMounted(async () => {
                 :items="roleOptions"
                 multiple
                 searchable
-                size="xs"
+                size="sm"
+                class="w-full"
                 value-key="value"
                 label-key="label"
                 placeholder="选择角色"
@@ -447,7 +514,8 @@ onMounted(async () => {
                 :items="labelOptions"
                 multiple
                 searchable
-                size="xs"
+                size="sm"
+                class="w-full"
                 value-key="value"
                 label-key="label"
                 placeholder="选择标签"
@@ -458,42 +526,43 @@ onMounted(async () => {
             </td>
             <td class="px-4 py-4 text-sm">
               <div class="flex flex-wrap items-center gap-2">
-                <UBadge
-                  v-for="badge in minecraftBadges(item).slice(
-                    0,
-                    maxMinecraftBadges,
-                  )"
-                  :key="badge.id"
-                  color="neutral"
-                  variant="soft"
-                  class="text-[11px]"
-                >
-                  {{ badge.label }}
-                  <span v-if="badge.isPrimary" class="ml-1 text-[10px]"
-                    >主</span
+                <template v-if="minecraftBindings(item).length">
+                  <UTooltip
+                    v-for="bind in minecraftBindings(item).slice(
+                      0,
+                      maxMinecraftAvatars,
+                    )"
+                    :key="bind.id || bind.username || 'unknown'"
+                    :text="bind.realname || bind.username || '—'"
                   >
-                </UBadge>
-                <UTooltip
-                  v-if="
-                    (minecraftBadges(item).length ?? 0) > maxMinecraftBadges
-                  "
-                  :text="
-                    minecraftBadges(item)
-                      .slice(maxMinecraftBadges)
-                      .map((p) => p.label)
-                      .join('、')
-                  "
-                >
-                  <UBadge color="neutral" variant="soft" class="text-[11px]">
-                    +{{ minecraftBadges(item).length - maxMinecraftBadges }}
-                  </UBadge>
-                </UTooltip>
-                <span
-                  v-if="minecraftBadges(item).length === 0"
-                  class="text-xs text-slate-400"
-                >
-                  无昵称
-                </span>
+                    <div class="relative">
+                      <img
+                        :src="mcAvatarUrl(bind.username)"
+                        :alt="bind.username || 'minecraft avatar'"
+                        class="h-6 w-6 rounded border border-slate-200 dark:border-slate-700"
+                        loading="lazy"
+                        @error="onAvatarError"
+                      />
+                      <span
+                        v-if="bind.isPrimary"
+                        class="absolute -bottom-1 -right-1 rounded bg-primary-500 px-[3px] text-[9px] leading-3 text-white"
+                        >主</span
+                      >
+                    </div>
+                  </UTooltip>
+                  <UButton
+                    v-if="minecraftBindings(item).length > maxMinecraftAvatars"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    class="h-7 w-7 p-0 rounded-full flex items-center justify-center"
+                    icon="i-lucide-ellipsis"
+                    @click="openAvatarPreview(item)"
+                  >
+                    <span class="sr-only">查看更多绑定</span>
+                  </UButton>
+                </template>
+                <span v-else class="text-xs text-slate-400">无绑定</span>
               </div>
             </td>
             <td class="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">
@@ -631,6 +700,7 @@ onMounted(async () => {
             </label>
             <UTextarea
               v-model="piicReason"
+              class="w-full"
               :rows="4"
               placeholder="说明原因或操作背景"
             />
@@ -644,6 +714,74 @@ onMounted(async () => {
               :loading="piicSubmitting"
               @click="confirmPiicRegeneration"
               >确认重新生成</UButton
+            >
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      :open="avatarPreviewOpen"
+      @update:open="avatarPreviewOpen = $event"
+      :ui="{ content: 'w-full max-w-md' }"
+    >
+      <template #content>
+        <div class="p-6 space-y-4 text-sm">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold">全部 Minecraft 绑定</h3>
+            <UButton
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="closeAvatarPreview"
+            />
+          </div>
+          <div v-if="avatarPreviewUser" class="space-y-3">
+            <div class="flex flex-wrap gap-3">
+              <template
+                v-for="bind in minecraftBindings(avatarPreviewUser)"
+                :key="bind.id || bind.username || 'row'"
+              >
+                <div class="flex flex-col items-center gap-1 w-16">
+                  <img
+                    :src="mcAvatarUrl(bind.username)"
+                    :alt="bind.username || 'minecraft avatar'"
+                    class="h-12 w-12 rounded border border-slate-200 dark:border-slate-700 shadow"
+                    loading="lazy"
+                    @error="onAvatarError"
+                  />
+                  <span
+                    class="text-[11px] font-medium line-clamp-1 w-full text-center"
+                    :title="bind.username || '—'"
+                  >
+                    {{ bind.username || '—' }}
+                  </span>
+                  <span
+                    class="text-[10px] text-slate-500 line-clamp-1 w-full text-center"
+                    :title="bind.realname || bind.username || '—'"
+                  >
+                    {{ bind.realname || bind.username || '—' }}
+                    <span
+                      v-if="bind.isPrimary"
+                      class="ml-1 text-primary-600 font-semibold"
+                      >主</span
+                    >
+                  </span>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div v-else class="text-xs text-slate-500 dark:text-slate-400">
+            未选择用户。
+          </div>
+          <div class="flex justify-end">
+            <UButton
+              size="sm"
+              color="neutral"
+              variant="soft"
+              @click="closeAvatarPreview"
+              >关闭</UButton
             >
           </div>
         </div>

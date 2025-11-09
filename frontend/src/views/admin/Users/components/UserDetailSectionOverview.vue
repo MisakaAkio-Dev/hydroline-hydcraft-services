@@ -70,6 +70,9 @@ function fmtDateTime(ts?: string | null, format = 'YYYY-MM-DD HH:mm') {
   return dayjs(ts).format(format)
 }
 
+// 加载态：用于模板中仅在加载/未有 detail 时显示转圈
+const isLoading = computed(() => loading || !detail)
+
 // 计算主 Minecraft 信息（与父组件逻辑保持一致以减少耦合）
 const primaryMinecraft = computed(() => {
   const d = detail
@@ -160,45 +163,49 @@ const primaryMinecraft = computed(() => {
       </div>
     </div>
 
-    <div class="mt-6 grid gap-2 sm:grid-cols-3">
+    <div class="mt-6 grid gap-4 sm:grid-cols-3">
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">邮箱</div>
-        <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
-          <template v-if="detail?.email">{{ detail.email }}</template>
-          <template v-else>
+        <div
+          class="line-clamp-1 truncate text-base font-semibold text-slate-800 dark:text-slate-300"
+        >
+          <template v-if="isLoading">
             <UIcon
               name="i-lucide-loader-2"
               class="inline-block h-4 w-4 animate-spin"
             />
           </template>
+          <template v-else>{{ detail?.email ?? '—' }}</template>
         </div>
       </div>
 
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">用户名</div>
-        <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
-          <template v-if="detail?.name">{{ detail.name }}</template>
-          <template v-else>
+        <div
+          class="line-clamp-1 truncate text-base font-semibold text-slate-800 dark:text-slate-300"
+        >
+          <template v-if="isLoading">
             <UIcon
               name="i-lucide-loader-2"
               class="inline-block h-4 w-4 animate-spin"
             />
           </template>
+          <template v-else>{{ detail?.name ?? '—' }}</template>
         </div>
       </div>
 
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">状态</div>
         <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
-          <template v-if="detail?.statusSnapshot?.status">{{
-            detail.statusSnapshot.status
-          }}</template>
-          <template v-else>
+          <template v-if="isLoading">
             <UIcon
               name="i-lucide-loader-2"
               class="inline-block h-4 w-4 animate-spin"
             />
           </template>
+          <template v-else>{{
+            detail?.statusSnapshot?.status ?? '—'
+          }}</template>
         </div>
       </div>
 
@@ -207,7 +214,13 @@ const primaryMinecraft = computed(() => {
         <div
           class="text-base font-semibold text-slate-800 dark:text-slate-300 flex items-center gap-1"
         >
-          <template v-if="detail?.profile?.piic">
+          <template v-if="isLoading">
+            <UIcon
+              name="i-lucide-loader-2"
+              class="inline-block h-4 w-4 animate-spin"
+            />
+          </template>
+          <template v-else>
             <span>{{ detail?.profile?.piic ?? '—' }}</span>
             <UButton
               color="neutral"
@@ -221,27 +234,19 @@ const primaryMinecraft = computed(() => {
               <span class="sr-only">刷新 PIIC</span>
             </UButton>
           </template>
-          <template v-else>
-            <UIcon
-              name="i-lucide-loader-2"
-              class="inline-block h-4 w-4 animate-spin"
-            />
-          </template>
         </div>
       </div>
 
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">注册时间</div>
         <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
-          <template v-if="detail?.createdAt">{{
-            fmtDateTime(detail.createdAt)
-          }}</template>
-          <template v-else>
+          <template v-if="isLoading">
             <UIcon
               name="i-lucide-loader-2"
               class="inline-block h-4 w-4 animate-spin"
             />
           </template>
+          <template v-else>{{ fmtDateTime(detail?.createdAt) }}</template>
         </div>
       </div>
 
@@ -277,15 +282,13 @@ const primaryMinecraft = computed(() => {
           主 Minecraft 昵称
         </div>
         <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
-          <template v-if="primaryMinecraft">{{
-            primaryMinecraft.nickname || '—'
-          }}</template>
-          <template v-else>
+          <template v-if="isLoading">
             <UIcon
               name="i-lucide-loader-2"
               class="inline-block h-4 w-4 animate-spin"
             />
           </template>
+          <template v-else>{{ primaryMinecraft?.nickname ?? '—' }}</template>
         </div>
       </div>
 
@@ -294,7 +297,13 @@ const primaryMinecraft = computed(() => {
           主 Minecraft ID
         </div>
         <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
-          <template v-if="primaryMinecraft">
+          <template v-if="isLoading">
+            <UIcon
+              name="i-lucide-loader-2"
+              class="inline-block h-4 w-4 animate-spin"
+            />
+          </template>
+          <template v-else-if="primaryMinecraft">
             <span class="flex items-center gap-1">
               <img
                 :src="
@@ -309,12 +318,7 @@ const primaryMinecraft = computed(() => {
               >{{ primaryMinecraft.id }}</span
             >
           </template>
-          <template v-else>
-            <UIcon
-              name="i-lucide-loader-2"
-              class="inline-block h-4 w-4 animate-spin"
-            />
-          </template>
+          <template v-else>—</template>
         </div>
       </div>
 
@@ -336,11 +340,27 @@ const primaryMinecraft = computed(() => {
           </span>
         </div>
         <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
-          {{ fmtDateTime(detail?.lastLoginAt) }}
-          <span
-            class="block line-clamp-1 truncate font-medium text-xs text-slate-600 dark:text-slate-600"
-            >{{ detail?.lastLoginIp ?? '—' }}</span
-          >
+          <template v-if="isLoading">
+            <UIcon
+              name="i-lucide-loader-2"
+              class="inline-block h-4 w-4 animate-spin"
+            />
+          </template>
+          <template v-else>
+            {{ fmtDateTime(detail?.lastLoginAt) }}
+            <span
+              class="block line-clamp-1 truncate font-medium text-xs text-slate-600 dark:text-slate-600"
+            >
+              {{ detail?.lastLoginIp ?? '—' }}
+              <span class="text-[10px]">
+                {{
+                  detail?.lastLoginIpLocation ||
+                  detail?.lastLoginIpLocationRaw ||
+                  ''
+                }}
+              </span>
+            </span>
+          </template>
         </div>
       </div>
 

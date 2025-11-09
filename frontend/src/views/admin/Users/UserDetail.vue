@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { ApiError, apiFetch } from '@/utils/api'
+import type { RegionValue } from '@/views/user/Profile/components/RegionSelector.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminUsersStore } from '@/stores/adminUsers'
 import { useAdminRbacStore } from '@/stores/adminRbac'
@@ -51,13 +52,28 @@ const bindingHistoryDialogOpen = ref(false)
 const sessionsDialogOpen = ref(false)
 const contactsListDialogOpen = ref(false)
 
-const profileForm = reactive({
-  displayName: '' as string | undefined,
-  birthday: '' as string | undefined,
-  gender: '' as string | undefined,
-  motto: '' as string | undefined,
-  timezone: '' as string | undefined,
-  locale: '' as string | undefined,
+type ProfileForm = {
+  displayName?: string
+  birthday?: string
+  gender?: string
+  motto?: string
+  timezone?: string
+  locale?: string
+  phoneCountry?: 'CN' | 'HK' | 'MO' | 'TW'
+  phone?: string
+  region?: RegionValue
+}
+
+const profileForm = reactive<ProfileForm>({
+  displayName: undefined,
+  birthday: undefined,
+  gender: undefined,
+  motto: undefined,
+  timezone: undefined,
+  locale: undefined,
+  phoneCountry: 'CN',
+  phone: undefined,
+  region: undefined,
 })
 
 const profileSaving = ref(false)
@@ -387,6 +403,34 @@ async function fetchDetail() {
     profileForm.motto = data.profile?.motto ?? undefined
     profileForm.timezone = data.profile?.timezone ?? undefined
     profileForm.locale = data.profile?.locale ?? undefined
+    // 来自 extra 的电话与行政区划
+    const extra =
+      data.profile?.extra && typeof data.profile.extra === 'object'
+        ? (data.profile.extra as Record<string, unknown>)
+        : {}
+    profileForm.phone =
+      typeof extra['phone'] === 'string' ? (extra['phone'] as string) : undefined
+    profileForm.phoneCountry =
+      ((extra['phoneCountry'] as 'CN' | 'HK' | 'MO' | 'TW') || profileForm.phoneCountry || 'CN') as
+        | 'CN'
+        | 'HK'
+        | 'MO'
+        | 'TW'
+    const country =
+      ((extra['regionCountry'] as string) || 'CN') as RegionValue['country']
+    const province =
+      typeof extra['regionProvince'] === 'string'
+        ? (extra['regionProvince'] as string)
+        : null
+    const city =
+      typeof extra['regionCity'] === 'string'
+        ? (extra['regionCity'] as string)
+        : null
+    const district =
+      typeof extra['regionDistrict'] === 'string'
+        ? (extra['regionDistrict'] as string)
+        : null
+  profileForm.region = { country, province, city, district }
     // 转换 joinDate 为 YYYY-MM-DD 格式
     joinDateEditing.value = data.joinDate
       ? dayjs(data.joinDate).format('YYYY-MM-DD')
@@ -432,6 +476,15 @@ async function saveProfile() {
         motto: profileForm.motto || undefined,
         timezone: profileForm.timezone || undefined,
         locale: profileForm.locale || undefined,
+        // 额外资料：与用户端一致，采用扁平 extra 键
+        extra: {
+          phone: profileForm.phone || undefined,
+          phoneCountry: profileForm.phoneCountry || undefined,
+          regionCountry: profileForm.region?.country || undefined,
+          regionProvince: profileForm.region?.province || undefined,
+          regionCity: profileForm.region?.city || undefined,
+          regionDistrict: profileForm.region?.district || undefined,
+        },
       },
     })
     toast.add({ title: '资料已更新', color: 'primary' })
@@ -917,6 +970,7 @@ watch(
           </label>
           <UTextarea
             v-model="piicReason"
+            class="w-full"
             :rows="4"
             placeholder="说明原因或操作背景"
           />

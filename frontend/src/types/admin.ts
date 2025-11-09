@@ -6,6 +6,16 @@ export interface AdminMinecraftProfile {
   isPrimary: boolean
 }
 
+export interface AdminAuthmeBindingListItem {
+  id: string
+  authmeUsername: string
+  authmeRealname: string | null
+  authmeUuid: string | null
+  boundAt: string | Date | null
+  status?: string | null
+  isPrimary?: boolean
+}
+
 export interface AdminUserListItem {
   id: string
   email: string
@@ -33,7 +43,10 @@ export interface AdminUserListItem {
     labelId: string
     label: AdminPermissionLabelEntry
   }>
+  // 新的列表后端不再返回 nicknames，保留可选避免旧代码报错
   nicknames?: AdminMinecraftProfile[]
+  // 新增：AuthMe 绑定列表（列表页使用）
+  authmeBindings?: AdminAuthmeBindingListItem[]
 }
 
 export interface AdminUserListResponse {
@@ -57,12 +70,19 @@ export interface AdminAuthmeBindingEntry {
   lastlogin?: number | null
   regdate?: number | null
   isPrimary?: boolean
+  ipLocationRaw?: string | null
+  ipLocation?: string | null
+  regipLocationRaw?: string | null
+  regipLocation?: string | null
 }
 
-export interface AdminUserDetail extends AdminUserListItem {
+export interface AdminUserDetail
+  extends Omit<AdminUserListItem, 'authmeBindings'> {
   joinDate: string | null
   lastLoginAt: string | null
   lastLoginIp: string | null
+  lastLoginIpLocation?: string | null
+  lastLoginIpLocationRaw?: string | null
   avatarUrl?: string | null
   profile:
     | (AdminUserListItem['profile'] & {

@@ -1,5 +1,16 @@
 <script setup lang="ts">
+import { computed, onMounted } from 'vue'
 import type { AdminUserDetail } from '@/types/admin'
+import RegionInlineSelector, {
+  type RegionValue,
+} from './RegionInlineSelector.vue'
+import {
+  phoneRegions,
+  languageOptions,
+  getTimezoneOptionsZh,
+} from '@/constants/profile'
+
+const timezoneOptions = computed(() => getTimezoneOptionsZh())
 
 const { detail, profileForm, profileSaving } = defineProps<{
   detail: AdminUserDetail | null
@@ -10,11 +21,22 @@ const { detail, profileForm, profileSaving } = defineProps<{
     motto?: string
     timezone?: string
     locale?: string
+    // 新增：电话配置与行政区划
+    phoneCountry?: (typeof phoneRegions)[number]['code']
+    phone?: string
+    region?: RegionValue
   }
   profileSaving: boolean
 }>()
 
 const emit = defineEmits<{ (e: 'save'): void }>()
+
+// 打开后默认选择上海（若当前为空）
+onMounted(() => {
+  if (!profileForm.timezone) {
+    profileForm.timezone = 'Asia/Shanghai'
+  }
+})
 </script>
 
 <template>
@@ -37,7 +59,7 @@ const emit = defineEmits<{ (e: 'save'): void }>()
       </UButton>
     </div>
 
-    <div class="mt-4 grid gap-4 md:grid-cols-3">
+    <div class="mt-4 grid gap-4 md:grid-cols-2">
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">显示名称</div>
         <UInput
@@ -51,7 +73,9 @@ const emit = defineEmits<{ (e: 'save'): void }>()
         <div class="text-xs text-slate-500 dark:text-slate-500">语言</div>
         <USelect
           v-model="profileForm.locale"
-          :items="[{ label: '中文（简体）', value: 'zh-CN' }]"
+          :items="languageOptions"
+          value-key="value"
+          label-key="label"
           placeholder="选择语言"
           class="w-full"
         />
@@ -59,10 +83,15 @@ const emit = defineEmits<{ (e: 'save'): void }>()
 
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">时区</div>
-        <UInput
-          v-model="profileForm.timezone"
-          placeholder="例如 Asia/Shanghai"
+        <USelectMenu
+          :model-value="profileForm.timezone || 'Asia/Shanghai'"
+          :items="timezoneOptions"
+          value-key="value"
+          label-key="label"
+          :filter-fields="['label', 'value']"
+          placeholder="选择时区"
           class="w-full"
+          @update:model-value="(v: any) => (profileForm.timezone = v)"
         />
       </div>
 
@@ -85,7 +114,41 @@ const emit = defineEmits<{ (e: 'save'): void }>()
         <UInput v-model="profileForm.birthday" type="date" class="w-full" />
       </div>
 
-      <div class="md:col-span-3">
+      <div>
+        <div class="text-xs text-slate-500 dark:text-slate-500">电话</div>
+        <div class="flex gap-2">
+          <USelect
+            v-model="profileForm.phoneCountry"
+            :items="phoneRegions"
+            class="w-36"
+            value-key="code"
+            label-key="name"
+            placeholder="选择区号"
+          />
+          <UInput
+            v-model="profileForm.phone"
+            type="tel"
+            class="w-full flex-1"
+          />
+        </div>
+      </div>
+
+      <div class="md:col-span-2">
+        <div class="text-xs text-slate-500 dark:text-slate-500">常驻地区</div>
+        <RegionInlineSelector
+          :model-value="
+            profileForm.region ?? {
+              country: 'CN',
+              province: null,
+              city: null,
+              district: null,
+            }
+          "
+          @update:model-value="(v: any) => (profileForm.region = v)"
+        />
+      </div>
+
+      <div class="md:col-span-2">
         <div class="text-xs text-slate-500 dark:text-slate-500">签名</div>
         <UTextarea
           v-model="profileForm.motto"
@@ -95,5 +158,7 @@ const emit = defineEmits<{ (e: 'save'): void }>()
         />
       </div>
     </div>
+
+    <div class="mt-6 grid gap-4 md:grid-cols-[220px,1fr]"></div>
   </section>
 </template>

@@ -113,14 +113,17 @@ const emit = defineEmits<{
               }}</span>
             </div>
           </li>
-          <li
-            v-if="(detail?.authmeBindings?.length ?? 0) === 0"
-            class="text-xs text-slate-500 dark:text-slate-400"
-          >
+          <li v-if="!detail" class="text-xs text-slate-500 dark:text-slate-400">
             <UIcon
               name="i-lucide-loader-2"
               class="inline-block h-4 w-4 animate-spin"
             />
+          </li>
+          <li
+            v-else-if="(detail?.authmeBindings?.length ?? 0) === 0"
+            class="text-xs text-slate-500 dark:text-slate-400"
+          >
+            暂无绑定
           </li>
         </ul>
       </div>
@@ -162,14 +165,17 @@ const emit = defineEmits<{
               </div>
             </div>
           </li>
-          <li
-            v-if="minecraftProfiles.length === 0"
-            class="text-xs text-slate-500 dark:text-slate-400"
-          >
+          <li v-if="!detail" class="text-xs text-slate-500 dark:text-slate-400">
             <UIcon
               name="i-lucide-loader-2"
               class="inline-block h-4 w-4 animate-spin"
             />
+          </li>
+          <li
+            v-else-if="minecraftProfiles.length === 0"
+            class="text-xs text-slate-500 dark:text-slate-400"
+          >
+            暂无昵称
           </li>
         </ul>
       </div>

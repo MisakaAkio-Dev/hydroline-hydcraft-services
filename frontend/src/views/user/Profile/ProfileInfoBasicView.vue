@@ -3,7 +3,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import BasicSection from './components/sections/BasicSection.vue'
-import { getTimezones } from '@/utils/timezones'
+import { getTimezoneOptionsZh, languageOptions as commonLanguageOptions } from '@/constants/profile'
 import { useAuthStore, type GenderType, type UpdateCurrentUserPayload } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/utils/api'
@@ -66,8 +66,8 @@ const form = reactive<FormState>({
   regionDistrict: '',
 })
 
-const timezoneOptions = ref(getTimezones().map((tz) => ({ label: tz, value: tz })))
-const languageOptions = ref([{ label: '中文（简体）', value: 'zh-CN' }])
+const timezoneOptions = ref(getTimezoneOptionsZh())
+const languageOptions = ref([...commonLanguageOptions])
 
 const hasChanges = computed(() => serializeForm() !== initialSnapshot.value)
 
