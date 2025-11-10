@@ -540,6 +540,7 @@ onMounted(async () => {
                   <UBadge
                     v-if="item.statusSnapshot?.status"
                     color="primary"
+                    size="xs"
                     variant="soft"
                     class="text-[11px]"
                   >

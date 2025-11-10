@@ -66,12 +66,6 @@ function closeDialog() {
             <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
               {{ headerPrimary }}
             </h3>
-            <p
-              v-if="headerSecondary"
-              class="text-xs text-slate-500 dark:text-slate-400"
-            >
-              {{ headerSecondary }}
-            </p>
           </div>
           <UButton
             icon="i-lucide-x"

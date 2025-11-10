@@ -312,7 +312,7 @@ onMounted(() => {
             class="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-4"
           >
             <div
-              class="pointer-events-auto space-y-3 rounded-xl border border-slate-200/70 bg-white/70 p-4 text-xs text-slate-500 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
+              class="pointer-events-auto space-y-3 rounded-xl border border-slate-200/70 bg-white/70 p-4 text-xs text-slate-500 dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
             >
               <p class="font-medium text-slate-700 dark:text-slate-200">
                 系统运行情况
