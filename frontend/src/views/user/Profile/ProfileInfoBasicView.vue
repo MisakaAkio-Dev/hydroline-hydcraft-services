@@ -3,11 +3,17 @@
 import { computed, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import BasicSection from './components/sections/BasicSection.vue'
-import { getTimezoneOptionsZh, languageOptions as commonLanguageOptions } from '@/constants/profile'
-import { useAuthStore, type GenderType, type UpdateCurrentUserPayload } from '@/stores/auth'
+import {
+  getTimezoneOptionsZh,
+  languageOptions as commonLanguageOptions,
+} from '@/constants/profile'
+import {
+  useAuthStore,
+  type GenderType,
+  type UpdateCurrentUserPayload,
+} from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/utils/api'
-
 
 type FormState = {
   name: string
@@ -109,29 +115,54 @@ function buildPayload(): UpdateCurrentUserPayload {
   const user = auth.user as Record<string, any> | null
   if (!user) return payload
   if ((user.name ?? '') !== form.name.trim()) payload.name = form.name.trim()
-  if ((user.email ?? '') !== form.email.trim()) payload.email = form.email.trim()
-  if ((user.profile?.displayName ?? '') !== form.displayName.trim()) payload.displayName = form.displayName.trim()
-  const currentGender = (user.profile?.gender as GenderType | undefined) ?? 'UNSPECIFIED'
+  if ((user.email ?? '') !== form.email.trim())
+    payload.email = form.email.trim()
+  if ((user.profile?.displayName ?? '') !== form.displayName.trim())
+    payload.displayName = form.displayName.trim()
+  const currentGender =
+    (user.profile?.gender as GenderType | undefined) ?? 'UNSPECIFIED'
   if (currentGender !== form.gender) payload.gender = form.gender
-  const currentBirthday = user.profile?.birthday ? String(user.profile.birthday).slice(0, 10) : ''
-  if (form.birthday !== currentBirthday && form.birthday) payload.birthday = form.birthday
-  if ((user.profile?.motto ?? '') !== form.motto.trim()) payload.motto = form.motto.trim()
-  if ((user.profile?.timezone ?? '') !== form.timezone.trim()) payload.timezone = form.timezone.trim()
-  if ((user.profile?.locale ?? '') !== form.locale.trim()) payload.locale = form.locale.trim()
-  const existingExtra = user.profile?.extra && typeof user.profile.extra === 'object' ? (user.profile.extra as Record<string, unknown>) : {}
+  const currentBirthday = user.profile?.birthday
+    ? String(user.profile.birthday).slice(0, 10)
+    : ''
+  if (form.birthday !== currentBirthday && form.birthday)
+    payload.birthday = form.birthday
+  if ((user.profile?.motto ?? '') !== form.motto.trim())
+    payload.motto = form.motto.trim()
+  if ((user.profile?.timezone ?? '') !== form.timezone.trim())
+    payload.timezone = form.timezone.trim()
+  if ((user.profile?.locale ?? '') !== form.locale.trim())
+    payload.locale = form.locale.trim()
+  const existingExtra =
+    user.profile?.extra && typeof user.profile.extra === 'object'
+      ? (user.profile.extra as Record<string, unknown>)
+      : {}
   const extraPayload: Record<string, string> = {}
   let extraChanged = false
   const addressKeys = ['addressLine1', 'postalCode'] as const
   for (const k of addressKeys) {
     const newValue = (form as any)[k].trim()
-    const currentValue = typeof existingExtra[k] === 'string' ? String(existingExtra[k]).trim() : ''
+    const currentValue =
+      typeof existingExtra[k] === 'string'
+        ? String(existingExtra[k]).trim()
+        : ''
     if (newValue !== currentValue) extraChanged = true
     if (newValue) (extraPayload as any)[k] = newValue
   }
-  const flatKeys = ['phoneCountry', 'regionCountry', 'regionProvince', 'regionCity', 'regionDistrict', 'phone'] as const
+  const flatKeys = [
+    'phoneCountry',
+    'regionCountry',
+    'regionProvince',
+    'regionCity',
+    'regionDistrict',
+    'phone',
+  ] as const
   for (const k of flatKeys) {
     const newValue = String((form as any)[k] ?? '').trim()
-    const currentValue = typeof existingExtra[k] === 'string' ? String(existingExtra[k]).trim() : ''
+    const currentValue =
+      typeof existingExtra[k] === 'string'
+        ? String(existingExtra[k]).trim()
+        : ''
     if (newValue !== currentValue) extraChanged = true
     if (newValue) (extraPayload as any)[k] = newValue
   }
@@ -164,15 +195,28 @@ function populateForm(user: Record<string, any>) {
   form.name = user.name ?? ''
   form.displayName = user.profile?.displayName ?? ''
   form.email = user.email ?? ''
-  form.gender = (user.profile?.gender as GenderType | undefined) ?? 'UNSPECIFIED'
-  form.birthday = user.profile?.birthday ? String(user.profile.birthday).slice(0, 10) : ''
+  form.gender =
+    (user.profile?.gender as GenderType | undefined) ?? 'UNSPECIFIED'
+  form.birthday = user.profile?.birthday
+    ? String(user.profile.birthday).slice(0, 10)
+    : ''
   form.motto = user.profile?.motto ?? ''
   form.timezone = user.profile?.timezone ?? ''
   form.locale = user.profile?.locale ?? ''
-  const extra = user.profile?.extra && typeof user.profile.extra === 'object' ? (user.profile.extra as Record<string, unknown>) : {}
-  form.addressLine1 = typeof extra['addressLine1'] === 'string' ? (extra['addressLine1'] as string) : ''
-  form.postalCode = typeof extra['postalCode'] === 'string' ? (extra['postalCode'] as string) : ''
-  form.phone = typeof extra['phone'] === 'string' ? (extra['phone'] as string) : ''
+  const extra =
+    user.profile?.extra && typeof user.profile.extra === 'object'
+      ? (user.profile.extra as Record<string, unknown>)
+      : {}
+  form.addressLine1 =
+    typeof extra['addressLine1'] === 'string'
+      ? (extra['addressLine1'] as string)
+      : ''
+  form.postalCode =
+    typeof extra['postalCode'] === 'string'
+      ? (extra['postalCode'] as string)
+      : ''
+  form.phone =
+    typeof extra['phone'] === 'string' ? (extra['phone'] as string) : ''
   form.phoneCountry = (extra['phoneCountry'] as any) || 'CN'
   form.regionCountry = (extra['regionCountry'] as any) || ''
   form.regionProvince = (extra['regionProvince'] as any) || ''
@@ -202,12 +246,20 @@ async function handleSave() {
     return
   }
   if (!hasChanges.value) {
-    toast.add({ title: '没有检测到改动', description: '您尚未修改任何字段。', color: 'neutral' })
+    toast.add({
+      title: '没有检测到改动',
+      description: '您尚未修改任何字段。',
+      color: 'neutral',
+    })
     return
   }
   const payload = buildPayload()
   if (Object.keys(payload).length === 0) {
-    toast.add({ title: '无法保存', description: '请检查填写的内容是否有效。', color: 'warning' })
+    toast.add({
+      title: '无法保存',
+      description: '请检查填写的内容是否有效。',
+      color: 'warning',
+    })
     return
   }
   saving.value = true
@@ -216,7 +268,11 @@ async function handleSave() {
     const updated = await auth.updateCurrentUser(payload)
     lastSyncedAt.value = updated.updatedAt ?? lastSyncedAt.value
     initialSnapshot.value = serializeForm()
-    toast.add({ title: '资料已更新', description: '您的账户信息已成功保存。', color: 'success' })
+    toast.add({
+      title: '资料已更新',
+      description: '您的账户信息已成功保存。',
+      color: 'success',
+    })
   } catch (error) {
     handleError(error, '保存失败')
   } finally {
@@ -227,49 +283,89 @@ async function handleSave() {
 
 function handleReset(showToast = true) {
   if (!auth.user) {
-    resetForm(); return
+    resetForm()
+    return
   }
   populateForm(auth.user as any)
   if (showToast) {
-    toast.add({ title: '已还原修改', description: '表单内容已恢复为最新的服务器数据。', color: 'info' })
+    toast.add({
+      title: '已还原修改',
+      description: '表单内容已恢复为最新的服务器数据。',
+      color: 'info',
+    })
   }
 }
 
 function handleError(error: unknown, fallback: string) {
-  const description = error instanceof ApiError ? error.message : '请稍后重试，若问题持续请联系管理员。'
+  const description =
+    error instanceof ApiError
+      ? error.message
+      : '请稍后重试，若问题持续请联系管理员。'
   toast.add({ title: fallback, description, color: 'error' })
   console.error('[profile-info-basic]', error)
 }
-
 
 const registeredText = computed(() => {
   const user = auth.user as Record<string, any> | null
   if (!user?.createdAt) return ''
   return dayjs(user.createdAt).format('YYYY年M月D日 HH:mm')
 })
+
 const joinedText = computed(() => {
   const user = auth.user as Record<string, any> | null
   const joinDate = (user as any)?.joinDate ?? user?.createdAt
   if (!joinDate) return ''
   return dayjs(joinDate).format('YYYY年M月D日')
 })
+
 const lastLoginText = computed(() => {
   const user = auth.user as Record<string, any> | null
   const t = (user as any)?.lastLoginAt
   if (!t) return ''
   return dayjs(t).format('YYYY年MM月DD日 HH:mm')
 })
+
 const lastLoginIp = computed(() => {
   const user = auth.user as Record<string, any> | null
   return ((user as any)?.lastLoginIp as string | null) ?? null
 })
+
 const lastLoginIpLocation = computed(() => {
   const user = auth.user as Record<string, any> | null
-  const location = ((user as any)?.lastLoginIpLocation ?? (user as any)?.lastLoginIpLocationRaw ?? null) as string | null
+  const location = ((user as any)?.lastLoginIpLocation ??
+    (user as any)?.lastLoginIpLocationRaw ??
+    null) as string | null
   if (!location) return null
-  const cleaned = location.replace(/\s*·\s*/g, ' ').replace(/\|/g, ' ').replace(/\s+/g, ' ').trim()
+  const cleaned = location
+    .replace(/\s*·\s*/g, ' ')
+    .replace(/\|/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
   return cleaned.length > 0 ? cleaned : null
 })
+
+const roleNames = computed(() => {
+  const user = auth.user as Record<string, any> | null
+  if (!user?.roles || !Array.isArray(user.roles)) return []
+  const names = user.roles
+    .map((entry: any) => {
+      const role = entry?.role
+      if (!role) return null
+      const name =
+        typeof role.name === 'string' && role.name.trim().length > 0
+          ? role.name.trim()
+          : null
+      if (name) return name
+      const key =
+        typeof role.key === 'string' && role.key.trim().length > 0
+          ? role.key.trim()
+          : null
+      return key
+    })
+    .filter((value): value is string => Boolean(value))
+  return Array.from(new Set(names))
+})
+
 const lastLoginIpDisplay = computed(() => {
   const ip = lastLoginIp.value
   if (!ip) return ''
@@ -277,13 +373,22 @@ const lastLoginIpDisplay = computed(() => {
   return location ? `${ip}（${location}）` : ip
 })
 
-watch(() => auth.isAuthenticated, (value) => { if (value) void loadUser(); else resetForm() })
-
-
+watch(
+  () => auth.isAuthenticated,
+  (value) => {
+    if (value) void loadUser()
+    else resetForm()
+  },
+)
 </script>
 
 <template>
-  <form id="profile-form-basic" class="flex flex-col gap-6 transition-opacity" :class="{ 'pointer-events-none opacity-60': loading && !saving }" @submit.prevent="handleSave">
+  <form
+    id="profile-form-basic"
+    class="flex flex-col gap-6 transition-opacity"
+    :class="{ 'pointer-events-none opacity-60': loading && !saving }"
+    @submit.prevent="handleSave"
+  >
     <BasicSection
       ref="basicSectionRef"
       :model-value="{
@@ -309,13 +414,42 @@ watch(() => auth.isAuthenticated, (value) => { if (value) void loadUser(); else 
       :gender-options="genderOptions"
       :timezone-options="timezoneOptions"
       :language-options="languageOptions"
-      :meta="{ lastSyncedText: lastSyncedAt ? dayjs(lastSyncedAt).format('YYYY年MM月DD日 HH:mm') : '尚未同步', registeredText: registeredText, joinedText: joinedText, lastLoginText: lastLoginText, lastLoginIp: lastLoginIp, lastLoginIpDisplay: lastLoginIpDisplay }"
+      :meta="{
+        lastSyncedText: lastSyncedAt
+          ? dayjs(lastSyncedAt).format('YYYY年MM月DD日 HH:mm')
+          : '尚未同步',
+        registeredText: registeredText,
+        joinedText: joinedText,
+        lastLoginText: lastLoginText,
+        lastLoginIp: lastLoginIp,
+        lastLoginIpDisplay: lastLoginIpDisplay,
+        roleNames: roleNames,
+      }"
       :saving="saving"
       :reset-signal="resetSignal"
       @editing-change="(v: boolean) => (isEditingAny = v)"
       @request-save="handleSave"
       @request-reset="handleReset"
-      @update:model-value="(v: any) => { form.name = v.name; form.displayName = v.displayName; form.email = v.email; form.gender = v.gender; form.birthday = v.birthday; form.motto = v.motto; form.timezone = v.timezone; form.locale = v.locale; form.phone = v.phone; form.phoneCountry = v.phoneCountry; form.regionCountry = v.region.country; form.regionProvince = v.region.province; form.regionCity = v.region.city; form.regionDistrict = v.region.district; form.addressLine1 = v.addressLine1; form.postalCode = v.postalCode }"
+      @update:model-value="
+        (v: any) => {
+          form.name = v.name
+          form.displayName = v.displayName
+          form.email = v.email
+          form.gender = v.gender
+          form.birthday = v.birthday
+          form.motto = v.motto
+          form.timezone = v.timezone
+          form.locale = v.locale
+          form.phone = v.phone
+          form.phoneCountry = v.phoneCountry
+          form.regionCountry = v.region.country
+          form.regionProvince = v.region.province
+          form.regionCity = v.region.city
+          form.regionDistrict = v.region.district
+          form.addressLine1 = v.addressLine1
+          form.postalCode = v.postalCode
+        }
+      "
     />
   </form>
 </template>

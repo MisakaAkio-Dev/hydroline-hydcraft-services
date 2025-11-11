@@ -51,6 +51,10 @@ type AuthmeBindingSnapshot = {
   regip: string | null;
   lastlogin: number | null;
   regdate: number | null;
+  ipLocation?: string | null;
+  ipLocationRaw?: string | null;
+  regipLocation?: string | null;
+  regipLocationRaw?: string | null;
 };
 
 type LuckpermsSnapshotGroup = LuckpermsPlayer['groups'][number] & {
@@ -523,16 +527,41 @@ export class UsersService {
       this.composeAuthmeBindingSnapshots(user.authmeBindings),
     ]);
 
+    const authmeBindings = await Promise.all(
+      bindingData.bindings.map(async (binding) => {
+        const normalizedIp = normalizeIpAddress(binding.ip);
+        const normalizedRegip = normalizeIpAddress(binding.regip);
+        const [ipLocation, regipLocation] = await Promise.all([
+          normalizedIp
+            ? this.ipLocationService.lookup(normalizedIp)
+            : Promise.resolve(null),
+          normalizedRegip
+            ? this.ipLocationService.lookup(normalizedRegip)
+            : Promise.resolve(null),
+        ]);
+
+        return {
+          ...binding,
+          ip: normalizedIp,
+          regip: normalizedRegip,
+          ipLocation: ipLocation?.display ?? null,
+          ipLocationRaw: ipLocation?.raw ?? null,
+          regipLocation: regipLocation?.display ?? null,
+          regipLocationRaw: regipLocation?.raw ?? null,
+        };
+      }),
+    );
+
     return {
       ...user,
       lastLoginIp: normalizedLastLoginIp,
       lastLoginIpLocation: lastLoginLocation?.display ?? null,
       lastLoginIpLocationRaw: lastLoginLocation?.raw ?? null,
-      authmeBindings: bindingData.bindings,
+      authmeBindings,
       luckperms: bindingData.luckperms,
       security,
     } as typeof user & {
-      authmeBindings: typeof bindingData.bindings;
+      authmeBindings: typeof authmeBindings;
       luckperms: typeof bindingData.luckperms;
       lastLoginIp: typeof normalizedLastLoginIp;
       lastLoginIpLocation: string | null;
