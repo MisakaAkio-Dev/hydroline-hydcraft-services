@@ -41,6 +41,7 @@ const {
 const emit = defineEmits<{
   (e: 'reload'): void
   (e: 'openContacts'): void
+  (e: 'openEmails'): void
   (e: 'resetPassword'): void
   (e: 'deleteUser'): void
   (e: 'editJoinDate', date: string | null): void
@@ -145,7 +146,7 @@ const emailContacts = computed<EmailContactDisplay[]>(() => {
       id: 'primary-email',
       value: userEmail,
       isPrimary: true,
-      verified: true,
+      verified: Boolean(d.emailVerified),
     })
   }
 
@@ -155,7 +156,7 @@ const emailContacts = computed<EmailContactDisplay[]>(() => {
         id: 'primary-email',
         value: userEmail,
         isPrimary: true,
-        verified: true,
+        verified: Boolean(d.emailVerified),
       },
     ]
   }
@@ -175,18 +176,19 @@ const emailContacts = computed<EmailContactDisplay[]>(() => {
   })
 })
 
-function emailChipClasses(clickable: boolean) {
+function emailChipClasses(clickable: boolean, enabled: boolean) {
   return [
-    'inline-flex items-center gap-2 rounded-xl border px-2 py-1 text-xs font-medium',
+    'inline-flex items-center gap-2 rounded-xl border px-2 py-1 text-xs font-medium transition',
     'bg-white/80 dark:bg-slate-900/50 border-slate-200/70 dark:border-slate-800/60',
-    clickable
-      ? 'cursor-pointer transition hover:border-primary-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500'
+    clickable && enabled
+      ? 'cursor-pointer hover:border-primary-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500'
       : 'cursor-default',
+    !enabled ? 'opacity-60 cursor-not-allowed' : '',
   ]
 }
 
 function handleEmailChipClick() {
-  emit('openContacts')
+  emit('openEmails')
 }
 </script>
 
@@ -227,6 +229,15 @@ function handleEmailChipClick() {
         >
         <UButton
           class="flex items-center justify-center leading-none"
+          color="neutral"
+          variant="soft"
+          size="sm"
+          :disabled="loading || !detail"
+          @click="emit('openContacts')"
+          >管理联系方式</UButton
+        >
+        <UButton
+          class="flex items-center justify-center leading-none"
           color="primary"
           variant="soft"
           size="sm"
@@ -248,7 +259,20 @@ function handleEmailChipClick() {
 
     <div class="mt-6 grid gap-4 sm:grid-cols-3">
       <div>
-        <div class="text-xs text-slate-500 dark:text-slate-500">邮箱</div>
+        <div
+          class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-500"
+        >
+          <span>邮箱</span>
+          <UButton
+            v-if="!isLoading && detail"
+            color="primary"
+            variant="ghost"
+            size="xs"
+            class="px-2"
+            @click="emit('openEmails')"
+            >管理</UButton
+          >
+        </div>
         <div
           class="flex flex-wrap items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-300"
         >
@@ -260,13 +284,11 @@ function handleEmailChipClick() {
           </template>
           <template v-else-if="emailContacts.length === 0"> — </template>
           <template v-else>
-            <UButton
+            <button
               v-for="contact in emailContacts"
               :key="contact.id + contact.value"
-              class="flex gap-2 items-center w-full text-slate-800 dark:text-slate-300"
-              variant="ghost"
-              size="xs"
-              :class="emailChipClasses(emailContacts.length > 1 && !!detail)"
+              type="button"
+              :class="emailChipClasses(emailContacts.length > 1, !!detail)"
               :disabled="!detail"
               @click="detail && handleEmailChipClick()"
             >
@@ -291,7 +313,7 @@ function handleEmailChipClick() {
                 "
                 class="h-4 w-4"
               />
-            </UButton>
+            </button>
           </template>
         </div>
       </div>

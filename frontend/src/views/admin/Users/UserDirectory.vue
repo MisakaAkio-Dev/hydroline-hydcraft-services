@@ -58,6 +58,7 @@ const detailDialogSummary = ref<{
   displayName?: string | null
   email?: string | null
 } | null>(null)
+const detailDialogEmailToken = ref(0)
 const playerDialogOpen = ref(false)
 const playerDialogUsername = ref<string | null>(null)
 type PlayerUserSummary = {
@@ -177,13 +178,23 @@ watch(piicDialogOpen, (value) => {
   }
 })
 
-function openDetailDialog(user: AdminUserListItem) {
+type DetailDialogOptions = {
+  openEmail?: boolean
+}
+
+function openDetailDialog(
+  user: AdminUserListItem,
+  options: DetailDialogOptions = {},
+) {
   detailDialogUserId.value = user.id
   detailDialogSummary.value = {
     displayName: user.profile?.displayName ?? user.name ?? null,
     email: user.email ?? null,
   }
   detailDialogOpen.value = true
+  if (options.openEmail) {
+    detailDialogEmailToken.value += 1
+  }
 }
 
 watch(detailDialogOpen, (value) => {
@@ -684,14 +695,16 @@ function extraEmails(user: AdminUserListItem) {
               <span v-else>—</span>
             </td>
             <td class="px-4 py-4 text-right">
-              <UButton
-                color="primary"
-                size="xs"
-                variant="soft"
-                @click="openDetailDialog(item)"
-              >
-                查看
-              </UButton>
+              <div class="flex justify-end gap-2">
+                <UButton
+                  color="primary"
+                  size="xs"
+                  variant="soft"
+                  @click="openDetailDialog(item)"
+                >
+                  查看
+                </UButton>
+              </div>
             </td>
           </tr>
           <tr v-if="rows.length === 0">
@@ -781,6 +794,7 @@ function extraEmails(user: AdminUserListItem) {
       :open="detailDialogOpen"
       :user-id="detailDialogUserId"
       :user-summary="detailDialogSummary"
+      :email-token="detailDialogEmailToken"
       @update:open="
         (value) => {
           detailDialogOpen = value

@@ -9,6 +9,7 @@ const props = defineProps<{
     displayName?: string | null
     email?: string | null
   } | null
+  emailToken?: number
 }>()
 
 const emit = defineEmits<{
@@ -28,17 +29,6 @@ const headerPrimary = computed(() => {
     return props.userId
   }
   return '用户详情'
-})
-
-const headerSecondary = computed(() => {
-  const summary = props.userSummary
-  if (!summary) return ''
-  const primary = headerPrimary.value
-  const candidates = [summary.email, summary.displayName].filter(
-    (value): value is string => Boolean(value && value.trim().length > 0),
-  )
-  const alternative = candidates.find((value) => value !== primary)
-  return alternative ?? ''
 })
 
 function closeDialog() {
@@ -79,6 +69,7 @@ function closeDialog() {
           <UserDetail
             v-if="props.open && props.userId"
             :user-id="props.userId"
+            :email-token="props.emailToken"
             @deleted="emit('deleted')"
           />
           <div

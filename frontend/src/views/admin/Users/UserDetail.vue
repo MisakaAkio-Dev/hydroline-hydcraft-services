@@ -17,7 +17,7 @@ import ErrorDialog from './components/ErrorDialog.vue'
 
 type PasswordMode = 'temporary' | 'custom'
 
-const props = defineProps<{ userId: string | null }>()
+const props = defineProps<{ userId: string | null; emailToken?: number }>()
 const emit = defineEmits<{ (event: 'deleted'): void }>()
 const auth = useAuthStore()
 const usersStore = useAdminUsersStore()
@@ -123,6 +123,184 @@ const contactChannels = ref<
   Array<{ id: string; key: string; displayName: string }>
 >([])
 
+// 删除确认对话框
+const deleteConfirmDialogOpen = ref(false)
+const deleteConfirmMessage = ref('')
+const deleteConfirmCallback = ref<(() => Promise<void>) | null>(null)
+const deleteConfirmSubmitting = ref(false)
+
+type EmailDialogEntry = {
+  id: string | null
+  value: string
+  isPrimary: boolean
+  verified: boolean
+  manageable: boolean
+}
+
+function normalizeEmail(value: string | null | undefined) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+const emailDialogOpen = ref(false)
+const emailInputValue = ref('')
+const emailSubmitting = ref(false)
+const pendingEmailToken = ref<number | null>(null)
+
+const emailEntries = computed<EmailDialogEntry[]>(() => {
+  const data = detail.value
+  if (!data) return []
+
+  const items: EmailDialogEntry[] = []
+  const seen = new Map<string, EmailDialogEntry>()
+
+  for (const contact of data.contacts ?? []) {
+    if (contact.channel?.key !== 'email') continue
+    const value = normalizeEmail(contact.value)
+    if (!value) continue
+    const key = value.toLowerCase()
+    const entry: EmailDialogEntry = {
+      id: contact.id ?? null,
+      value,
+      isPrimary: Boolean(contact.isPrimary),
+      verified:
+        contact.verification === 'VERIFIED' || Boolean(contact.verifiedAt),
+      manageable: Boolean(contact.id),
+    }
+    const existing = seen.get(key)
+    if (existing) {
+      existing.isPrimary = existing.isPrimary || entry.isPrimary
+      existing.verified = existing.verified || entry.verified
+      if (!existing.id && entry.id) existing.id = entry.id
+      existing.manageable = existing.manageable || entry.manageable
+      continue
+    }
+    seen.set(key, entry)
+    items.push(entry)
+  }
+
+  const accountEmail = normalizeEmail(data.email)
+  if (accountEmail) {
+    const key = accountEmail.toLowerCase()
+    const existing = seen.get(key)
+    if (existing) {
+      existing.isPrimary = true
+      // 使用后端返回的 emailVerified 字段判断验证状态
+      existing.verified = existing.verified || Boolean(data.emailVerified)
+      existing.manageable = existing.manageable && Boolean(existing.id)
+    } else {
+      items.push({
+        id: null,
+        value: accountEmail,
+        isPrimary: true,
+        // 使用后端返回的 emailVerified 字段
+        verified: Boolean(data.emailVerified),
+        manageable: false,
+      })
+    }
+  }
+
+  if (items.length > 0 && !items.some((entry) => entry.isPrimary)) {
+    items[0].isPrimary = true
+  }
+
+  return items.sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
+    if (a.verified !== b.verified) return a.verified ? -1 : 1
+    return a.value.localeCompare(b.value)
+  })
+})
+
+const emailChannelId = computed(
+  () => contactChannels.value.find((c) => c.key === 'email')?.id ?? null,
+)
+
+const emailChannelMissing = computed(() => !emailChannelId.value)
+
+function openEmailDialog() {
+  if (!detail.value) return
+  emailDialogOpen.value = true
+  emailInputValue.value = ''
+  pendingEmailToken.value = null
+  void ensureContactChannels()
+}
+
+function closeEmailDialog() {
+  emailDialogOpen.value = false
+}
+
+watch(emailDialogOpen, (value) => {
+  if (!value) {
+    emailInputValue.value = ''
+    emailSubmitting.value = false
+  }
+})
+
+function canDeleteEmail(entry: EmailDialogEntry) {
+  return entry.manageable && Boolean(entry.id)
+}
+
+function canSetPrimaryEmail(entry: EmailDialogEntry) {
+  return entry.manageable && Boolean(entry.id) && !entry.isPrimary
+}
+
+async function submitAddEmail() {
+  if (!auth.token || !detail.value) return
+  const email = emailInputValue.value.trim()
+  if (!email) {
+    toast.add({ title: '请输入邮箱地址', color: 'warning' })
+    return
+  }
+
+  let channelId = emailChannelId.value
+  if (!channelId) {
+    await ensureContactChannels()
+    channelId = emailChannelId.value
+  }
+
+  if (!channelId) {
+    toast.add({ title: '未配置邮箱渠道，无法添加', color: 'error' })
+    return
+  }
+
+  emailSubmitting.value = true
+  try {
+    await apiFetch(`/auth/users/${detail.value.id}/contacts`, {
+      method: 'POST',
+      token: auth.token,
+      body: {
+        channelId,
+        value: email,
+        isPrimary: false,
+      },
+    })
+    toast.add({ title: '邮箱已添加', color: 'primary' })
+    emailInputValue.value = ''
+    await fetchDetail()
+  } catch (error) {
+    console.warn('[admin] add email contact failed', error)
+    toast.add({ title: '添加邮箱失败', color: 'error' })
+  } finally {
+    emailSubmitting.value = false
+  }
+}
+
+async function handleDeleteEmail(entry: EmailDialogEntry) {
+  if (!entry.manageable || !entry.id) return
+  await deleteContact(entry.id)
+}
+
+async function handleSetPrimaryEmail(entry: EmailDialogEntry) {
+  if (!entry.manageable || !entry.id || entry.isPrimary) return
+  await submitSetPrimaryEmail(entry.id)
+}
+
+function tryOpenEmailDialog() {
+  if (pendingEmailToken.value === null) return
+  if (!detail.value) return
+  pendingEmailToken.value = null
+  openEmailDialog()
+}
+
 async function ensureContactChannels() {
   if (!auth.token) return
   if (contactChannels.value.length > 0) return
@@ -209,18 +387,22 @@ async function submitContact() {
 
 async function deleteContact(contactId: string) {
   if (!auth.token || !detail.value) return
-  if (!window.confirm('确定要删除该联系方式吗？')) return
-  try {
-    await apiFetch(`/auth/users/${detail.value.id}/contacts/${contactId}`, {
-      method: 'DELETE',
-      token: auth.token,
-    })
-    toast.add({ title: '已删除', color: 'primary' })
-    await fetchDetail()
-  } catch (error) {
-    console.warn('[admin] delete contact failed', error)
-    toast.add({ title: '删除失败', color: 'error' })
+  const detailId = detail.value.id
+  deleteConfirmMessage.value = '确定要删除该联系方式吗？'
+  deleteConfirmCallback.value = async () => {
+    try {
+      await apiFetch(`/auth/users/${detailId}/contacts/${contactId}`, {
+        method: 'DELETE',
+        token: auth.token,
+      })
+      toast.add({ title: '已删除', color: 'primary' })
+      await fetchDetail()
+    } catch (error) {
+      console.warn('[admin] delete contact failed', error)
+      toast.add({ title: '删除失败', color: 'error' })
+    }
   }
+  deleteConfirmDialogOpen.value = true
 }
 
 async function submitSetPrimaryEmail(contactId: string) {
@@ -345,21 +527,25 @@ async function markPrimaryMinecraft(profileId: string) {
 
 async function deleteMinecraftProfile(profileId: string) {
   if (!auth.token || !detail.value) return
-  if (!window.confirm('确定要删除该昵称记录吗？')) return
-  try {
-    await apiFetch(
-      `/auth/users/${detail.value.id}/minecraft-profiles/${profileId}`,
-      {
-        method: 'DELETE',
-        token: auth.token,
-      },
-    )
-    toast.add({ title: '已删除昵称', color: 'primary' })
-    await fetchDetail()
-  } catch (error) {
-    console.warn('[admin] delete minecraft profile failed', error)
-    toast.add({ title: '删除失败', color: 'error' })
+  const detailId = detail.value.id
+  deleteConfirmMessage.value = '确定要删除该昵称记录吗？'
+  deleteConfirmCallback.value = async () => {
+    try {
+      await apiFetch(
+        `/auth/users/${detailId}/minecraft-profiles/${profileId}`,
+        {
+          method: 'DELETE',
+          token: auth.token,
+        },
+      )
+      toast.add({ title: '已删除昵称', color: 'primary' })
+      await fetchDetail()
+    } catch (error) {
+      console.warn('[admin] delete minecraft profile failed', error)
+      toast.add({ title: '删除失败', color: 'error' })
+    }
   }
+  deleteConfirmDialogOpen.value = true
 }
 
 // fmtDateTime: 原本用于本文件模态内部，现已由各子组件自行实现
@@ -757,19 +943,23 @@ async function markPrimaryBinding(bindingId: string) {
 
 async function unbind(bindingId: string) {
   if (!auth.token || !detail.value) return
-  if (!window.confirm('确定要解绑该 AuthMe 账号吗？')) return
-  try {
-    await apiFetch(`/auth/users/${detail.value.id}/bindings/${bindingId}`, {
-      method: 'DELETE',
-      token: auth.token,
-    })
-    toast.add({ title: '已解绑', color: 'primary' })
-    await fetchDetail()
-    await fetchBindingHistory()
-  } catch (error) {
-    console.warn('[admin] unbind authme failed', error)
-    toast.add({ title: '解绑失败', color: 'error' })
+  const detailId = detail.value.id
+  deleteConfirmMessage.value = '确定要解绑该 AuthMe 账号吗？'
+  deleteConfirmCallback.value = async () => {
+    try {
+      await apiFetch(`/auth/users/${detailId}/bindings/${bindingId}`, {
+        method: 'DELETE',
+        token: auth.token,
+      })
+      toast.add({ title: '已解绑', color: 'primary' })
+      await fetchDetail()
+      await fetchBindingHistory()
+    } catch (error) {
+      console.warn('[admin] unbind authme failed', error)
+      toast.add({ title: '解绑失败', color: 'error' })
+    }
   }
+  deleteConfirmDialogOpen.value = true
 }
 
 onMounted(async () => {
@@ -784,6 +974,20 @@ onMounted(async () => {
 // inline typed handler used in template for joinDate updates
 
 watch(
+  () => props.emailToken,
+  (token) => {
+    if (typeof token === 'number' && detail.value) {
+      pendingEmailToken.value = token
+      tryOpenEmailDialog()
+    }
+  },
+)
+
+watch(detail, () => {
+  tryOpenEmailDialog()
+}, { immediate: false })
+
+watch(
   () => props.userId,
   async (next) => {
     if (!next) {
@@ -793,6 +997,10 @@ watch(
       resetResult.value = null
       resetResultDialogOpen.value = false
       errorDialogOpen.value = false
+      emailDialogOpen.value = false
+      emailInputValue.value = ''
+      emailSubmitting.value = false
+      pendingEmailToken.value = null
       closeResetPasswordDialog()
       closePiicDialog()
       closeDeleteDialog()
@@ -802,6 +1010,20 @@ watch(
   },
   { immediate: true },
 )
+
+async function confirmDelete() {
+  deleteConfirmSubmitting.value = true
+  try {
+    if (deleteConfirmCallback.value) {
+      await deleteConfirmCallback.value()
+    }
+  } finally {
+    deleteConfirmSubmitting.value = false
+    deleteConfirmDialogOpen.value = false
+    deleteConfirmCallback.value = null
+    deleteConfirmMessage.value = ''
+  }
+}
 </script>
 
 <template>
@@ -819,6 +1041,7 @@ watch(
       :join-date-saving="joinDateSaving"
       @reload="fetchDetail"
       @openContacts="contactsListDialogOpen = true"
+  @openEmails="openEmailDialog"
       @resetPassword="openResetPasswordDialog"
       @deleteUser="openDeleteDialog"
       @editJoinDate="(val: string | null) => (joinDateEditing = val)"
@@ -877,7 +1100,179 @@ watch(
     @update:open="errorDialogOpen = $event"
   />
 
+  <!-- 删除确认对话框 -->
+  <UModal
+    :open="deleteConfirmDialogOpen"
+    @update:open="deleteConfirmDialogOpen = $event"
+    :ui="{
+      content: 'w-full max-w-sm',
+      wrapper: 'z-[140]',
+      overlay: 'z-[130] bg-slate-950/40 backdrop-blur-sm'
+    }"
+  >
+    <template #content>
+      <div class="space-y-4 p-6 text-sm">
+        <p class="text-base font-semibold text-slate-900 dark:text-white">
+          {{ deleteConfirmMessage }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="soft"
+            @click="deleteConfirmDialogOpen = false"
+            >取消</UButton
+          >
+          <UButton
+            color="error"
+            variant="soft"
+            :loading="deleteConfirmSubmitting"
+            @click="confirmDelete"
+            >确定</UButton
+          >
+        </div>
+      </div>
+    </template>
+  </UModal>
+
   <!-- 登录轨迹 对话框 -->
+
+  <UModal
+    :open="emailDialogOpen"
+    @update:open="emailDialogOpen = $event"
+    :ui="{ content: 'w-full max-w-2xl' }"
+  >
+    <template #content>
+      <div class="space-y-5 p-6 text-sm">
+        <div class="flex items-center justify-between">
+          <h3
+            class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          >
+            邮箱管理
+          </h3>
+          <UButton
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            @click="closeEmailDialog"
+          />
+        </div>
+        <div v-if="emailEntries.length" class="space-y-2">
+          <ul class="space-y-2 text-xs">
+            <li
+              v-for="entry in emailEntries"
+              :key="entry.value"
+              class="flex items-start justify-between gap-3 rounded-lg bg-slate-100/60 px-4 py-3 dark:bg-slate-900/40"
+            >
+              <div class="flex flex-col gap-1">
+                <div
+                  class="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-white"
+                >
+                  <span class="break-all">{{ entry.value }}</span>
+                  <UBadge
+                    :color="entry.isPrimary ? 'primary' : 'neutral'"
+                    size="sm"
+                    variant="soft"
+                  >
+                    {{ entry.isPrimary ? '主' : '辅' }}
+                  </UBadge>
+                  <UBadge
+                    :color="entry.verified ? 'success' : 'warning'"
+                    size="sm"
+                    variant="soft"
+                  >
+                    {{ entry.verified ? '已验证' : '未验证' }}
+                  </UBadge>
+                  <UBadge
+                    v-if="!entry.manageable"
+                    color="neutral"
+                    size="sm"
+                    variant="soft"
+                  >
+                    账号邮箱
+                  </UBadge>
+                </div>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                  {{
+                    entry.manageable
+                      ? '可在此调整主辅状态或删除。'
+                      : '来自账号邮箱字段，无法直接修改。'
+                  }}
+                </p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <UButton
+                  v-if="canSetPrimaryEmail(entry)"
+                  size="xs"
+                  color="primary"
+                  variant="ghost"
+                  :loading="loading"
+                  :disabled="loading || emailSubmitting"
+                  @click="handleSetPrimaryEmail(entry)"
+                >
+                  设为主
+                </UButton>
+                <UButton
+                  v-if="canDeleteEmail(entry)"
+                  size="xs"
+                  color="error"
+                  variant="ghost"
+                  :loading="loading"
+                  :disabled="loading || emailSubmitting"
+                  @click="handleDeleteEmail(entry)"
+                >
+                  删除
+                </UButton>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div
+          v-else
+          class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400"
+        >
+          暂无邮箱记录。
+        </div>
+        <div class="space-y-2">
+          <label
+            class="block text-xs font-semibold text-slate-600 dark:text-slate-300"
+          >
+            新增邮箱
+          </label>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <UInput
+              v-model="emailInputValue"
+              type="email"
+              placeholder="user@example.com"
+              class="flex-1"
+              :disabled="emailSubmitting || !detail"
+            />
+            <UButton
+              color="primary"
+              variant="soft"
+              class="sm:w-auto"
+              :disabled="
+                emailSubmitting || !detail || !emailInputValue || emailChannelMissing
+              "
+              :loading="emailSubmitting"
+              @click="submitAddEmail"
+            >
+              添加
+            </UButton>
+          </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+            添加后可在上方列表调整主辅或删除。
+            <span
+              v-if="emailChannelMissing"
+              class="text-amber-600 dark:text-amber-400"
+            >
+              当前没有可用的邮箱渠道，请先在联系方式配置中启用邮箱类型。
+            </span>
+          </p>
+        </div>
+      </div>
+    </template>
+  </UModal>
 
   <!-- 联系方式列表 对话框 -->
   <UModal

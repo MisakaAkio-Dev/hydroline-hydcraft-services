@@ -19,6 +19,7 @@ export interface AdminAuthmeBindingListItem {
 export interface AdminUserListItem {
   id: string
   email: string
+  emailVerified?: boolean
   name: string | null
   createdAt: string
   joinDate: string | null

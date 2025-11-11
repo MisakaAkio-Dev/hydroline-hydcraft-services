@@ -31,6 +31,11 @@ const detailOpen = ref(false)
 // 每个服务器卡片内的单独加载态
 const pingLoadingById = reactive<Record<string, boolean>>({})
 
+// 删除确认对话框
+const deleteConfirmDialogOpen = ref(false)
+const deleteConfirmServer = ref<MinecraftServer | null>(null)
+const deleteConfirmSubmitting = ref(false)
+
 // 自动 Ping 设置 & 历史数据
 const settings = ref<MinecraftPingSettings | null>(null)
 const settingsLoading = ref(false)
@@ -424,8 +429,19 @@ async function handlePing(server: MinecraftServer) {
 }
 
 function confirmDelete(server: MinecraftServer) {
-  if (window.confirm(`确认删除 ${server.displayName}？`)) {
-    void removeServer(server)
+  deleteConfirmServer.value = server
+  deleteConfirmDialogOpen.value = true
+}
+
+async function handleConfirmDelete() {
+  if (!deleteConfirmServer.value) return
+  deleteConfirmSubmitting.value = true
+  try {
+    await removeServer(deleteConfirmServer.value)
+  } finally {
+    deleteConfirmSubmitting.value = false
+    deleteConfirmDialogOpen.value = false
+    deleteConfirmServer.value = null
   }
 }
 
@@ -1129,6 +1145,40 @@ async function submitAdhoc() {
             </div>
           </div>
         </UCard>
+      </template>
+    </UModal>
+
+    <!-- 删除确认对话框 -->
+    <UModal
+      :open="deleteConfirmDialogOpen"
+      @update:open="deleteConfirmDialogOpen = $event"
+      :ui="{
+        content: 'w-full max-w-sm',
+        wrapper: 'z-[140]',
+        overlay: 'z-[130] bg-slate-950/40 backdrop-blur-sm'
+      }"
+    >
+      <template #content>
+        <div class="space-y-4 p-6 text-sm">
+          <p class="text-base font-semibold text-slate-900 dark:text-white">
+            确认删除 {{ deleteConfirmServer?.displayName }}？
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton
+              color="neutral"
+              variant="soft"
+              @click="deleteConfirmDialogOpen = false"
+              >取消</UButton
+            >
+            <UButton
+              color="error"
+              variant="soft"
+              :loading="deleteConfirmSubmitting"
+              @click="handleConfirmDelete"
+              >确定</UButton
+            >
+          </div>
+        </div>
       </template>
     </UModal>
   </div>

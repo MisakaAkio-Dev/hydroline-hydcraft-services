@@ -69,6 +69,12 @@ const uiStore = useUiStore()
 const loading = ref(false)
 const isMutating = ref(false)
 
+// 删除确认对话框
+const deleteConfirmDialogOpen = ref(false)
+const deleteConfirmMessage = ref('')
+const deleteConfirmCallback = ref<(() => Promise<void>) | null>(null)
+const deleteConfirmSubmitting = ref(false)
+
 const heroSubtitle = ref('')
 const heroSubtitleDraft = ref('')
 const isEditingHeroSubtitle = ref(false)
@@ -127,6 +133,20 @@ function ensureToken(): string {
     throw new Error('需要登录后才能执行该操作')
   }
   return authStore.token
+}
+
+async function confirmDelete() {
+  deleteConfirmSubmitting.value = true
+  try {
+    if (deleteConfirmCallback.value) {
+      await deleteConfirmCallback.value()
+    }
+  } finally {
+    deleteConfirmSubmitting.value = false
+    deleteConfirmDialogOpen.value = false
+    deleteConfirmCallback.value = null
+    deleteConfirmMessage.value = ''
+  }
 }
 
 function assignHeroBackgrounds(list: EditableHeroBackground[]) {
@@ -315,28 +335,26 @@ async function saveHeroBackground(background: EditableHeroBackground) {
 }
 
 async function removeHeroBackground(id: string) {
-  if (!window.confirm('确定要删除该背景图吗？')) {
-    return
-  }
-  try {
-    const token = ensureToken()
-    isMutating.value = true
-    await apiFetch(`/admin/portal/config/hero/backgrounds/${id}`, {
-      method: 'DELETE',
-      token,
-    })
-    if (editingHeroBackgroundId.value === id) {
-      editingHeroBackgroundId.value = null
+  deleteConfirmMessage.value = '确定要删除该背景图吗？'
+  deleteConfirmCallback.value = async () => {
+    try {
+      const token = ensureToken()
+      await apiFetch(`/admin/portal/config/hero/backgrounds/${id}`, {
+        method: 'DELETE',
+        token,
+      })
+      if (editingHeroBackgroundId.value === id) {
+        editingHeroBackgroundId.value = null
+      }
+      await fetchConfig()
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('登录')) {
+        return
+      }
+      handleError(error, '删除背景图失败')
     }
-    await fetchConfig()
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('登录')) {
-      return
-    }
-    handleError(error, '删除背景图失败')
-  } finally {
-    isMutating.value = false
   }
+  deleteConfirmDialogOpen.value = true
 }
 
 async function moveHeroBackground(currentIndex: number, offset: number) {
@@ -461,28 +479,26 @@ async function saveNavigationItem(item: EditableNavigationItem) {
 }
 
 async function removeNavigationItem(id: string) {
-  if (!window.confirm('确定要删除该导航项吗？')) {
-    return
-  }
-  try {
-    const token = ensureToken()
-    isMutating.value = true
-    await apiFetch(`/admin/portal/config/navigation/${id}`, {
-      method: 'DELETE',
-      token,
-    })
-    if (editingNavigationId.value === id) {
-      editingNavigationId.value = null
+  deleteConfirmMessage.value = '确定要删除该导航项吗？'
+  deleteConfirmCallback.value = async () => {
+    try {
+      const token = ensureToken()
+      await apiFetch(`/admin/portal/config/navigation/${id}`, {
+        method: 'DELETE',
+        token,
+      })
+      if (editingNavigationId.value === id) {
+        editingNavigationId.value = null
+      }
+      await fetchConfig()
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('登录')) {
+        return
+      }
+      handleError(error, '删除导航项失败')
     }
-    await fetchConfig()
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('登录')) {
-      return
-    }
-    handleError(error, '删除导航项失败')
-  } finally {
-    isMutating.value = false
   }
+  deleteConfirmDialogOpen.value = true
 }
 
 async function moveNavigationItem(currentIndex: number, offset: number) {
@@ -1256,5 +1272,39 @@ onMounted(() => {
         </div>
       </div>
     </UCard>
+
+    <!-- 删除确认对话框 -->
+    <UModal
+      :open="deleteConfirmDialogOpen"
+      @update:open="deleteConfirmDialogOpen = $event"
+      :ui="{
+        content: 'w-full max-w-sm',
+        wrapper: 'z-[140]',
+        overlay: 'z-[130] bg-slate-950/40 backdrop-blur-sm'
+      }"
+    >
+      <template #content>
+        <div class="space-y-4 p-6 text-sm">
+          <p class="text-base font-semibold text-slate-900 dark:text-white">
+            {{ deleteConfirmMessage }}
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton
+              color="neutral"
+              variant="soft"
+              @click="deleteConfirmDialogOpen = false"
+              >取消</UButton
+            >
+            <UButton
+              color="error"
+              variant="soft"
+              :loading="deleteConfirmSubmitting"
+              @click="confirmDelete"
+              >确定</UButton
+            >
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
