@@ -19,13 +19,13 @@ import { AuthRegisterDto } from '../dto/auth-register.dto';
 import { AuthLoginDto } from '../dto/auth-login.dto';
 import { AuthmeBindDto } from '../dto/authme-bind.dto';
 import { AuthmeUnbindDto } from '../dto/authme-unbind.dto';
-import { AuthmeService } from '../authme/authme.service';
-import { AuthmeBindingService } from '../authme/authme-binding.service';
+import { AuthmeService } from '../../authme/authme.service';
+import { AuthmeBindingService } from '../../authme/authme-binding.service';
 import {
   AuthFeatureService,
   AuthFeatureFlags,
-} from '../authme/auth-feature.service';
-import { businessError } from '../authme/authme.errors';
+} from '../../authme/auth-feature.service';
+import { businessError } from '../../authme/authme.errors';
 import { MailService } from '../../mail/mail.service';
 import { ChangePasswordWithCodeDto } from '../dto/change-password-with-code.dto';
 

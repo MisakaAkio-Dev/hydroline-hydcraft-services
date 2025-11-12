@@ -373,7 +373,81 @@ export async function getSessionUser(ctx: UsersServiceContext, userId: string) {
       },
       roles: {
         select: {
-          role: true,
+          id: true,
+          userId: true,
+          roleId: true,
+          assignedAt: true,
+          metadata: true,
+          role: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              description: true,
+              isSystem: true,
+              metadata: true,
+              rolePermissions: {
+                select: {
+                  id: true,
+                  roleId: true,
+                  permissionId: true,
+                  permission: {
+                    select: {
+                      id: true,
+                      key: true,
+                      description: true,
+                      metadata: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      permissionLabels: {
+        select: {
+          id: true,
+          labelId: true,
+          assignedAt: true,
+          label: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              color: true,
+              permissions: {
+                select: {
+                  permission: {
+                    select: {
+                      id: true,
+                      key: true,
+                      description: true,
+                      metadata: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      statusSnapshot: {
+        select: {
+          userId: true,
+          status: true,
+          updatedAt: true,
+          statusEventId: true,
+          event: {
+            select: {
+              id: true,
+              status: true,
+              reasonCode: true,
+              source: true,
+              createdAt: true,
+              metadata: true,
+            },
+          },
         },
       },
     },
@@ -616,8 +690,55 @@ export async function getUserDetail(ctx: UsersServiceContext, userId: string) {
     }),
   );
 
+  const nicknames = (user.minecraftIds ?? []).map((profile) => {
+    const base: {
+      id: string;
+      userId: string;
+      nickname: string | null;
+      isPrimary: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      source?: string | null;
+      verifiedAt?: Date | null;
+      verificationNote?: string | null;
+      metadata?: unknown;
+    } = {
+      id: profile.id,
+      userId: profile.userId,
+      nickname: profile.nickname,
+      isPrimary: profile.isPrimary,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+    };
+
+    const optional = profile as Partial<{
+      source: string | null;
+      verifiedAt: Date | null;
+      verificationNote: string | null;
+      metadata: unknown;
+    }>;
+
+    if (Object.prototype.hasOwnProperty.call(optional, 'source')) {
+      base.source = optional.source ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(optional, 'verifiedAt')) {
+      base.verifiedAt = optional.verifiedAt ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(optional, 'verificationNote')) {
+      base.verificationNote = optional.verificationNote ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(optional, 'metadata')) {
+      base.metadata = optional.metadata ?? null;
+    }
+
+    return base;
+  });
+
+  const { minecraftIds, ...rest } = user;
+
   return {
-    ...user,
+    ...rest,
+    nicknames,
     authmeBindings: enrichedBindings,
     luckperms: bindingData.luckperms,
     lastLoginIp: normalizedLastLoginIp,

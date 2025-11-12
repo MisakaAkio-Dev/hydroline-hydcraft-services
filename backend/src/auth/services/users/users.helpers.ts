@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import type { UpdateCurrentUserProfileExtraDto } from '../../dto/update-current-user.dto';
-import type { LuckpermsPlayer } from '../../luckperms/luckperms.interfaces';
+import type { LuckpermsPlayer } from '../../../luckperms/luckperms.interfaces';
 import type { UsersServiceContext, PrismaClientOrTx } from './users.context';
 
 export type AuthmeBindingSnapshot = {
@@ -88,11 +88,27 @@ export function normalizeProfileExtra(
   return normalized;
 }
 
-export function toJson(input?: Record<string, unknown>) {
-  return input as Prisma.InputJsonValue | undefined;
+export function toJson(
+  input?: Record<string, unknown> | null,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (input === null) {
+    return Prisma.JsonNull;
+  }
+  return input as Prisma.InputJsonValue;
 }
 
-export function toJsonValue(input: unknown) {
+export function toJsonValue(
+  input: unknown,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (input === null) {
+    return Prisma.JsonNull;
+  }
   return input as Prisma.InputJsonValue;
 }
 

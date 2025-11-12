@@ -92,7 +92,9 @@ export async function updateMinecraftProfile(
       verifiedAt: dto.verifiedAt ? new Date(dto.verifiedAt) : undefined,
       verificationNote: dto.verificationNote,
       metadata:
-        dto.metadata !== undefined ? toJson(dto.metadata) : target.metadata,
+        dto.metadata !== undefined
+          ? toJson(dto.metadata)
+          : target.metadata ?? Prisma.JsonNull,
     },
   });
 

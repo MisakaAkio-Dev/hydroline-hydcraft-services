@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AuthmeService } from '../authme/authme.service';
-import { AuthmeBindingService } from '../authme/authme-binding.service';
-import { CreateAuthmeHistoryEntryDto } from '../authme/dto/create-authme-history-entry.dto';
+import { AuthmeService } from '../../authme/authme.service';
+import { AuthmeBindingService } from '../../authme/authme-binding.service';
+import { CreateAuthmeHistoryEntryDto } from '../../authme/dto/create-authme-history-entry.dto';
 import { AuthmeBindingAction, Prisma } from '@prisma/client';
 import { IpLocationService } from '../../lib/ip2region/ip-location.service';
-import type { AuthmeUser } from '../authme/authme.interfaces';
+import type { AuthmeUser } from '../../authme/authme.interfaces';
 
 type SortOrder = 'asc' | 'desc';
 

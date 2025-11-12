@@ -18,7 +18,7 @@ import { UpdateMinecraftServerDto } from './dto/update-minecraft-server.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../auth/roles.service';
+import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
 
 @ApiTags('Minecraft 服务器')
 @ApiBearerAuth()

@@ -24,7 +24,7 @@ import { UpdateAttachmentDto } from './dto/update-attachment.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../auth/roles.service';
+import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
 import { CreateFolderDto } from './dto/create-folder.dto';
 import { UpdateFolderDto } from './dto/update-folder.dto';
 import { CreateTagDto } from './dto/create-tag.dto';

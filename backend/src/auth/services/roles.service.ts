@@ -117,7 +117,7 @@ export class RolesService {
         metadata:
           dto.metadata !== undefined
             ? this.toJson(dto.metadata)
-            : role.metadata,
+            : role.metadata ?? Prisma.JsonNull,
       },
     });
 
@@ -256,7 +256,7 @@ export class RolesService {
         metadata:
           dto.metadata !== undefined
             ? this.toJson(dto.metadata)
-            : permission.metadata,
+            : permission.metadata ?? Prisma.JsonNull,
       },
     });
 
@@ -475,7 +475,7 @@ export class RolesService {
           metadata:
             dto.metadata !== undefined
               ? this.toJson(dto.metadata)
-              : label.metadata,
+              : label.metadata ?? Prisma.JsonNull,
         },
       });
       if (dto.permissionKeys) {
@@ -559,7 +559,7 @@ export class RolesService {
         id: permission.id,
         key: permission.key,
         description: permission.description,
-        metadata: permission.metadata,
+        metadata: permission.metadata ?? Prisma.JsonNull,
         roles: permission.rolePermissions.map((link) => ({
           id: link.role.id,
           key: link.role.key,
@@ -663,8 +663,16 @@ export class RolesService {
     return permissions;
   }
 
-  private toJson(input?: Record<string, unknown>) {
-    return input as Prisma.InputJsonValue | undefined;
+  private toJson(
+    input?: Record<string, unknown> | null,
+  ): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined {
+    if (input === undefined) {
+      return undefined;
+    }
+    if (input === null) {
+      return Prisma.JsonNull;
+    }
+    return input as Prisma.InputJsonValue;
   }
 
   private async audit(params: {

@@ -60,7 +60,7 @@ export class ContactChannelsService {
         metadata:
           dto.metadata !== undefined
             ? this.toJson(dto.metadata)
-            : channel.metadata,
+            : channel.metadata ?? Prisma.JsonNull,
       },
     });
   }
@@ -83,7 +83,15 @@ export class ContactChannelsService {
     await this.prisma.contactChannel.delete({ where: { id: channelId } });
   }
 
-  private toJson(input?: Record<string, unknown>) {
-    return input as Prisma.InputJsonValue | undefined;
+  private toJson(
+    input?: Record<string, unknown> | null,
+  ): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined {
+    if (input === undefined) {
+      return undefined;
+    }
+    if (input === null) {
+      return Prisma.JsonNull;
+    }
+    return input as Prisma.InputJsonValue;
   }
 }

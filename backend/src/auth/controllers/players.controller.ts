@@ -15,7 +15,7 @@ import { AuthGuard } from '../auth.guard';
 import { PermissionsGuard } from '../permissions.guard';
 import { RequirePermissions } from '../permissions.decorator';
 import { DEFAULT_PERMISSIONS } from '../services/roles.service';
-import { CreateAuthmeHistoryEntryDto } from '../authme/dto/create-authme-history-entry.dto';
+import { CreateAuthmeHistoryEntryDto } from '../../authme/dto/create-authme-history-entry.dto';
 // 使用内联 DTO 以降低耦合
 
 @ApiTags('AuthMe 玩家管理')

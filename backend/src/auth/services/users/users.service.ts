@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { AuthmeService } from '../../authme/authme.service';
-import { AuthmeBindingService } from '../../authme/authme-binding.service';
-import { LuckpermsService } from '../../luckperms/luckperms.service';
+import { AuthmeService } from '../../../authme/authme.service';
+import { AuthmeBindingService } from '../../../authme/authme-binding.service';
+import { LuckpermsService } from '../../../luckperms/luckperms.service';
 import { IpLocationService } from '../../../lib/ip2region/ip-location.service';
 import { AdminAuditService } from '../admin-audit.service';
-import { MailService } from '../../mail/mail.service';
+import { MailService } from '../../../mail/mail.service';
 import { UsersServiceContext } from './users.context';
 import {
   initializeUserRecords,

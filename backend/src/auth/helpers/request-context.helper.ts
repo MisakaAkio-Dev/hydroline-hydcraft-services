@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import type { RequestContext } from '../auth.service';
+import type { RequestContext } from '../services/auth.service';
 import { normalizeIpAddress } from '../../lib/ip2region/ip-normalizer';
 
 const forwardedHeaderKeys = [

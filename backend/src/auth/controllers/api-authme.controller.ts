@@ -15,7 +15,7 @@ import { AuthmeBindDto } from '../dto/authme-bind.dto';
 import { AuthmeUnbindDto } from '../dto/authme-unbind.dto';
 import { SetPrimaryAuthmeBindingDto } from '../dto/set-primary-authme-binding.dto';
 import { rethrowAuthmeError } from '../helpers/authme-error.helper';
-import { AuthmeRateLimitGuard } from '../authme/authme-rate-limit.guard';
+import { AuthmeRateLimitGuard } from '../../authme/authme-rate-limit.guard';
 import { buildRequestContext } from '../helpers/request-context.helper';
 
 @ApiTags('AuthMe 绑定')

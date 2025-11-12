@@ -5,7 +5,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { UsersServiceContext } from './users.context';
-import { normalizeOptionalString, toJson, toJsonValue } from './users.helpers';
+import { normalizeOptionalString, toJsonValue } from './users.helpers';
 import { ensureUser } from './users-core.manager';
 import { UpdateAuthmeBindingAdminDto } from '../../dto/update-authme-binding-admin.dto';
 import { CreateAuthmeBindingAdminDto } from '../../dto/create-authme-binding-admin.dto';
@@ -65,7 +65,7 @@ export async function updateAuthmeBinding(
         metadata:
           dto.metadata !== undefined
             ? toJsonValue(dto.metadata)
-            : binding.metadata,
+            : binding.metadata ?? Prisma.JsonNull,
       },
     });
 
@@ -152,76 +152,32 @@ export async function createAuthmeBindingAdmin(
   actorId?: string,
 ) {
   await ensureUser(ctx, userId);
-  const username = dto.authmeUsername.trim();
-  const existingAccount = await ctx.authmeService
-    .getAccount(username)
+  const identifier = dto.identifier?.trim() ?? '';
+  if (!identifier) {
+    throw new BadRequestException('identifier 不能为空');
+  }
+
+  const account = await ctx.authmeService
+    .getAccount(identifier)
     .catch(() => null);
-  if (!existingAccount) {
+  if (!account) {
     throw new NotFoundException('AuthMe 账户不存在');
   }
 
-  const existingBinding = await ctx.prisma.userAuthmeBinding.findFirst({
-    where: { authmeUsernameLower: username.toLowerCase() },
+  const binding = await ctx.authmeBindingService.bindUser({
+    userId,
+    authmeUser: account,
+    operatorUserId: actorId ?? userId,
+    sourceIp: null,
   });
-  if (existingBinding && existingBinding.userId !== userId) {
-    throw new BadRequestException('该 AuthMe 账户已绑定其他用户');
+
+  if (dto.setPrimary) {
+    await setPrimaryAuthmeBinding(ctx, userId, binding.id, actorId ?? userId);
   }
 
-  const binding = await ctx.prisma.$transaction(async (tx) => {
-    const record = await tx.userAuthmeBinding.upsert({
-      where: {
-        userId_authmeUsernameLower: {
-          userId,
-          authmeUsernameLower: username.toLowerCase(),
-        },
-      },
-      update: {
-        authmeRealname: existingAccount.realname,
-        authmeUuid: existingAccount.uuid ?? null,
-        boundAt: dto.boundAt ?? new Date(),
-        boundByUserId: actorId ?? null,
-        boundByIp: dto.boundByIp ?? existingAccount.ip ?? null,
-        metadata: toJson(dto.metadata),
-        status: dto.status ?? 'ACTIVE',
-      },
-      create: {
-        userId,
-        authmeUsername: username,
-        authmeUsernameLower: username.toLowerCase(),
-        authmeRealname: existingAccount.realname,
-        authmeUuid: existingAccount.uuid ?? null,
-        boundAt: dto.boundAt ?? new Date(),
-        boundByUserId: actorId ?? null,
-        boundByIp: dto.boundByIp ?? existingAccount.ip ?? null,
-        metadata: toJson(dto.metadata),
-        status: dto.status ?? 'ACTIVE',
-      },
-    });
-
-    await ctx.authmeBindingService.recordHistoryEntry(
-      {
-        bindingId: record.id,
-        userId: record.userId,
-        operatorId: actorId ?? userId,
-        authmeUsername: record.authmeUsername,
-        authmeRealname: record.authmeRealname,
-        authmeUuid: record.authmeUuid,
-        action: AuthmeBindingAction.BIND,
-        reason: 'admin-bind',
-        payload: { source: 'admin' },
-      },
-      tx,
-    );
-
-    if (dto.primary) {
-      await tx.userProfile.upsert({
-        where: { userId },
-        update: { primaryAuthmeBindingId: record.id },
-        create: { userId, primaryAuthmeBindingId: record.id },
-      });
-    }
-
-    return record;
+  const profile = await ctx.prisma.userProfile.findUnique({
+    where: { userId },
+    select: { primaryAuthmeBindingId: true },
   });
 
   await ctx.adminAuditService.record({
@@ -229,10 +185,17 @@ export async function createAuthmeBindingAdmin(
     action: 'create_authme_binding',
     targetType: 'authme_binding',
     targetId: binding.id,
-    payload: { userId, authmeUsername: username },
+    payload: { userId, authmeUsername: binding.authmeUsername },
   });
 
-  return binding;
+  return {
+    id: binding.id,
+    authmeUsername: binding.authmeUsername,
+    authmeRealname: binding.authmeRealname,
+    authmeUuid: binding.authmeUuid,
+    boundAt: binding.boundAt,
+    isPrimary: profile?.primaryAuthmeBindingId === binding.id,
+  };
 }
 
 export async function listAuthmeBindingHistoryByUser(

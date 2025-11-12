@@ -1,3 +1,4 @@
+import { LifecycleEventType, StatusSource } from '@prisma/client';
 import { UsersServiceContext } from './users.context';
 import { ensureUser } from './users-core.manager';
 import { CreateStatusEventDto } from '../../dto/create-status-event.dto';
@@ -11,13 +12,15 @@ export async function addStatusEvent(
   actorId?: string,
 ) {
   await ensureUser(ctx, userId);
+  const occurredAt = new Date();
+  const source = dto.source ?? StatusSource.ADMIN;
   const event = await ctx.prisma.userStatusEvent.create({
     data: {
       userId,
       status: dto.status,
-      occurredAt: new Date(dto.occurredAt),
       reasonCode: dto.reasonCode,
-      source: dto.source,
+      reasonDetail: dto.reasonDetail,
+      source,
       metadata: toJsonValue(dto.metadata),
       createdById: actorId,
     },
@@ -27,6 +30,21 @@ export async function addStatusEvent(
     where: { userId },
     create: { userId, statusEventId: event.id, status: event.status },
     update: { statusEventId: event.id, status: event.status },
+  });
+
+  await ctx.prisma.userLifecycleEvent.create({
+    data: {
+      userId,
+      eventType: LifecycleEventType.STATUS_CHANGE,
+      occurredAt,
+      source,
+      notes: dto.reasonDetail,
+      metadata: toJsonValue({
+        status: event.status,
+        reasonCode: event.reasonCode,
+      }),
+      createdById: actorId,
+    },
   });
 
   return event;

@@ -196,7 +196,9 @@ export async function updateContact(
       value: dto.value ?? existing.value,
       isPrimary: dto.isPrimary ?? existing.isPrimary,
       metadata:
-        dto.metadata !== undefined ? toJson(dto.metadata) : existing.metadata,
+        dto.metadata !== undefined
+          ? toJson(dto.metadata)
+          : existing.metadata ?? Prisma.JsonNull,
     },
     include: { channel: true },
   });

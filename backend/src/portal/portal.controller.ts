@@ -6,7 +6,7 @@ import { OptionalAuthGuard } from '../auth/optional-auth.guard';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../auth/roles.service';
+import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
 
 @ApiTags('门户接口')
 @Controller('portal')

@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
-import { DEFAULT_PERMISSIONS } from '../auth/roles.service';
+import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { AuthmeService } from './authme.service';
 import { AuthFeatureService } from './auth-feature.service';

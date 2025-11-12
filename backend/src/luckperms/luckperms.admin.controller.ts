@@ -4,7 +4,7 @@ import { Request } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../auth/roles.service';
+import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
 import { LuckpermsService } from './luckperms.service';
 import { UpdateLuckpermsConfigDto } from './dto/update-luckperms-config.dto';
 import { UpdateLuckpermsGroupLabelsDto } from './dto/update-luckperms-group-labels.dto';

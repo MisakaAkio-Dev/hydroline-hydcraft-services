@@ -5,7 +5,7 @@ import { AuthService } from '../services/auth.service';
 import { AuthRegisterDto } from '../dto/auth-register.dto';
 import { AuthLoginDto } from '../dto/auth-login.dto';
 import { rethrowAuthmeError } from '../helpers/authme-error.helper';
-import { AuthmeService } from '../authme/authme.service';
+import { AuthmeService } from '../../authme/authme.service';
 import { buildRequestContext } from '../helpers/request-context.helper';
 
 @ApiTags('认证')
