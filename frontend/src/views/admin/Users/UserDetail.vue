@@ -1105,9 +1105,10 @@ async function confirmDelete() {
     :open="deleteConfirmDialogOpen"
     @update:open="deleteConfirmDialogOpen = $event"
     :ui="{
-      content: 'w-full max-w-sm',
-      wrapper: 'z-[140]',
-      overlay: 'z-[130] bg-slate-950/40 backdrop-blur-sm'
+      content: 'z-[1105] w-full max-w-sm',
+      wrapper: 'z-[1104] items-center justify-center',
+      container: 'items-center justify-center',
+      overlay: 'z-[1103] bg-slate-950/40 backdrop-blur-sm'
     }"
   >
     <template #content>
