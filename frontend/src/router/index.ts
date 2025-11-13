@@ -125,9 +125,9 @@ export const adminRoutes: RouteRecordRaw[] = [
         },
       },
       {
-        path: 'data-sync',
-        name: 'admin.dataSync',
-        component: () => import('@/views/admin/DataSync/DataSyncView.vue'),
+        path: 'authme',
+        name: 'admin.authme',
+        component: () => import('@/views/admin/DataSync/AuthmeAdminView.vue'),
         meta: {
           requiresAuth: true,
           requiresPermissions: ['config.manage'],

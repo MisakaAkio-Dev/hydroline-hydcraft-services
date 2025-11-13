@@ -71,7 +71,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
     items: [
       {
         label: 'AuthMe 状态',
-        to: '/admin/data-sync',
+        to: '/admin/authme',
         icon: 'i-lucide-refresh-cw',
       },
       {

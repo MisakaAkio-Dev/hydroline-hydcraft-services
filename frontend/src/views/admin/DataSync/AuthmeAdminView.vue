@@ -8,7 +8,7 @@ const authStore = useAuthStore()
 const uiStore = useUiStore()
 const toast = useToast()
 
-type LuckpermsHealth =
+type AuthmeHealth =
   | { ok: true; latencyMs: number }
   | {
       ok: false
@@ -17,7 +17,7 @@ type LuckpermsHealth =
       cause?: string
     }
 
-interface LuckpermsConfigForm {
+interface AuthmeConfigForm {
   host: string
   port: number
   database: string
@@ -35,15 +35,11 @@ interface LuckpermsConfigForm {
   enabled: boolean
 }
 
-type GroupLabelPair = {
-  group: string
-  label: string
-}
-
-type EditableGroupLabelEntry = {
-  id: number
-  group: string
-  label: string
+interface AuthmeFeatureForm {
+  emailVerificationEnabled: boolean
+  authmeRegisterEnabled: boolean
+  authmeLoginEnabled: boolean
+  authmeBindingEnabled: boolean
 }
 
 type StatusRow = {
@@ -59,20 +55,21 @@ type StatusRow = {
 
 const loading = ref(true)
 const savingConfig = ref(false)
-const savingGroupLabels = ref(false)
+const savingFeature = ref(false)
 const reloadingHealth = ref(false)
 
 const configDialogOpen = ref(false)
-const groupLabelDialogOpen = ref(false)
+const featureDialogOpen = ref(false)
 
-const health = ref<LuckpermsHealth | null>(null)
+const health = ref<AuthmeHealth | null>(null)
 const system = ref<{ uptimeSeconds: number; timestamp: string } | null>(null)
 const configMeta = ref<{ version: number; updatedAt: string } | null>(null)
-const groupLabelMeta = ref<{ version: number; updatedAt: string } | null>(null)
+const featureMeta = ref<{ version: number; updatedAt: string } | null>(null)
 
-const configBaseline = ref<LuckpermsConfigForm | null>(null)
+const configBaseline = ref<AuthmeConfigForm | null>(null)
+const featureBaseline = ref<AuthmeFeatureForm | null>(null)
 
-const configForm = reactive<LuckpermsConfigForm>({
+const configForm = reactive<AuthmeConfigForm>({
   host: '',
   port: 3306,
   database: '',
@@ -90,30 +87,11 @@ const configForm = reactive<LuckpermsConfigForm>({
   enabled: true,
 })
 
-let groupLabelSeed = 0
-function createGroupLabelEntry(
-  group = '',
-  label = '',
-): EditableGroupLabelEntry {
-  groupLabelSeed += 1
-  return {
-    id: groupLabelSeed,
-    group,
-    label,
-  }
-}
-
-const groupLabelEntries = ref<EditableGroupLabelEntry[]>([
-  createGroupLabelEntry(),
-])
-const groupLabelBaseline = ref<GroupLabelPair[]>([])
-const groupLabelSignature = ref('[]')
-
-const groupLabelDirty = computed(() => {
-  return (
-    serializeGroupLabelEntries(groupLabelEntries.value) !==
-    groupLabelSignature.value
-  )
+const featureForm = reactive<AuthmeFeatureForm>({
+  emailVerificationEnabled: false,
+  authmeRegisterEnabled: true,
+  authmeLoginEnabled: true,
+  authmeBindingEnabled: true,
 })
 
 const uptimeText = computed(() => {
@@ -170,7 +148,7 @@ const statusRows = computed<StatusRow[]>(() => {
     text: configForm.charset || '未配置',
   })
   rows.push({
-    key: 'connectTimeout',
+    key: 'connectTimeoutMillis',
     label: '连接超时',
     text: `${configForm.connectTimeoutMillis} ms`,
   })
@@ -216,98 +194,29 @@ const statusRows = computed<StatusRow[]>(() => {
       description: new Date(configMeta.value.updatedAt).toLocaleString(),
     })
   }
-  rows.push({
-    key: 'groupLabels',
-    label: '权限组映射',
-    text: `${groupLabelBaseline.value.length} 个映射`,
-    description: groupLabelMeta.value
-      ? `版本 ${groupLabelMeta.value.version} · ${new Date(groupLabelMeta.value.updatedAt).toLocaleString()}`
-      : '尚未保存映射',
-  })
+  if (featureMeta.value) {
+    rows.push({
+      key: 'featureVersion',
+      label: '功能版本',
+      text: `v${featureMeta.value.version}`,
+      description: new Date(featureMeta.value.updatedAt).toLocaleString(),
+    })
+  }
   return rows
 })
-
-function normalizeGroupLabelPayload(
-  entries: Array<{ group: string; label: string }>,
-): GroupLabelPair[] {
-  const map = new Map<string, string>()
-  for (const entry of entries) {
-    const group = typeof entry.group === 'string' ? entry.group.trim() : ''
-    const label = typeof entry.label === 'string' ? entry.label.trim() : ''
-    if (!group || !label) {
-      continue
-    }
-    map.set(group, label)
-  }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([group, label]) => ({ group, label }))
-}
-
-function serializeGroupLabelEntries(entries: EditableGroupLabelEntry[]) {
-  const payload = entries.map((entry) => ({
-    group: entry.group,
-    label: entry.label,
-  }))
-  return JSON.stringify(normalizeGroupLabelPayload(payload))
-}
-
-function setGroupLabelEntriesFromServer(entries: GroupLabelPair[]) {
-  const normalized = normalizeGroupLabelPayload(entries)
-  groupLabelBaseline.value = normalized
-  groupLabelEntries.value =
-    normalized.length > 0
-      ? normalized.map((entry) =>
-          createGroupLabelEntry(entry.group, entry.label),
-        )
-      : [createGroupLabelEntry()]
-  groupLabelSignature.value = JSON.stringify(normalized)
-}
-
-function resetGroupLabels() {
-  setGroupLabelEntriesFromServer(groupLabelBaseline.value)
-}
-
-function addGroupLabelEntry() {
-  groupLabelEntries.value.push(createGroupLabelEntry())
-}
-
-function removeGroupLabelEntry(id: number) {
-  if (groupLabelEntries.value.length <= 1) {
-    groupLabelEntries.value = [createGroupLabelEntry()]
-    return
-  }
-  groupLabelEntries.value = groupLabelEntries.value.filter(
-    (entry) => entry.id !== id,
-  )
-  if (!groupLabelEntries.value.length) {
-    groupLabelEntries.value.push(createGroupLabelEntry())
-  }
-}
-
-function buildGroupLabelPayload() {
-  return normalizeGroupLabelPayload(
-    groupLabelEntries.value.map((entry) => ({
-      group: entry.group,
-      label: entry.label,
-    })),
-  )
-}
 
 async function loadOverview() {
   if (!authStore.token) {
     throw new Error('未登录')
   }
   const result = await apiFetch<{
-    health: LuckpermsHealth
-    config: LuckpermsConfigForm | null
+    health: AuthmeHealth
+    config: AuthmeConfigForm | null
     configMeta: { version: number; updatedAt: string } | null
+    featureFlags: AuthmeFeatureForm
+    featureMeta: { version: number; updatedAt: string } | null
     system: { uptimeSeconds: number; timestamp: string }
-    groupLabels: {
-      entries: GroupLabelPair[]
-      meta: { version: number; updatedAt: string } | null
-    } | null
-  }>('/luckperms/admin/overview', {
+  }>('/authme/admin/overview', {
     token: authStore.token,
   })
   health.value = result.health
@@ -315,16 +224,11 @@ async function loadOverview() {
   if (result.config) {
     applyConfig(result.config)
   } else {
-    configBaseline.value = cloneLuckpermsConfig(configForm)
+    configBaseline.value = cloneAuthmeConfig(configForm)
   }
   configMeta.value = result.configMeta
-  if (result.groupLabels) {
-    setGroupLabelEntriesFromServer(result.groupLabels.entries ?? [])
-    groupLabelMeta.value = result.groupLabels.meta ?? null
-  } else {
-    setGroupLabelEntriesFromServer([])
-    groupLabelMeta.value = null
-  }
+  applyFeatureFlags(result.featureFlags)
+  featureMeta.value = result.featureMeta
 }
 
 async function initialize() {
@@ -333,7 +237,7 @@ async function initialize() {
   try {
     await loadOverview()
   } catch (error) {
-    handleError(error, '加载 LuckPerms 概览失败')
+    handleError(error, '加载 AuthMe 概览失败')
   } finally {
     loading.value = false
     uiStore.stopLoading()
@@ -345,41 +249,39 @@ async function saveConfig() {
   savingConfig.value = true
   uiStore.startLoading()
   try {
-    await apiFetch('/luckperms/admin/config', {
+    await apiFetch('/authme/admin/config', {
       method: 'PATCH',
       token: authStore.token,
       body: configForm,
     })
     await loadOverview()
-    toastSuccess('LuckPerms 连接配置已更新')
+    toastSuccess('AuthMe 连接配置已更新')
     configDialogOpen.value = false
   } catch (error) {
-    handleError(error, '更新 LuckPerms 配置失败')
+    handleError(error, '更新 AuthMe 配置失败')
   } finally {
     savingConfig.value = false
     uiStore.stopLoading()
   }
 }
 
-async function saveGroupLabels() {
-  if (!authStore.token || !groupLabelDirty.value) return
-  savingGroupLabels.value = true
+async function saveFeatures() {
+  if (!authStore.token) return
+  savingFeature.value = true
   uiStore.startLoading()
   try {
-    await apiFetch('/luckperms/admin/group-labels', {
+    await apiFetch('/authme/admin/feature', {
       method: 'PATCH',
       token: authStore.token,
-      body: {
-        entries: buildGroupLabelPayload(),
-      },
+      body: featureForm,
     })
     await loadOverview()
-    toastSuccess('权限组显示文本已更新')
-    groupLabelDialogOpen.value = false
+    toastSuccess('AuthMe 功能开关已保存')
+    featureDialogOpen.value = false
   } catch (error) {
-    handleError(error, '更新权限组显示文本失败')
+    handleError(error, '更新功能开关失败')
   } finally {
-    savingGroupLabels.value = false
+    savingFeature.value = false
     uiStore.stopLoading()
   }
 }
@@ -418,18 +320,16 @@ function handleError(error: unknown, fallback: string) {
   console.error(fallback, error)
 }
 
-function cloneLuckpermsConfig(
-  config: LuckpermsConfigForm,
-): LuckpermsConfigForm {
+function cloneAuthmeConfig(config: AuthmeConfigForm): AuthmeConfigForm {
   return {
     ...config,
     pool: { ...config.pool },
   }
 }
 
-function assignLuckpermsConfig(
-  target: LuckpermsConfigForm,
-  source: LuckpermsConfigForm,
+function assignAuthmeConfig(
+  target: AuthmeConfigForm,
+  source: AuthmeConfigForm,
 ) {
   target.host = source.host
   target.port = source.port
@@ -446,14 +346,39 @@ function assignLuckpermsConfig(
   target.pool.acquireTimeoutMillis = source.pool.acquireTimeoutMillis
 }
 
-function applyConfig(next: LuckpermsConfigForm) {
-  assignLuckpermsConfig(configForm, next)
-  configBaseline.value = cloneLuckpermsConfig(next)
+function applyConfig(next: AuthmeConfigForm) {
+  assignAuthmeConfig(configForm, next)
+  configBaseline.value = cloneAuthmeConfig(next)
 }
 
 function resetConfigForm() {
   if (configBaseline.value) {
-    assignLuckpermsConfig(configForm, configBaseline.value)
+    assignAuthmeConfig(configForm, configBaseline.value)
+  }
+}
+
+function cloneFeatureForm(flags: AuthmeFeatureForm): AuthmeFeatureForm {
+  return { ...flags }
+}
+
+function assignFeatureForm(
+  target: AuthmeFeatureForm,
+  source: AuthmeFeatureForm,
+) {
+  target.authmeLoginEnabled = source.authmeLoginEnabled
+  target.authmeRegisterEnabled = source.authmeRegisterEnabled
+  target.authmeBindingEnabled = source.authmeBindingEnabled
+  target.emailVerificationEnabled = source.emailVerificationEnabled
+}
+
+function applyFeatureFlags(flags: AuthmeFeatureForm) {
+  assignFeatureForm(featureForm, flags)
+  featureBaseline.value = cloneFeatureForm(flags)
+}
+
+function resetFeatureForm() {
+  if (featureBaseline.value) {
+    assignFeatureForm(featureForm, featureBaseline.value)
   }
 }
 
@@ -461,8 +386,8 @@ watch(configDialogOpen, () => {
   resetConfigForm()
 })
 
-watch(groupLabelDialogOpen, () => {
-  resetGroupLabels()
+watch(featureDialogOpen, () => {
+  resetFeatureForm()
 })
 
 onMounted(() => {
@@ -474,7 +399,7 @@ onMounted(() => {
   <section class="space-y-6">
     <header class="flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
-        LuckPerms 状态
+        AuthMe 状态
       </h1>
       <div class="flex flex-wrap items-center gap-2">
         <UButton
@@ -487,10 +412,10 @@ onMounted(() => {
         </UButton>
         <UButton
           variant="soft"
-          icon="i-lucide-type"
-          @click="groupLabelDialogOpen = true"
+          icon="i-lucide-sliders-horizontal"
+          @click="featureDialogOpen = true"
         >
-          权限组映射
+          功能开关
         </UButton>
         <UButton
           color="primary"
@@ -507,7 +432,7 @@ onMounted(() => {
       color="error"
       variant="soft"
       icon="i-lucide-alert-triangle"
-      :title="`LuckPerms 状态异常（${health.stage}）`"
+      :title="`AuthMe 状态异常（${health.stage}）`"
       :description="health.message"
     />
 
@@ -575,6 +500,71 @@ onMounted(() => {
     </div>
 
     <UModal
+      :open="featureDialogOpen"
+      @update:open="featureDialogOpen = $event"
+      :ui="{ content: 'w-full max-w-md' }"
+    >
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+                功能开关
+              </h2>
+              <p
+                v-if="featureMeta"
+                class="text-xs text-slate-500 dark:text-slate-400"
+              >
+                版本 {{ featureMeta.version }} ·
+                {{ new Date(featureMeta.updatedAt).toLocaleString() }}
+              </p>
+            </div>
+          </template>
+          <form class="space-y-4" @submit.prevent="saveFeatures">
+            <div class="space-y-3">
+              <label
+                class="flex items-center justify-between gap-4 text-sm text-slate-700 dark:text-slate-200"
+              >
+                <span>启用 AuthMe 注册</span>
+                <USwitch v-model="featureForm.authmeRegisterEnabled" />
+              </label>
+              <label
+                class="flex items-center justify-between gap-4 text-sm text-slate-700 dark:text-slate-200"
+              >
+                <span>启用 AuthMe 登录</span>
+                <USwitch v-model="featureForm.authmeLoginEnabled" />
+              </label>
+              <label
+                class="flex items-center justify-between gap-4 text-sm text-slate-700 dark:text-slate-200"
+              >
+                <span>允许绑定/解绑</span>
+                <USwitch v-model="featureForm.authmeBindingEnabled" />
+              </label>
+              <label
+                class="flex items-center justify-between gap-4 text-sm text-slate-700 dark:text-slate-200"
+              >
+                <span>启用邮箱验证</span>
+                <USwitch v-model="featureForm.emailVerificationEnabled" />
+              </label>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+              <UButton
+                type="button"
+                variant="ghost"
+                @click="featureDialogOpen = false"
+              >
+                取消
+              </UButton>
+              <UButton type="submit" color="primary" :loading="savingFeature">
+                保存
+              </UButton>
+            </div>
+          </form>
+        </UCard>
+      </template>
+    </UModal>
+
+    <UModal
       :open="configDialogOpen"
       @update:open="configDialogOpen = $event"
       :ui="{ content: 'w-full max-w-3xl' }"
@@ -629,7 +619,7 @@ onMounted(() => {
               </span>
               <UInput
                 v-model="configForm.database"
-                placeholder="h2_luckperms"
+                placeholder="h2_authme"
                 required
               />
             </label>
@@ -641,7 +631,7 @@ onMounted(() => {
               </span>
               <UInput
                 v-model="configForm.user"
-                placeholder="h2_luckperms"
+                placeholder="h2_authme"
                 required
               />
             </label>
@@ -760,131 +750,6 @@ onMounted(() => {
               </UButton>
               <UButton type="submit" color="primary" :loading="savingConfig">
                 保存配置
-              </UButton>
-            </div>
-          </form>
-        </UCard>
-      </template>
-    </UModal>
-
-    <UModal
-      :open="groupLabelDialogOpen"
-      @update:open="groupLabelDialogOpen = $event"
-      :ui="{ content: 'w-full max-w-3xl' }"
-    >
-      <template #content>
-        <UCard>
-          <template #header>
-            <div class="flex flex-col gap-1">
-              <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
-                权限组显示文本
-              </h2>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                为权限组配置展示别名，前端渲染将优先使用映射结果。
-              </p>
-            </div>
-          </template>
-          <form class="space-y-4" @submit.prevent="saveGroupLabels">
-            <div
-              class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50/60 px-3 py-2 text-xs text-slate-500 dark:bg-slate-900/60 dark:text-slate-400"
-            >
-              <span>
-                <span v-if="groupLabelMeta">
-                  版本 {{ groupLabelMeta.version }} ·
-                  {{ new Date(groupLabelMeta.updatedAt).toLocaleString() }}
-                </span>
-                <span v-else>尚未保存映射</span>
-              </span>
-              <div class="flex items-center gap-2">
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  :disabled="!groupLabelDirty || savingGroupLabels"
-                  @click="resetGroupLabels"
-                >
-                  重置
-                </UButton>
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  icon="i-lucide-plus"
-                  :disabled="savingGroupLabels"
-                  @click="addGroupLabelEntry"
-                >
-                  添加映射
-                </UButton>
-              </div>
-            </div>
-
-            <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-              <div
-                v-for="(entry, index) in groupLabelEntries"
-                :key="entry.id"
-                class="rounded-xl border border-slate-200/70 p-4 dark:border-slate-700/70"
-              >
-                <div
-                  class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400"
-                >
-                  <span>映射 #{{ index + 1 }}</span>
-                  <UButton
-                    size="xs"
-                    variant="ghost"
-                    color="neutral"
-                    icon="i-lucide-trash-2"
-                    :disabled="
-                      groupLabelEntries.length <= 1 || savingGroupLabels
-                    "
-                    @click="removeGroupLabelEntry(entry.id)"
-                  />
-                </div>
-                <div class="mt-3 grid gap-3 md:grid-cols-2">
-                  <label
-                    class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-                  >
-                    <span
-                      class="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      权限组标识
-                    </span>
-                    <UInput
-                      v-model="entry.group"
-                      :disabled="savingGroupLabels"
-                      placeholder="hydca1"
-                    />
-                  </label>
-                  <label
-                    class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
-                  >
-                    <span
-                      class="font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      显示文本
-                    </span>
-                    <UInput
-                      v-model="entry.label"
-                      :disabled="savingGroupLabels"
-                      placeholder="A1"
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex justify-end gap-2 pt-2">
-              <UButton
-                type="button"
-                variant="ghost"
-                @click="groupLabelDialogOpen = false"
-              >
-                取消
-              </UButton>
-              <UButton
-                type="submit"
-                color="primary"
-                :loading="savingGroupLabels"
-                :disabled="!groupLabelDirty"
-              >
-                保存映射
               </UButton>
             </div>
           </form>
