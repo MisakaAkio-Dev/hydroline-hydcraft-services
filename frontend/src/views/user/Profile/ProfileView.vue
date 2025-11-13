@@ -161,7 +161,7 @@ function resolveGroupLabel(
           v-else
           class="flex h-32 items-center justify-center text-sm text-slate-500 dark:text-slate-400"
         >
-          暂无联系方式记录。
+          暂无联系方式记录
         </div>
       </UCard>
     </div>

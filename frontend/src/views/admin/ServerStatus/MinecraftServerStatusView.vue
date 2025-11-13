@@ -12,6 +12,7 @@ import type {
   MinecraftPingSettings,
 } from '@/types/minecraft'
 import VChart from 'vue-echarts'
+import dayjs from 'dayjs'
 // ECharts modules are registered globally in main.ts; no need to register here.
 
 const serverStore = useMinecraftServerStore()
@@ -48,6 +49,10 @@ const chartServerId = ref<string | undefined>(undefined)
 const chartDays = ref(1)
 const chartHistory = ref<MinecraftPingHistoryItem[]>([])
 const chartLoading = ref(false)
+function formatChartLabel(dateInput: string | number | Date) {
+  const d = dayjs(dateInput)
+  return d.isSame(dayjs(), 'day') ? d.format('HH:mm') : d.format('MM-DD HH:mm')
+}
 const chartOption = computed(() => {
   const points = chartHistory.value.slice().reverse()
   return {
@@ -55,9 +60,9 @@ const chartOption = computed(() => {
     grid: { left: 40, right: 20, top: 30, bottom: 30 },
     xAxis: {
       type: 'category',
-      data: points.map((p) => new Date(p.createdAt).toLocaleTimeString()),
+      data: points.map((p) => formatChartLabel(p.createdAt)),
     },
-    yAxis: { type: 'value', min: 0 },
+    yAxis: { type: 'value', min: 0, splitLine: { show: false } },
     // 默认仅展示“在线人数”，隐藏“延迟(ms)”图层，可通过图例手动开启
     legend: {
       top: 0,
@@ -999,9 +1004,9 @@ async function submitAdhoc() {
                     data: history
                       .slice()
                       .reverse()
-                      .map((p) => new Date(p.createdAt).toLocaleTimeString()),
+                      .map((p) => formatChartLabel(p.createdAt)),
                   },
-                  yAxis: { type: 'value', min: 0 },
+                  yAxis: { type: 'value', min: 0, splitLine: { show: false } },
                   // 默认隐藏延迟图层
                   legend: {
                     top: 0,

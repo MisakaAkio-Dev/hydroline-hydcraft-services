@@ -572,14 +572,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-8">
+  <div class="space-y-6">
     <header>
       <h2 class="text-2xl font-semibold text-slate-900 dark:text-white">
-        Portal 首页配置
+        门户首页管理
       </h2>
-      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        管理 Hero 背景、导航按钮与卡片可见性，所有改动实时保存至后端配置中心。
-      </p>
     </header>
 
     <UAlert
@@ -668,7 +665,7 @@ onMounted(() => {
           v-if="heroBackgrounds.length === 0"
           class="rounded-2xl border border-dashed border-slate-300/70 bg-slate-50/70 p-6 text-sm text-slate-500 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-300"
         >
-          暂无背景图，请通过下方表单新增一张背景图。
+          暂无背景图，请通过下方表单新增一张背景图
         </div>
 
         <div class="grid gap-4 md:grid-cols-2">
@@ -911,7 +908,7 @@ onMounted(() => {
           v-if="navigationItems.length === 0"
           class="rounded-2xl border border-dashed border-slate-300/70 bg-slate-50/70 p-6 text-sm text-slate-500 dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300"
         >
-          暂无导航链接，请在下方新增。
+          暂无导航链接，请在下方新增
         </div>
 
         <div class="space-y-4">
@@ -1280,7 +1277,7 @@ onMounted(() => {
       :ui="{
         content: 'w-full max-w-sm',
         wrapper: 'z-[140]',
-        overlay: 'z-[130] bg-slate-950/40 backdrop-blur-sm'
+        overlay: 'z-[130] bg-slate-950/40 backdrop-blur-sm',
       }"
     >
       <template #content>

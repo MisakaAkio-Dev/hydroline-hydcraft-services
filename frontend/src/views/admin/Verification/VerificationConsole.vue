@@ -395,10 +395,6 @@ watch(
     <section
       class="rounded-3xl border border-slate-200/70 bg-white/80 text-sm dark:border-slate-800/60 dark:bg-slate-900/70"
     >
-      <header class="flex items-center justify-between px-5 py-4">
-        <h3 class="text-base font-semibold">未验证邮箱的用户</h3>
-        <div class="text-xs text-slate-500">共 {{ total }} 人</div>
-      </header>
       <div class="overflow-x-auto">
         <table
           class="min-w-full divide-y divide-slate-200 dark:divide-slate-800"
@@ -472,7 +468,7 @@ watch(
       <footer
         class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-5 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
       >
-        <span>第 {{ page }} / {{ pageCount }} 页</span>
+        <span>第 {{ page }} / {{ pageCount }} 页，共 {{ total }} 人</span>
         <div class="flex items-center gap-2">
           <UButton
             size="xs"

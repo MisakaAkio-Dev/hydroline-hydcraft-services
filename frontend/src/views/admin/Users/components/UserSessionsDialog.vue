@@ -63,7 +63,7 @@ function fmtDateTime(ts?: string | null, format = 'YYYY-MM-DD HH:mm') {
             v-if="sessions.length === 0"
             class="text-xs text-slate-500 dark:text-slate-400"
           >
-            暂无登录记录。
+            暂无登录记录
           </li>
         </ul>
       </div>

@@ -34,6 +34,21 @@ const loadingNamespaces = ref(false)
 const loadingEntries = ref(false)
 const submitting = ref(false)
 
+const namespaceDetailOpen = ref(false)
+
+const page = ref(1)
+const pageSize = ref(10)
+const safePageCount = computed(() =>
+  Math.max(Math.ceil((namespaces.value.length || 0) / pageSize.value), 1),
+)
+const isFirstPage = computed(() => page.value <= 1)
+const isLastPage = computed(() => page.value >= safePageCount.value)
+const pageInput = ref<number | null>(null)
+const pagedNamespaces = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return namespaces.value.slice(start, start + pageSize.value)
+})
+
 const namespaceForm = reactive({
   key: '',
   name: '',
@@ -71,14 +86,10 @@ async function fetchNamespaces() {
       token: authStore.token ?? undefined,
     })
     namespaces.value = data
-    if (!selectedNamespaceId.value && data.length > 0) {
-      selectedNamespaceId.value = data[0].id
-      await fetchEntries(data[0].id)
-    } else if (selectedNamespaceId.value) {
+    if (selectedNamespaceId.value) {
       const exists = data.find((item) => item.id === selectedNamespaceId.value)
-      if (!exists && data.length > 0) {
-        selectedNamespaceId.value = data[0].id
-        await fetchEntries(data[0].id)
+      if (!exists) {
+        selectedNamespaceId.value = null
       }
     }
   } catch (error) {
@@ -108,6 +119,31 @@ function selectNamespace(namespaceId: string) {
   if (selectedNamespaceId.value === namespaceId) return
   selectedNamespaceId.value = namespaceId
   void fetchEntries(namespaceId)
+}
+
+function openNamespaceDetail(namespaceId: string) {
+  selectedNamespaceId.value = namespaceId
+  void fetchEntries(namespaceId)
+  namespaceDetailOpen.value = true
+}
+
+function closeNamespaceDetail() {
+  namespaceDetailOpen.value = false
+}
+
+function editNamespace(namespaceId: string) {
+  selectedNamespaceId.value = namespaceId
+  openNamespaceModal('edit')
+}
+
+function goToPage(target: number) {
+  const next = Math.min(Math.max(1, target), safePageCount.value)
+  page.value = next
+}
+
+function handlePageInput() {
+  if (!pageInput.value) return
+  goToPage(pageInput.value)
 }
 
 async function submitNamespace() {
@@ -433,178 +469,321 @@ watch(deleteModalOpen, (open) => {
   }
 })
 
+watch(namespaceDetailOpen, (open) => {
+  if (!open) {
+    pageInput.value = null
+  }
+})
+
 onMounted(() => {
   void fetchNamespaces()
 })
 </script>
 
 <template>
-  <section class="flex w-full flex-col gap-8 px-4 pb-10 lg:px-10">
-    <header class="flex flex-col gap-2">
+  <div class="space-y-6">
+    <header
+      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+    >
       <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
         配置中心
       </h1>
-      <p class="text-sm text-slate-600 dark:text-slate-300">
-        维护站点与客户端所需的动态 Key-Value 配置，可按命名空间分类管理。
-      </p>
+
+      <UButton
+        color="primary"
+        variant="ghost"
+        icon="i-lucide-plus"
+        @click="openNamespaceModal('create')"
+        >新建命名空间</UButton
+      >
     </header>
 
-    <div class="grid gap-6 lg:grid-cols-[300px_1fr]">
-      <aside class="space-y-4">
-        <UCard class="bg-white/80 p-4 dark:bg-slate-900/70">
-          <template #header>
-            <div class="flex items-center justify-between gap-2">
-              <h2 class="text-sm font-semibold text-slate-900 dark:text-white">
-                命名空间
-              </h2>
-              <div class="flex gap-2">
-                <UButton
-                  size="xs"
-                  color="primary"
-                  variant="soft"
-                  icon="i-lucide-plus"
-                  class="items-center"
-                  @click="openNamespaceModal('create')"
+    <section class="space-y-3">
+      <div
+        class="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
+      >
+        <div class="overflow-x-auto">
+          <table
+            class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800"
+          >
+            <thead
+              class="bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/70 dark:text-slate-400"
+            >
+              <tr>
+                <th class="px-4 py-3 text-left">名称</th>
+                <th class="px-4 py-3 text-left">Key</th>
+                <th class="px-4 py-3 text-left">配置项</th>
+                <th class="px-4 py-3 text-left">说明</th>
+                <th class="px-4 py-3 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody
+              v-if="!loadingNamespaces"
+              class="divide-y divide-slate-100 dark:divide-slate-800/70"
+            >
+              <tr
+                v-for="ns in pagedNamespaces"
+                :key="ns.id"
+                class="transition hover:bg-slate-50/60 dark:hover:bg-slate-900/50"
+              >
+                <td
+                  class="px-4 py-3 font-medium text-slate-900 dark:text-white"
                 >
-                  新增
-                </UButton>
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="outline"
-                  icon="i-lucide-pencil"
-                  class="items-center"
-                  :disabled="!selectedNamespaceId"
-                  @click="openNamespaceModal('edit')"
+                  {{ ns.name }}
+                </td>
+                <td class="px-4 py-3 text-slate-700 dark:text-slate-200">
+                  {{ ns.key }}
+                </td>
+                <td class="px-4 py-3 text-slate-700 dark:text-slate-200">
+                  {{ ns._count?.entries ?? 0 }}
+                </td>
+                <td
+                  class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400"
                 >
-                  编辑
-                </UButton>
-              </div>
+                  {{ ns.description ?? '—' }}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex justify-end gap-2">
+                    <UButton
+                      size="xs"
+                      color="primary"
+                      variant="soft"
+                      @click="openNamespaceDetail(ns.id)"
+                      >查看</UButton
+                    >
+                    <UButton
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      @click="editNamespace(ns.id)"
+                      >编辑</UButton
+                    >
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="pagedNamespaces.length === 0">
+                <td
+                  colspan="5"
+                  class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
+                >
+                  暂无命名空间。
+                </td>
+              </tr>
+            </tbody>
+            <tbody v-else>
+              <tr>
+                <td
+                  colspan="5"
+                  class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
+                >
+                  加载中...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
+        >
+          <span
+            >第 {{ page }} / {{ safePageCount }} 页，共
+            {{ namespaces.length }} 个命名空间</span
+          >
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :disabled="isFirstPage || loadingNamespaces"
+              @click="goToPage(1)"
+              >首页</UButton
+            >
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :disabled="isFirstPage || loadingNamespaces"
+              @click="goToPage(page - 1)"
+              >上一页</UButton
+            >
+            <div class="flex items-center gap-1">
+              <UInput
+                v-model.number="pageInput"
+                type="number"
+                size="xs"
+                class="w-16 text-center"
+                :disabled="loadingNamespaces"
+                min="1"
+                :max="safePageCount"
+                @keydown.enter.prevent="handlePageInput"
+              />
+              <span class="text-xs text-slate-500 dark:text-slate-400"
+                >/ {{ safePageCount }}</span
+              >
             </div>
-          </template>
-          <div class="space-y-2">
-            <button
-              v-for="ns in namespaces"
-              :key="ns.id"
-              type="button"
-              class="w-full rounded-lg border px-3 py-2 text-left text-sm transition"
-              :class="[
-                selectedNamespaceId === ns.id
-                  ? 'border-primary-300 bg-primary-50 text-primary-700 dark:border-primary-500/60 dark:bg-primary-500/10 dark:text-primary-200'
-                  : 'border-slate-200 hover:border-primary-200 dark:border-slate-700 dark:hover:border-primary-400',
-              ]"
-              @click="selectNamespace(ns.id)"
+            <UButton
+              color="neutral"
+              variant="soft"
+              size="xs"
+              :disabled="loadingNamespaces"
+              @click="handlePageInput"
+              >跳转</UButton
             >
-              <p class="font-medium">{{ ns.name }}</p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                {{ ns.key }}
-              </p>
-              <p class="text-xs text-slate-400 dark:text-slate-500">
-                配置项：{{ ns._count?.entries ?? 0 }}
-              </p>
-            </button>
-            <p
-              v-if="!namespaces.length && !loadingNamespaces"
-              class="text-xs text-slate-500"
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :disabled="isLastPage || loadingNamespaces"
+              @click="goToPage(page + 1)"
+              >下一页</UButton
             >
-              暂无命名空间，请先创建。
-            </p>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :disabled="isLastPage || loadingNamespaces"
+              @click="goToPage(safePageCount)"
+              >末页</UButton
+            >
           </div>
-        </UCard>
-      </aside>
+        </div>
+      </div>
+    </section>
 
-      <main class="space-y-6">
-        <UCard class="bg-white/80 p-6 dark:bg-slate-900/70">
+    <UModal
+      :open="namespaceDetailOpen"
+      @update:open="namespaceDetailOpen = $event"
+      :ui="{ overlay: 'z-[50]', content: 'z-[50] w-full max-w-4xl' }"
+    >
+      <template #content>
+        <UCard>
           <template #header>
-            <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center justify-between">
               <div>
-                <h2
+                <h3
                   class="text-lg font-semibold text-slate-900 dark:text-white"
                 >
                   {{ selectedNamespace?.name ?? '未选择命名空间' }}
-                </h2>
-                <p class="text-xs text-slate-500">
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
                   {{
                     selectedNamespace?.description ??
                     selectedNamespace?.key ??
-                    '请选择左侧命名空间以查看配置项'
+                    '—'
                   }}
                 </p>
               </div>
-              <UButton
-                v-if="selectedNamespaceId"
-                size="sm"
-                color="primary"
-                class="shrink-0 justify-center items-center"
-                @click="openCreateModal"
-              >
-                新增配置项
-              </UButton>
+              <div class="flex gap-2">
+                <UButton
+                  v-if="selectedNamespaceId"
+                  size="xs"
+                  color="primary"
+                  @click="openCreateModal"
+                  >新增配置项</UButton
+                >
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  @click="closeNamespaceDetail"
+                  >关闭</UButton
+                >
+              </div>
             </div>
           </template>
 
-          <div v-if="!selectedNamespaceId" class="text-sm text-slate-500">
-            请选择命名空间以查看配置项。
-          </div>
-
-          <div v-else class="space-y-4">
-            <article
-              v-for="entry in entries"
-              :key="entry.id"
-              class="rounded-xl border border-slate-200/70 p-4 text-sm dark:border-slate-700/70"
+          <div class="space-y-4">
+            <div
+              class="rounded-2xl border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
             >
-              <header
-                class="mb-3 flex flex-wrap items-center justify-between gap-2"
-              >
-                <div>
-                  <p class="font-semibold text-slate-900 dark:text-white">
-                    {{ entry.key }}
-                  </p>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    更新于 {{ new Date(entry.updatedAt).toLocaleString() }} ·
-                    版本 {{ entry.version }}
-                  </p>
-                </div>
-                <div class="flex gap-2">
-                  <UButton
-                    size="xs"
-                    color="neutral"
-                    variant="outline"
-                    @click="openEdit(entry)"
-                    >编辑</UButton
+              <div class="overflow-x-auto">
+                <table
+                  class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800"
+                >
+                  <thead
+                    class="bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/70 dark:text-slate-400"
                   >
-                  <UButton
-                    size="xs"
-                    color="error"
-                    variant="soft"
-                    @click="requestDeleteEntry(entry)"
-                    >删除</UButton
+                    <tr>
+                      <th class="px-4 py-3 text-left">键</th>
+                      <th class="px-4 py-3 text-left">版本</th>
+                      <th class="px-4 py-3 text-left">更新时间</th>
+                      <th class="px-4 py-3 text-left">描述</th>
+                      <th class="px-4 py-3 text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    v-if="!loadingEntries"
+                    class="divide-y divide-slate-100 dark:divide-slate-800/70"
                   >
-                </div>
-              </header>
-              <p
-                v-if="entry.description"
-                class="mb-2 text-xs text-slate-500 dark:text-slate-400"
-              >
-                {{ entry.description }}
-              </p>
-              <pre
-                class="max-h-52 overflow-auto rounded-lg bg-slate-950/90 p-3 text-xs text-slate-100 dark:bg-slate-900/80"
-                >{{ JSON.stringify(entry.value, null, 2) }}</pre
-              >
-            </article>
-
-            <p
-              v-if="!entries.length && !loadingEntries"
-              class="text-sm text-slate-500"
-            >
-              该命名空间暂无配置项。
-            </p>
+                    <tr
+                      v-for="entry in entries"
+                      :key="entry.id"
+                      class="align-top"
+                    >
+                      <td
+                        class="px-4 py-3 font-medium text-slate-900 dark:text-white"
+                      >
+                        {{ entry.key }}
+                      </td>
+                      <td class="px-4 py-3">v{{ entry.version }}</td>
+                      <td class="px-4 py-3 text-xs">
+                        {{ new Date(entry.updatedAt).toLocaleString() }}
+                      </td>
+                      <td
+                        class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400"
+                      >
+                        {{ entry.description ?? '—' }}
+                      </td>
+                      <td class="px-4 py-3">
+                        <div class="flex justify-end gap-2">
+                          <UButton
+                            size="xs"
+                            color="neutral"
+                            variant="outline"
+                            @click="openEdit(entry)"
+                            >编辑</UButton
+                          >
+                          <UButton
+                            size="xs"
+                            color="error"
+                            variant="soft"
+                            @click="requestDeleteEntry(entry)"
+                            >删除</UButton
+                          >
+                        </div>
+                      </td>
+                    </tr>
+                    <tr v-if="entries.length === 0">
+                      <td
+                        colspan="5"
+                        class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
+                      >
+                        该命名空间暂无配置项。
+                      </td>
+                    </tr>
+                  </tbody>
+                  <tbody v-else>
+                    <tr>
+                      <td
+                        colspan="5"
+                        class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
+                      >
+                        加载中...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </UCard>
-      </main>
-    </div>
-    <UModal v-model:open="editModalOpen" :ui="{ content: 'w-full max-w-2xl' }">
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="editModalOpen"
+      :ui="{ overlay: 'z-[60]', content: 'z-[60] w-full max-w-2xl' }"
+    >
       <template #content>
         <form class="space-y-4 p-6" @submit.prevent="saveEdit">
           <header>
@@ -647,7 +826,7 @@ onMounted(() => {
 
     <UModal
       v-model:open="createEntryModalOpen"
-      :ui="{ content: 'w-full max-w-2xl' }"
+      :ui="{ overlay: 'z-[60]', content: 'z-[60] w-full max-w-2xl' }"
     >
       <template #content>
         <form class="space-y-4 p-6 text-sm" @submit.prevent="createEntry">
@@ -713,7 +892,7 @@ onMounted(() => {
 
     <UModal
       v-model:open="namespaceModalOpen"
-      :ui="{ content: 'w-full max-w-lg' }"
+      :ui="{ overlay: 'z-[60]', content: 'z-[60] w-full max-w-lg' }"
     >
       <template #content>
         <form class="space-y-4 p-6 text-sm" @submit.prevent="submitNamespace">
@@ -779,7 +958,10 @@ onMounted(() => {
       </template>
     </UModal>
 
-    <UModal v-model:open="deleteModalOpen" :ui="{ content: 'w-full max-w-md' }">
+    <UModal
+      v-model:open="deleteModalOpen"
+      :ui="{ overlay: 'z-[60]', content: 'z-[60] w-full max-w-md' }"
+    >
       <template #content>
         <div class="space-y-4 p-6 text-sm">
           <header>
@@ -806,5 +988,5 @@ onMounted(() => {
         </div>
       </template>
     </UModal>
-  </section>
+  </div>
 </template>

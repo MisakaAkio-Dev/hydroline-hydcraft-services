@@ -66,7 +66,7 @@ function fmtDateTime(ts?: string | null, format = 'YYYY-MM-DD HH:mm') {
             v-if="!loading && items.length === 0"
             class="text-xs text-slate-500 dark:text-slate-400"
           >
-            暂无流转记录。
+            暂无流转记录
           </li>
         </ul>
       </div>

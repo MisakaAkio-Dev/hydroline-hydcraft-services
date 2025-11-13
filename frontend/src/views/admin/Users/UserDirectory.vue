@@ -27,10 +27,6 @@ const sortOrder = computed(() => usersStore.sortOrder)
 const safePageCount = computed(() =>
   Math.max(pagination.value?.pageCount ?? 1, 1),
 )
-const isFirstPage = computed(() => (pagination.value?.page ?? 1) <= 1)
-const isLastPage = computed(
-  () => (pagination.value?.page ?? 1) >= safePageCount.value,
-)
 const pageInput = ref<number | null>(null)
 
 const roleOptions = computed(() =>
@@ -431,7 +427,6 @@ function extraEmails(user: AdminUserListItem) {
     (c) => c && c.value && !c.isPrimary && c.value !== user.email,
   )
 }
-
 </script>
 
 <template>
@@ -710,76 +705,79 @@ function extraEmails(user: AdminUserListItem) {
           </tr>
         </tbody>
       </table>
-    </div>
-
-    <div
-      class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
-    >
-      <span
-        >第 {{ pagination.page }} / {{ pagination.pageCount }} 页，共
-        {{ pagination.total }} 人</span
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
       >
-      <div class="flex flex-wrap items-center gap-2">
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          :disabled="isFirstPage || usersStore.loading"
-          @click="goToPage(1)"
-        >
-          首页
-        </UButton>
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          :disabled="isFirstPage || usersStore.loading"
-          @click="goToPage(pagination.page - 1)"
-        >
-          上一页
-        </UButton>
-        <div class="flex items-center gap-1">
-          <UInput
-            v-model.number="pageInput"
-            type="number"
+        <span>
+          第 {{ pagination.page }} / {{ pagination.pageCount }} 页，共
+          {{ pagination.total }} 人
+        </span>
+        <div class="flex flex-wrap items-center gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
             size="xs"
-            class="w-16 text-center"
+            :disabled="(pagination.page ?? 1) <= 1 || usersStore.loading"
+            @click="goToPage(1)"
+          >
+            首页
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :disabled="(pagination.page ?? 1) <= 1 || usersStore.loading"
+            @click="goToPage((pagination.page ?? 1) - 1)"
+          >
+            上一页
+          </UButton>
+          <div class="flex items-center gap-1">
+            <UInput
+              v-model.number="pageInput"
+              type="number"
+              size="xs"
+              class="w-16 text-center"
+              :disabled="usersStore.loading"
+              min="1"
+              :max="safePageCount"
+              @keydown.enter.prevent="handlePageInput"
+            />
+            <span class="text-xs text-slate-500 dark:text-slate-400">
+              / {{ safePageCount }}
+            </span>
+          </div>
+          <UButton
+            color="neutral"
+            variant="soft"
+            size="xs"
             :disabled="usersStore.loading"
-            min="1"
-            :max="safePageCount"
-            @keydown.enter.prevent="handlePageInput"
-          />
-          <span class="text-xs text-slate-500 dark:text-slate-400">
-            / {{ safePageCount }}
-          </span>
+            @click="handlePageInput"
+          >
+            跳转
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :disabled="
+              (pagination.page ?? 1) >= safePageCount || usersStore.loading
+            "
+            @click="goToPage((pagination.page ?? 1) + 1)"
+          >
+            下一页
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :disabled="
+              (pagination.page ?? 1) >= safePageCount || usersStore.loading
+            "
+            @click="goToPage(pagination.pageCount)"
+          >
+            末页
+          </UButton>
         </div>
-        <UButton
-          color="neutral"
-          variant="soft"
-          size="xs"
-          :disabled="usersStore.loading"
-          @click="handlePageInput"
-        >
-          跳转
-        </UButton>
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          :disabled="isLastPage || usersStore.loading"
-          @click="goToPage(pagination.page + 1)"
-        >
-          下一页
-        </UButton>
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          :disabled="isLastPage || usersStore.loading"
-          @click="goToPage(pagination.pageCount)"
-        >
-          末页
-        </UButton>
       </div>
     </div>
 
@@ -916,6 +914,5 @@ function extraEmails(user: AdminUserListItem) {
       "
       @open-user="openUserDetailFromPlayer"
     />
-
   </div>
 </template>

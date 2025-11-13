@@ -23,10 +23,7 @@ const rolesPaginatedItems = computed(() => {
 const rolesPageCount = computed(
   () => Math.ceil(rbacStore.roles.length / pageSize) || 1,
 )
-const rolesIsFirstPage = computed(() => rolesCurrentPage.value <= 1)
-const rolesIsLastPage = computed(
-  () => rolesCurrentPage.value >= rolesPageCount.value,
-)
+//
 
 // 权限分页
 const permissionsPageInput = ref(1)
@@ -39,10 +36,7 @@ const permissionsPaginatedItems = computed(() => {
 const permissionsPageCount = computed(
   () => Math.ceil(rbacStore.permissions.length / pageSize) || 1,
 )
-const permissionsIsFirstPage = computed(() => permissionsCurrentPage.value <= 1)
-const permissionsIsLastPage = computed(
-  () => permissionsCurrentPage.value >= permissionsPageCount.value,
-)
+//
 
 // 标签分页
 const labelsPageInput = ref(1)
@@ -55,10 +49,7 @@ const labelsPaginatedItems = computed(() => {
 const labelsPageCount = computed(
   () => Math.ceil(rbacStore.labels.length / pageSize) || 1,
 )
-const labelsIsFirstPage = computed(() => labelsCurrentPage.value <= 1)
-const labelsIsLastPage = computed(
-  () => labelsCurrentPage.value >= labelsPageCount.value,
-)
+//
 
 const roles = computed(() => rbacStore.roles)
 const permissions = computed(() => rbacStore.permissions)
@@ -311,35 +302,30 @@ function goToPage(page: number, type: 'roles' | 'permissions' | 'labels') {
 }
 
 function handlePageInput(type: 'roles' | 'permissions' | 'labels') {
-  const pageInput =
+  const pageInputRef =
     type === 'roles'
       ? rolesPageInput
       : type === 'permissions'
         ? permissionsPageInput
         : labelsPageInput
-
-  if (pageInput.value === null || Number.isNaN(pageInput.value)) {
-    const currentPage =
-      type === 'roles'
-        ? rolesCurrentPage.value
-        : type === 'permissions'
-          ? permissionsCurrentPage.value
-          : labelsCurrentPage.value
-    pageInput.value = currentPage
-    return
-  }
-
   const pageCount =
     type === 'roles'
       ? rolesPageCount.value
       : type === 'permissions'
         ? permissionsPageCount.value
         : labelsPageCount.value
-  const normalized = Math.max(
-    1,
-    Math.min(Math.trunc(pageInput.value), pageCount),
-  )
-  pageInput.value = normalized
+  const currentPage =
+    type === 'roles'
+      ? rolesCurrentPage.value
+      : type === 'permissions'
+        ? permissionsCurrentPage.value
+        : labelsCurrentPage.value
+  if (pageInputRef.value === null || Number.isNaN(pageInputRef.value)) {
+    pageInputRef.value = currentPage
+    return
+  }
+  const normalized = Math.max(1, Math.min(Math.trunc(pageInputRef.value), pageCount))
+  pageInputRef.value = normalized
   goToPage(normalized, type)
 }
 
@@ -504,75 +490,72 @@ watch(
             </tr>
           </tbody>
         </table>
-      </div>
-      <div
-        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
-      >
-        <span
-          >第 {{ rolesCurrentPage }} / {{ rolesPageCount }} 页，共
-          {{ roles.length }} 个角色</span
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
         >
-        <div class="flex flex-wrap items-center gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="rolesIsFirstPage"
-            @click="goToPage(1, 'roles')"
+          <span
+            >第 {{ rolesCurrentPage }} / {{ rolesPageCount }} 页，共
+            {{ roles.length }} 个角色</span
           >
-            首页
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="rolesIsFirstPage"
-            @click="goToPage(rolesCurrentPage - 1, 'roles')"
-          >
-            上一页
-          </UButton>
-          <div class="flex items-center gap-1">
-            <UInput
-              v-model.number="rolesPageInput"
-              type="number"
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
               size="xs"
-              class="w-16 text-center"
-              min="1"
-              :max="rolesPageCount"
-              @keydown.enter.prevent="handlePageInput('roles')"
-            />
-            <span class="text-xs text-slate-500 dark:text-slate-400">
-              / {{ rolesPageCount }}
-            </span>
+              @click="goToPage(1, 'roles')"
+            >
+              首页
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="goToPage(rolesCurrentPage - 1, 'roles')"
+            >
+              上一页
+            </UButton>
+            <div class="flex items-center gap-1">
+              <UInput
+                v-model.number="rolesPageInput"
+                type="number"
+                size="xs"
+                class="w-16 text-center"
+                min="1"
+                :max="rolesPageCount"
+                @keydown.enter.prevent="handlePageInput('roles')"
+              />
+              <span class="text-xs text-slate-500 dark:text-slate-400">
+                / {{ rolesPageCount }}
+              </span>
+            </div>
+            <UButton
+              color="neutral"
+              variant="soft"
+              size="xs"
+              @click="handlePageInput('roles')"
+            >
+              跳转
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="goToPage(rolesCurrentPage + 1, 'roles')"
+            >
+              下一页
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="goToPage(rolesPageCount, 'roles')"
+            >
+              末页
+            </UButton>
           </div>
-          <UButton
-            color="neutral"
-            variant="soft"
-            size="xs"
-            @click="handlePageInput('roles')"
-          >
-            跳转
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="rolesIsLastPage"
-            @click="goToPage(rolesCurrentPage + 1, 'roles')"
-          >
-            下一页
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="rolesIsLastPage"
-            @click="goToPage(rolesPageCount, 'roles')"
-          >
-            末页
-          </UButton>
         </div>
       </div>
+      
     </div>
 
     <div v-else-if="activeTab === 'permissions'" class="space-y-4">
@@ -613,73 +596,69 @@ watch(
             </tr>
           </tbody>
         </table>
-      </div>
-      <div
-        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
-      >
-        <span
-          >第 {{ permissionsCurrentPage }} / {{ permissionsPageCount }} 页，共
-          {{ permissions.length }} 个权限</span
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
         >
-        <div class="flex flex-wrap items-center gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="permissionsIsFirstPage"
-            @click="goToPage(1, 'permissions')"
+          <span
+            >第 {{ permissionsCurrentPage }} / {{ permissionsPageCount }} 页，共
+            {{ permissions.length }} 个权限</span
           >
-            首页
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="permissionsIsFirstPage"
-            @click="goToPage(permissionsCurrentPage - 1, 'permissions')"
-          >
-            上一页
-          </UButton>
-          <div class="flex items-center gap-1">
-            <UInput
-              v-model.number="permissionsPageInput"
-              type="number"
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
               size="xs"
-              class="w-16 text-center"
-              min="1"
-              :max="permissionsPageCount"
-              @keydown.enter.prevent="handlePageInput('permissions')"
-            />
-            <span class="text-xs text-slate-500 dark:text-slate-400">
-              / {{ permissionsPageCount }}
-            </span>
+              @click="goToPage(1, 'permissions')"
+            >
+              首页
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="goToPage(permissionsCurrentPage - 1, 'permissions')"
+            >
+              上一页
+            </UButton>
+            <div class="flex items-center gap-1">
+              <UInput
+                v-model.number="permissionsPageInput"
+                type="number"
+                size="xs"
+                class="w-16 text-center"
+                min="1"
+                :max="permissionsPageCount"
+                @keydown.enter.prevent="handlePageInput('permissions')"
+              />
+              <span class="text-xs text-slate-500 dark:text-slate-400">
+                / {{ permissionsPageCount }}
+              </span>
+            </div>
+            <UButton
+              color="neutral"
+              variant="soft"
+              size="xs"
+              @click="handlePageInput('permissions')"
+            >
+              跳转
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="goToPage(permissionsCurrentPage + 1, 'permissions')"
+            >
+              下一页
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="goToPage(permissionsPageCount, 'permissions')"
+            >
+              末页
+            </UButton>
           </div>
-          <UButton
-            color="neutral"
-            variant="soft"
-            size="xs"
-            @click="handlePageInput('permissions')"
-          >
-            跳转
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="permissionsIsLastPage"
-            @click="goToPage(permissionsCurrentPage + 1, 'permissions')"
-          >
-            下一页
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="permissionsIsLastPage"
-            @click="goToPage(permissionsPageCount, 'permissions')"
-          >
-            末页
-          </UButton>
         </div>
       </div>
     </div>
@@ -753,75 +732,72 @@ watch(
             </tr>
           </tbody>
         </table>
-      </div>
-      <div
-        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
-      >
-        <span
-          >第 {{ labelsCurrentPage }} / {{ labelsPageCount }} 页，共
-          {{ labels.length }} 个标签</span
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
         >
-        <div class="flex flex-wrap items-center gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="labelsIsFirstPage"
-            @click="goToPage(1, 'labels')"
+          <span
+            >第 {{ labelsCurrentPage }} / {{ labelsPageCount }} 页，共
+            {{ labels.length }} 个标签</span
           >
-            首页
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="labelsIsFirstPage"
-            @click="goToPage(labelsCurrentPage - 1, 'labels')"
-          >
-            上一页
-          </UButton>
-          <div class="flex items-center gap-1">
-            <UInput
-              v-model.number="labelsPageInput"
-              type="number"
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
               size="xs"
-              class="w-16 text-center"
-              min="1"
-              :max="labelsPageCount"
-              @keydown.enter.prevent="handlePageInput('labels')"
-            />
-            <span class="text-xs text-slate-500 dark:text-slate-400">
-              / {{ labelsPageCount }}
-            </span>
+              @click="goToPage(1, 'labels')"
+            >
+              首页
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="goToPage(labelsCurrentPage - 1, 'labels')"
+            >
+              上一页
+            </UButton>
+            <div class="flex items-center gap-1">
+              <UInput
+                v-model.number="labelsPageInput"
+                type="number"
+                size="xs"
+                class="w-16 text-center"
+                min="1"
+                :max="labelsPageCount"
+                @keydown.enter.prevent="handlePageInput('labels')"
+              />
+              <span class="text-xs text-slate-500 dark:text-slate-400">
+                / {{ labelsPageCount }}
+              </span>
+            </div>
+            <UButton
+              color="neutral"
+              variant="soft"
+              size="xs"
+              @click="handlePageInput('labels')"
+            >
+              跳转
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="goToPage(labelsCurrentPage + 1, 'labels')"
+            >
+              下一页
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="goToPage(labelsPageCount, 'labels')"
+            >
+              末页
+            </UButton>
           </div>
-          <UButton
-            color="neutral"
-            variant="soft"
-            size="xs"
-            @click="handlePageInput('labels')"
-          >
-            跳转
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="labelsIsLastPage"
-            @click="goToPage(labelsCurrentPage + 1, 'labels')"
-          >
-            下一页
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :disabled="labelsIsLastPage"
-            @click="goToPage(labelsPageCount, 'labels')"
-          >
-            末页
-          </UButton>
         </div>
       </div>
+
     </div>
 
     <div v-else-if="activeTab === 'catalog'" class="space-y-4">

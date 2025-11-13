@@ -21,10 +21,6 @@ const degradedMessage = computed(() => playersStore.error)
 const safePageCount = computed(() =>
   Math.max(pagination.value?.pageCount ?? 1, 1),
 )
-const isFirstPage = computed(() => (pagination.value?.page ?? 1) <= 1)
-const isLastPage = computed(
-  () => (pagination.value?.page ?? 1) >= safePageCount.value,
-)
 const pageInput = ref<number | null>(null)
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -100,9 +96,8 @@ watch(
 )
 
 async function goToPage(page: number) {
-  if (page === pagination.value.page || page < 1 || page > safePageCount.value)
-    return
-  await refresh(page)
+  const target = Math.max(1, Math.min(page, safePageCount.value))
+  await refresh(target)
 }
 
 function handlePageInput() {
@@ -227,11 +222,7 @@ async function submitEntry() {
 }
 
 function resolvedPlayerUsername(player: AdminPlayerEntry | null) {
-  return (
-    player?.authme?.username ??
-    player?.binding?.authmeUsername ??
-    null
-  )
+  return player?.authme?.username ?? player?.binding?.authmeUsername ?? null
 }
 
 function openPlayerDetail(player: AdminPlayerEntry) {
@@ -543,81 +534,84 @@ async function handleUserDeletedFromDialog() {
               colspan="8"
               class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
             >
-              暂无玩家数据。
+              暂无玩家数据
             </td>
           </tr>
         </tbody>
       </table>
-    </div>
-
-    <div
-      class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:text-slate-300"
-    >
-      <span>
-        第 {{ pagination.page }} / {{ pagination.pageCount }} 页，共
-        {{ pagination.total }} 名玩家
-      </span>
-      <div class="flex flex-wrap items-center gap-2">
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          :disabled="isFirstPage || playersStore.loading"
-          @click="goToPage(1)"
-        >
-          首页
-        </UButton>
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          :disabled="isFirstPage || playersStore.loading"
-          @click="goToPage(pagination.page - 1)"
-        >
-          上一页
-        </UButton>
-        <div class="flex items-center gap-1">
-          <UInput
-            v-model.number="pageInput"
-            type="number"
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
+      >
+        <span>
+          第 {{ pagination.page }} / {{ pagination.pageCount }} 页，共
+          {{ pagination.total }} 名玩家
+        </span>
+        <div class="flex flex-wrap items-center gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
             size="xs"
-            class="w-16 text-center"
+            :disabled="(pagination.page ?? 1) <= 1 || playersStore.loading"
+            @click="goToPage(1)"
+          >
+            首页
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :disabled="(pagination.page ?? 1) <= 1 || playersStore.loading"
+            @click="goToPage((pagination.page ?? 1) - 1)"
+          >
+            上一页
+          </UButton>
+          <div class="flex items-center gap-1">
+            <UInput
+              v-model.number="pageInput"
+              type="number"
+              size="xs"
+              class="w-16 text-center"
+              :disabled="playersStore.loading"
+              min="1"
+              :max="safePageCount"
+              @keydown.enter.prevent="handlePageInput"
+            />
+            <span class="text-xs text-slate-500 dark:text-slate-400">
+              / {{ safePageCount }}
+            </span>
+          </div>
+          <UButton
+            color="neutral"
+            variant="soft"
+            size="xs"
             :disabled="playersStore.loading"
-            min="1"
-            :max="safePageCount"
-            @keydown.enter.prevent="handlePageInput"
-          />
-          <span class="text-xs text-slate-500 dark:text-slate-400">
-            / {{ safePageCount }}
-          </span>
+            @click="handlePageInput"
+          >
+            跳转
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :disabled="
+              (pagination.page ?? 1) >= safePageCount || playersStore.loading
+            "
+            @click="goToPage((pagination.page ?? 1) + 1)"
+          >
+            下一页
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :disabled="
+              (pagination.page ?? 1) >= safePageCount || playersStore.loading
+            "
+            @click="goToPage(pagination.pageCount)"
+          >
+            末页
+          </UButton>
         </div>
-        <UButton
-          color="neutral"
-          variant="soft"
-          size="xs"
-          :disabled="playersStore.loading"
-          @click="handlePageInput"
-        >
-          跳转
-        </UButton>
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          :disabled="isLastPage || playersStore.loading"
-          @click="goToPage(pagination.page + 1)"
-        >
-          下一页
-        </UButton>
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          :disabled="isLastPage || playersStore.loading"
-          @click="goToPage(pagination.pageCount)"
-        >
-          末页
-        </UButton>
       </div>
     </div>
   </div>
@@ -662,7 +656,7 @@ async function handleUserDeletedFromDialog() {
             v-if="!historyLoading && timelineItems.length === 0"
             class="text-center text-sm text-slate-500"
           >
-            暂无记录。
+            暂无记录
           </li>
         </ul>
       </div>
@@ -769,13 +763,15 @@ async function handleUserDeletedFromDialog() {
     :open="playerDetailDialogOpen"
     :username="playerDetailDialogUsername"
     :initial-player="playerDetailDialogInitial"
-    @update:open="(value) => {
-      playerDetailDialogOpen = value
-      if (!value) {
-        playerDetailDialogUsername = null
-        playerDetailDialogInitial = null
+    @update:open="
+      (value) => {
+        playerDetailDialogOpen = value
+        if (!value) {
+          playerDetailDialogUsername = null
+          playerDetailDialogInitial = null
+        }
       }
-    }"
+    "
     @open-user="openUserDetailFromPlayerDialog"
   />
 
@@ -783,13 +779,15 @@ async function handleUserDeletedFromDialog() {
     :open="userDetailDialogOpen"
     :user-id="userDetailDialogUserId"
     :user-summary="userDetailDialogSummary"
-    @update:open="(value) => {
-      userDetailDialogOpen = value
-      if (!value) {
-        userDetailDialogUserId = null
-        userDetailDialogSummary = null
+    @update:open="
+      (value) => {
+        userDetailDialogOpen = value
+        if (!value) {
+          userDetailDialogUserId = null
+          userDetailDialogSummary = null
+        }
       }
-    }"
+    "
     @deleted="handleUserDeletedFromDialog"
   />
 </template>

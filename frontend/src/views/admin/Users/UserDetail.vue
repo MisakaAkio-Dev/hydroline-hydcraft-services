@@ -1244,7 +1244,7 @@ async function confirmDelete() {
           v-else
           class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400"
         >
-          暂无邮箱记录。
+          暂无邮箱记录
         </div>
         <div class="space-y-2">
           <label
@@ -1386,7 +1386,7 @@ async function confirmDelete() {
             v-if="(detail?.contacts?.length ?? 0) === 0"
             class="text-xs text-slate-500 dark:text-slate-400"
           >
-            暂无联系方式。
+            暂无联系方式
           </li>
         </ul>
       </div>

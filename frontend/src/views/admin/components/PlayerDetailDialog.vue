@@ -453,7 +453,7 @@ function openBoundUser() {
                     v-else
                     class="mt-2 text-sm text-slate-500 dark:text-slate-400"
                   >
-                    暂无绑定历史。
+                    暂无绑定历史
                   </p>
                 </div>
               </div>
@@ -463,7 +463,7 @@ function openBoundUser() {
             v-else
             class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400"
           >
-            暂无可展示的玩家信息。
+            暂无可展示的玩家信息
           </div>
         </div>
       </div>
