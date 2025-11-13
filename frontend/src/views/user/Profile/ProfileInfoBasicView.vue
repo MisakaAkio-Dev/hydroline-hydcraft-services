@@ -394,6 +394,7 @@ watch(
       :model-value="{
         name: form.name,
         displayName: form.displayName,
+        piic: (auth.user as any)?.profile?.piic ?? '',
         email: form.email,
         gender: form.gender,
         birthday: form.birthday,

@@ -131,12 +131,7 @@ export class VerificationAdminController {
     );
 
     const where: Prisma.UserWhereInput = {
-      contacts: {
-        some: {
-          channel: { key: 'email' },
-          verification: ContactVerificationStatus.UNVERIFIED,
-        },
-      },
+      emailVerified: false,
     };
 
     const [items, total] = await this.prisma.$transaction([

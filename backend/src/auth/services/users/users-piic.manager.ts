@@ -1,17 +1,17 @@
 import { PIICStatus } from '@prisma/client';
 import { UsersServiceContext } from './users.context';
 import { ensureUser } from './users-core.manager';
-import { generatePiic, toJsonValue } from './users.helpers';
+import { generatePiic } from './users.helpers';
 import { RegeneratePiicDto } from '../../dto/regenerate-piic.dto';
 
 export async function regeneratePiic(
   ctx: UsersServiceContext,
   userId: string,
-  dto: RegeneratePiicDto,
-  actorId?: string,
+  _dto: RegeneratePiicDto,
+  _actorId?: string,
 ) {
   await ensureUser(ctx, userId);
-  const newPiic = await generatePiic(ctx, ctx.prisma);
+  const newPiic = await generatePiic(ctx, ctx.prisma, userId);
   const now = new Date();
 
   const result = await ctx.prisma.$transaction(async (tx) => {
@@ -33,7 +33,7 @@ export async function regeneratePiic(
       data: {
         status: PIICStatus.REVOKED,
         revokedAt: now,
-        revokedById: actorId,
+        revokedById: null,
       },
     });
 
@@ -42,9 +42,6 @@ export async function regeneratePiic(
         userId,
         piic: newPiic,
         status: PIICStatus.ACTIVE,
-        reason: dto.reason ?? 'regenerated',
-        metadata: toJsonValue({ actorId }),
-        generatedById: actorId,
       },
     });
 

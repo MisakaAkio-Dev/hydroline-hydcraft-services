@@ -62,7 +62,7 @@ import { RegeneratePiicDto } from '../../dto/regenerate-piic.dto';
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
-  private readonly piicPrefix = 'HC';
+  private readonly piicPrefix = 'H';
   private readonly emailVerificationIdentifierPrefix = 'email-verify:';
   private readonly verificationTtlMs = 10 * 60 * 1000;
   private readonly ctx: UsersServiceContext;

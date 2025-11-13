@@ -103,13 +103,12 @@ export const useAdminUsersStore = defineStore('admin-users', {
         },
       )
     },
-    async regeneratePiic(userId: string, reason?: string) {
+    async regeneratePiic(userId: string) {
       const auth = useAuthStore()
       if (!auth.token) throw new Error('未登录，无法生成 PIIC')
       await apiFetch(`/auth/users/${userId}/piic/regenerate`, {
         method: 'POST',
         token: auth.token,
-        body: reason ? { reason } : {},
       })
       await this.fetch({ page: this.pagination.page })
     },

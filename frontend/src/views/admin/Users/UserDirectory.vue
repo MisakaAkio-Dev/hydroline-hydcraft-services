@@ -49,7 +49,6 @@ const labelUpdatingId = ref<string | null>(null)
 
 const piicDialogOpen = ref(false)
 const piicDialogUser = ref<AdminUserListItem | null>(null)
-const piicReason = ref('')
 const piicSubmitting = ref(false)
 
 const detailDialogOpen = ref(false)
@@ -161,20 +160,17 @@ function toggleSort(field: string) {
 
 function openPiicDialog(user: AdminUserListItem) {
   piicDialogUser.value = user
-  piicReason.value = ''
   piicDialogOpen.value = true
 }
 
 function closePiicDialog() {
   piicDialogOpen.value = false
   piicDialogUser.value = null
-  piicReason.value = ''
 }
 
 watch(piicDialogOpen, (value) => {
   if (!value) {
     piicDialogUser.value = null
-    piicReason.value = ''
   }
 })
 
@@ -240,10 +236,7 @@ async function confirmPiicRegeneration() {
   piicSubmitting.value = true
   uiStore.startLoading()
   try {
-    await usersStore.regeneratePiic(
-      piicDialogUser.value.id,
-      piicReason.value.trim() || undefined,
-    )
+    await usersStore.regeneratePiic(piicDialogUser.value.id)
     toast.add({ title: '已重新生成 PIIC', color: 'primary' })
     closePiicDialog()
   } catch (error) {
@@ -825,21 +818,8 @@ function extraEmails(user: AdminUserListItem) {
             />
           </div>
           <p class="text-xs text-slate-500 dark:text-slate-400">
-            将为用户重新生成 PIIC 编号，历史编号会作废。请填写备注以便审计记录。
+            将为用户重新生成 PIIC 编号，历史编号会作废。
           </p>
-          <div class="space-y-1">
-            <label
-              class="block text-xs font-medium text-slate-600 dark:text-slate-300"
-            >
-              备注（可选）
-            </label>
-            <UTextarea
-              v-model="piicReason"
-              class="w-full"
-              :rows="4"
-              placeholder="说明原因或操作背景"
-            />
-          </div>
           <div class="flex justify-end gap-2">
             <UButton color="neutral" variant="ghost" @click="closePiicDialog"
               >取消</UButton

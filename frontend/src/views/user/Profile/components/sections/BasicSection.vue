@@ -17,6 +17,7 @@ const props = defineProps<{
   modelValue: {
     name: string
     displayName: string
+    piic: string
     email: string
     gender: GenderType
     birthday: string
@@ -269,6 +270,30 @@ defineExpose({ forceEdit })
         class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
+          class="w-full flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
+        >
+          PIIC
+          <UTooltip text="玩家身份标识编码">
+            <button
+              type="button"
+              class="text-slate-400 transition hover:text-slate-600 focus:outline-none dark:text-slate-500 dark:hover:text-slate-300"
+            >
+              <UIcon name="i-lucide-info" class="h-4 w-4" />
+              <span class="sr-only">玩家身份标识编码</span>
+            </button>
+          </UTooltip>
+        </div>
+        <div class="flex-1">
+          <p class="text-sm text-slate-900 dark:text-slate-100">
+            {{ props.modelValue.piic }}
+          </p>
+        </div>
+      </div>
+
+      <div
+        class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
+      >
+        <div
           class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
         >
           名称
@@ -299,20 +324,18 @@ defineExpose({ forceEdit })
         class="flex flex-col gap-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 md:flex-row md:items-center md:gap-6"
       >
         <div
-          class="w-full text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
+          class="w-full flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300 md:w-40 md:flex-none"
         >
-          <span class="inline-flex items-center gap-1">
-            用户名
-            <UTooltip text="用户名每30天仅可修改一次">
-              <button
-                type="button"
-                class="text-slate-400 transition hover:text-slate-600 focus:outline-none dark:text-slate-500 dark:hover:text-slate-300"
-              >
-                <UIcon name="i-lucide-info" class="h-4 w-4" />
-                <span class="sr-only">用户名修改限制说明</span>
-              </button>
-            </UTooltip>
-          </span>
+          用户名
+          <UTooltip text="用户名每30天仅可修改一次">
+            <button
+              type="button"
+              class="text-slate-400 transition hover:text-slate-600 focus:outline-none dark:text-slate-500 dark:hover:text-slate-300"
+            >
+              <UIcon name="i-lucide-info" class="h-4 w-4" />
+              <span class="sr-only">用户名修改限制说明</span>
+            </button>
+          </UTooltip>
         </div>
         <div class="flex-1">
           <UInput

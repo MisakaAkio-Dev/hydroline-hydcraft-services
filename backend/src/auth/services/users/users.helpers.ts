@@ -115,13 +115,29 @@ export function toJsonValue(
 export async function generatePiic(
   ctx: UsersServiceContext,
   client: PrismaClientOrTx,
+  userId: string,
 ) {
+  const user = await client.user.findUnique({
+    where: { id: userId },
+    select: { joinDate: true, createdAt: true },
+  });
+
+  const baseDate = user?.joinDate ?? user?.createdAt ?? new Date();
+  const dateCandidate =
+    baseDate instanceof Date ? baseDate : new Date(baseDate ?? undefined);
+  const date = Number.isNaN(dateCandidate.getTime())
+    ? new Date()
+    : dateCandidate;
+  // Format: H + YYMMDD(join date) + 7 random uppercase characters
+  const yy = String(date.getUTCFullYear() % 100).padStart(2, '0');
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  const dateSegment = `${yy}${mm}${dd}`;
+
   let attempt = 0;
   while (attempt < 5) {
-    const piic = `${ctx.piicPrefix}${randomUUID()
-      .replace(/-/g, '')
-      .slice(0, 10)
-      .toUpperCase()}`;
+    const randomPart = randomUUID().replace(/-/g, '').slice(0, 7).toUpperCase();
+    const piic = `${ctx.piicPrefix}${dateSegment}${randomPart}`;
     const count = await client.userPiicHistory.count({ where: { piic } });
     if (count === 0) {
       return piic;

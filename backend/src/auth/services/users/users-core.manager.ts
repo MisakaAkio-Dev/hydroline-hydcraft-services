@@ -43,7 +43,7 @@ export async function initializeUserRecords(
   await ctx.prisma.$transaction(async (tx) => {
     const profile = await tx.userProfile.findUnique({ where: { userId } });
     if (!profile) {
-      const piic = await generatePiic(ctx, tx);
+      const piic = await generatePiic(ctx, tx, userId);
       await tx.userProfile.create({
         data: {
           userId,
@@ -781,7 +781,7 @@ export async function updateProfile(
       timezone: dto.timezone,
       locale: dto.locale,
       extra: toJson(dto.extra),
-      piic: await generatePiic(ctx, ctx.prisma),
+      piic: await generatePiic(ctx, ctx.prisma, userId),
       piicAssignedAt: new Date(),
     },
   });

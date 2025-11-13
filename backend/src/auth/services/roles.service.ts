@@ -117,7 +117,7 @@ export class RolesService {
         metadata:
           dto.metadata !== undefined
             ? this.toJson(dto.metadata)
-            : role.metadata ?? Prisma.JsonNull,
+            : (role.metadata ?? Prisma.JsonNull),
       },
     });
 
@@ -256,7 +256,7 @@ export class RolesService {
         metadata:
           dto.metadata !== undefined
             ? this.toJson(dto.metadata)
-            : permission.metadata ?? Prisma.JsonNull,
+            : (permission.metadata ?? Prisma.JsonNull),
       },
     });
 
@@ -475,7 +475,7 @@ export class RolesService {
           metadata:
             dto.metadata !== undefined
               ? this.toJson(dto.metadata)
-              : label.metadata ?? Prisma.JsonNull,
+              : (label.metadata ?? Prisma.JsonNull),
         },
       });
       if (dto.permissionKeys) {

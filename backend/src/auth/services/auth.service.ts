@@ -902,6 +902,17 @@ export class AuthService {
   }
 
   private async ensureDefaultAdmin() {
+    // First check if Administrator role already has any users
+    const adminRole = await this.prisma.role.findUnique({
+      where: { key: DEFAULT_ROLES.ADMIN },
+      include: { userRoles: { select: { id: true } } },
+    });
+
+    if (adminRole && adminRole.userRoles.length > 0) {
+      // Administrator role already has users, no need to do anything
+      return;
+    }
+
     const adminEmail = 'admin@hydcraft.local';
     const password = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123456';
     let admin = await this.prisma.user.findUnique({

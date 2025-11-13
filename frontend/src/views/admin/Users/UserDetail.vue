@@ -86,7 +86,6 @@ const roleSaving = ref(false)
 const labelSaving = ref(false)
 
 const piicDialogOpen = ref(false)
-const piicReason = ref('')
 const piicSubmitting = ref(false)
 
 const roleOptions = computed(() =>
@@ -808,20 +807,13 @@ async function handleLabelsUpdate(nextValue: unknown) {
 
 function openPiicDialog() {
   if (!detail.value) return
-  piicReason.value = ''
   piicDialogOpen.value = true
 }
 
 function closePiicDialog() {
   piicDialogOpen.value = false
-  piicReason.value = ''
 }
 
-watch(piicDialogOpen, (value) => {
-  if (!value) {
-    piicReason.value = ''
-  }
-})
 
 watch(passwordDialogOpen, (value) => {
   if (!value) {
@@ -858,7 +850,6 @@ async function confirmPiicRegeneration() {
     await apiFetch(`/auth/users/${detail.value.id}/piic/regenerate`, {
       method: 'POST',
       token: auth.token,
-      body: piicReason.value.trim() ? { reason: piicReason.value.trim() } : {},
     })
     toast.add({ title: 'PIIC 已重新生成', color: 'primary' })
     closePiicDialog()
@@ -1129,7 +1120,6 @@ async function confirmDelete() {
     :ui="{
       content: 'z-[1105] w-full max-w-sm',
       wrapper: 'z-[1104] items-center justify-center',
-      container: 'items-center justify-center',
       overlay: 'z-[1103] bg-slate-950/40 backdrop-blur-sm'
     }"
   >
@@ -1423,21 +1413,8 @@ async function confirmDelete() {
           />
         </div>
         <p class="text-xs text-slate-500 dark:text-slate-400">
-          将为用户重新生成 PIIC 编号，历史编号会作废。请填写备注以便审计记录。
+          将为用户重新生成 PIIC 编号，历史编号会作废。
         </p>
-        <div class="space-y-1">
-          <label
-            class="block text-xs font-medium text-slate-600 dark:text-slate-300"
-          >
-            备注（可选）
-          </label>
-          <UTextarea
-            v-model="piicReason"
-            class="w-full"
-            :rows="4"
-            placeholder="说明原因或操作背景"
-          />
-        </div>
         <div class="flex justify-end gap-2">
           <UButton color="neutral" variant="ghost" @click="closePiicDialog"
             >取消</UButton
