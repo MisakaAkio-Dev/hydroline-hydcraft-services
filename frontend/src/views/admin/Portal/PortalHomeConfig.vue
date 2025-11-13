@@ -896,7 +896,9 @@ onMounted(() => {
                       {{ item.label || '未命名导航' }}
                     </td>
                     <td class="px-4 py-3 text-xs">{{ item.id }}</td>
-                    <td class="px-4 py-3 text-xs">{{ item.icon || '未设置' }}</td>
+                    <td class="px-4 py-3 text-xs">
+                      {{ item.icon || '未设置' }}
+                    </td>
                     <td class="px-4 py-3 text-xs break-all">
                       {{ item.url || '未配置' }}
                     </td>
