@@ -135,7 +135,7 @@ export class PortalConfigService {
       input.attachmentId,
     );
     if (!attachment.isPublic) {
-      throw new BadRequestException('背景图附件必须设置为公开访问');
+      throw new BadRequestException('Background image attachment must be set to public access');
     }
 
     const background: PortalHomeBackgroundConfig = {
@@ -165,7 +165,7 @@ export class PortalConfigService {
       (item) => item.id === backgroundId,
     );
     if (!target) {
-      throw new NotFoundException('背景图不存在');
+      throw new NotFoundException('Background image not found');
     }
 
     if (input.attachmentId && input.attachmentId !== target.attachmentId) {
@@ -173,7 +173,7 @@ export class PortalConfigService {
         input.attachmentId,
       );
       if (!attachment.isPublic) {
-        throw new BadRequestException('背景图附件必须设置为公开访问');
+        throw new BadRequestException('Background image attachment must be set to public access');
       }
       target.attachmentId = input.attachmentId;
     }
@@ -196,7 +196,7 @@ export class PortalConfigService {
       (item) => item.id !== backgroundId,
     );
     if (nextBackgrounds.length === config.hero.backgrounds.length) {
-      throw new NotFoundException('背景图不存在');
+      throw new NotFoundException('Background image not found');
     }
 
     config.hero.backgrounds = nextBackgrounds;
@@ -208,13 +208,13 @@ export class PortalConfigService {
     const config = await this.getRawConfig();
     const map = new Map(config.hero.backgrounds.map((item) => [item.id, item]));
     if (order.length !== config.hero.backgrounds.length) {
-      throw new BadRequestException('排序列表与背景图数量不匹配');
+      throw new BadRequestException('Order list size does not match background count');
     }
     const next: PortalHomeBackgroundConfig[] = [];
     for (const id of order) {
       const item = map.get(id);
       if (!item) {
-        throw new BadRequestException(`无效的背景图 ID：${id}`);
+        throw new BadRequestException(`Invalid background image ID: ${id}`);
       }
       next.push(item);
     }
@@ -230,15 +230,15 @@ export class PortalConfigService {
     options: SaveOptions = {},
   ) {
     if (!input.id?.trim()) {
-      throw new BadRequestException('导航 ID 不能为空');
+      throw new BadRequestException('Navigation ID cannot be empty');
     }
     if (!input.label?.trim()) {
-      throw new BadRequestException('导航标题不能为空');
+      throw new BadRequestException('Navigation title cannot be empty');
     }
     const config = await this.getRawConfig();
     const exists = config.navigation.some((item) => item.id === input.id);
     if (exists) {
-      throw new BadRequestException('导航 ID 已存在');
+      throw new BadRequestException('Navigation ID already exists');
     }
     const normalized = this.normalizeNavigationItem({
       ...input,
@@ -256,12 +256,12 @@ export class PortalConfigService {
     const config = await this.getRawConfig();
     const target = config.navigation.find((item) => item.id === id);
     if (!target) {
-      throw new NotFoundException('导航项不存在');
+      throw new NotFoundException('Navigation item not found');
     }
 
     if (input.label !== undefined) {
       if (!input.label?.trim()) {
-        throw new BadRequestException('导航标题不能为空');
+        throw new BadRequestException('Navigation title cannot be empty');
       }
       target.label = input.label;
     }
@@ -286,7 +286,7 @@ export class PortalConfigService {
     const config = await this.getRawConfig();
     const nextItems = config.navigation.filter((item) => item.id !== id);
     if (nextItems.length === config.navigation.length) {
-      throw new NotFoundException('导航项不存在');
+      throw new NotFoundException('Navigation item not found');
     }
     config.navigation = nextItems;
     await this.saveConfig(config, options);
@@ -297,13 +297,13 @@ export class PortalConfigService {
     const config = await this.getRawConfig();
     const map = new Map(config.navigation.map((item) => [item.id, item]));
     if (order.length !== config.navigation.length) {
-      throw new BadRequestException('排序列表与导航项数量不匹配');
+      throw new BadRequestException('Order list size does not match navigation item count');
     }
     const next: PortalNavigationConfigItem[] = [];
     for (const id of order) {
       const item = map.get(id);
       if (!item) {
-        throw new BadRequestException(`无效的导航项 ID：${id}`);
+        throw new BadRequestException(`Invalid navigation item ID: ${id}`);
       }
       next.push(item);
     }
@@ -319,7 +319,7 @@ export class PortalConfigService {
   ) {
     const registry = this.getCardRegistry();
     if (!registry.find((card) => card.id === cardId)) {
-      throw new NotFoundException('卡片未注册');
+      throw new NotFoundException('Card not registered');
     }
     const config = await this.getRawConfig();
     config.cards[cardId] = this.normalizeCardVisibility(input);

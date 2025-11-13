@@ -11,6 +11,7 @@ const STATIC_TRANSLATIONS: Record<string, string> = {
   'Email is required': '请填写邮箱地址',
   'Email is invalid': '邮箱格式不正确',
   'Invalid email': '邮箱格式不正确',
+  'Email must be an email': '邮箱格式不正确',
   'Invalid password': '密码不正确',
   'Account locked': '账户已被锁定，请联系管理员',
   'Too many requests': '尝试次数过多，请稍后再试',
@@ -29,32 +30,89 @@ const STATIC_TRANSLATIONS: Record<string, string> = {
   'Password confirmation does not match': '两次输入的密码不一致',
   'Passwords do not match': '两次输入的密码不一致',
   'Invalid AuthMe credentials': 'AuthMe 账号或密码不正确',
-  'AuthMe account not found': '未找到对应的 AuthMe 账号',
   'AuthMe login is disabled': '当前未开放 AuthMe 登录',
   'AuthMe register is disabled': '当前未开放 AuthMe 注册',
-  'phone must match': '手机号格式不正确',
+  'Dial code must match': '区号格式不正确',
+  'Phone must match': '手机号格式不正确',
   'Phone number is invalid': '手机号格式不正确',
   'Invalid phone number': '手机号格式不正确',
   'Phone number format is invalid': '手机号格式不正确',
   'Phone length is invalid': '手机号长度不符合要求',
-  '区号无效': '区号无效',
-  '不支持的区号': '不支持的区号',
-  '手机号长度超出范围': '手机号长度不符合要求',
-  '该手机号已存在': '该手机号已存在',
-  '未找到对应的手机号': '未找到对应的手机号',
-  '请先完成手机号验证后再设为主手机号': '请先完成手机号验证',
-  '仅支持更新手机号联系人': '只能更新手机号',
-  '只能设置手机号为主联系方式': '只能设置手机号为主',
-  '至少需要保留一个邮箱联系方式': '至少需要保留一个邮箱',
   'Contact not found': '联系方式未找到',
-  '该邮箱已被验证': '该邮箱已被验证',
-  '邮箱地址无效': '邮箱地址无效',
   'Verification code has expired': '验证码已过期',
-  '验证码无效或已过期': '验证码已过期',
-  '验证码错误': '验证码错误',
   'Code not found': '验证码未找到',
   'Bad Request': '请求参数错误',
-  '无法发送验证码，请先绑定邮箱': '请先绑定邮箱',
+  // Phone/dial code validation errors
+  'Invalid dial code format': '区号格式无效',
+  'Unsupported dial code region': '不支持的区号',
+  'Phone number length out of range': '手机号长度不符合要求',
+  'Only phone contacts can be updated': '只能更新手机号',
+  'Can only set phone as primary contact': '只能设置手机号为主',
+  'Phone must be verified before setting as primary':
+    '请先完成手机号验证后再设为主',
+  'Phone number not found': '未找到对应的手机号',
+  'Phone contact not found': '未找到对应的手机号',
+  'Phone number already exists': '该手机号已存在',
+  // Email validation and verification errors
+  'Email address cannot be empty': '邮箱地址不能为空',
+  'Invalid email address': '邮箱地址无效',
+  'Email already used by another account': '该邮箱已被其他账户使用',
+  'At least one email contact must be retained': '至少需要保留一个邮箱',
+  'Can only set email as primary contact': '只能设置邮箱为主',
+  'Email must be verified before setting as primary':
+    '请先完成邮箱验证后再设为主',
+  'Email contact not found': '未找到对应的邮箱',
+  'Verification code expired or invalid': '验证码无效或已过期',
+  'Verification code incorrect': '验证码错误',
+  'Verification code sent failed, please try again later':
+    '验证码发送失败，请稍后重试',
+  'Cannot send verification code, please bind email first':
+    '无法发送验证码，请先绑定邮箱',
+  // AuthMe binding errors
+  'AuthMe binding is not enabled in current environment':
+    '当前环境未启用 AuthMe 绑定',
+  'No AuthMe bindings available to unbind':
+    '当前账户没有可以解除的 AuthMe 绑定',
+  'The specified AuthMe account is not bound to current user':
+    '指定的 AuthMe 账号未绑定到当前用户',
+  'AuthMe binding not found': 'AuthMe 绑定不存在',
+  'AuthMe binding does not belong to this user': 'AuthMe 绑定不属于该用户',
+  'Must provide either a nickname or an AuthMe binding':
+    '请至少填写昵称或关联一个 AuthMe 账户',
+  'Specified AuthMe binding not found': '指定的 AuthMe 绑定不存在',
+  'AuthMe account id is required': 'AuthMe 账号不存在',
+  'Identifier cannot be empty': 'Identifier 不能为空',
+  'AuthMe registration is not enabled': 'AuthMe 注册暂未开放',
+  'AuthMe login is not enabled': 'AuthMe 登录暂未开放',
+  'Must specify which AuthMe account to unbind': '请指定要解绑的 AuthMe 账号',
+  // Account and profile errors
+  'Username can only be changed once every 30 days': '用户名每30天只能修改一次',
+  'Current account has no email configured': '当前账户尚未配置邮箱',
+  'Invalid join date': '无效的入服日期',
+  // Portal and background config errors
+  'Background image attachment must be set to public access':
+    '背景图附件必须设置为公开访问',
+  'Background image not found': '背景图不存在',
+  'Order list size does not match background count':
+    '排序列表与背景图数量不匹配',
+  'Invalid background image ID': '无效的背景图 ID',
+  'Navigation ID cannot be empty': '导航 ID 不能为空',
+  'Navigation title cannot be empty': '导航标题不能为空',
+  'Navigation ID already exists': '导航 ID 已存在',
+  'Navigation item not found': '导航项不存在',
+  'Order list size does not match navigation item count':
+    '排序列表与导航项数量不匹配',
+  'Invalid navigation item ID': '无效的导航项 ID',
+  'Card not registered': '卡片未注册',
+  // Minecraft server errors
+  'Server not found': '服务器不存在',
+  'Invalid MOTD content': '无效的 MOTD 内容',
+  'Unable to connect to server': '无法连接到服务器',
+  // Mail and permission errors
+  'Mail service is not configured': '邮件服务未配置',
+  'Missing user context': '缺少用户上下文',
+  'Only administrators can self-assign permissions':
+    '仅 Administrator 可自助添加权限',
 }
 
 const PASSWORD_TOO_SHORT_RE = /password[^a-z]*least[^0-9]*8/i

@@ -4,6 +4,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFeatureStore } from '@/stores/feature'
 import { ApiError } from '@/utils/api'
+import { translateAuthErrorMessage } from '@/utils/auth-errors'
 
 const auth = useAuthStore()
 const feature = useFeatureStore()
@@ -73,7 +74,10 @@ async function loadContacts() {
   try {
     emailContacts.value = await auth.listEmailContacts()
   } catch (error) {
-    contactError.value = error instanceof ApiError ? error.message : '加载失败'
+    contactError.value =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '加载失败'
   } finally {
     loadingContacts.value = false
   }
@@ -115,7 +119,10 @@ async function submitAddEmail() {
     })
     updateAddEmailDialog(false)
   } catch (error) {
-    const message = error instanceof ApiError ? error.message : '添加失败'
+    const message =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '添加失败'
     addEmailDialog.error = message
     toast.add({
       title: '添加失败',
@@ -186,7 +193,9 @@ async function sendVerificationCode() {
     })
   } catch (error) {
     verificationError.value =
-      error instanceof ApiError ? error.message : '验证码发送失败，请稍后重试'
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '验证码发送失败，请稍后重试'
     toast.add({
       title: '发送失败',
       description: verificationError.value,
@@ -224,7 +233,9 @@ async function submitVerification() {
     })
   } catch (error) {
     verificationError.value =
-      error instanceof ApiError ? error.message : '验证失败，请稍后重试'
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '验证失败，请稍后重试'
     toast.add({
       title: '验证失败',
       description: verificationError.value,
@@ -246,7 +257,10 @@ async function setPrimary(contact: any) {
       color: 'success',
     })
   } catch (error) {
-    contactError.value = error instanceof ApiError ? error.message : '设置失败'
+    contactError.value =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '设置失败'
     toast.add({
       title: '设置失败',
       description: contactError.value,
@@ -287,7 +301,10 @@ async function confirmDeleteEmail() {
     })
     updateDeleteEmailDialog(false)
   } catch (error) {
-    const message = error instanceof ApiError ? error.message : '删除失败'
+    const message =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '删除失败'
     deleteEmailDialog.error = message
     toast.add({
       title: '删除失败',
@@ -462,9 +479,6 @@ onBeforeUnmount(() => {
             >
               发送验证码
             </UButton>
-            <p v-if="addEmailDialog.error" class="text-xs text-red-500">
-              {{ addEmailDialog.error }}
-            </p>
           </div>
         </div>
       </template>
@@ -540,9 +554,6 @@ onBeforeUnmount(() => {
                 >确认验证</UButton
               >
             </div>
-            <p v-if="verificationError" class="text-xs text-red-500">
-              {{ verificationError }}
-            </p>
           </div>
         </div>
       </template>
@@ -586,9 +597,6 @@ onBeforeUnmount(() => {
               确认删除
             </UButton>
           </div>
-          <p v-if="deleteEmailDialog.error" class="text-xs text-red-500">
-            {{ deleteEmailDialog.error }}
-          </p>
         </div>
       </template>
     </UModal>

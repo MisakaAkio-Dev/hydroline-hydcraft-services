@@ -22,7 +22,7 @@ export async function updateAuthmeBinding(
     where: { id: bindingId },
   });
   if (!binding || binding.userId !== userId) {
-    throw new NotFoundException('AuthMe 绑定不存在');
+    throw new NotFoundException('AuthMe binding not found');
   }
 
   const normalizedRealname =
@@ -154,14 +154,14 @@ export async function createAuthmeBindingAdmin(
   await ensureUser(ctx, userId);
   const identifier = dto.identifier?.trim() ?? '';
   if (!identifier) {
-    throw new BadRequestException('identifier 不能为空');
+    throw new BadRequestException('Identifier cannot be empty');
   }
 
   const account = await ctx.authmeService
     .getAccount(identifier)
     .catch(() => null);
   if (!account) {
-    throw new NotFoundException('AuthMe 账户不存在');
+    throw new NotFoundException('AuthMe account not found');
   }
 
   const binding = await ctx.authmeBindingService.bindUser({
@@ -263,7 +263,7 @@ export async function setPrimaryAuthmeBinding(
     }),
   ]);
   if (!binding || binding.userId !== userId) {
-    throw new NotFoundException('AuthMe 绑定不存在');
+    throw new NotFoundException('AuthMe binding not found');
   }
 
   await ctx.prisma.userProfile.upsert({
@@ -319,7 +319,7 @@ export async function unbindAuthmeBinding(
     where: { id: bindingId },
   });
   if (!binding || binding.userId !== userId) {
-    throw new NotFoundException('AuthMe 绑定不存在');
+    throw new NotFoundException('AuthMe binding not found');
   }
   const profileBefore = await ctx.prisma.userProfile.findUnique({
     where: { userId },

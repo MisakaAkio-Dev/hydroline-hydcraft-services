@@ -82,7 +82,7 @@ export class UpdateCurrentUserDto {
 
   // Allow updating email without verification for now
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must be an email' })
   @MaxLength(256)
   email?: string;
 

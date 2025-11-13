@@ -4,6 +4,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFeatureStore } from '@/stores/feature'
 import { ApiError } from '@/utils/api'
+import { translateAuthErrorMessage } from '@/utils/auth-errors'
 import { phoneRegions } from '@/constants/profile'
 
 const auth = useAuthStore()
@@ -134,7 +135,10 @@ async function loadPhoneContacts() {
   try {
     phoneContacts.value = await auth.listPhoneContacts()
   } catch (error) {
-    phoneError.value = error instanceof ApiError ? error.message : '加载失败'
+    phoneError.value =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '加载失败'
   } finally {
     loadingContacts.value = false
   }
@@ -187,7 +191,10 @@ async function submitAddPhone() {
     }
     updateAddPhoneDialog(false)
   } catch (error) {
-    const message = error instanceof ApiError ? error.message : '添加失败'
+    const message =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '添加失败'
     addPhoneDialog.error = message
     toast.add({
       title: '添加失败',
@@ -254,7 +261,10 @@ async function submitEditPhone() {
     }
     updateEditPhoneDialog(false)
   } catch (error) {
-    const message = error instanceof ApiError ? error.message : '更新失败'
+    const message =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '更新失败'
     editPhoneDialog.error = message
     toast.add({
       title: '更新失败',
@@ -296,7 +306,10 @@ async function confirmDeletePhone() {
     })
     updateDeletePhoneDialog(false)
   } catch (error) {
-    const message = error instanceof ApiError ? error.message : '删除失败'
+    const message =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '删除失败'
     deletePhoneDialog.error = message
     toast.add({
       title: '删除失败',
@@ -319,7 +332,10 @@ async function setPrimary(contact: any) {
       color: 'success',
     })
   } catch (error) {
-    phoneError.value = error instanceof ApiError ? error.message : '设置失败'
+    phoneError.value =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '设置失败'
     toast.add({
       title: '设置失败',
       description: phoneError.value,
@@ -395,7 +411,9 @@ async function sendVerificationCode() {
     })
   } catch (error) {
     verificationError.value =
-      error instanceof ApiError ? error.message : '验证码发送失败，请稍后重试'
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '验证码发送失败，请稍后重试'
     toast.add({
       title: '发送失败',
       description: verificationError.value,
@@ -433,7 +451,9 @@ async function submitVerification() {
     })
   } catch (error) {
     verificationError.value =
-      error instanceof ApiError ? error.message : '验证失败，请稍后重试'
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '验证失败，请稍后重试'
     toast.add({
       title: '验证失败',
       description: verificationError.value,
@@ -479,10 +499,6 @@ onBeforeUnmount(() => {
         <UIcon name="i-lucide-alert-triangle" class="h-4 w-4 shrink-0" />
         <span>部分手机号尚未完成验证，为保障安全请尽快完成验证。</span>
       </div>
-
-      <p v-if="phoneError" class="text-sm text-red-600 dark:text-red-400">
-        {{ phoneError }}
-      </p>
 
       <div
         v-else-if="phoneContacts.length === 0"
@@ -623,9 +639,6 @@ onBeforeUnmount(() => {
             >
               {{ phoneVerificationEnabled ? '发送验证码' : '确定' }}
             </UButton>
-            <p v-if="addPhoneDialog.error" class="text-xs text-red-500">
-              {{ addPhoneDialog.error }}
-            </p>
           </div>
         </div>
       </template>
@@ -674,9 +687,6 @@ onBeforeUnmount(() => {
             >
               {{ phoneVerificationEnabled ? '保存并发送验证码' : '保存' }}
             </UButton>
-            <p v-if="editPhoneDialog.error" class="text-xs text-red-500">
-              {{ editPhoneDialog.error }}
-            </p>
           </div>
         </div>
       </template>
@@ -750,9 +760,6 @@ onBeforeUnmount(() => {
                 >确认验证</UButton
               >
             </div>
-            <p v-if="verificationError" class="text-xs text-red-500">
-              {{ verificationError }}
-            </p>
           </div>
         </div>
       </template>
@@ -796,9 +803,6 @@ onBeforeUnmount(() => {
               确认删除
             </UButton>
           </div>
-          <p v-if="deletePhoneDialog.error" class="text-xs text-red-500">
-            {{ deletePhoneDialog.error }}
-          </p>
         </div>
       </template>
     </UModal>

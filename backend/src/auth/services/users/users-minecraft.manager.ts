@@ -19,11 +19,11 @@ export async function addMinecraftProfile(
       })
     : null;
   if (binding && binding.userId !== userId) {
-    throw new BadRequestException('AuthMe 绑定不属于该用户');
+    throw new BadRequestException('AuthMe binding does not belong to this user');
   }
 
   if (!binding && !dto.nickname) {
-    throw new BadRequestException('请至少填写昵称或关联一个 AuthMe 账户');
+    throw new BadRequestException('Must provide either a nickname or an AuthMe binding');
   }
 
   const authmeUuid = dto.authmeUuid ?? binding?.authmeUuid ?? null;
@@ -69,15 +69,15 @@ export async function updateMinecraftProfile(
       })
     : null;
   if (binding && binding.userId !== userId) {
-    throw new BadRequestException('AuthMe 绑定不属于该用户');
+    throw new BadRequestException('AuthMe binding does not belong to this user');
   }
 
   if (!binding && dto.authmeBindingId) {
-    throw new NotFoundException('指定的 AuthMe 绑定不存在');
+    throw new NotFoundException('Specified AuthMe binding not found');
   }
 
   if (!binding && !dto.nickname && !target.nickname) {
-    throw new BadRequestException('请至少填写昵称或关联一个 AuthMe 账户');
+    throw new BadRequestException('Must provide either a nickname or an AuthMe binding');
   }
 
   const updated = await ctx.prisma.userMinecraftProfile.update({

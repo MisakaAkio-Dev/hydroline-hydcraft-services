@@ -90,7 +90,7 @@ export class AuthService {
       return this.registerWithAuthme(dto, context);
     }
     if (!dto.email) {
-      throw new BadRequestException('邮箱地址不能为空');
+      throw new BadRequestException('Email address cannot be empty');
     }
     return this.registerWithEmail(dto, context);
   }
@@ -103,7 +103,7 @@ export class AuthService {
       return this.loginWithAuthme(dto, context);
     }
     if (!dto.email) {
-      throw new BadRequestException('邮箱地址不能为空');
+      throw new BadRequestException('Email address cannot be empty');
     }
     return this.loginWithEmail(dto, context);
   }
@@ -194,7 +194,7 @@ export class AuthService {
   ) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeBindingEnabled) {
-      throw new BadRequestException('当前环境未启用 AuthMe 绑定');
+      throw new BadRequestException('AuthMe binding is not enabled in current environment');
     }
     const account = await this.authmeService.verifyCredentials(
       dto.authmeId,
@@ -217,12 +217,12 @@ export class AuthService {
   ) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeBindingEnabled) {
-      throw new BadRequestException('当前环境未启用 AuthMe 绑定');
+      throw new BadRequestException('AuthMe binding is not enabled in current environment');
     }
     const bindings =
       await this.authmeBindingService.listBindingsByUserId(userId);
     if (!bindings || bindings.length === 0) {
-      throw new BadRequestException('当前账户没有可以解除的 AuthMe 绑定');
+      throw new BadRequestException('No AuthMe bindings available to unbind');
     }
 
     const requested = dto.username?.trim();
@@ -240,7 +240,7 @@ export class AuthService {
       (entry) => entry.authmeUsernameLower === usernameLower,
     );
     if (!binding || binding.userId !== userId) {
-      throw new BadRequestException('指定的 AuthMe 账号未绑定到当前用户');
+      throw new BadRequestException('The specified AuthMe account is not bound to current user');
     }
 
     await this.authmeBindingService.unbindUser({
@@ -280,7 +280,7 @@ export class AuthService {
       select: { email: true, name: true },
     });
     if (!user || !user.email) {
-      throw new BadRequestException('当前账户尚未配置邮箱');
+      throw new BadRequestException('Current account has no email configured');
     }
 
     const identifier = this.buildPasswordCodeIdentifier(user.email);
@@ -321,7 +321,7 @@ export class AuthService {
 
   async updatePasswordWithCode(userId: string, dto: ChangePasswordWithCodeDto) {
     if (dto.password.length < 8) {
-      throw new BadRequestException('密码长度至少 8 位');
+      throw new BadRequestException('Password must be at least 8 characters long');
     }
 
     const user = await this.prisma.user.findUnique({
@@ -329,7 +329,7 @@ export class AuthService {
       select: { email: true },
     });
     if (!user || !user.email) {
-      throw new BadRequestException('当前账户尚未配置邮箱');
+      throw new BadRequestException('Current account has no email configured');
     }
 
     const identifier = this.buildPasswordCodeIdentifier(user.email);
@@ -342,12 +342,12 @@ export class AuthService {
     });
 
     if (!record) {
-      throw new BadRequestException('验证码无效或已过期');
+      throw new BadRequestException('Verification code expired or invalid');
     }
 
     const isMatch = await bcryptCompare(dto.code, record.value);
     if (!isMatch) {
-      throw new BadRequestException('验证码不正确');
+      throw new BadRequestException('Verification code incorrect');
     }
 
     await this.prisma.verification
@@ -482,11 +482,11 @@ export class AuthService {
     context: RequestContext,
   ) {
     if (dto.password.length < 8) {
-      throw new BadRequestException('密码长度至少 8 位');
+      throw new BadRequestException('Password must be at least 8 characters long');
     }
     const email = this.normalizeEmail(dto.email);
     if (!email) {
-      throw new BadRequestException('邮箱地址不能为空');
+      throw new BadRequestException('Email address cannot be empty');
     }
     const result = await this.signUpInternal(
       {
@@ -518,14 +518,14 @@ export class AuthService {
   ) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeRegisterEnabled) {
-      throw new BadRequestException('AuthMe 注册暂未开放');
+      throw new BadRequestException('AuthMe registration is not enabled');
     }
     if (!dto.authmeId) {
-      throw new BadRequestException('缺少 AuthMe 账号');
+      throw new BadRequestException('AuthMe account ID is required');
     }
     const authmeId = dto.authmeId.trim();
     if (!authmeId) {
-      throw new BadRequestException('缺少 AuthMe 账号');
+      throw new BadRequestException('AuthMe account ID is required');
     }
     const authmeAccount = await this.authmeService.verifyCredentials(
       authmeId,
@@ -596,7 +596,7 @@ export class AuthService {
 
   private async loginWithEmail(dto: AuthLoginDto, context: RequestContext) {
     if (dto.password.length < 8) {
-      throw new BadRequestException('密码长度至少 8 位');
+      throw new BadRequestException('Password must be at least 8 characters long');
     }
     const result = await this.signInInternal({
       email: dto.email!,
@@ -624,10 +624,10 @@ export class AuthService {
   private async loginWithAuthme(dto: AuthLoginDto, context: RequestContext) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeLoginEnabled) {
-      throw new BadRequestException('AuthMe 登录暂未开放');
+      throw new BadRequestException('AuthMe login is not enabled');
     }
     if (!dto.authmeId) {
-      throw new BadRequestException('缺少 AuthMe 账号');
+      throw new BadRequestException('AuthMe account ID is required');
     }
 
     const authmeAccount = await this.authmeService.verifyCredentials(
@@ -1069,6 +1069,6 @@ export class AuthService {
     if (bindings.length === 1) {
       return bindings[0].authmeUsername;
     }
-    throw new BadRequestException('请指定要解绑的 AuthMe 账号');
+    throw new BadRequestException('Must specify which AuthMe account to unbind');
   }
 }

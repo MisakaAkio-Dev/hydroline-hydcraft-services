@@ -8,7 +8,7 @@ import {
 } from 'class-validator';
 
 export class SignInDto {
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must be an email' })
   @MaxLength(254)
   email!: string;
 

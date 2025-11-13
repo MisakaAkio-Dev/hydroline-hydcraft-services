@@ -229,7 +229,7 @@ export async function removeContact(
       where: { userId, channelId: existing.channelId },
     });
     if (remainingCount <= 1) {
-      throw new BadRequestException('至少需要保留一个邮箱联系方式');
+      throw new BadRequestException('At least one email contact must be retained');
     }
   }
   await ctx.prisma.$transaction(async (tx) => {
@@ -277,7 +277,7 @@ export async function sendEmailVerificationCode(
 ) {
   const email = normalizeOptionalString(emailRaw);
   if (!email) {
-    throw new BadRequestException('邮箱地址无效');
+    throw new BadRequestException('Invalid email address');
   }
   const userInfo = await ctx.prisma.user.findUnique({
     where: { id: userId },
@@ -329,8 +329,8 @@ export async function sendEmailVerificationCode(
       error instanceof Error
         ? `${error.name}: ${error.message}`
         : String(error);
-    ctx.logger.warn(`发送邮箱验证邮件失败: ${reason}`);
-    throw new BadRequestException('验证码发送失败，请稍后重试');
+    ctx.logger.warn(`Failed to send email verification: ${reason}`);
+    throw new BadRequestException('Verification code sent failed, please try again later');
   }
   return { success: true } as const;
 }
@@ -343,7 +343,7 @@ export async function verifyEmailContact(
 ) {
   const email = normalizeOptionalString(emailRaw);
   if (!email) {
-    throw new BadRequestException('邮箱地址无效');
+    throw new BadRequestException('Invalid email address');
   }
   const identifier = `${ctx.emailVerificationIdentifierPrefix}${email.toLowerCase()}`;
   const record = await ctx.prisma.verification.findFirst({
@@ -351,17 +351,17 @@ export async function verifyEmailContact(
     orderBy: { expiresAt: 'desc' },
   });
   if (!record) {
-    throw new BadRequestException('验证码无效或已过期');
+    throw new BadRequestException('Verification code expired or invalid');
   }
   const isMatch = await bcryptCompare(code, record.value);
   if (!isMatch) {
-    throw new BadRequestException('验证码错误');
+    throw new BadRequestException('Verification code incorrect');
   }
   const contacts = await ctx.prisma.userContact.findMany({
     where: { userId, value: email, channel: { key: 'email' } },
   });
   if (contacts.length === 0) {
-    throw new NotFoundException('未找到对应的邮箱联系人');
+    throw new NotFoundException('Email contact not found');
   }
   await ctx.prisma.$transaction(async (tx) => {
     await tx.verification
@@ -511,10 +511,10 @@ export async function setPrimaryEmailContact(
     throw new NotFoundException('Contact not found');
   }
   if (contact.channel.key !== 'email') {
-    throw new BadRequestException('只能设置邮箱为主联系信息');
+    throw new BadRequestException('Can only set email as primary contact');
   }
   if (contact.verification !== ContactVerificationStatus.VERIFIED) {
-    throw new BadRequestException('请先完成邮箱验证后再设为主邮箱');
+    throw new BadRequestException('Email must be verified before setting as primary');
   }
   await ctx.prisma.$transaction(async (tx) => {
     await tx.userContact.updateMany({
@@ -564,10 +564,10 @@ const COUNTRY_TO_DIAL_CODE: Record<string, string> = {
 function normalizeDialCode(dialRaw: string, allowed: string[]) {
   const dial = normalizeOptionalString(dialRaw) ?? '';
   if (!/^\+\d{2,6}$/.test(dial)) {
-    throw new BadRequestException('区号无效');
+    throw new BadRequestException('Invalid dial code format');
   }
   if (!allowed.includes(dial)) {
-    throw new BadRequestException('不支持的区号');
+    throw new BadRequestException('Unsupported dial code region');
   }
   return dial;
 }
@@ -575,7 +575,7 @@ function normalizeDialCode(dialRaw: string, allowed: string[]) {
 function normalizePhoneNumber(input: string) {
   const digits = (input || '').replace(/\D/g, '');
   if (digits.length < 5 || digits.length > 16) {
-    throw new BadRequestException('手机号长度超出范围');
+    throw new BadRequestException('Phone number length out of range');
   }
   return digits;
 }
@@ -787,7 +787,7 @@ async function deliverPhoneVerificationCode(
   });
   const email = userInfo?.email?.trim();
   if (!email) {
-    throw new BadRequestException('无法发送验证码，请先绑定邮箱');
+    throw new BadRequestException('Cannot send verification code, please bind email first');
   }
   const displayName =
     userInfo?.profile?.displayName?.trim() ?? userInfo?.name?.trim() ?? email;
@@ -808,8 +808,8 @@ async function deliverPhoneVerificationCode(
       error instanceof Error
         ? `${error.name}: ${error.message}`
         : String(error);
-    ctx.logger.warn(`发送手机验证邮件失败: ${reason}`);
-    throw new BadRequestException('验证码发送失败，请稍后重试');
+    ctx.logger.warn(`Failed to send phone verification email: ${reason}`);
+    throw new BadRequestException('Verification code sent failed, please try again later');
   }
   return { success: true, datetime, currentYear: String(year) } as const;
 }
@@ -939,7 +939,7 @@ export async function updatePhoneContact(
     throw new NotFoundException('Contact not found');
   }
   if (contact.channel.key !== 'phone') {
-    throw new BadRequestException('仅支持更新手机号联系人');
+    throw new BadRequestException('Only phone contacts can be updated');
   }
 
   const verificationEnabled = await isPhoneVerificationEnabled(ctx);
@@ -970,7 +970,7 @@ export async function updatePhoneContact(
       },
     });
     if (duplicate) {
-      throw new BadRequestException('该手机号已存在');
+      throw new BadRequestException('Phone number already exists');
     }
   }
 
@@ -1025,7 +1025,7 @@ export async function sendPhoneVerificationCode(
 ) {
   const normalized = normalizeOptionalString(phoneRaw);
   if (!normalized) {
-    throw new BadRequestException('手机号无效');
+    throw new BadRequestException('Invalid phone number');
   }
   const verificationEnabled = await isPhoneVerificationEnabled(ctx);
   const identifier = `${ctx.phoneVerificationIdentifierPrefix}${normalized}`;
@@ -1033,7 +1033,7 @@ export async function sendPhoneVerificationCode(
     where: { userId, value: normalized, channel: { key: 'phone' } },
   });
   if (contacts.length === 0) {
-    throw new NotFoundException('未找到对应的手机号');
+    throw new NotFoundException('Phone number not found');
   }
 
   if (!verificationEnabled) {
@@ -1079,7 +1079,7 @@ export async function verifyPhoneContact(
 ) {
   const normalizedPhone = normalizeOptionalString(phoneRaw);
   if (!normalizedPhone) {
-    throw new BadRequestException('手机号无效');
+    throw new BadRequestException('Invalid phone number');
   }
   const identifier = `${ctx.phoneVerificationIdentifierPrefix}${normalizedPhone}`;
   const record = await ctx.prisma.verification.findFirst({
@@ -1087,18 +1087,18 @@ export async function verifyPhoneContact(
     orderBy: { expiresAt: 'desc' },
   });
   if (!record) {
-    throw new BadRequestException('验证码无效或已过期');
+    throw new BadRequestException('Verification code expired or invalid');
   }
   const isMatch = await bcryptCompare(code, record.value);
   if (!isMatch) {
-    throw new BadRequestException('验证码错误');
+    throw new BadRequestException('Verification code incorrect');
   }
 
   const contacts = await ctx.prisma.userContact.findMany({
     where: { userId, value: normalizedPhone, channel: { key: 'phone' } },
   });
   if (contacts.length === 0) {
-    throw new NotFoundException('未找到对应的手机号联系人');
+    throw new NotFoundException('Phone contact not found');
   }
 
   await ctx.prisma.$transaction(async (tx) => {
@@ -1131,7 +1131,7 @@ export async function setPrimaryPhoneContact(
     throw new NotFoundException('Contact not found');
   }
   if (contact.channel.key !== 'phone') {
-    throw new BadRequestException('只能设置手机号为主联系方式');
+    throw new BadRequestException('Can only set phone as primary contact');
   }
 
   const verificationEnabled = await isPhoneVerificationEnabled(ctx);
@@ -1139,7 +1139,7 @@ export async function setPrimaryPhoneContact(
     verificationEnabled &&
     contact.verification !== ContactVerificationStatus.VERIFIED
   ) {
-    throw new BadRequestException('请先完成手机号验证后再设为主手机号');
+    throw new BadRequestException('Phone must be verified before setting as primary');
   }
 
   await ctx.prisma.$transaction(async (tx) => {

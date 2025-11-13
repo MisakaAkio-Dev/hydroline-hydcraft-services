@@ -63,7 +63,7 @@ export class MailService {
 
   async sendMail(options: SendMailOptions) {
     if (!this.transporter) {
-      throw new ServiceUnavailableException('邮件服务未配置');
+      throw new ServiceUnavailableException('Mail service is not configured');
     }
 
     let html = options.html;

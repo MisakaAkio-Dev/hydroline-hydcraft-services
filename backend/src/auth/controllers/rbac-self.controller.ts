@@ -31,7 +31,7 @@ export class RbacSelfController {
         }
       | undefined;
     if (!user) {
-      throw new ForbiddenException('缺少用户上下文');
+      throw new ForbiddenException('Missing user context');
     }
     const roleLinks = Array.isArray(user.roles) ? user.roles : [];
     const isAdmin = roleLinks.some(
@@ -40,7 +40,7 @@ export class RbacSelfController {
         link.role?.name === 'Administrator',
     );
     if (!isAdmin) {
-      throw new ForbiddenException('仅 Administrator 可自助添加权限');
+      throw new ForbiddenException('Only administrators can self-assign permissions');
     }
     return this.rolesService.selfAssignPermissions(
       user.id,

@@ -79,7 +79,7 @@ export class MinecraftServerService {
       where: { id },
     });
     if (!server) {
-      throw new NotFoundException('服务器不存在');
+      throw new NotFoundException('Server not found');
     }
     return server;
   }
@@ -166,7 +166,7 @@ export class MinecraftServerService {
               raw: { error: message },
             },
           });
-          throw new HttpException(`无法连接到服务器 (${message})`, 400);
+          throw new HttpException(`Unable to connect to server (${message})`, 400);
         }
       }
       throw err;

@@ -14,7 +14,7 @@ export class AuthLoginDto {
   mode: 'EMAIL' | 'AUTHME' = 'EMAIL';
 
   @ValidateIf((dto: AuthLoginDto) => dto.mode === 'EMAIL')
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must be an email' })
   @MaxLength(254)
   email?: string;
 

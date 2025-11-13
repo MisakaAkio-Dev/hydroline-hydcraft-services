@@ -33,12 +33,12 @@ import {
 } from 'class-validator';
 
 class PublicForgotPasswordDto {
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must be an email' })
   email!: string;
 }
 
 class PublicConfirmPasswordDto {
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must be an email' })
   email!: string;
 
   @IsString()
@@ -50,12 +50,12 @@ class PublicConfirmPasswordDto {
 }
 
 class AddEmailContactDto {
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must be an email' })
   email!: string;
 }
 
 class VerifyEmailContactDto {
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must be an email' })
   email!: string;
 
   @IsString()
@@ -64,11 +64,11 @@ class VerifyEmailContactDto {
 
 class AddPhoneContactDto {
   @IsString()
-  @Matches(/^\+\d{2,6}$/)
+  @Matches(/^\+\d{2,6}$/, { message: 'Dial code must match' })
   dialCode!: string;
 
   @IsString()
-  @Matches(/^[0-9\s-]{5,20}$/)
+  @Matches(/^[0-9\s-]{5,20}$/, { message: 'Phone must match' })
   phone!: string;
 
   @IsOptional()
@@ -79,12 +79,12 @@ class AddPhoneContactDto {
 class UpdatePhoneContactDto {
   @IsOptional()
   @IsString()
-  @Matches(/^\+\d{2,6}$/)
+  @Matches(/^\+\d{2,6}$/, { message: 'Dial code must match' })
   dialCode?: string;
 
   @IsOptional()
   @IsString()
-  @Matches(/^[0-9\s-]{5,20}$/)
+  @Matches(/^[0-9\s-]{5,20}$/, { message: 'Phone must match' })
   phone?: string;
 
   @IsOptional()
@@ -226,7 +226,7 @@ export class AuthController {
   async publicConfirmPassword(@Body() dto: PublicConfirmPasswordDto) {
     const result = await this.authService.confirmPublicPasswordReset(dto);
     if (!result.success) {
-      throw new UnauthorizedException('验证码无效或已过期');
+      throw new UnauthorizedException('Verification code expired or invalid');
     }
     return { success: true } as const;
   }

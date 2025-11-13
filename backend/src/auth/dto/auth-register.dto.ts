@@ -18,7 +18,7 @@ export class AuthRegisterDto {
     (dto: AuthRegisterDto) =>
       dto.mode === 'EMAIL' || typeof dto.email === 'string',
   )
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must be an email' })
   @MaxLength(254)
   @ValidateIf((dto: AuthRegisterDto) => dto.mode === 'AUTHME')
   @IsNotEmpty()

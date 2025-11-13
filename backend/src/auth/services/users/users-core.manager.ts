@@ -538,7 +538,7 @@ export async function updateCurrentUser(
       const lastChanged = current.nameChangedAt?.getTime?.() ?? null;
       const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
       if (lastChanged && Date.now() - lastChanged < THIRTY_DAYS_MS) {
-        throw new BadRequestException('用户名每30天只能修改一次');
+        throw new BadRequestException('Username can only be changed once every 30 days');
       }
       userUpdate.nameChangedAt = new Date();
     }
@@ -558,7 +558,7 @@ export async function updateCurrentUser(
         select: { id: true },
       });
       if (exists && exists.id !== userId) {
-        throw new BadRequestException('该邮箱已被其他账户使用');
+        throw new BadRequestException('Email already used by another account');
       }
       userUpdate.email = normalizedEmail;
       userUpdate.emailVerified = false;
@@ -797,7 +797,7 @@ export async function updateJoinDate(
   await ensureUser(ctx, userId);
   const date = new Date(joinDateIso);
   if (Number.isNaN(date.getTime())) {
-    throw new BadRequestException('无效的入服日期');
+    throw new BadRequestException('Invalid join date');
   }
   return ctx.prisma.user.update({
     where: { id: userId },
@@ -814,7 +814,7 @@ export async function updateOwnPassword(
   await ensureUser(ctx, userId);
   const trimmed = password.trim();
   if (trimmed.length < 8) {
-    throw new BadRequestException('密码长度至少 8 位');
+    throw new BadRequestException('Password must be at least 8 characters long');
   }
   const hashed = await hashPassword(trimmed);
   const accountIdentifier = generateRandomString(32, 'a-z', 'A-Z', '0-9');
