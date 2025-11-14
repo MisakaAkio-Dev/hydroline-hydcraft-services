@@ -1120,7 +1120,7 @@ async function confirmDelete() {
     :ui="{
       content: 'z-[1105] w-full max-w-sm',
       wrapper: 'z-[1104] items-center justify-center',
-      overlay: 'z-[1103] bg-slate-950/40 backdrop-blur-sm'
+      overlay: 'z-[1103]'
     }"
   >
     <template #content>

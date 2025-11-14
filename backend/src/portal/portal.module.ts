@@ -4,9 +4,10 @@ import { PortalService } from './portal.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { PortalConfigModule } from '../portal-config/portal-config.module';
+import { AttachmentsModule } from '../attachments/attachments.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, PortalConfigModule],
+  imports: [PrismaModule, AuthModule, PortalConfigModule, AttachmentsModule],
   controllers: [PortalController],
   providers: [PortalService],
   exports: [PortalService],

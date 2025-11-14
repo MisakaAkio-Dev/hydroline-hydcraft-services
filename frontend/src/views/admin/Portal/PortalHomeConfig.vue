@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { apiFetch, ApiError } from '@/utils/api'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -40,19 +40,29 @@ type PortalAdminConfigResponse = {
 }
 
 type EditableHeroBackground =
-  PortalAdminConfigResponse['hero']['backgrounds'][number] & {
-    editAttachmentId: string
-    editDescription: string
-  }
+  PortalAdminConfigResponse['hero']['backgrounds'][number]
 
-type EditableNavigationItem =
-  PortalAdminConfigResponse['navigation'][number] & {
-    editLabel: string
-    editTooltip: string
-    editUrl: string
-    editIcon: string
-    editAvailable: boolean
-  }
+type PortalAttachmentSearchResult = {
+  id: string
+  name: string
+  originalName: string
+  size: number
+  isPublic: boolean
+  publicUrl: string | null
+  folder: {
+    id: string
+    name: string
+    path: string
+  } | null
+}
+
+type AttachmentSelectOption = {
+  id: string
+  label: string
+  description: string
+}
+
+type EditableNavigationItem = PortalAdminConfigResponse['navigation'][number]
 
 type CardRegistryEntry = PortalAdminConfigResponse['registry'][number]
 
@@ -65,6 +75,7 @@ type EditableCardForm = {
 
 const authStore = useAuthStore()
 const uiStore = useUiStore()
+const toast = useToast()
 
 const loading = ref(false)
 const isMutating = ref(false)
@@ -83,8 +94,6 @@ const navigationItems = reactive<EditableNavigationItem[]>([])
 const cardsRegistry = ref<CardRegistryEntry[]>([])
 const cardsForm = reactive<Record<string, EditableCardForm>>({})
 
-const editingHeroBackgroundId = ref<string | null>(null)
-const editingNavigationId = ref<string | null>(null)
 const newBackgroundDialogOpen = ref(false)
 const showNewNavigationForm = ref(false)
 
@@ -139,19 +148,19 @@ const selectedCardEntry = computed(() => {
 
 const modalUi = {
   detail: {
-    content: 'w-full max-w-md',
+    content: 'w-full max-w-md z-[185]',
     wrapper: 'z-[180]',
-    overlay: 'z-[170] bg-slate-950/40 backdrop-blur-sm',
+    overlay: 'z-[170]',
   },
   cards: {
-    content: 'w-full max-w-md',
+    content: 'w-full max-w-md z-[195]',
     wrapper: 'z-[190]',
-    overlay: 'z-[180] bg-slate-950/40 backdrop-blur-sm',
+    overlay: 'z-[180]',
   },
   form: {
-    content: 'w-full max-w-2xl',
+    content: 'w-full max-w-md z-[190]',
     wrapper: 'z-[185]',
-    overlay: 'z-[175] bg-slate-950/40 backdrop-blur-sm',
+    overlay: 'z-[175]',
   },
 } as const
 
@@ -176,6 +185,81 @@ const newBackground = reactive({
   description: '',
 })
 
+const heroAttachmentOptions = ref<AttachmentSelectOption[]>([])
+const heroAttachmentSearchTerm = ref('')
+const heroAttachmentLoading = ref(false)
+const heroAttachmentMap = ref<Record<string, PortalAttachmentSearchResult>>({})
+let heroAttachmentAbort: AbortController | null = null
+let heroAttachmentSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes.toFixed(0)} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
+function buildAttachmentOption(
+  item: PortalAttachmentSearchResult,
+): AttachmentSelectOption {
+  const label = item.name?.trim() || item.originalName || item.id
+  const segments = [`ID: ${item.id}`, formatFileSize(item.size)]
+  if (item.folder?.path) {
+    segments.push(item.folder.path)
+  }
+  segments.push(item.isPublic ? '公开' : '需设为公开')
+  return {
+    id: item.id,
+    label,
+    description: segments.join(' · '),
+  }
+}
+
+async function fetchHeroAttachmentOptions(keyword: string) {
+  const token = ensureToken()
+  heroAttachmentLoading.value = true
+  heroAttachmentAbort?.abort()
+  const controller = new AbortController()
+  heroAttachmentAbort = controller
+  const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
+  try {
+    const results = await apiFetch<PortalAttachmentSearchResult[]>(
+      `/portal/attachments/search${query ? `${query}&` : '?'}publicOnly=false`,
+      {
+        token,
+        signal: controller.signal,
+        noDedupe: true,
+      },
+    )
+    if (heroAttachmentAbort !== controller) {
+      return
+    }
+    heroAttachmentMap.value = results.reduce<
+      Record<string, PortalAttachmentSearchResult>
+    >((acc, record) => {
+      acc[record.id] = record
+      return acc
+    }, {})
+    heroAttachmentOptions.value = results.map((item) =>
+      buildAttachmentOption(item),
+    )
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return
+    }
+    if (error instanceof Error && error.message.includes('登录')) {
+      return
+    }
+    handleError(error, '搜索附件失败')
+  } finally {
+    if (heroAttachmentAbort === controller) {
+      heroAttachmentAbort = null
+    }
+    heroAttachmentLoading.value = false
+  }
+}
+
 const newNavigation = reactive({
   id: '',
   label: '',
@@ -187,11 +271,18 @@ const newNavigation = reactive({
 
 function handleError(error: unknown, fallbackMessage: string) {
   if (error instanceof ApiError) {
-    window.alert(error.message ?? fallbackMessage)
+    toast.add({
+      title: error.message ?? fallbackMessage,
+      color: 'error',
+    })
     return
   }
   console.error(error)
-  window.alert(fallbackMessage)
+  toast.add({
+    title: fallbackMessage,
+    description: error instanceof Error ? error.message : undefined,
+    color: 'error',
+  })
 }
 
 function ensureToken(): string {
@@ -246,23 +337,8 @@ async function fetchConfig() {
     )
     heroSubtitle.value = response.hero.subtitle
     heroSubtitleDraft.value = response.hero.subtitle
-    assignHeroBackgrounds(
-      response.hero.backgrounds.map((item) => ({
-        ...item,
-        editAttachmentId: item.attachmentId,
-        editDescription: item.description ?? '',
-      })),
-    )
-    assignNavigationItems(
-      response.navigation.map((item) => ({
-        ...item,
-        editLabel: item.label,
-        editTooltip: item.tooltip ?? '',
-        editUrl: item.url ?? '',
-        editIcon: item.icon ?? '',
-        editAvailable: item.available,
-      })),
-    )
+    assignHeroBackgrounds(response.hero.backgrounds)
+    assignNavigationItems(response.navigation)
     resetCardsForm()
     const nextForms: Record<string, EditableCardForm> = {}
     for (const entry of response.registry) {
@@ -303,7 +379,11 @@ function cancelHeroSubtitleEdit() {
 
 async function updateHeroSubtitle() {
   if (!heroSubtitleDraft.value.trim()) {
-    window.alert('请填写副标题')
+    toast.add({
+      title: '信息不完整',
+      description: '请先填写 Hero 区域副标题',
+      color: 'warning',
+    })
     return
   }
   try {
@@ -332,26 +412,67 @@ async function updateHeroSubtitle() {
 function resetHeroBackgroundForm() {
   newBackground.attachmentId = ''
   newBackground.description = ''
+  heroAttachmentSearchTerm.value = ''
 }
 
-function startEditHeroBackground(background: EditableHeroBackground) {
-  background.editAttachmentId = background.attachmentId ?? ''
-  background.editDescription = background.description ?? ''
-  editingHeroBackgroundId.value = background.id
-}
+watch(
+  () => heroAttachmentSearchTerm.value,
+  (keyword) => {
+    if (!newBackgroundDialogOpen.value) {
+      return
+    }
+    if (heroAttachmentSearchTimer) {
+      clearTimeout(heroAttachmentSearchTimer)
+    }
+    heroAttachmentSearchTimer = setTimeout(() => {
+      heroAttachmentSearchTimer = null
+      void fetchHeroAttachmentOptions(keyword.trim())
+    }, 300)
+  },
+)
 
-function cancelHeroBackgroundEdit(background: EditableHeroBackground) {
-  background.editAttachmentId = background.attachmentId ?? ''
-  background.editDescription = background.description ?? ''
-  editingHeroBackgroundId.value = null
-}
+watch(
+  () => newBackgroundDialogOpen.value,
+  (open) => {
+    if (open) {
+      heroAttachmentOptions.value = []
+      heroAttachmentSearchTerm.value = ''
+      heroAttachmentAbort?.abort()
+      heroAttachmentAbort = null
+      heroAttachmentLoading.value = false
+      heroAttachmentMap.value = {}
+      void fetchHeroAttachmentOptions('')
+    } else {
+      heroAttachmentAbort?.abort()
+      heroAttachmentAbort = null
+      heroAttachmentLoading.value = false
+      heroAttachmentOptions.value = []
+      heroAttachmentSearchTerm.value = ''
+      heroAttachmentMap.value = {}
+    }
+  },
+)
 
 async function createHeroBackground() {
   if (!newBackground.attachmentId.trim()) {
-    window.alert('请填写附件 ID')
+    toast.add({
+      title: '信息不完整',
+      description: '请选择或输入附件 ID',
+      color: 'warning',
+    })
     return
   }
   try {
+    const selected =
+      heroAttachmentMap.value[newBackground.attachmentId.trim()] ?? null
+    if (selected && !selected.isPublic) {
+      toast.add({
+        title: '附件尚未公开',
+        description: '请在附件库中将该文件设置为公开后再尝试添加背景图',
+        color: 'warning',
+      })
+      return
+    }
     const token = ensureToken()
     isMutating.value = true
     await apiFetch('/admin/portal/config/hero/backgrounds', {
@@ -363,39 +484,13 @@ async function createHeroBackground() {
       },
     })
     resetHeroBackgroundForm()
-  newBackgroundDialogOpen.value = false
+    newBackgroundDialogOpen.value = false
     await fetchConfig()
   } catch (error) {
     if (error instanceof Error && error.message.includes('登录')) {
       return
     }
     handleError(error, '新增背景图失败')
-  } finally {
-    isMutating.value = false
-  }
-}
-
-async function saveHeroBackground(background: EditableHeroBackground) {
-  try {
-    const token = ensureToken()
-    isMutating.value = true
-    await apiFetch(`/admin/portal/config/hero/backgrounds/${background.id}`, {
-      method: 'PATCH',
-      token,
-      body: {
-        attachmentId: background.editAttachmentId.trim() || undefined,
-        description: background.editDescription.trim() || undefined,
-      },
-    })
-    editingHeroBackgroundId.value = null
-    background.attachmentId = background.editAttachmentId.trim()
-    background.description = background.editDescription.trim() || null
-    await fetchConfig()
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('登录')) {
-      return
-    }
-    handleError(error, '更新背景图失败')
   } finally {
     isMutating.value = false
   }
@@ -410,9 +505,6 @@ async function removeHeroBackground(id: string) {
         method: 'DELETE',
         token,
       })
-      if (editingHeroBackgroundId.value === id) {
-        editingHeroBackgroundId.value = null
-      }
       await fetchConfig()
     } catch (error) {
       if (error instanceof Error && error.message.includes('登录')) {
@@ -462,27 +554,13 @@ function resetNavigationForm() {
   newNavigation.available = true
 }
 
-function startEditNavigationItem(item: EditableNavigationItem) {
-  item.editLabel = item.label
-  item.editTooltip = item.tooltip ?? ''
-  item.editUrl = item.url ?? ''
-  item.editIcon = item.icon ?? ''
-  item.editAvailable = item.available
-  editingNavigationId.value = item.id
-}
-
-function cancelNavigationEdit(item: EditableNavigationItem) {
-  item.editLabel = item.label
-  item.editTooltip = item.tooltip ?? ''
-  item.editUrl = item.url ?? ''
-  item.editIcon = item.icon ?? ''
-  item.editAvailable = item.available
-  editingNavigationId.value = null
-}
-
 async function createNavigationItem() {
   if (!newNavigation.id.trim() || !newNavigation.label.trim()) {
-    window.alert('请填写导航 ID 和名称')
+    toast.add({
+      title: '信息不完整',
+      description: '请填写导航 ID 和名称',
+      color: 'warning',
+    })
     return
   }
   try {
@@ -513,38 +591,6 @@ async function createNavigationItem() {
   }
 }
 
-async function saveNavigationItem(item: EditableNavigationItem) {
-  try {
-    const token = ensureToken()
-    isMutating.value = true
-    await apiFetch(`/admin/portal/config/navigation/${item.id}`, {
-      method: 'PATCH',
-      token,
-      body: {
-        label: item.editLabel.trim() || undefined,
-        tooltip: item.editTooltip.trim() || undefined,
-        url: item.editUrl.trim() || undefined,
-        icon: item.editIcon.trim() || undefined,
-        available: item.editAvailable,
-      },
-    })
-    editingNavigationId.value = null
-    item.label = item.editLabel.trim()
-    item.tooltip = item.editTooltip.trim() || null
-    item.url = item.editUrl.trim() || null
-    item.icon = item.editIcon.trim() || null
-    item.available = item.editAvailable
-    await fetchConfig()
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('登录')) {
-      return
-    }
-    handleError(error, '更新导航项失败')
-  } finally {
-    isMutating.value = false
-  }
-}
-
 async function removeNavigationItem(id: string) {
   deleteConfirmMessage.value = '确定要删除该导航项吗？'
   deleteConfirmCallback.value = async () => {
@@ -554,9 +600,6 @@ async function removeNavigationItem(id: string) {
         method: 'DELETE',
         token,
       })
-      if (editingNavigationId.value === id) {
-        editingNavigationId.value = null
-      }
       await fetchConfig()
     } catch (error) {
       if (error instanceof Error && error.message.includes('登录')) {
@@ -712,18 +755,32 @@ onMounted(() => {
           </form>
         </section>
 
-        <div
-          v-if="heroBackgrounds.length === 0"
-          class="rounded-2xl border border-dashed border-slate-300/70 bg-slate-50/70 p-6 text-sm text-slate-500 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-300"
-        >
-          暂无背景图，请通过下方表单新增一张背景图
-        </div>
-
         <section
-          v-if="heroBackgrounds.length > 0"
           class="rounded-3xl border border-slate-200/70 bg-white/80 text-sm backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
         >
-          <div class="overflow-hidden rounded-3xl">
+          <div
+            class="flex flex-col gap-3 border-b border-slate-200/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800/60"
+          >
+            <div>
+              <h4
+                class="text-base font-semibold text-slate-900 dark:text-white"
+              >
+                Hero 区背景轮播
+              </h4>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                维护轮播顺序与关联的附件资源。
+              </p>
+            </div>
+            <UButton
+              size="sm"
+              variant="soft"
+              color="primary"
+              @click="newBackgroundDialogOpen = true"
+            >
+              新增背景图
+            </UButton>
+          </div>
+          <div class="overflow-hidden rounded-b-3xl">
             <div class="overflow-x-auto">
               <table
                 class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800"
@@ -743,107 +800,92 @@ onMounted(() => {
                   class="divide-y divide-slate-100 dark:divide-slate-800/70"
                 >
                   <tr
-                    v-for="(background, index) in heroBackgrounds"
-                    :key="background.id"
-                    class="transition hover:bg-slate-50/60 dark:hover:bg-slate-900/50"
+                    v-if="heroBackgrounds.length === 0"
+                    class="text-center text-sm text-slate-500 dark:text-slate-400"
                   >
-                    <td class="px-4 py-3">
-                      <div
-                        class="h-12 w-20 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
-                      >
-                        <img
-                          v-if="background.imageUrl"
-                          :src="background.imageUrl"
-                          alt="预览"
-                          class="h-full w-full object-cover"
-                        />
-                        <span
-                          v-else
-                          class="text-[11px] text-slate-400 dark:text-slate-500"
-                          >暂无预览</span
-                        >
-                      </div>
-                    </td>
-                    <td class="px-4 py-3 text-xs break-all">
-                      {{ background.attachmentId || '未配置' }}
-                    </td>
-                    <td class="px-4 py-3 text-xs">
-                      {{ background.description || '未填写描述' }}
-                    </td>
-                    <td class="px-4 py-3">
-                      <UBadge
-                        :color="background.available ? 'primary' : 'neutral'"
-                        variant="soft"
-                        >{{
-                          background.available ? '附件可访问' : '附件不可访问'
-                        }}</UBadge
-                      >
-                    </td>
-                    <td class="px-4 py-3">
-                      <div class="flex flex-wrap gap-2">
-                        <UButton
-                          size="xs"
-                          variant="soft"
-                          @click="openHeroDetail(background)"
-                          >查看</UButton
-                        >
-                        <UButton
-                          size="xs"
-                          variant="soft"
-                          :disabled="index === 0 || isMutating"
-                          @click="moveHeroBackground(index, -1)"
-                          >上移</UButton
-                        >
-                        <UButton
-                          size="xs"
-                          variant="soft"
-                          :disabled="
-                            index === heroBackgrounds.length - 1 || isMutating
-                          "
-                          @click="moveHeroBackground(index, 1)"
-                          >下移</UButton
-                        >
-                        <UButton
-                          size="xs"
-                          color="neutral"
-                          variant="ghost"
-                          :loading="isMutating"
-                          @click="removeHeroBackground(background.id)"
-                          >删除</UButton
-                        >
-                      </div>
+                    <td colspan="5" class="px-4 py-8">
+                      暂无背景图，请点击上方按钮新增
                     </td>
                   </tr>
+                  <template v-else>
+                    <tr
+                      v-for="(background, index) in heroBackgrounds"
+                      :key="background.id"
+                      class="transition hover:bg-slate-50/60 dark:hover:bg-slate-900/50"
+                    >
+                      <td class="px-4 py-3">
+                        <div
+                          class="flex h-12 w-20 items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800"
+                        >
+                          <img
+                            v-if="background.imageUrl"
+                            :src="background.imageUrl"
+                            alt="预览"
+                            class="h-full w-full object-cover"
+                          />
+                          <span
+                            v-else
+                            class="text-[11px] text-slate-400 dark:text-slate-500"
+                            >暂无预览</span
+                          >
+                        </div>
+                      </td>
+                      <td class="px-4 py-3 text-xs break-all">
+                        {{ background.attachmentId || '未配置' }}
+                      </td>
+                      <td class="px-4 py-3 text-xs">
+                        {{ background.description || '未填写描述' }}
+                      </td>
+                      <td class="px-4 py-3">
+                        <UBadge
+                          :color="background.available ? 'primary' : 'neutral'"
+                          variant="soft"
+                          >{{
+                            background.available ? '附件可访问' : '附件不可访问'
+                          }}</UBadge
+                        >
+                      </td>
+                      <td class="px-4 py-3">
+                        <div class="flex flex-wrap gap-2">
+                          <UButton
+                            size="xs"
+                            variant="soft"
+                            @click="openHeroDetail(background)"
+                            >查看</UButton
+                          >
+                          <UButton
+                            size="xs"
+                            variant="soft"
+                            :disabled="index === 0 || isMutating"
+                            @click="moveHeroBackground(index, -1)"
+                            >上移</UButton
+                          >
+                          <UButton
+                            size="xs"
+                            variant="soft"
+                            :disabled="
+                              index === heroBackgrounds.length - 1 || isMutating
+                            "
+                            @click="moveHeroBackground(index, 1)"
+                            >下移</UButton
+                          >
+                          <UButton
+                            size="xs"
+                            color="neutral"
+                            variant="ghost"
+                            :loading="isMutating"
+                            @click="removeHeroBackground(background.id)"
+                            >删除</UButton
+                          >
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
                 </tbody>
               </table>
             </div>
           </div>
         </section>
-
-        <div
-          class="rounded-2xl border border-dashed border-slate-300/80 bg-slate-50/70 p-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/60"
-        >
-          <div
-            class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-          >
-            <div class="px-1">
-              <h4 class="text-lg text-slate-600 dark:text-slate-300">
-                新增背景图
-              </h4>
-              <p class="text-sm text-slate-500 dark:text-slate-400">
-                通过附件 ID 引入新的英雄区背景图。
-              </p>
-            </div>
-            <UButton
-              color="primary"
-              variant="soft"
-              size="sm"
-              @click="newBackgroundDialogOpen = true"
-            >
-              打开表单
-            </UButton>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -1112,7 +1154,9 @@ onMounted(() => {
         <div class="space-y-5 p-6">
           <div class="flex items-center justify-between">
             <div>
-              <h3 class="text-base font-semibold text-slate-900 dark:text-white">
+              <h3
+                class="text-base font-semibold text-slate-900 dark:text-white"
+              >
                 新增背景图
               </h3>
               <p class="text-xs text-slate-500 dark:text-slate-400">
@@ -1123,22 +1167,73 @@ onMounted(() => {
               color="neutral"
               variant="ghost"
               @click="updateNewBackgroundDialog(false)"
-              >关闭</UButton
-            >
+              icon="i-lucide-x"
+            />
           </div>
           <div class="space-y-4">
-            <div class="grid gap-3 md:grid-cols-2">
-              <div class="space-y-2">
+            <div class="flex flex-col gap-3">
+              <div class="flex flex-col gap-2">
                 <label
                   class="text-xs font-medium text-slate-500 dark:text-slate-300"
-                  >附件 ID</label
+                  >关联附件</label
                 >
-                <UInput
-                  v-model="newBackground.attachmentId"
-                  placeholder="来自附件系统的 ID"
-                />
+                <USelectMenu
+                  class="w-full"
+                  :model-value="
+                    (newBackground.attachmentId || undefined) as
+                      | string
+                      | undefined
+                  "
+                  :items="heroAttachmentOptions"
+                  value-key="id"
+                  label-key="label"
+                  description-key="description"
+                  v-model:search-term="heroAttachmentSearchTerm"
+                  :ignore-filter="true"
+                  :loading="heroAttachmentLoading"
+                  :search-input="{
+                    placeholder: '输入名称或 ID 搜索附件',
+                  }"
+                  :create-item="{ when: 'always' }"
+                  placeholder="选择或搜索附件"
+                  @update:model-value="
+                    (value: string | undefined) => {
+                      newBackground.attachmentId = value ?? ''
+                    }
+                  "
+                  @create="
+                    (value: string) => {
+                      newBackground.attachmentId = value
+                    }
+                  "
+                >
+                  <template #item="{ item }">
+                    <div class="space-y-0.5">
+                      <p
+                        class="text-sm font-medium text-slate-800 dark:text-slate-200"
+                      >
+                        {{ item.label }}
+                      </p>
+                      <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                        {{ item.description }}
+                      </p>
+                    </div>
+                  </template>
+                  <template #empty="{ searchTerm }">
+                    <div
+                      class="py-6 text-center text-xs text-slate-500 dark:text-slate-400"
+                    >
+                      <span v-if="heroAttachmentLoading">搜索中…</span>
+                      <span v-else>
+                        {{
+                          searchTerm ? '没有匹配的附件' : '输入关键字开始搜索'
+                        }}
+                      </span>
+                    </div>
+                  </template>
+                </USelectMenu>
               </div>
-              <div class="space-y-2">
+              <div class="flex flex-col gap-2">
                 <label
                   class="text-xs font-medium text-slate-500 dark:text-slate-300"
                   >描述（可选）</label

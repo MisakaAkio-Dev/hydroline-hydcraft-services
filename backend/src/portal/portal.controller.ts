@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { PortalService } from './portal.service';
@@ -7,11 +7,16 @@ import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
+import { AttachmentsService } from '../attachments/attachments.service';
+import { PortalAttachmentSearchDto } from './dto/portal-attachment-search.dto';
 
 @ApiTags('门户接口')
 @Controller('portal')
 export class PortalController {
-  constructor(private readonly portalService: PortalService) {}
+  constructor(
+    private readonly portalService: PortalService,
+    private readonly attachmentsService: AttachmentsService,
+  ) {}
 
   @Get('home')
   @UseGuards(OptionalAuthGuard)
@@ -27,5 +32,18 @@ export class PortalController {
   @ApiOperation({ summary: '获取后台门户总览数据' })
   async adminOverview() {
     return this.portalService.getAdminOverview();
+  }
+
+  @Get('attachments/search')
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_PORTAL_HOME)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '搜索可公开引用的附件' })
+  async searchAttachments(@Query() query: PortalAttachmentSearchDto) {
+    return this.attachmentsService.searchAttachments(
+      query.keyword,
+      query.limit,
+      query.publicOnly ?? true,
+    );
   }
 }

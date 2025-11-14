@@ -21,12 +21,14 @@ import { UpdateTagDto } from './dto/update-tag.dto';
 import { GenerateShareTokenDto } from './dto/generate-share-token.dto';
 import type { StoredUploadedFile } from './uploaded-file.interface';
 
+const ATTACHMENT_RELATIONS = {
+  folder: true,
+  owner: { select: { id: true, name: true, email: true } },
+  tags: { include: { tag: true } },
+} satisfies Prisma.AttachmentInclude;
+
 type AttachmentWithRelations = Prisma.AttachmentGetPayload<{
-  include: {
-    folder: true;
-    owner: { select: { id: true; name: true; email: true } };
-    tags: { include: { tag: true } };
-  };
+  include: typeof ATTACHMENT_RELATIONS;
 }> & {
   ownerId: string | null;
   uploaderNameSnapshot: string | null;
@@ -63,6 +65,7 @@ type AttachmentSummary = {
 export class AttachmentsService implements OnModuleInit {
   private readonly logger = new Logger(AttachmentsService.name);
   private readonly uploadRoot: string;
+  private readonly attachmentIncludes = ATTACHMENT_RELATIONS;
 
   constructor(private readonly prisma: PrismaService) {
     this.uploadRoot = this.resolveUploadRoot();
@@ -260,11 +263,51 @@ export class AttachmentsService implements OnModuleInit {
     const attachments = await this.prisma.attachment.findMany({
       where: filters,
       orderBy: [{ createdAt: 'desc' }],
-      include: {
-        folder: true,
-        owner: { select: { id: true, name: true, email: true } },
-        tags: { include: { tag: true } },
-      },
+      include: this.attachmentIncludes,
+    });
+    return attachments.map((item) => this.serializeAttachment(item));
+  }
+
+  async searchAttachments(keyword?: string, limit?: number, onlyPublic = true) {
+    const take = Math.min(Math.max(limit ?? 20, 1), 50);
+    const trimmed = keyword?.trim();
+    const filters: Prisma.AttachmentWhereInput = {
+      deletedAt: null,
+      isPublic: onlyPublic ? true : undefined,
+    };
+    if (trimmed?.length) {
+      filters.OR = [
+        { name: { contains: trimmed, mode: 'insensitive' } },
+        { originalName: { contains: trimmed, mode: 'insensitive' } },
+        { id: { equals: trimmed } },
+        {
+          folder: {
+            OR: [
+              { name: { contains: trimmed, mode: 'insensitive' } },
+              { path: { contains: trimmed, mode: 'insensitive' } },
+            ],
+          },
+        },
+        {
+          tags: {
+            some: {
+              tag: {
+                OR: [
+                  { key: { contains: trimmed, mode: 'insensitive' } },
+                  { name: { contains: trimmed, mode: 'insensitive' } },
+                ],
+              },
+            },
+          },
+        },
+      ];
+    }
+
+    const attachments = await this.prisma.attachment.findMany({
+      where: filters,
+      orderBy: [{ createdAt: 'desc' }],
+      take,
+      include: this.attachmentIncludes,
     });
     return attachments.map((item) => this.serializeAttachment(item));
   }
@@ -796,9 +839,7 @@ export class AttachmentsService implements OnModuleInit {
   private resolveUploadRoot() {
     const envValue = process.env.ATTACHMENTS_DIR?.trim();
     if (envValue && envValue.length > 0) {
-      return isAbsolute(envValue)
-        ? envValue
-        : resolve(process.cwd(), envValue);
+      return isAbsolute(envValue) ? envValue : resolve(process.cwd(), envValue);
     }
     return resolve(process.cwd(), '..', 'uploads');
   }

@@ -1160,7 +1160,7 @@ async function submitAdhoc() {
       :ui="{
         content: 'w-full max-w-sm',
         wrapper: 'z-[140]',
-        overlay: 'z-[130] bg-slate-950/40 backdrop-blur-sm'
+        overlay: 'z-[130]'
       }"
     >
       <template #content>
