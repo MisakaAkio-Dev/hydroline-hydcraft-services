@@ -771,13 +771,8 @@ onMounted(async () => {
 <template>
   <div class="space-y-6">
     <header
-      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-end"
     >
-      <div>
-        <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
-          附件系统
-        </h1>
-      </div>
       <div class="flex flex-wrap items-center gap-3">
         <label
           class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"
@@ -876,21 +871,25 @@ onMounted(async () => {
             </td>
             <td class="px-4 py-3 text-xs">
               <div class="flex flex-col gap-1">
-                <UBadge
-                  :color="
-                    item.resolvedVisibility.mode === 'public'
-                      ? 'success'
-                      : 'warning'
-                  "
-                  variant="soft"
-                >
-                  {{
-                    item.resolvedVisibility.mode === 'public' ? '公开' : '受限'
-                  }}
-                </UBadge>
-                <span class="text-slate-400 dark:text-slate-500">
+                <div class="flex gap-1">
+                  <UBadge
+                    :color="
+                      item.resolvedVisibility.mode === 'public'
+                        ? 'success'
+                        : 'warning'
+                    "
+                    variant="soft"
+                  >
+                    {{
+                      item.resolvedVisibility.mode === 'public'
+                        ? '公开'
+                        : '受限'
+                    }}
+                  </UBadge>
+                </div>
+                <div class="text-slate-400 dark:text-slate-500">
                   {{ visibilitySourceLabel(item.resolvedVisibility) }}
-                </span>
+                </div>
               </div>
             </td>
             <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">

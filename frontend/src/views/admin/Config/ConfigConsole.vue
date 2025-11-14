@@ -504,12 +504,8 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
     <header
-      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-end"
     >
-      <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
-        配置中心
-      </h1>
-
       <UButton
         color="primary"
         variant="ghost"
