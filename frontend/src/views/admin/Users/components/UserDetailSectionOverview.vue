@@ -42,6 +42,7 @@ const emit = defineEmits<{
   (e: 'reload'): void
   (e: 'openContacts'): void
   (e: 'openEmails'): void
+  (e: 'openPhones'): void
   (e: 'resetPassword'): void
   (e: 'deleteUser'): void
   (e: 'editJoinDate', date: string | null): void
@@ -101,6 +102,13 @@ const primaryMinecraft = computed(() => {
 type EmailContactDisplay = {
   id: string
   value: string
+  isPrimary: boolean
+  verified: boolean
+}
+
+type PhoneContactDisplay = {
+  id: string | null
+  display: string
   isPrimary: boolean
   verified: boolean
 }
@@ -175,6 +183,65 @@ const emailContacts = computed<EmailContactDisplay[]>(() => {
     return a.value.localeCompare(b.value)
   })
 })
+
+function extractPhoneDial(contact: unknown) {
+  if (!contact || typeof contact !== 'object') return null
+  const meta = (contact as Record<string, unknown>).metadata
+  if (meta && typeof meta === 'object') {
+    const dial = (meta as Record<string, unknown>).dialCode
+    if (typeof dial === 'string') return dial
+  }
+  const raw =
+    typeof (contact as Record<string, unknown>).value === 'string'
+      ? ((contact as Record<string, unknown>).value as string)
+      : ''
+  const match = raw.match(/^\+\d{2,6}/)
+  return match ? match[0] : null
+}
+
+function formatPhoneDisplay(contact: unknown) {
+  if (!contact || typeof contact !== 'object') return ''
+  const raw =
+    typeof (contact as Record<string, unknown>).value === 'string'
+      ? ((contact as Record<string, unknown>).value as string).trim()
+      : ''
+  if (!raw) return ''
+  const dial = extractPhoneDial(contact) ?? ''
+  const number = dial && raw.startsWith(dial) ? raw.slice(dial.length) : raw
+  const normalized = number.replace(/\s+/g, '')
+  return dial ? `${dial} ${normalized}` : normalized
+}
+
+const phoneContacts = computed<PhoneContactDisplay[]>(() => {
+  const d = detail
+  if (!d) return []
+  const source = d.phoneContacts && d.phoneContacts.length > 0
+    ? d.phoneContacts
+    : (d.contacts ?? []).filter((entry) => entry.channel?.key === 'phone')
+
+  const items: PhoneContactDisplay[] = []
+  for (const contact of source) {
+    const display = formatPhoneDisplay(contact)
+    if (!display) continue
+    items.push({
+      id: contact.id ?? null,
+      display,
+      isPrimary: Boolean(contact.isPrimary),
+      verified:
+        contact.verification === 'VERIFIED' || Boolean(contact.verifiedAt),
+    })
+  }
+
+  return items.sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) {
+      return a.isPrimary ? -1 : 1
+    }
+    if (a.verified !== b.verified) {
+      return a.verified ? -1 : 1
+    }
+    return a.display.localeCompare(b.display)
+  })
+})
 </script>
 
 <template>
@@ -242,7 +309,7 @@ const emailContacts = computed<EmailContactDisplay[]>(() => {
       </div>
     </div>
 
-    <div class="mt-6 grid gap-4 sm:grid-cols-3">
+    <div class="mt-6 grid gap-4 sm:grid-cols-4">
       <div>
         <div
           class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
@@ -288,6 +355,59 @@ const emailContacts = computed<EmailContactDisplay[]>(() => {
               "
               :class="
                 emailContacts[0].verified
+                  ? 'text-emerald-500'
+                  : 'text-amber-500'
+              "
+              class="h-5 w-5"
+            />
+          </template>
+        </div>
+      </div>
+
+      <div>
+        <div
+          class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
+        >
+          手机号
+          <UButton
+            v-if="!isLoading && detail"
+            size="xs"
+            class="p-0 font-medium"
+            color="primary"
+            variant="link"
+            @click="emit('openPhones')"
+            >管理</UButton
+          >
+        </div>
+        <div
+          class="flex items-center gap-1 text-base font-semibold text-slate-800 dark:text-slate-300"
+        >
+          <template v-if="isLoading">
+            <UIcon
+              name="i-lucide-loader-2"
+              class="inline-block h-4 w-4 animate-spin"
+            />
+          </template>
+          <template v-else-if="phoneContacts.length === 0"> — </template>
+          <template v-else>
+            <span class="line-clamp-1 truncate">
+              {{ phoneContacts[0].display }}
+            </span>
+            <UBadge
+              :color="phoneContacts[0].isPrimary ? 'primary' : 'neutral'"
+              size="sm"
+              variant="soft"
+            >
+              {{ phoneContacts[0].isPrimary ? '主' : '辅' }}
+            </UBadge>
+            <UIcon
+              :name="
+                phoneContacts[0].verified
+                  ? 'i-lucide-check-circle-2'
+                  : 'i-lucide-alert-triangle'
+              "
+              :class="
+                phoneContacts[0].verified
                   ? 'text-emerald-500'
                   : 'text-amber-500'
               "

@@ -735,6 +735,16 @@ export async function getUserDetail(ctx: UsersServiceContext, userId: string) {
   });
 
   const { minecraftIds, ...rest } = user;
+  const phoneContacts = (user.contacts ?? [])
+    .filter((contact) => contact.channel?.key === 'phone')
+    .map((contact) => ({
+      id: contact.id,
+      value: contact.value,
+      isPrimary: Boolean(contact.isPrimary),
+      verification: contact.verification,
+      verifiedAt: contact.verifiedAt,
+      metadata: contact.metadata,
+    }));
 
   return {
     ...rest,
@@ -744,6 +754,7 @@ export async function getUserDetail(ctx: UsersServiceContext, userId: string) {
     lastLoginIp: normalizedLastLoginIp,
     lastLoginIpLocation: lastLoginLocation?.display ?? null,
     lastLoginIpLocationRaw: lastLoginLocation?.raw ?? null,
+    phoneContacts,
   };
 }
 

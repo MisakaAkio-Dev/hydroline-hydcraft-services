@@ -106,6 +106,7 @@ export interface AdminUserDetail
   authmeBindings: AdminAuthmeBindingEntry[]
   nicknames?: AdminMinecraftProfile[]
   contacts?: Array<AdminContactEntry>
+  phoneContacts?: Array<AdminPhoneContactEntry>
   permissionLabels?: Array<{
     id: string
     labelId: string
@@ -135,6 +136,15 @@ export interface AdminContactEntry {
     displayName: string | null
     description?: string | null
   } | null
+}
+
+export interface AdminPhoneContactEntry {
+  id: string
+  value: string | null
+  isPrimary: boolean
+  verification?: string | null
+  verifiedAt?: string | null
+  metadata?: unknown
 }
 
 export interface AdminAttachmentSummary {

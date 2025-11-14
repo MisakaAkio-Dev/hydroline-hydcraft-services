@@ -30,6 +30,10 @@ import { UpdateJoinDateDto } from '../dto/update-join-date.dto';
 import { ResetUserPasswordDto } from '../dto/reset-user-password.dto';
 import { UpdateAuthmeBindingAdminDto } from '../dto/update-authme-binding-admin.dto';
 import { AssignPermissionLabelsDto } from '../dto/assign-permission-labels.dto';
+import {
+  AddPhoneContactDto,
+  UpdatePhoneContactDto,
+} from '../dto/phone-contact.dto';
 
 // 为避免类型信息获取不全导致的 ESLint 误报，这里定义一个局部结构类型（结构兼容 DTO）
 type CreateBindingBody = { identifier: string; setPrimary?: boolean };
@@ -248,6 +252,57 @@ export class UsersController {
   @Delete(':userId/contacts/:contactId')
   @ApiOperation({ summary: '删除联系信息' })
   async removeContact(
+    @Param('userId') userId: string,
+    @Param('contactId') contactId: string,
+  ) {
+    await this.usersService.removeContact(userId, contactId);
+    return { success: true };
+  }
+
+  @Get(':userId/contacts/phone')
+  @ApiOperation({ summary: '列出用户手机号联系人' })
+  async listPhoneContacts(@Param('userId') userId: string) {
+    const items = await this.usersService.listPhoneContacts(userId);
+    return { items };
+  }
+
+  @Post(':userId/contacts/phone')
+  @ApiOperation({ summary: '为用户新增手机号联系人' })
+  async addPhoneContact(
+    @Param('userId') userId: string,
+    @Body() dto: AddPhoneContactDto,
+  ) {
+    const contact = await this.usersService.addPhoneContact(userId, dto);
+    return { contact };
+  }
+
+  @Patch(':userId/contacts/phone/:contactId')
+  @ApiOperation({ summary: '更新用户手机号联系人' })
+  async updatePhoneContact(
+    @Param('userId') userId: string,
+    @Param('contactId') contactId: string,
+    @Body() dto: UpdatePhoneContactDto,
+  ) {
+    const contact = await this.usersService.updatePhoneContact(
+      userId,
+      contactId,
+      dto,
+    );
+    return { contact };
+  }
+
+  @Patch(':userId/contacts/phone/:contactId/primary')
+  @ApiOperation({ summary: '设置用户主手机号' })
+  async setPrimaryPhoneContact(
+    @Param('userId') userId: string,
+    @Param('contactId') contactId: string,
+  ) {
+    return this.usersService.setPrimaryPhoneContact(userId, contactId);
+  }
+
+  @Delete(':userId/contacts/phone/:contactId')
+  @ApiOperation({ summary: '删除用户手机号联系人' })
+  async removePhoneContact(
     @Param('userId') userId: string,
     @Param('contactId') contactId: string,
   ) {

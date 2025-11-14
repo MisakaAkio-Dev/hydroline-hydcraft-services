@@ -24,6 +24,10 @@ import { buildRequestContext } from '../helpers/request-context.helper';
 import { IpLocationService } from '../../lib/ip2region/ip-location.service';
 import { ChangePasswordWithCodeDto } from '../dto/change-password-with-code.dto';
 import {
+  AddPhoneContactDto,
+  UpdatePhoneContactDto,
+} from '../dto/phone-contact.dto';
+import {
   IsBoolean,
   IsEmail,
   IsOptional,
@@ -62,43 +66,15 @@ class VerifyEmailContactDto {
   code!: string;
 }
 
-class AddPhoneContactDto {
-  @IsString()
-  @Matches(/^\+\d{2,6}$/, { message: 'Dial code must match' })
-  dialCode!: string;
-
-  @IsString()
-  @Matches(/^[0-9\s-]{5,20}$/, { message: 'Phone must match' })
-  phone!: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isPrimary?: boolean;
-}
-
-class UpdatePhoneContactDto {
-  @IsOptional()
-  @IsString()
-  @Matches(/^\+\d{2,6}$/, { message: 'Dial code must match' })
-  dialCode?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(/^[0-9\s-]{5,20}$/, { message: 'Phone must match' })
-  phone?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isPrimary?: boolean;
-}
-
 class SendPhoneVerificationDto {
   @IsString()
+  @Matches(/^\+\d{2,6}[0-9\s-]{5,20}$/)
   phone!: string;
 }
 
 class VerifyPhoneContactDto {
   @IsString()
+  @Matches(/^\+\d{2,6}[0-9\s-]{5,20}$/)
   phone!: string;
 
   @IsString()
