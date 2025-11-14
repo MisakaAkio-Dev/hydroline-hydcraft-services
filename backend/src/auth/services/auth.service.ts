@@ -194,7 +194,9 @@ export class AuthService {
   ) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeBindingEnabled) {
-      throw new BadRequestException('AuthMe binding is not enabled in current environment');
+      throw new BadRequestException(
+        'AuthMe binding is not enabled in current environment',
+      );
     }
     const account = await this.authmeService.verifyCredentials(
       dto.authmeId,
@@ -217,7 +219,9 @@ export class AuthService {
   ) {
     const flags = await this.authFeatureService.getFlags();
     if (!flags.authmeBindingEnabled) {
-      throw new BadRequestException('AuthMe binding is not enabled in current environment');
+      throw new BadRequestException(
+        'AuthMe binding is not enabled in current environment',
+      );
     }
     const bindings =
       await this.authmeBindingService.listBindingsByUserId(userId);
@@ -240,7 +244,9 @@ export class AuthService {
       (entry) => entry.authmeUsernameLower === usernameLower,
     );
     if (!binding || binding.userId !== userId) {
-      throw new BadRequestException('The specified AuthMe account is not bound to current user');
+      throw new BadRequestException(
+        'The specified AuthMe account is not bound to current user',
+      );
     }
 
     await this.authmeBindingService.unbindUser({
@@ -302,18 +308,29 @@ export class AuthService {
     const ipHint = context.ip ? `（IP：${context.ip}）` : '';
     const subject = 'Hydroline 密码安全验证码';
     const plainText = `您好 ${displayName}，\n\n您的密码安全验证码为 ${code}，有效期 10 分钟${ipHint}。如非本人操作，请忽略本邮件。\n\nHydroline 安全中心`;
-    const htmlContent = `
-      <p>您好 ${displayName}：</p>
-      <p>您的密码安全验证码为 <strong>${code}</strong>，有效期 10 分钟${ipHint ? `，${ipHint}` : ''}。</p>
-      <p>如非本人操作，请忽略本邮件。</p>
-      <p>Hydroline 安全中心</p>
-    `;
+    const now = new Date();
+    const datetime = now.toLocaleString('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const currentYear = now.getFullYear();
 
     await this.mailService.sendMail({
       to: user.email,
       subject,
       text: plainText,
-      html: htmlContent,
+      template: 'password-code',
+      context: {
+        displayName,
+        code,
+        ipHint,
+        datetime,
+        currentYear: String(currentYear),
+      },
     });
 
     return { success: true } as const;
@@ -321,7 +338,9 @@ export class AuthService {
 
   async updatePasswordWithCode(userId: string, dto: ChangePasswordWithCodeDto) {
     if (dto.password.length < 8) {
-      throw new BadRequestException('Password must be at least 8 characters long');
+      throw new BadRequestException(
+        'Password must be at least 8 characters long',
+      );
     }
 
     const user = await this.prisma.user.findUnique({
@@ -403,13 +422,30 @@ export class AuthService {
     const ipHint = context.ip ? `（IP：${context.ip}）` : '';
     const subject = 'Hydroline 密码重置验证码';
     const plainText = `您好 ${displayName}，\n\n您的密码重置验证码为 ${code}，有效期 10 分钟${ipHint}。如非本人操作，请忽略。\n\nHydroline 安全中心`;
-    const htmlContent = `\n      <p>您好 ${displayName}：</p>\n      <p>您的密码重置验证码为 <strong>${code}</strong>，有效期 10 分钟${ipHint ? `，${ipHint}` : ''}。</p>\n      <p>如非本人操作，请忽略本邮件。</p>\n      <p>Hydroline 安全中心</p>\n    `;
+    const now = new Date();
+    const datetime = now.toLocaleString('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const currentYear = now.getFullYear();
+
     try {
       await this.mailService.sendMail({
         to: email,
         subject,
         text: plainText,
-        html: htmlContent,
+        template: 'password-code',
+        context: {
+          displayName,
+          code,
+          ipHint,
+          datetime,
+          currentYear: String(currentYear),
+        },
       });
     } catch {
       // 发送失败不影响统一返回 success
@@ -482,7 +518,9 @@ export class AuthService {
     context: RequestContext,
   ) {
     if (dto.password.length < 8) {
-      throw new BadRequestException('Password must be at least 8 characters long');
+      throw new BadRequestException(
+        'Password must be at least 8 characters long',
+      );
     }
     const email = this.normalizeEmail(dto.email);
     if (!email) {
@@ -596,7 +634,9 @@ export class AuthService {
 
   private async loginWithEmail(dto: AuthLoginDto, context: RequestContext) {
     if (dto.password.length < 8) {
-      throw new BadRequestException('Password must be at least 8 characters long');
+      throw new BadRequestException(
+        'Password must be at least 8 characters long',
+      );
     }
     const result = await this.signInInternal({
       email: dto.email!,
@@ -1069,6 +1109,8 @@ export class AuthService {
     if (bindings.length === 1) {
       return bindings[0].authmeUsername;
     }
-    throw new BadRequestException('Must specify which AuthMe account to unbind');
+    throw new BadRequestException(
+      'Must specify which AuthMe account to unbind',
+    );
   }
 }
