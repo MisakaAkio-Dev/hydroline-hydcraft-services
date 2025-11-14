@@ -4,11 +4,7 @@ import type { AdminUserDetail } from '@/types/admin'
 import RegionInlineSelector, {
   type RegionValue,
 } from './RegionInlineSelector.vue'
-import {
-  phoneRegions,
-  languageOptions,
-  getTimezoneOptionsZh,
-} from '@/constants/profile'
+import { languageOptions, getTimezoneOptionsZh } from '@/constants/profile'
 
 const timezoneOptions = computed(() => getTimezoneOptionsZh())
 
@@ -21,9 +17,6 @@ const { detail, profileForm, profileSaving } = defineProps<{
     motto?: string
     timezone?: string
     locale?: string
-    // 新增：电话配置与行政区划
-    phoneCountry?: (typeof phoneRegions)[number]['code']
-    phone?: string
     region?: RegionValue
   }
   profileSaving: boolean
@@ -112,25 +105,6 @@ onMounted(() => {
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">生日</div>
         <UInput v-model="profileForm.birthday" type="date" class="w-full" />
-      </div>
-
-      <div>
-        <div class="text-xs text-slate-500 dark:text-slate-500">电话</div>
-        <div class="flex gap-2">
-          <USelect
-            v-model="profileForm.phoneCountry"
-            :items="phoneRegions"
-            class="w-36"
-            value-key="code"
-            label-key="name"
-            placeholder="选择区号"
-          />
-          <UInput
-            v-model="profileForm.phone"
-            type="tel"
-            class="w-full flex-1"
-          />
-        </div>
       </div>
 
       <div class="md:col-span-2">

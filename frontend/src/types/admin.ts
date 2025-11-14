@@ -16,6 +16,21 @@ export interface AdminAuthmeBindingListItem {
   isPrimary?: boolean
 }
 
+export interface AdminStatusSnapshot {
+  status: string
+  updatedAt?: string | Date | null
+  statusEventId?: string | null
+  event?: {
+    id: string
+    status: string
+    reasonCode?: string | null
+    reasonDetail?: string | null
+    source?: string | null
+    createdAt?: string | Date | null
+    metadata?: unknown
+  } | null
+}
+
 export interface AdminUserListItem {
   id: string
   email: string
@@ -31,9 +46,7 @@ export interface AdminUserListItem {
     primaryAuthmeBindingId?: string | null
     primaryMinecraft?: AdminMinecraftProfile | null
   } | null
-  statusSnapshot?: {
-    status: string
-  } | null
+  statusSnapshot?: AdminStatusSnapshot | null
   roles: Array<{
     id: string
     roleId: string

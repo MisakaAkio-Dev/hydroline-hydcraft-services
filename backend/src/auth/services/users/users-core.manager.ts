@@ -83,8 +83,9 @@ export async function initializeUserRecords(
       const event = await tx.userStatusEvent.create({
         data: {
           userId,
-          status: PlayerStatus.UNKNOWN,
-          reasonCode: 'initial',
+          status: PlayerStatus.ACTIVE,
+          reasonCode: 'initial-active',
+          reasonDetail: 'User activated on registration',
           source: StatusSource.SYSTEM,
           metadata: toJsonValue({ createdBy: 'auth-service' }),
         },

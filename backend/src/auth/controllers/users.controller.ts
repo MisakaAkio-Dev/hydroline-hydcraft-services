@@ -30,6 +30,7 @@ import { UpdateJoinDateDto } from '../dto/update-join-date.dto';
 import { ResetUserPasswordDto } from '../dto/reset-user-password.dto';
 import { UpdateAuthmeBindingAdminDto } from '../dto/update-authme-binding-admin.dto';
 import { AssignPermissionLabelsDto } from '../dto/assign-permission-labels.dto';
+import { UpdateUserStatusDto } from '../dto/update-user-status.dto';
 import {
   AddPhoneContactDto,
   UpdatePhoneContactDto,
@@ -217,6 +218,16 @@ export class UsersController {
     @Req() req: Request,
   ) {
     return this.usersService.addStatusEvent(userId, dto, req.user?.id);
+  }
+
+  @Patch(':userId/status')
+  @ApiOperation({ summary: '直接调整用户状态' })
+  async updateStatus(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateUserStatusDto,
+    @Req() req: Request,
+  ) {
+    return this.usersService.updateUserStatus(userId, dto, req.user?.id);
   }
 
   @Post(':userId/lifecycle-events')

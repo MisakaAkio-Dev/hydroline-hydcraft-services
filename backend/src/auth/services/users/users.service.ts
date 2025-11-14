@@ -65,6 +65,7 @@ import { CreateLifecycleEventDto } from '../../dto/create-lifecycle-event.dto';
 import { CreateUserContactDto } from '../../dto/create-user-contact.dto';
 import { UpdateUserContactDto } from '../../dto/update-user-contact.dto';
 import { RegeneratePiicDto } from '../../dto/regenerate-piic.dto';
+import { UpdateUserStatusDto } from '../../dto/update-user-status.dto';
 
 @Injectable()
 export class UsersService {
@@ -200,6 +201,14 @@ export class UsersService {
   async addStatusEvent(
     userId: string,
     dto: CreateStatusEventDto,
+    actorId?: string,
+  ) {
+    return addStatusEvent(this.ctx, userId, dto, actorId);
+  }
+
+  async updateUserStatus(
+    userId: string,
+    dto: UpdateUserStatusDto,
     actorId?: string,
   ) {
     return addStatusEvent(this.ctx, userId, dto, actorId);

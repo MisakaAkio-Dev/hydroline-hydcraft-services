@@ -12,6 +12,7 @@ import type {
   AdminUserDetail,
 } from '@/types/admin'
 import { phoneRegions } from '@/constants/profile'
+import { playerStatusOptions, type PlayerStatus } from '@/constants/status'
 import UserDetailSectionOverview from './components/UserDetailSectionOverview.vue'
 import UserDetailSectionProfile from './components/UserDetailSectionProfile.vue'
 import UserDetailSectionServerAccounts from './components/UserDetailSectionServerAccounts.vue'
@@ -64,8 +65,6 @@ type ProfileForm = {
   motto?: string
   timezone?: string
   locale?: string
-  phoneCountry?: 'CN' | 'HK' | 'MO' | 'TW'
-  phone?: string
   region?: RegionValue
 }
 
@@ -76,8 +75,6 @@ const profileForm = reactive<ProfileForm>({
   motto: undefined,
   timezone: undefined,
   locale: undefined,
-  phoneCountry: 'CN',
-  phone: undefined,
   region: undefined,
 })
 
@@ -92,6 +89,29 @@ const labelSaving = ref(false)
 
 const piicDialogOpen = ref(false)
 const piicSubmitting = ref(false)
+
+const statusDialogOpen = ref(false)
+const statusSelection = ref<PlayerStatus | null>(null)
+const statusReason = ref('')
+const statusSubmitting = ref(false)
+const statusOptionMap = new Map<
+  PlayerStatus,
+  (typeof playerStatusOptions)[number]
+>()
+for (const option of playerStatusOptions) {
+  statusOptionMap.set(option.value, option)
+}
+const currentStatusOption = computed(() => {
+  const status = detail.value?.statusSnapshot?.status as
+    | PlayerStatus
+    | undefined
+  if (!status) return null
+  return statusOptionMap.get(status) ?? null
+})
+const selectedStatusOption = computed(() => {
+  if (!statusSelection.value) return null
+  return statusOptionMap.get(statusSelection.value) ?? null
+})
 
 const roleOptions = computed(() =>
   rbacStore.roles.map((role) => ({ label: role.name, value: role.key })),
@@ -254,9 +274,8 @@ function buildPhoneDialogEntry(
     extractDialCodeFromMetadata(contact.metadata) ??
     extractDialCodeFromValue(rawValue) ??
     ''
-  const remaining = dial && rawValue.startsWith(dial)
-    ? rawValue.slice(dial.length)
-    : rawValue
+  const remaining =
+    dial && rawValue.startsWith(dial) ? rawValue.slice(dial.length) : rawValue
   const normalized = remaining.replace(/\s+/g, '')
   return {
     id: contact.id ?? null,
@@ -276,9 +295,7 @@ const phoneEntries = computed<PhoneDialogEntry[]>(() => {
   const source: Array<AdminPhoneContactEntry | AdminContactEntry> =
     data.phoneContacts && data.phoneContacts.length > 0
       ? data.phoneContacts
-      : (data.contacts ?? []).filter(
-          (entry) => entry.channel?.key === 'phone',
-        )
+      : (data.contacts ?? []).filter((entry) => entry.channel?.key === 'phone')
 
   const entries: PhoneDialogEntry[] = []
   for (const contact of source) {
@@ -321,6 +338,49 @@ function closeEmailDialog() {
   emailDialogOpen.value = false
 }
 
+function openStatusDialog() {
+  if (!detail.value) return
+  statusSelection.value =
+    ((detail.value.statusSnapshot?.status ?? null) as PlayerStatus | null) ??
+    'ACTIVE'
+  statusReason.value = ''
+  statusDialogOpen.value = true
+}
+
+function closeStatusDialog() {
+  statusDialogOpen.value = false
+}
+
+async function submitStatusChange() {
+  if (!auth.token || !detail.value) return
+  const status = statusSelection.value
+  if (!status) {
+    toast.add({ title: '请选择目标状态', color: 'warning' })
+    return
+  }
+  const reasonDetail = statusReason.value.trim()
+  statusSubmitting.value = true
+  try {
+    await apiFetch(`/auth/users/${detail.value.id}/status`, {
+      method: 'PATCH',
+      token: auth.token,
+      body: {
+        status,
+        reasonDetail: reasonDetail || undefined,
+      },
+    })
+    toast.add({ title: '状态已更新', color: 'primary' })
+    closeStatusDialog()
+    await fetchDetail()
+    await usersStore.fetch({ page: usersStore.pagination.page })
+  } catch (error) {
+    console.warn('[admin] update user status failed', error)
+    toast.add({ title: '状态更新失败', color: 'error' })
+  } finally {
+    statusSubmitting.value = false
+  }
+}
+
 function openPhoneDialog() {
   if (!detail.value) return
   phoneDialogOpen.value = true
@@ -335,6 +395,14 @@ watch(emailDialogOpen, (value) => {
   if (!value) {
     emailInputValue.value = ''
     emailSubmitting.value = false
+  }
+})
+
+watch(statusDialogOpen, (value) => {
+  if (!value) {
+    statusReason.value = ''
+    statusSubmitting.value = false
+    statusSelection.value = null
   }
 })
 
@@ -528,7 +596,10 @@ async function submitContact() {
         )
       }
       if (!channel) {
-        toast.add({ title: '无法确定联系方式渠道，请刷新后重试', color: 'error' })
+        toast.add({
+          title: '无法确定联系方式渠道，请刷新后重试',
+          color: 'error',
+        })
         return
       }
       await apiFetch(`/auth/users/${detail.value.id}/contacts`, {
@@ -807,17 +878,6 @@ async function fetchDetail() {
       data.profile?.extra && typeof data.profile.extra === 'object'
         ? (data.profile.extra as Record<string, unknown>)
         : {}
-    profileForm.phone =
-      typeof extra['phone'] === 'string'
-        ? (extra['phone'] as string)
-        : undefined
-    profileForm.phoneCountry = ((extra['phoneCountry'] as
-      | 'CN'
-      | 'HK'
-      | 'MO'
-      | 'TW') ||
-      profileForm.phoneCountry ||
-      'CN') as 'CN' | 'HK' | 'MO' | 'TW'
     const country = ((extra['regionCountry'] as string) ||
       'CN') as RegionValue['country']
     const province =
@@ -880,8 +940,6 @@ async function saveProfile() {
         locale: profileForm.locale || undefined,
         // 额外资料：与用户端一致，采用扁平 extra 键
         extra: {
-          phone: profileForm.phone || undefined,
-          phoneCountry: profileForm.phoneCountry || undefined,
           regionCountry: profileForm.region?.country || undefined,
           regionProvince: profileForm.region?.province || undefined,
           regionCity: profileForm.region?.city || undefined,
@@ -990,7 +1048,6 @@ function closePiicDialog() {
   piicDialogOpen.value = false
 }
 
-
 watch(passwordDialogOpen, (value) => {
   if (!value) {
     passwordMode.value = 'temporary'
@@ -1047,10 +1104,6 @@ function openResetPasswordDialog() {
 function closeResetPasswordDialog() {
   passwordDialogOpen.value = false
 }
-
-// closeResetResultDialog: 已由组件 ResetPasswordResultDialog 通过 v-model 处理
-
-// closeErrorDialog: 已由组件 ErrorDialog 通过 v-model 处理
 
 function copyTemporaryPassword() {
   const pwd = resetResult.value?.temporaryPassword
@@ -1172,9 +1225,13 @@ watch(
   },
 )
 
-watch(detail, () => {
-  tryOpenEmailDialog()
-}, { immediate: false })
+watch(
+  detail,
+  () => {
+    tryOpenEmailDialog()
+  },
+  { immediate: false },
+)
 
 watch(
   () => props.userId,
@@ -1235,8 +1292,9 @@ async function confirmDelete() {
       :join-date-saving="joinDateSaving"
       @reload="fetchDetail"
       @openContacts="contactsListDialogOpen = true"
-        @openEmails="openEmailDialog"
-        @openPhones="openPhoneDialog"
+      @openEmails="openEmailDialog"
+      @openPhones="openPhoneDialog"
+      @openStatus="openStatusDialog"
       @resetPassword="openResetPasswordDialog"
       @deleteUser="openDeleteDialog"
       @editJoinDate="(val: string | null) => (joinDateEditing = val)"
@@ -1295,6 +1353,97 @@ async function confirmDelete() {
     @update:open="errorDialogOpen = $event"
   />
 
+  <UModal
+    :open="statusDialogOpen"
+    @update:open="statusDialogOpen = $event"
+    :ui="{ content: 'w-full max-w-lg' }"
+  >
+    <template #content>
+      <div class="space-y-5 p-6 text-sm">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold">调整用户状态</h3>
+          <UButton
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            @click="closeStatusDialog"
+          />
+        </div>
+        <div
+          v-if="detail?.statusSnapshot"
+          class="rounded-lg border border-slate-200/70 bg-slate-50/70 px-4 py-3 text-xs text-slate-500 dark:border-slate-800/60 dark:bg-slate-900/40 dark:text-slate-400"
+        >
+          <p class="text-[11px] font-semibold uppercase tracking-wide">
+            当前状态
+          </p>
+          <p class="text-base font-semibold text-slate-900 dark:text-white">
+            {{ currentStatusOption?.label ?? detail?.statusSnapshot?.status }}
+          </p>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+            {{
+              detail?.statusSnapshot?.event?.reasonDetail ||
+              detail?.statusSnapshot?.event?.reasonCode ||
+              '暂无备注'
+            }}
+          </p>
+        </div>
+        <div class="space-y-2">
+          <label
+            class="block text-xs font-semibold text-slate-600 dark:text-slate-300"
+            >目标状态</label
+          >
+          <USelect
+            class="w-full"
+            v-model="statusSelection"
+            :items="playerStatusOptions"
+            label-key="label"
+            value-key="value"
+            :disabled="statusSubmitting || !detail"
+          />
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+            {{ selectedStatusOption?.description ?? '请选择要切换到的状态。' }}
+          </p>
+        </div>
+        <div class="space-y-2">
+          <label
+            class="block text-xs font-semibold text-slate-600 dark:text-slate-300"
+            >备注</label
+          >
+          <UTextarea
+            class="w-full"
+            v-model="statusReason"
+            :rows="4"
+            maxlength="512"
+            :disabled="statusSubmitting || !detail"
+            placeholder="记录调整原因以便后续审计"
+          />
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+            将写入生命周期事件，可留空，最长 512 字。
+          </p>
+        </div>
+        <div class="flex justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            :disabled="statusSubmitting"
+            @click="closeStatusDialog"
+          >
+            取消
+          </UButton>
+          <UButton
+            color="primary"
+            :loading="statusSubmitting"
+            :disabled="statusSubmitting || !detail || !statusSelection"
+            @click="submitStatusChange"
+          >
+            保存
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
   <!-- 删除确认对话框 -->
   <UModal
     :open="deleteConfirmDialogOpen"
@@ -1302,7 +1451,7 @@ async function confirmDelete() {
     :ui="{
       content: 'z-[1105] w-full max-w-sm',
       wrapper: 'z-[1104] items-center justify-center',
-      overlay: 'z-[1103]'
+      overlay: 'z-[1103]',
     }"
   >
     <template #content>
@@ -1447,7 +1596,10 @@ async function confirmDelete() {
               variant="soft"
               class="sm:w-auto"
               :disabled="
-                emailSubmitting || !detail || !emailInputValue || emailChannelMissing
+                emailSubmitting ||
+                !detail ||
+                !emailInputValue ||
+                emailChannelMissing
               "
               :loading="emailSubmitting"
               @click="submitAddEmail"
@@ -1587,7 +1739,9 @@ async function confirmDelete() {
               添加
             </UButton>
           </div>
-          <div class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <div
+            class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
+          >
             <UCheckbox
               v-model="phoneIsPrimary"
               label="设为主手机号"
@@ -2055,9 +2209,6 @@ async function confirmDelete() {
           <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
             确认删除用户
           </h3>
-          <p class="text-xs text-slate-500 dark:text-slate-400">
-            删除后将无法恢复该用户的账号、会话与绑定记录，请谨慎操作。
-          </p>
         </div>
         <div
           class="rounded-lg bg-slate-50/70 px-4 py-3 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-200"

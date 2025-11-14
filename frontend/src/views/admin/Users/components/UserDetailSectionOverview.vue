@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import type { AdminUserDetail } from '@/types/admin'
+import { playerStatusOptions } from '@/constants/status'
 
 interface RoleOption {
   label: string
@@ -43,6 +44,7 @@ const emit = defineEmits<{
   (e: 'openContacts'): void
   (e: 'openEmails'): void
   (e: 'openPhones'): void
+  (e: 'openStatus'): void
   (e: 'resetPassword'): void
   (e: 'deleteUser'): void
   (e: 'editJoinDate', date: string | null): void
@@ -215,9 +217,10 @@ function formatPhoneDisplay(contact: unknown) {
 const phoneContacts = computed<PhoneContactDisplay[]>(() => {
   const d = detail
   if (!d) return []
-  const source = d.phoneContacts && d.phoneContacts.length > 0
-    ? d.phoneContacts
-    : (d.contacts ?? []).filter((entry) => entry.channel?.key === 'phone')
+  const source =
+    d.phoneContacts && d.phoneContacts.length > 0
+      ? d.phoneContacts
+      : (d.contacts ?? []).filter((entry) => entry.channel?.key === 'phone')
 
   const items: PhoneContactDisplay[] = []
   for (const contact of source) {
@@ -241,6 +244,22 @@ const phoneContacts = computed<PhoneContactDisplay[]>(() => {
     }
     return a.display.localeCompare(b.display)
   })
+})
+
+const statusSnapshotSummary = computed(() => {
+  const snapshot = detail?.statusSnapshot
+  if (!snapshot?.status) return null
+  const option = playerStatusOptions.find(
+    (item) => item.value === snapshot.status,
+  )
+  const reasonDetail = snapshot.event?.reasonDetail?.trim()
+  const reasonCode = snapshot.event?.reasonCode?.trim()
+  return {
+    label: option?.label ?? snapshot.status,
+    code: snapshot.status,
+    description: reasonDetail?.length ? reasonDetail : (reasonCode ?? null),
+    updatedAt: snapshot.event?.createdAt ?? snapshot.updatedAt ?? null,
+  }
 })
 </script>
 
@@ -433,7 +452,20 @@ const phoneContacts = computed<PhoneContactDisplay[]>(() => {
       </div>
 
       <div>
-        <div class="text-xs text-slate-500 dark:text-slate-500">状态</div>
+        <div
+          class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
+        >
+          状态
+          <UButton
+            v-if="!isLoading && detail"
+            size="xs"
+            class="p-0 font-medium"
+            color="primary"
+            variant="link"
+            @click="emit('openStatus')"
+            >调整</UButton
+          >
+        </div>
         <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
           <template v-if="isLoading">
             <UIcon
@@ -441,9 +473,35 @@ const phoneContacts = computed<PhoneContactDisplay[]>(() => {
               class="inline-block h-4 w-4 animate-spin"
             />
           </template>
-          <template v-else>{{
-            detail?.statusSnapshot?.status ?? '—'
-          }}</template>
+          <template v-else-if="!detail?.statusSnapshot"> — </template>
+          <template v-else>
+            <div class="flex flex-col gap-0.5">
+              <span>
+                {{
+                  statusSnapshotSummary?.label ?? detail?.statusSnapshot?.status
+                }}
+                <span
+                  class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  {{
+                    statusSnapshotSummary?.code ??
+                    detail?.statusSnapshot?.status
+                  }}
+                </span>
+              </span>
+
+              <span
+                class="block line-clamp-1 truncate font-medium text-xs text-slate-600 dark:text-slate-600 space-x-1"
+              >
+                <span v-if="statusSnapshotSummary?.updatedAt">{{
+                  fmtDateTime(statusSnapshotSummary.updatedAt)
+                }}</span>
+                <span v-if="statusSnapshotSummary?.description"
+                  >({{ statusSnapshotSummary.description }})</span
+                >
+              </span>
+            </div>
+          </template>
         </div>
       </div>
 
