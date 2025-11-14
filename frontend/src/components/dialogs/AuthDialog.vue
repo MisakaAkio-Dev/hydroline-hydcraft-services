@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import {
-  Dialog,
-  DialogPanel,
-  DialogTitle,
-  TransitionChild,
-  TransitionRoot,
-} from '@headlessui/vue'
+// 统一使用 UModal 提供的遮罩与过渡
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePortalStore } from '@/stores/portal'
@@ -30,6 +24,20 @@ const forgotForm = reactive({ email: '', code: '', password: '' })
 const forgotSending = ref(false)
 const forgotError = ref('')
 const registerError = ref('')
+
+// 统一对话框 z-index 配置（与全局用法保持一致）
+const modalUi = {
+  auth: {
+    content: 'w-full max-w-md z-[185]',
+    wrapper: 'z-[180]',
+    overlay: 'z-[170]',
+  },
+  forgot: {
+    content: 'w-full max-w-md z-[195]',
+    wrapper: 'z-[190]',
+    overlay: 'z-[185]',
+  },
+} as const
 
 const loginForm = reactive({
   email: '',
@@ -176,13 +184,7 @@ function closeForgot() {
   forgotStep.value = 'INPUT'
 }
 
-function handleForgotDialogButton(event?: Event) {
-  if (event) {
-    event.stopPropagation()
-    event.preventDefault()
-  }
-  closeForgot()
-}
+// 统一改为直接调用 closeForgot
 
 async function sendForgotCode() {
   forgotError.value = ''
@@ -228,474 +230,427 @@ async function confirmForgotReset() {
 </script>
 
 <template>
-  <!-- 当忘记密码对话框打开时，隐藏登录对话框，避免嵌套对话框互相触发关闭 -->
-  <TransitionRoot :show="uiStore.loginDialogOpen" as="template">
-    <Dialog class="relative z-1100" @close="closeDialog">
-      <TransitionChild
-        as="template"
-        enter="duration-200 ease-out"
-        enter-from="opacity-0"
-        enter-to="opacity-100"
-        leave="duration-150 ease-in"
-        leave-from="opacity-100"
-        leave-to="opacity-0"
+  <!-- 父层：登录/注册使用 UModal，统一遮罩与动画 -->
+  <UModal
+    :open="uiStore.loginDialogOpen"
+    @update:open="
+      (v: boolean) => {
+        if (!v) closeDialog()
+      }
+    "
+    :ui="modalUi.auth"
+  >
+    <template #content>
+      <div
+        class="p-6 rounded-2xl border border-slate-200/70 bg-white/90 backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/80"
       >
-        <div
-          class="fixed inset-0 bg-elevated/20 backdrop-blur-sm"
-          :class="{ 'pointer-events-none': forgotOpen }"
-        />
-      </TransitionChild>
-
-      <div class="fixed inset-0 overflow-y-auto">
-        <div class="flex min-h-full items-center justify-center p-4">
-          <TransitionChild
-            as="template"
-            enter="duration-200 ease-out"
-            enter-from="opacity-0 translate-y-3 scale-95"
-            enter-to="opacity-100 translate-y-0 scale-100"
-            leave="duration-150 ease-in"
-            leave-from="opacity-100 translate-y-0 scale-100"
-            leave-to="opacity-0 translate-y-3 scale-95"
+        <div>
+          <div
+            class="mt-4 flex rounded-full bg-slate-100/80 p-1 text-sm dark:bg-slate-800/60"
           >
-            <DialogPanel
-              class="w-full max-w-md transform overflow-hidden rounded-2xl border border-slate-200/70 bg-white/90 p-6 backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/80"
+            <button
+              type="button"
+              class="flex-1 rounded-full px-3 py-1 font-medium transition"
+              :class="
+                tab === 'login'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+              "
+              @click="tab = 'login'"
             >
-              
-                <DialogTitle>
-                  <div
-                    class="mt-4 flex rounded-full bg-slate-100/80 p-1 text-sm dark:bg-slate-800/60"
-                  >
-                    <button
-                      type="button"
-                      class="flex-1 rounded-full px-3 py-1 font-medium transition"
-                      :class="
-                        tab === 'login'
-                          ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
-                          : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
-                      "
-                      @click="tab = 'login'"
-                    >
-                      登录
-                    </button>
-                    <button
-                      type="button"
-                      class="flex-1 rounded-full px-3 py-1 font-medium transition"
-                      :class="
-                        tab === 'register'
-                          ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
-                          : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
-                      "
-                      @click="tab = 'register'"
-                    >
-                      注册
-                    </button>
-                  </div>
-                </DialogTitle>
-
-                <form
-                  v-if="tab === 'login'"
-                  class="mt-6 space-y-4"
-                  @submit.prevent="handleLogin"
-                >
-                <template v-if="loginMode === 'EMAIL'">
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>邮箱</span>
-                    <UInput
-                      v-model="loginForm.email"
-                      type="email"
-                      placeholder="you@example.com"
-                      required
-                    />
-                  </label>
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>密码</span>
-                    <UInput
-                      v-model="loginForm.password"
-                      type="password"
-                      placeholder="请输入密码"
-                      required
-                    />
-                  </label>
-                  <div class="flex items-center justify-between text-sm">
-                    <label
-                      class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
-                    >
-                      <UCheckbox v-model="loginForm.rememberMe" />
-                      记住我
-                    </label>
-                    <UButton variant="link" @click="openForgot"
-                      >忘记密码</UButton
-                    >
-                  </div>
-                </template>
-                <template v-else>
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>服务器账号</span>
-                    <UInput
-                      v-model="authmeLoginForm.authmeId"
-                      placeholder="请输入服务器内登录过的游戏 ID"
-                      required
-                    />
-                  </label>
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>服务器密码</span>
-                    <UInput
-                      v-model="authmeLoginForm.password"
-                      type="password"
-                      placeholder="请输入服务器内的登录密码"
-                      required
-                    />
-                  </label>
-                  <div class="flex items-center justify-between text-sm">
-                    <label
-                      class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
-                    >
-                      <UCheckbox v-model="authmeLoginForm.rememberMe" />
-                      记住我
-                    </label>
-                    <span class="text-xs text-slate-400"
-                      >服务器账号登录仅限已绑定账号</span
-                    >
-                  </div>
-                </template>
-
-                <div
-                  v-if="loginError"
-                  class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
-                >
-                  {{ loginError }}
-                </div>
-
-                <UButton
-                  type="submit"
-                  color="primary"
-                  class="w-full flex justify-center items-center"
-                  >登录</UButton
-                >
-
-                <div v-if="loginMode === 'EMAIL'" class="relative">
-                  <div class="absolute inset-0 flex items-center">
-                    <div
-                      class="w-full border-t border-slate-200 dark:border-slate-700"
-                    ></div>
-                  </div>
-                  <div class="relative flex justify-center text-sm">
-                    <span
-                      class="bg-white px-2 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
-                      >或</span
-                    >
-                  </div>
-                </div>
-
-                <UButton
-                  v-if="authmeLoginEnabled && loginMode === 'EMAIL'"
-                  type="button"
-                  variant="outline"
-                  class="w-full flex justify-center items-center gap-2"
-                  @click="loginMode = 'AUTHME'"
-                >
-                  <svg
-                    class="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                  使用服务器账号登录
-                </UButton>
-
-                <UButton
-                  v-if="loginMode === 'AUTHME'"
-                  type="button"
-                  variant="ghost"
-                  class="w-full flex justify-center items-center"
-                  @click="loginMode = 'EMAIL'"
-                >
-                  返回邮箱登录
-                </UButton>
-                </form>
-
-                <form
-                  v-else
-                  class="mt-6 space-y-4"
-                  @submit.prevent="handleRegister"
-                >
-                <template v-if="registerMode === 'EMAIL'">
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>邮箱</span>
-                    <UInput
-                      v-model="registerForm.email"
-                      type="email"
-                      placeholder="you@example.com"
-                      required
-                    />
-                  </label>
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>密码</span>
-                    <UInput
-                      v-model="registerForm.password"
-                      type="password"
-                      placeholder="设置登录密码"
-                      required
-                    />
-                  </label>
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>确认密码</span>
-                    <UInput
-                      v-model="registerForm.confirmPassword"
-                      type="password"
-                      placeholder="再次输入密码"
-                      required
-                    />
-                  </label>
-                </template>
-                <template v-else>
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>邮箱</span>
-                    <UInput
-                      v-model="authmeRegisterForm.email"
-                      type="email"
-                      placeholder="帐户邮箱"
-                      required
-                    />
-                  </label>
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>服务器账号</span>
-                    <UInput
-                      v-model="authmeRegisterForm.authmeId"
-                      placeholder="请输入服务器内登录过的游戏 ID"
-                      required
-                    />
-                  </label>
-                  <label
-                    class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>服务器密码</span>
-                    <UInput
-                      v-model="authmeRegisterForm.password"
-                      type="password"
-                      placeholder="请输入服务器内的登录密码"
-                      required
-                    />
-                  </label>
-                  <p class="text-xs text-slate-500 dark:text-slate-300">
-                    系统会校验服务器账号数据库并自动完成 Hydroline 账号绑定。
-                  </p>
-                </template>
-
-                <div
-                  v-if="registerError"
-                  class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
-                >
-                  {{ registerError }}
-                </div>
-
-                <UButton
-                  type="submit"
-                  color="primary"
-                  variant="outline"
-                  class="w-full flex justify-center items-center"
-                >
-                  立即注册
-                </UButton>
-
-                <div v-if="registerMode === 'EMAIL'" class="relative">
-                  <div class="absolute inset-0 flex items-center">
-                    <div
-                      class="w-full border-t border-slate-200 dark:border-slate-700"
-                    ></div>
-                  </div>
-                  <div class="relative flex justify-center text-sm">
-                    <span
-                      class="bg-white px-2 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
-                      >或</span
-                    >
-                  </div>
-                </div>
-
-                <UButton
-                  v-if="authmeRegisterEnabled && registerMode === 'EMAIL'"
-                  type="button"
-                  variant="outline"
-                  class="w-full flex justify-center items-center gap-2"
-                  @click="registerMode = 'AUTHME'"
-                >
-                  <svg
-                    class="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                  使用服务器账号注册
-                </UButton>
-
-                <UButton
-                  v-if="registerMode === 'AUTHME'"
-                  type="button"
-                  variant="ghost"
-                  class="w-full flex justify-center items-center"
-                  @click="registerMode = 'EMAIL'"
-                >
-                  返回常规注册
-                </UButton>
-                </form>
-            </DialogPanel>
-          </TransitionChild>
+              登录
+            </button>
+            <button
+              type="button"
+              class="flex-1 rounded-full px-3 py-1 font-medium transition"
+              :class="
+                tab === 'register'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+              "
+              @click="tab = 'register'"
+            >
+              注册
+            </button>
+          </div>
         </div>
-      </div>
-    </Dialog>
-  </TransitionRoot>
-  <!-- Forgot Password Modal (stacked) -->
-  <TransitionRoot :show="forgotOpen" as="template">
-    <Dialog class="relative z-1200" @close="closeForgot">
-      <TransitionChild
-        as="template"
-        enter="duration-200 ease-out"
-        enter-from="opacity-0"
-        enter-to="opacity-100"
-        leave="duration-150 ease-in"
-        leave-from="opacity-100"
-        leave-to="opacity-0"
-      >
-        <div class="fixed inset-0 bg-elevated/75 backdrop-blur-sm" />
-      </TransitionChild>
-      <div class="fixed inset-0 overflow-y-auto">
-        <div class="flex min-h-full items-center justify-center p-4">
-          <TransitionChild
-            as="template"
-            enter="duration-200 ease-out"
-            enter-from="opacity-0 translate-y-3 scale-95"
-            enter-to="opacity-100 translate-y-0 scale-100"
-            leave="duration-150 ease-in"
-            leave-from="opacity-100 translate-y-0 scale-100"
-            leave-to="opacity-0 translate-y-3 scale-95"
-          >
-            <DialogPanel
-              class="w-full max-w-md transform overflow-hidden rounded-2xl border border-slate-200/70 bg-white/90 p-6 backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/80"
+
+        <form
+          v-if="tab === 'login'"
+          class="mt-6 space-y-4"
+          @submit.prevent="handleLogin"
+        >
+          <template v-if="loginMode === 'EMAIL'">
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
             >
-              <DialogTitle
-                class="text-lg font-semibold text-slate-900 dark:text-white"
-                >找回密码</DialogTitle
+              <span>邮箱</span>
+              <UInput
+                v-model="loginForm.email"
+                type="email"
+                placeholder="you@example.com"
+                required
+              />
+            </label>
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>密码</span>
+              <UInput
+                v-model="loginForm.password"
+                type="password"
+                placeholder="请输入密码"
+                required
+              />
+            </label>
+            <div class="flex items-center justify-between text-sm">
+              <label
+                class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
               >
-              <div class="mt-4 space-y-4">
-                <template v-if="forgotStep === 'INPUT'">
-                  <label
-                    class="flex flex-col gap-1 text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>绑定或辅助邮箱</span>
-                    <UInput
-                      v-model="forgotForm.email"
-                      type="email"
-                      placeholder="you@example.com"
-                    />
-                  </label>
-                  <div class="flex items-center justify-end gap-2">
-                    <UButton variant="ghost" @click="handleForgotDialogButton">
-                      取消
-                    </UButton>
-                    <UButton
-                      color="primary"
-                      :loading="forgotSending"
-                      @click="sendForgotCode"
-                      >发送验证码</UButton
-                    >
-                  </div>
-                </template>
-                <template v-else-if="forgotStep === 'CODE'">
-                  <div class="text-sm text-slate-600 dark:text-slate-300 mb-3">
-                    我们已发送验证码至：<span class="font-medium">{{ forgotForm.email }}</span>
-                  </div>
-                  <label
-                    class="flex flex-col gap-1 text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>验证码</span>
-                    <UInput v-model="forgotForm.code" placeholder="请输入6位验证码" />
-                  </label>
-                  <label
-                    class="flex flex-col gap-1 text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >
-                    <span>新密码</span>
-                    <UInput
-                      v-model="forgotForm.password"
-                      type="password"
-                      placeholder="请输入新密码"
-                    />
-                  </label>
-                  <div class="flex gap-2">
-                    <UButton
-                      color="primary"
-                      :loading="forgotSending"
-                      class="flex-1"
-                      @click="confirmForgotReset"
-                      >确认重置</UButton
-                    >
-                    <UButton
-                      variant="ghost"
-                      class="flex-1"
-                      @click="sendForgotCode"
-                      >重新发送</UButton
-                    >
-                  </div>
-                </template>
-                <template v-else>
-                  <div
-                    class="flex items-center gap-2 text-sm text-green-600 dark:text-green-400"
-                  >
-                    <UIcon name="i-lucide-check" class="h-5 w-5" />
-                    密码已重置，请使用新密码登录。
-                  </div>
-                  <UButton
-                    color="primary"
-                    class="w-full"
-                    @click="handleForgotDialogButton()"
-                  >
-                    关闭
-                  </UButton>
-                </template>
-                <p
-                  v-if="forgotError"
-                  class="text-sm text-red-600 dark:text-red-400"
-                >
-                  {{ forgotError }}
-                </p>
-              </div>
-            </DialogPanel>
-          </TransitionChild>
+                <UCheckbox v-model="loginForm.rememberMe" />
+                记住我
+              </label>
+              <UButton variant="link" @click="openForgot">忘记密码</UButton>
+            </div>
+          </template>
+          <template v-else>
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>服务器账号</span>
+              <UInput
+                v-model="authmeLoginForm.authmeId"
+                placeholder="请输入服务器内登录过的游戏 ID"
+                required
+              />
+            </label>
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>服务器密码</span>
+              <UInput
+                v-model="authmeLoginForm.password"
+                type="password"
+                placeholder="请输入服务器内的登录密码"
+                required
+              />
+            </label>
+            <div class="flex items-center justify-between text-sm">
+              <label
+                class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+              >
+                <UCheckbox v-model="authmeLoginForm.rememberMe" />
+                记住我
+              </label>
+              <span class="text-xs text-slate-400"
+                >服务器账号登录仅限已绑定账号</span
+              >
+            </div>
+          </template>
+
+          <div
+            v-if="loginError"
+            class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
+          >
+            {{ loginError }}
+          </div>
+
+          <UButton
+            type="submit"
+            color="primary"
+            class="w-full flex justify-center items-center"
+            >登录</UButton
+          >
+
+          <div v-if="loginMode === 'EMAIL'" class="relative">
+            <div class="absolute inset-0 flex items-center">
+              <div
+                class="w-full border-t border-slate-200 dark:border-slate-700"
+              ></div>
+            </div>
+            <div class="relative flex justify-center text-sm">
+              <span
+                class="bg-white px-2 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
+                >或</span
+              >
+            </div>
+          </div>
+
+          <UButton
+            v-if="authmeLoginEnabled && loginMode === 'EMAIL'"
+            type="button"
+            variant="outline"
+            class="w-full flex justify-center items-center gap-2"
+            @click="loginMode = 'AUTHME'"
+          >
+            <svg
+              class="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            使用服务器账号登录
+          </UButton>
+
+          <UButton
+            v-if="loginMode === 'AUTHME'"
+            type="button"
+            variant="ghost"
+            class="w-full flex justify-center items-center"
+            @click="loginMode = 'EMAIL'"
+          >
+            返回邮箱登录
+          </UButton>
+        </form>
+
+        <form v-else class="mt-6 space-y-4" @submit.prevent="handleRegister">
+          <template v-if="registerMode === 'EMAIL'">
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>邮箱</span>
+              <UInput
+                v-model="registerForm.email"
+                type="email"
+                placeholder="you@example.com"
+                required
+              />
+            </label>
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>密码</span>
+              <UInput
+                v-model="registerForm.password"
+                type="password"
+                placeholder="设置登录密码"
+                required
+              />
+            </label>
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>确认密码</span>
+              <UInput
+                v-model="registerForm.confirmPassword"
+                type="password"
+                placeholder="再次输入密码"
+                required
+              />
+            </label>
+          </template>
+          <template v-else>
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>邮箱</span>
+              <UInput
+                v-model="authmeRegisterForm.email"
+                type="email"
+                placeholder="帐户邮箱"
+                required
+              />
+            </label>
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>服务器账号</span>
+              <UInput
+                v-model="authmeRegisterForm.authmeId"
+                placeholder="请输入服务器内登录过的游戏 ID"
+                required
+              />
+            </label>
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>服务器密码</span>
+              <UInput
+                v-model="authmeRegisterForm.password"
+                type="password"
+                placeholder="请输入服务器内的登录密码"
+                required
+              />
+            </label>
+            <p class="text-xs text-slate-500 dark:text-slate-300">
+              系统会校验服务器账号数据库并自动完成 Hydroline 账号绑定。
+            </p>
+          </template>
+
+          <div
+            v-if="registerError"
+            class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
+          >
+            {{ registerError }}
+          </div>
+
+          <UButton
+            type="submit"
+            color="primary"
+            variant="outline"
+            class="w-full flex justify-center items-center"
+          >
+            立即注册
+          </UButton>
+
+          <div v-if="registerMode === 'EMAIL'" class="relative">
+            <div class="absolute inset-0 flex items-center">
+              <div
+                class="w-full border-t border-slate-200 dark:border-slate-700"
+              ></div>
+            </div>
+            <div class="relative flex justify-center text-sm">
+              <span
+                class="bg-white px-2 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
+                >或</span
+              >
+            </div>
+          </div>
+
+          <UButton
+            v-if="authmeRegisterEnabled && registerMode === 'EMAIL'"
+            type="button"
+            variant="outline"
+            class="w-full flex justify-center items-center gap-2"
+            @click="registerMode = 'AUTHME'"
+          >
+            <svg
+              class="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            使用服务器账号注册
+          </UButton>
+
+          <UButton
+            v-if="registerMode === 'AUTHME'"
+            type="button"
+            variant="ghost"
+            class="w-full flex justify-center items-center"
+            @click="registerMode = 'EMAIL'"
+          >
+            返回常规注册
+          </UButton>
+        </form>
+      </div>
+    </template>
+  </UModal>
+  <!-- 子层：忘记密码使用 UModal（叠层与动画由 UModals 统一管理） -->
+  <UModal
+    :open="forgotOpen"
+    @update:open="
+      (v: boolean) => {
+        if (!v) closeForgot()
+      }
+    "
+    :ui="modalUi.forgot"
+  >
+    <template #content>
+      <div
+        class="p-6 rounded-2xl border border-slate-200/70 bg-white/90 backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/80"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            找回密码
+          </h3>
+          <UButton
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            @click="closeForgot"
+          />
+        </div>
+        <div class="mt-4 space-y-4">
+          <template v-if="forgotStep === 'INPUT'">
+            <label
+              class="flex flex-col gap-1 text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>绑定或辅助邮箱</span>
+              <UInput
+                v-model="forgotForm.email"
+                type="email"
+                placeholder="you@example.com"
+              />
+            </label>
+            <div class="flex items-center justify-end gap-2">
+              <UButton variant="ghost" @click="closeForgot">取消</UButton>
+              <UButton
+                color="primary"
+                :loading="forgotSending"
+                @click="sendForgotCode"
+                >发送验证码</UButton
+              >
+            </div>
+          </template>
+          <template v-else-if="forgotStep === 'CODE'">
+            <div class="text-sm text-slate-600 dark:text-slate-300 mb-3">
+              我们已发送验证码至：<span class="font-medium">{{
+                forgotForm.email
+              }}</span>
+            </div>
+            <label
+              class="flex flex-col gap-1 text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>验证码</span>
+              <UInput v-model="forgotForm.code" placeholder="请输入6位验证码" />
+            </label>
+            <label
+              class="flex flex-col gap-1 text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>新密码</span>
+              <UInput
+                v-model="forgotForm.password"
+                type="password"
+                placeholder="请输入新密码"
+              />
+            </label>
+            <div class="flex gap-2">
+              <UButton
+                color="primary"
+                :loading="forgotSending"
+                class="flex-1"
+                @click="confirmForgotReset"
+                >确认重置</UButton
+              >
+              <UButton variant="ghost" class="flex-1" @click="sendForgotCode"
+                >重新发送</UButton
+              >
+            </div>
+          </template>
+          <template v-else>
+            <div
+              class="flex items-center gap-2 text-sm text-green-600 dark:text-green-400"
+            >
+              <UIcon name="i-lucide-check" class="h-5 w-5" />
+              密码已重置，请使用新密码登录。
+            </div>
+            <UButton color="primary" class="w-full" @click="closeForgot"
+              >关闭</UButton
+            >
+          </template>
+          <p v-if="forgotError" class="text-sm text-red-600 dark:text-red-400">
+            {{ forgotError }}
+          </p>
         </div>
       </div>
-    </Dialog>
-  </TransitionRoot>
+    </template>
+  </UModal>
 </template>
