@@ -12,16 +12,26 @@ export interface OAuthProviderFeature {
   hasClientSecret?: boolean;
 }
 
-export interface AuthFeatureFlags {
+export interface AuthmeFeatureFlags {
   emailVerificationEnabled: boolean;
   authmeRegisterEnabled: boolean;
   authmeLoginEnabled: boolean;
   authmeBindingEnabled: boolean;
-  oauthProviders?: OAuthProviderFeature[];
 }
 
+export interface SecurityFeatureFlags {
+  emailVerificationEnabled: boolean;
+  phoneVerificationEnabled: boolean;
+  passwordResetEnabled: boolean;
+}
+
+export type AuthFeatureFlags = AuthmeFeatureFlags &
+  SecurityFeatureFlags & {
+    oauthProviders?: OAuthProviderFeature[];
+  };
+
 export interface FeatureSnapshot {
-  flags: AuthFeatureFlags;
+  flags: AuthmeFeatureFlags;
   meta: {
     id: string;
     version: number;
@@ -29,11 +39,22 @@ export interface FeatureSnapshot {
   } | null;
 }
 
-const DEFAULT_FLAGS: AuthFeatureFlags = {
+const DEFAULT_AUTHME_FLAGS: AuthmeFeatureFlags = {
   emailVerificationEnabled: false,
   authmeRegisterEnabled: false,
   authmeLoginEnabled: false,
   authmeBindingEnabled: true,
+};
+
+const DEFAULT_SECURITY_FLAGS: SecurityFeatureFlags = {
+  emailVerificationEnabled: true,
+  phoneVerificationEnabled: false,
+  passwordResetEnabled: true,
+};
+
+const DEFAULT_FLAGS: AuthFeatureFlags = {
+  ...DEFAULT_AUTHME_FLAGS,
+  ...DEFAULT_SECURITY_FLAGS,
   oauthProviders: [],
 };
 
@@ -65,41 +86,26 @@ export class AuthFeatureService implements OnModuleInit {
 
   private async loadFlags(): Promise<AuthFeatureFlags> {
     try {
-      await this.ensureFeatureStorage();
-      const entries = await this.configService.getEntriesByNamespaceKey(
-        AUTH_FEATURE_NAMESPACE,
-      );
-      if (!entries.length) {
-        return DEFAULT_FLAGS;
-      }
-      const resolved = pickFeatureConfig(entries);
+      const [authmeFlags, securityFlags] = await Promise.all([
+        this.loadAuthmeFeatureFlags(),
+        this.loadSecurityVerificationFlags(),
+      ]);
+
       return {
-        emailVerificationEnabled: toBoolean(
-          resolved.emailVerificationEnabled,
-          DEFAULT_FLAGS.emailVerificationEnabled,
-        ),
-        authmeRegisterEnabled: toBoolean(
-          resolved.authmeRegisterEnabled ?? resolved.authmeRegister,
-          DEFAULT_FLAGS.authmeRegisterEnabled,
-        ),
-        authmeLoginEnabled: toBoolean(
-          resolved.authmeLoginEnabled ?? resolved.authmeLogin,
-          DEFAULT_FLAGS.authmeLoginEnabled,
-        ),
-        authmeBindingEnabled: toBoolean(
-          resolved.authmeBindingEnabled,
-          DEFAULT_FLAGS.authmeBindingEnabled,
-        ),
-        oauthProviders: DEFAULT_FLAGS.oauthProviders,
+        ...DEFAULT_FLAGS,
+        ...authmeFlags,
+        ...securityFlags,
       } satisfies AuthFeatureFlags;
     } catch (error) {
-      this.logger.warn(`Failed to load auth feature flags: ${String(error)}`);
+      this.logger.warn(
+        `Failed to load auth/security feature flags: ${String(error)}`,
+      );
       return DEFAULT_FLAGS;
     }
   }
 
   async getFeatureSnapshot(): Promise<FeatureSnapshot> {
-    const flags = await this.getFlags(true);
+    const flags = await this.loadAuthmeFeatureFlags();
     const entry = await this.configService.getEntry(
       AUTH_FEATURE_NAMESPACE,
       'feature',
@@ -120,7 +126,7 @@ export class AuthFeatureService implements OnModuleInit {
     };
   }
 
-  async setFlags(flags: AuthFeatureFlags, userId?: string) {
+  async setFlags(flags: AuthmeFeatureFlags, userId?: string) {
     const namespace = await this.configService.ensureNamespaceByKey(
       AUTH_FEATURE_NAMESPACE,
       {
@@ -164,7 +170,7 @@ export class AuthFeatureService implements OnModuleInit {
         if (!entry) {
           await this.configService.createEntry(namespace.id, {
             key: 'feature',
-            value: DEFAULT_FLAGS,
+            value: DEFAULT_AUTHME_FLAGS,
             description: 'Auth subsystem feature toggles',
           });
         }
@@ -174,6 +180,71 @@ export class AuthFeatureService implements OnModuleInit {
       });
     }
     await this.ensureStoragePromise;
+  }
+
+  private async loadAuthmeFeatureFlags(): Promise<AuthmeFeatureFlags> {
+    try {
+      await this.ensureFeatureStorage();
+      const entries = await this.configService.getEntriesByNamespaceKey(
+        AUTH_FEATURE_NAMESPACE,
+      );
+      if (!entries.length) {
+        return DEFAULT_AUTHME_FLAGS;
+      }
+      const resolved = pickFeatureConfig(entries);
+      return {
+        emailVerificationEnabled: toBoolean(
+          resolved.emailVerificationEnabled,
+          DEFAULT_AUTHME_FLAGS.emailVerificationEnabled,
+        ),
+        authmeRegisterEnabled: toBoolean(
+          resolved.authmeRegisterEnabled ?? resolved.authmeRegister,
+          DEFAULT_AUTHME_FLAGS.authmeRegisterEnabled,
+        ),
+        authmeLoginEnabled: toBoolean(
+          resolved.authmeLoginEnabled ?? resolved.authmeLogin,
+          DEFAULT_AUTHME_FLAGS.authmeLoginEnabled,
+        ),
+        authmeBindingEnabled: toBoolean(
+          resolved.authmeBindingEnabled,
+          DEFAULT_AUTHME_FLAGS.authmeBindingEnabled,
+        ),
+      } satisfies AuthmeFeatureFlags;
+    } catch (error) {
+      this.logger.warn(`Failed to load auth feature flags: ${String(error)}`);
+      return DEFAULT_AUTHME_FLAGS;
+    }
+  }
+
+  private async loadSecurityVerificationFlags(): Promise<SecurityFeatureFlags> {
+    try {
+      const entries = await this.configService.getEntriesByNamespaceKey(
+        'security.verification',
+      );
+      const map = new Map(entries.map((e) => [e.key, e.value]));
+      const getFlag = (key: string, fallback: boolean) =>
+        toBoolean(map.get(key), fallback);
+
+      return {
+        emailVerificationEnabled: getFlag(
+          'enableEmailVerification',
+          DEFAULT_SECURITY_FLAGS.emailVerificationEnabled,
+        ),
+        phoneVerificationEnabled: getFlag(
+          'enablePhoneVerification',
+          DEFAULT_SECURITY_FLAGS.phoneVerificationEnabled,
+        ),
+        passwordResetEnabled: getFlag(
+          'enablePasswordReset',
+          DEFAULT_SECURITY_FLAGS.passwordResetEnabled,
+        ),
+      } satisfies SecurityFeatureFlags;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load security verification flags: ${String(error)}`,
+      );
+      return DEFAULT_SECURITY_FLAGS;
+    }
   }
 }
 

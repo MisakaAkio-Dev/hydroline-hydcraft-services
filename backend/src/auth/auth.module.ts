@@ -19,7 +19,6 @@ import { PlayersController } from './controllers/players.controller';
 import { PlayersService } from './services/players.service';
 import { RbacSelfController } from './controllers/rbac-self.controller';
 import { AdminAuditService } from './services/admin-audit.service';
-import { AuthSecurityController } from './controllers/security.controller';
 import { ConfigModule } from '../config/config.module';
 import { OAuthModule } from '../oauth/oauth.module';
 import { VerificationAdminController } from './controllers/verification-admin.controller';
@@ -40,7 +39,6 @@ import { VerificationAdminController } from './controllers/verification-admin.co
     ContactChannelsController,
     PlayersController,
     RbacSelfController,
-    AuthSecurityController,
     VerificationAdminController,
   ],
   providers: [

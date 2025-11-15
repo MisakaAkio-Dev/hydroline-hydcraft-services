@@ -13,16 +13,12 @@ type AuthFeatureFlags = {
   authmeRegisterEnabled: boolean
   authmeLoginEnabled: boolean
   authmeBindingEnabled: boolean
+  phoneVerificationEnabled: boolean
+  passwordResetEnabled: boolean
   oauthProviders?: OAuthProviderSummary[]
 }
 
-type SecurityFeatureFlags = {
-  emailVerificationEnabled: boolean
-  phoneVerificationEnabled: boolean
-  passwordResetEnabled: boolean
-}
-
-const DEFAULT_FLAGS: AuthFeatureFlags & SecurityFeatureFlags = {
+const DEFAULT_FLAGS: AuthFeatureFlags = {
   emailVerificationEnabled: false,
   authmeRegisterEnabled: false,
   authmeLoginEnabled: false,
@@ -34,7 +30,7 @@ const DEFAULT_FLAGS: AuthFeatureFlags & SecurityFeatureFlags = {
 
 export const useFeatureStore = defineStore('features', {
   state: () => ({
-    flags: DEFAULT_FLAGS as AuthFeatureFlags & SecurityFeatureFlags,
+    flags: DEFAULT_FLAGS as AuthFeatureFlags,
     loading: false,
     loaded: false,
   }),
@@ -50,31 +46,13 @@ export const useFeatureStore = defineStore('features', {
       if (this.loaded && !force) return
       this.loading = true
       try {
-        const [authFlags, secFlags] = await Promise.all([
-          apiFetch<AuthFeatureFlags>('/auth/features').catch((e) => {
-            console.warn('[feature] load /auth/features failed', e)
-            return DEFAULT_FLAGS
-          }),
-          apiFetch<SecurityFeatureFlags>('/auth/security/features').catch(
-            (e) => {
-              console.warn('[feature] load /auth/security/features failed', e)
-              return {
-                emailVerificationEnabled:
-                  DEFAULT_FLAGS.emailVerificationEnabled,
-                phoneVerificationEnabled:
-                  DEFAULT_FLAGS.phoneVerificationEnabled,
-                passwordResetEnabled: DEFAULT_FLAGS.passwordResetEnabled,
-              }
-            },
-          ),
-        ])
-        this.flags = {
-          ...DEFAULT_FLAGS,
-          ...authFlags,
-          ...secFlags,
-          // 优先以 security 的 emailVerificationEnabled 覆盖 auth 的同名标志
-          emailVerificationEnabled: secFlags.emailVerificationEnabled,
-        }
+        const authFlags = await apiFetch<AuthFeatureFlags>(
+          '/auth/features',
+        ).catch((e) => {
+          console.warn('[feature] load /auth/features failed', e)
+          return DEFAULT_FLAGS
+        })
+        this.flags = { ...DEFAULT_FLAGS, ...authFlags }
         this.loaded = true
       } catch (error) {
         console.warn('[feature] failed to merge feature flags', error)
