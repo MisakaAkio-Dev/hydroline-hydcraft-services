@@ -351,7 +351,7 @@ async function confirmForgotReset() {
           >
             <button
               type="button"
-              class="flex-1 rounded-full px-3 py-1 font-medium transition"
+              class="flex-1 rounded-full px-3 py-1 font-medium transition duration-300"
               :class="
                 tab === 'login'
                   ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
@@ -363,7 +363,7 @@ async function confirmForgotReset() {
             </button>
             <button
               type="button"
-              class="flex-1 rounded-full px-3 py-1 font-medium transition"
+              class="flex-1 rounded-full px-3 py-1 font-medium transition duration-300"
               :class="
                 tab === 'register'
                   ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
@@ -529,7 +529,7 @@ async function confirmForgotReset() {
             <UButton
               v-if="authmeLoginEnabled && loginMode !== 'AUTHME'"
               type="button"
-              variant="outline"
+              variant="soft"
               class="w-full flex justify-center items-center gap-2"
               @click="loginMode = 'AUTHME'"
             >
@@ -544,7 +544,7 @@ async function confirmForgotReset() {
             <UButton
               v-if="loginMode === 'AUTHME'"
               :loading="uiStore.isLoading"
-              variant="ghost"
+              variant="soft"
               class="w-full flex justify-center items-center"
               @click="loginMode = 'EMAIL'"
             >
@@ -705,7 +705,7 @@ async function confirmForgotReset() {
             <UButton
               v-if="authmeRegisterEnabled && registerMode === 'EMAIL'"
               type="button"
-              variant="outline"
+              variant="soft"
               class="w-full flex justify-center items-center gap-2"
               @click="registerMode = 'AUTHME'"
             >
@@ -720,7 +720,7 @@ async function confirmForgotReset() {
             <UButton
               v-if="registerMode === 'AUTHME'"
               type="button"
-              variant="ghost"
+              variant="soft"
               class="w-full flex justify-center items-center"
               @click="registerMode = 'EMAIL'"
             >

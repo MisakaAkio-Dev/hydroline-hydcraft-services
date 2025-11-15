@@ -81,7 +81,7 @@ function deviceIcon(value: string | null | undefined) {
       <h3
         class="flex items-center gap-2 px-1 text-lg text-slate-600 dark:text-slate-300"
       >
-        会话管理
+        登录设备管理
 
         <span class="block" v-if="props.loading && props.sessions.length === 0">
           <UIcon name="i-lucide-loader-2" class="mr-2 h-4 w-4 animate-spin" />

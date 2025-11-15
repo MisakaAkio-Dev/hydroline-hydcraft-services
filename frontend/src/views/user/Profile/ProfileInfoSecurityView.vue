@@ -193,9 +193,6 @@ onMounted(() => {
                 >
                   重置密码
                 </h3>
-                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  输入邮箱并完成验证码验证即可重置账户密码。
-                </p>
               </div>
               <UButton
                 icon="i-lucide-x"
@@ -213,19 +210,22 @@ onMounted(() => {
                 >
                   <span>账户邮箱或辅助邮箱</span>
                   <UInput
+                    class="w-full"
                     v-model="resetForm.email"
                     placeholder="you@example.com"
                     type="email"
                   />
                 </label>
-                <UButton
-                  :loading="sendingReset"
-                  color="primary"
-                  class="w-full"
-                  @click="requestPasswordCode"
-                >
-                  发送验证码
-                </UButton>
+
+                <div class="flex justify-end">
+                  <UButton
+                    :loading="sendingReset"
+                    color="primary"
+                    @click="requestPasswordCode"
+                  >
+                    发送验证码
+                  </UButton>
+                </div>
               </template>
 
               <template v-else-if="resetStep === 'CODE'">

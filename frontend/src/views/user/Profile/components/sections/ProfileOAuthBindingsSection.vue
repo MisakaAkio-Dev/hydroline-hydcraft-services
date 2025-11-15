@@ -182,16 +182,16 @@ async function unbindProvider(providerKey: string) {
       <div
         v-for="provider in oauthProviders"
         :key="provider.key"
-        class="rounded-xl border border-slate-200/60 bg-white p-4 dark:border-slate-800/60 dark:bg-slate-700/60"
+        class="rounded-xl border border-slate-200/60 bg-white dark:border-slate-800/60 dark:bg-slate-700/60 overflow-hidden"
       >
-        <div class="flex items-center justify-between gap-4">
+        <div class="px-5 py-3 flex items-center justify-between gap-4">
           <div class="flex items-center gap-3">
             <div
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              class="flex items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200"
             >
               <UIcon
                 :name="resolveProviderIcon(provider.type)"
-                class="h-6 w-6"
+                class="h-5 w-5"
                 :class="resolveProviderAccent(provider.type)"
               />
             </div>
@@ -207,15 +207,10 @@ async function unbindProvider(providerKey: string) {
                   variant="soft"
                   >已绑定</UBadge
                 >
-                <UBadge v-else color="gray" size="sm" variant="soft"
+                <UBadge v-else color="neutral" size="sm" variant="soft"
                   >未绑定</UBadge
                 >
               </div>
-              <p
-                class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
-              >
-                {{ provider.type }}
-              </p>
             </div>
           </div>
           <div class="flex gap-2">
@@ -241,66 +236,69 @@ async function unbindProvider(providerKey: string) {
             </UButton>
           </div>
         </div>
+
         <div
-          class="mt-4 grid gap-4 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-3"
+          class="grid gap-4 p-4 py-3 bg-slate-50/60 dark:bg-slate-700/60 border-t border-slate-200/60 dark:border-slate-800/60 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2"
+          v-if="linkedAccount(provider.key)"
         >
-          <template v-if="linkedAccount(provider.key)">
-            <div class="col-span-2 flex items-center gap-3">
-              <UAvatar
-                v-if="accountAvatar(linkedAccount(provider.key))"
-                :src="accountAvatar(linkedAccount(provider.key))!"
-                size="md"
-                class="ring-2 ring-slate-100 dark:ring-slate-600"
-              />
-              <div
-                v-else
-                class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800"
-              >
-                <UIcon name="i-lucide-user-round" class="h-5 w-5" />
-              </div>
-              <div class="min-w-0">
-                <div class="text-xs text-slate-500 dark:text-slate-500">
-                  账号
-                </div>
-                <div
-                  class="text-base font-semibold text-slate-800 dark:text-slate-200"
-                >
-                  {{ accountPrimaryLabel(linkedAccount(provider.key)) }}
-                </div>
-                <p
-                  v-if="accountSecondaryLabel(linkedAccount(provider.key))"
-                  class="text-xs text-slate-500 dark:text-slate-400"
-                >
-                  {{ accountSecondaryLabel(linkedAccount(provider.key)) }}
-                </p>
-              </div>
-            </div>
+          <div class="col-span-2 flex items-center gap-3">
             <div>
-              <div class="text-xs text-slate-500 dark:text-slate-500">
-                外部账号 ID
-              </div>
-              <div class="break-all font-mono text-sm">
-                {{ linkedAccount(provider.key)?.providerAccountId }}
+              <div class="flex items-center gap-3">
+                <UAvatar
+                  v-if="accountAvatar(linkedAccount(provider.key))"
+                  :src="accountAvatar(linkedAccount(provider.key))!"
+                  size="lg"
+                  class="ring-2 ring-slate-200/50 dark:ring-slate-800/50"
+                />
+                <div
+                  v-else
+                  class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800"
+                >
+                  <UIcon name="i-lucide-user-round" class="h-9 w-9" />
+                </div>
+
+                <div>
+                  <div
+                    class="text-base font-semibold text-slate-800 dark:text-slate-200"
+                  >
+                    {{ accountPrimaryLabel(linkedAccount(provider.key)) }}
+                  </div>
+                  <p
+                    v-if="accountSecondaryLabel(linkedAccount(provider.key))"
+                    class="text-xs text-slate-500 dark:text-slate-400"
+                  >
+                    {{ accountSecondaryLabel(linkedAccount(provider.key)) }}
+                  </p>
+                </div>
               </div>
             </div>
-            <div class="text-xs text-slate-500">
-              <div class="text-xs text-slate-500 dark:text-slate-500">
-                绑定时间
-              </div>
-              <div
-                class="text-base font-semibold text-slate-800 dark:text-slate-300"
-              >
-                {{
-                  linkedAccount(provider.key)?.createdAt
-                    ? new Date(
-                        linkedAccount(provider.key)?.createdAt as string,
-                      ).toLocaleString()
-                    : '—'
-                }}
-              </div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 dark:text-slate-500">
+              外部账号 ID
             </div>
-          </template>
-          <template v-else> 尚未绑定 {{ provider.name }} 账号 </template>
+            <div
+              class="break-all text-base font-semibold text-slate-800 dark:text-slate-300"
+            >
+              {{ linkedAccount(provider.key)?.providerAccountId }}
+            </div>
+          </div>
+          <div class="text-xs text-slate-500">
+            <div class="text-xs text-slate-500 dark:text-slate-500">
+              绑定时间
+            </div>
+            <div
+              class="text-base font-semibold text-slate-800 dark:text-slate-300"
+            >
+              {{
+                linkedAccount(provider.key)?.createdAt
+                  ? new Date(
+                      linkedAccount(provider.key)?.createdAt as string,
+                    ).toLocaleString()
+                  : '—'
+              }}
+            </div>
+          </div>
         </div>
       </div>
     </div>

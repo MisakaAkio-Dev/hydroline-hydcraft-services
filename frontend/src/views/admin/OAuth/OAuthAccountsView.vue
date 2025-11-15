@@ -165,14 +165,14 @@ function goTo(page: number) {
               <td class="px-3 py-3 text-xs text-slate-500">
                 {{ new Date(item.createdAt).toLocaleString() }}
               </td>
-              <td class="px-3 py-3 text-right">
+              <td class="flex justify-end px-3 py-3">
                 <UButton
                   color="error"
                   variant="ghost"
-                  size="xs"
-                  icon="i-lucide-link-2-off"
                   @click="handleRemove(item.id)"
+                  class="flex items-center gap-2"
                 >
+                  <UIcon name="i-lucide-link-2-off" class="h-5 w-5" />
                   解除
                 </UButton>
               </td>

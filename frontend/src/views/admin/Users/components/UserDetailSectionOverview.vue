@@ -328,7 +328,7 @@ const statusSnapshotSummary = computed(() => {
       </div>
     </div>
 
-    <div class="mt-6 grid gap-4 sm:grid-cols-4">
+    <div class="mt-6 grid gap-4 sm:grid-cols-3">
       <div>
         <div
           class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"

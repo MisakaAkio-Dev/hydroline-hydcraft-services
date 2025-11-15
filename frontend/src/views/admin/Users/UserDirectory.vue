@@ -673,10 +673,10 @@ function extraEmails(user: AdminUserListItem) {
                 <span v-else class="text-xs text-slate-400">无绑定</span>
               </div>
             </td>
-            <td class="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">
+            <td class="px-4 py-4 text-slate-500 dark:text-slate-400">
               {{ fmtDateTime(item.createdAt) }}
             </td>
-            <td class="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">
+            <td class="px-4 py-4 text-slate-500 dark:text-slate-400">
               <span v-if="item.lastLoginAt">{{
                 fmtDateTime(item.lastLoginAt)
               }}</span>
