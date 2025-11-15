@@ -1,11 +1,19 @@
 import { defineStore } from 'pinia'
 import { apiFetch } from '@/utils/api'
 
+type OAuthProviderSummary = {
+  key: string
+  name: string
+  type: string
+  hasClientSecret?: boolean
+}
+
 type AuthFeatureFlags = {
   emailVerificationEnabled: boolean
   authmeRegisterEnabled: boolean
   authmeLoginEnabled: boolean
   authmeBindingEnabled: boolean
+  oauthProviders?: OAuthProviderSummary[]
 }
 
 type SecurityFeatureFlags = {
@@ -19,6 +27,7 @@ const DEFAULT_FLAGS: AuthFeatureFlags & SecurityFeatureFlags = {
   authmeRegisterEnabled: false,
   authmeLoginEnabled: false,
   authmeBindingEnabled: true,
+  oauthProviders: [],
   phoneVerificationEnabled: false,
   passwordResetEnabled: true,
 }
@@ -34,6 +43,7 @@ export const useFeatureStore = defineStore('features', {
     emailVerificationEnabled: (s) => s.flags.emailVerificationEnabled,
     phoneVerificationEnabled: (s) => s.flags.phoneVerificationEnabled,
     passwordResetEnabled: (s) => s.flags.passwordResetEnabled,
+    oauthProviders: (s) => s.flags.oauthProviders ?? [],
   },
   actions: {
     async initialize(force = false) {

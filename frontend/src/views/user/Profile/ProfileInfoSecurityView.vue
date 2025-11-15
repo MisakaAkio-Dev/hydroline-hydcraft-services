@@ -5,6 +5,7 @@ import { useFeatureStore } from '@/stores/feature'
 import CodeSendDialog from '@/components/dialogs/CodeSendDialog.vue'
 import ProfileEmailContactsSection from './components/sections/ProfileEmailContactsSection.vue'
 import ProfilePhoneContactsSection from './components/sections/ProfilePhoneContactsSection.vue'
+import ProfileOAuthBindingsSection from './components/sections/ProfileOAuthBindingsSection.vue'
 import { ApiError } from '@/utils/api'
 
 const auth = useAuthStore()
@@ -164,6 +165,7 @@ onMounted(() => {
   <div class="space-y-8">
     <ProfileEmailContactsSection />
     <ProfilePhoneContactsSection />
+    <ProfileOAuthBindingsSection />
 
     <section v-if="passwordResetEnabled" class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-3 px-1">

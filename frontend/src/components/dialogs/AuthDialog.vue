@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePortalStore } from '@/stores/portal'
 import { useFeatureStore } from '@/stores/feature'
+import { useOAuthStore } from '@/stores/oauth'
 import { ApiError } from '@/utils/api'
 import { translateAuthErrorMessage } from '@/utils/auth-errors'
 
@@ -12,6 +13,8 @@ const authStore = useAuthStore()
 const uiStore = useUiStore()
 const portalStore = usePortalStore()
 const featureStore = useFeatureStore()
+const oauthStore = useOAuthStore()
+const toast = useToast()
 
 const tab = ref<'login' | 'register'>('login')
 const loginMode = ref<'EMAIL' | 'AUTHME'>('EMAIL')
@@ -67,6 +70,19 @@ const authmeLoginEnabled = computed(() => featureStore.flags.authmeLoginEnabled)
 const authmeRegisterEnabled = computed(
   () => featureStore.flags.authmeRegisterEnabled,
 )
+const oauthProviders = computed(() =>
+  (featureStore.flags.oauthProviders ?? []).filter(
+    (provider) => provider.hasClientSecret !== false,
+  ),
+)
+const oauthLoadingProvider = ref<string | null>(null)
+
+function resolveProviderIcon(type: string) {
+  if (type.toUpperCase() === 'MICROSOFT') {
+    return 'i-logos-microsoft-icon'
+  }
+  return 'i-lucide-plug'
+}
 
 watch(
   () => featureStore.flags,
@@ -110,6 +126,28 @@ async function handleLogin() {
     }
   } finally {
     uiStore.stopLoading()
+  }
+}
+
+async function startOAuthLogin(providerKey: string) {
+  if (typeof window === 'undefined') return
+  oauthLoadingProvider.value = providerKey
+  try {
+    const callbackUrl = `${window.location.origin}/oauth/callback`
+    const result = await oauthStore.startFlow(providerKey, {
+      mode: 'LOGIN',
+      redirectUri: callbackUrl,
+      rememberMe: loginForm.rememberMe,
+    })
+    window.location.href = result.authorizeUrl
+  } catch (error) {
+    oauthLoadingProvider.value = null
+    toast.add({
+      title: '跳转失败',
+      description:
+        error instanceof ApiError ? error.message : '暂时无法连接第三方登录',
+      color: 'error',
+    })
   }
 }
 
@@ -373,6 +411,36 @@ async function confirmForgotReset() {
                 class="bg-white px-2 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
                 >或</span
               >
+            </div>
+          </div>
+
+          <div
+            v-if="oauthProviders.length && loginMode === 'EMAIL'"
+            class="space-y-3 rounded-xl border border-slate-200/70 px-4 py-3 dark:border-slate-700/60"
+          >
+            <p class="text-xs text-center text-slate-500">
+              或使用以下第三方账号快速登录
+            </p>
+            <div class="flex flex-wrap justify-center gap-2">
+              <UButton
+                v-for="provider in oauthProviders"
+                :key="provider.key"
+                size="sm"
+                variant="ghost"
+                :loading="oauthLoadingProvider === provider.key"
+                :disabled="
+                  oauthLoadingProvider !== null &&
+                  oauthLoadingProvider !== provider.key
+                "
+                class="min-w-[130px] justify-center gap-2"
+                @click="startOAuthLogin(provider.key)"
+              >
+                <UIcon
+                  :name="resolveProviderIcon(provider.type)"
+                  class="h-4 w-4"
+                />
+                {{ provider.name }}
+              </UButton>
             </div>
           </div>
 

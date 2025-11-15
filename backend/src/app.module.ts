@@ -11,6 +11,7 @@ import { AuthmeModule } from './authme/authme.module';
 import { Ip2RegionModule } from './lib/ip2region/ip2region.module';
 import { LuckpermsModule } from './luckperms/luckperms.module';
 import { MinecraftModule } from './minecraft/minecraft.module';
+import { OAuthModule } from './oauth/oauth.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { MinecraftModule } from './minecraft/minecraft.module';
     Ip2RegionModule,
     LuckpermsModule,
     MinecraftModule,
+    OAuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

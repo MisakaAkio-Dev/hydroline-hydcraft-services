@@ -198,6 +198,46 @@ export const adminRoutes: RouteRecordRaw[] = [
           layout: 'admin',
         },
       },
+      {
+        path: 'oauth/providers',
+        name: 'admin.oauth.providers',
+        component: () => import('@/views/admin/OAuth/OAuthProvidersView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['auth.manage.oauth'],
+          layout: 'admin',
+        },
+      },
+      {
+        path: 'oauth/accounts',
+        name: 'admin.oauth.accounts',
+        component: () => import('@/views/admin/OAuth/OAuthAccountsView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['auth.manage.oauth'],
+          layout: 'admin',
+        },
+      },
+      {
+        path: 'oauth/logs',
+        name: 'admin.oauth.logs',
+        component: () => import('@/views/admin/OAuth/OAuthLogsView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['auth.manage.oauth'],
+          layout: 'admin',
+        },
+      },
+      {
+        path: 'oauth/stats',
+        name: 'admin.oauth.stats',
+        component: () => import('@/views/admin/OAuth/OAuthStatsView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['auth.manage.oauth'],
+          layout: 'admin',
+        },
+      },
     ],
   },
 ]
@@ -207,6 +247,12 @@ const router = createRouter({
   routes: [
     ...userRoutes,
     ...adminRoutes,
+    {
+      path: '/oauth/callback',
+      name: 'oauth.callback',
+      component: () => import('@/views/common/OAuthCallbackView.vue'),
+      meta: { layout: 'user' },
+    },
     {
       path: '/:pathMatch(.*)*',
       redirect: '/error/404',

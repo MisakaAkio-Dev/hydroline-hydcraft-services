@@ -26,6 +26,7 @@ export const DEFAULT_PERMISSIONS = {
   MANAGE_USERS: 'auth.manage.users',
   MANAGE_CONTACT_CHANNELS: 'auth.manage.contact-channels',
   MANAGE_ROLES: 'auth.manage.roles',
+  MANAGE_OAUTH: 'auth.manage.oauth',
   MANAGE_ATTACHMENTS: 'assets.manage.attachments',
   MANAGE_CONFIG: 'config.manage',
   MANAGE_PORTAL_HOME: 'portal.manage.home',

@@ -21,6 +21,7 @@ import { RbacSelfController } from './controllers/rbac-self.controller';
 import { AdminAuditService } from './services/admin-audit.service';
 import { AuthSecurityController } from './controllers/security.controller';
 import { ConfigModule } from '../config/config.module';
+import { OAuthModule } from '../oauth/oauth.module';
 import { VerificationAdminController } from './controllers/verification-admin.controller';
 
 @Module({
@@ -28,6 +29,7 @@ import { VerificationAdminController } from './controllers/verification-admin.co
     Ip2RegionModule,
     MailModule,
     forwardRef(() => ConfigModule),
+    forwardRef(() => OAuthModule),
   ],
   controllers: [
     AuthController,

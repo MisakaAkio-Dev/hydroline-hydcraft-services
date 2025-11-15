@@ -28,6 +28,7 @@ import {
 import { businessError } from '../../authme/authme.errors';
 import { MailService } from '../../mail/mail.service';
 import { ChangePasswordWithCodeDto } from '../dto/change-password-with-code.dto';
+import { OAuthProvidersService } from '../../oauth/services/oauth-providers.service';
 
 interface AuthResponse {
   token: string | null;
@@ -70,6 +71,7 @@ export class AuthService {
     private readonly authmeBindingService: AuthmeBindingService,
     private readonly authFeatureService: AuthFeatureService,
     private readonly mailService: MailService,
+    private readonly oauthProvidersService: OAuthProvidersService,
   ) {}
 
   private readonly passwordCodeTtlMs = 10 * 60 * 1000;
@@ -274,7 +276,19 @@ export class AuthService {
   }
 
   async getFeatureFlags(): Promise<AuthFeatureFlags> {
-    return this.authFeatureService.getFlags();
+    const flags = await this.authFeatureService.getFlags();
+    const providers = await this.oauthProvidersService.listProviders();
+    return {
+      ...flags,
+      oauthProviders: providers
+        .filter((provider) => provider.enabled)
+        .map((provider) => ({
+          key: provider.key,
+          name: provider.name,
+          type: provider.type,
+          hasClientSecret: provider.settings.hasClientSecret,
+        })),
+    };
   }
 
   async requestPasswordChangeCode(
@@ -779,7 +793,26 @@ export class AuthService {
     };
   }
 
-  private async createSessionForUser(
+  async createOauthUser(
+    input: { email: string; name?: string; rememberMe?: boolean },
+    context: RequestContext,
+  ) {
+    const email = this.normalizeEmail(input.email);
+    if (!email) {
+      throw new BadRequestException('Email address cannot be empty');
+    }
+    return this.signUpInternal(
+      {
+        email,
+        password: generateRandomString(64),
+        name: input.name ?? email,
+        rememberMe: input.rememberMe ?? true,
+      },
+      context,
+    );
+  }
+
+  public async createSessionForUser(
     userId: string,
     rememberMe: boolean,
     context: RequestContext,

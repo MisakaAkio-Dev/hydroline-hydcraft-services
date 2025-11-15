@@ -87,6 +87,18 @@ const menuGroups = computed<MenuGroup[]>(() => [
     ],
   },
   {
+    key: 'oauth',
+    label: 'OAuth',
+    collapsible: true,
+    defaultCollapsed: false,
+    items: [
+      { label: 'Provider 管理', to: '/admin/oauth/providers', icon: 'i-lucide-plug' },
+      { label: '绑定记录', to: '/admin/oauth/accounts', icon: 'i-lucide-link' },
+      { label: 'OAuth 日志', to: '/admin/oauth/logs', icon: 'i-lucide-scroll-text' },
+      { label: '数据统计', to: '/admin/oauth/stats', icon: 'i-lucide-chart-line' },
+    ],
+  },
+  {
     key: 'advanced',
     label: '高级设置',
     collapsible: true,

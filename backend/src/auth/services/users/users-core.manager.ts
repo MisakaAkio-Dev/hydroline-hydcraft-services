@@ -339,6 +339,16 @@ export async function getSessionUser(ctx: UsersServiceContext, userId: string) {
           extra: true,
         },
       },
+      accounts: {
+        select: {
+          id: true,
+          provider: true,
+          providerAccountId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      },
       contacts: {
         select: {
           id: true,
@@ -510,6 +520,7 @@ export async function getSessionUser(ctx: UsersServiceContext, userId: string) {
     authmeBindings,
     luckperms: bindingData.luckperms,
     security,
+    accounts: user.accounts,
   } as typeof user & {
     authmeBindings: typeof authmeBindings;
     luckperms: typeof bindingData.luckperms;
@@ -517,6 +528,7 @@ export async function getSessionUser(ctx: UsersServiceContext, userId: string) {
     lastLoginIpLocation: string | null;
     lastLoginIpLocationRaw: string | null;
     security: typeof security;
+    accounts: typeof user.accounts;
   };
 }
 

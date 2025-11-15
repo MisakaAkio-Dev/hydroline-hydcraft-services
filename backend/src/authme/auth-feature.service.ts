@@ -5,11 +5,19 @@ import {
   AUTH_FEATURE_NAMESPACE,
 } from './authme.constants';
 
+export interface OAuthProviderFeature {
+  key: string;
+  name: string;
+  type: string;
+  hasClientSecret?: boolean;
+}
+
 export interface AuthFeatureFlags {
   emailVerificationEnabled: boolean;
   authmeRegisterEnabled: boolean;
   authmeLoginEnabled: boolean;
   authmeBindingEnabled: boolean;
+  oauthProviders?: OAuthProviderFeature[];
 }
 
 export interface FeatureSnapshot {
@@ -26,6 +34,7 @@ const DEFAULT_FLAGS: AuthFeatureFlags = {
   authmeRegisterEnabled: false,
   authmeLoginEnabled: false,
   authmeBindingEnabled: true,
+  oauthProviders: [],
 };
 
 @Injectable()
@@ -81,6 +90,7 @@ export class AuthFeatureService implements OnModuleInit {
           resolved.authmeBindingEnabled,
           DEFAULT_FLAGS.authmeBindingEnabled,
         ),
+        oauthProviders: DEFAULT_FLAGS.oauthProviders,
       } satisfies AuthFeatureFlags;
     } catch (error) {
       this.logger.warn(`Failed to load auth feature flags: ${String(error)}`);
