@@ -59,6 +59,7 @@ interface SignUpInternalInput {
   rememberMe: boolean;
   minecraftId?: string;
   minecraftNick?: string;
+  emailVerified?: boolean;
 }
 
 @Injectable()
@@ -746,6 +747,9 @@ export class AuthService {
       data: {
         lastLoginAt: new Date(),
         lastLoginIp: context.ip ?? null,
+        ...(input.emailVerified !== undefined
+          ? { emailVerified: input.emailVerified }
+          : {}),
       },
     });
     const fullUser = await this.usersService.getSessionUser(payload.user.id);
@@ -807,6 +811,7 @@ export class AuthService {
         password: generateRandomString(64),
         name: input.name ?? email,
         rememberMe: input.rememberMe ?? true,
+        emailVerified: true,
       },
       context,
     );
