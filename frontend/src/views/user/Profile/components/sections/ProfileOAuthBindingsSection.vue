@@ -4,6 +4,22 @@ import { useAuthStore } from '@/stores/auth'
 import { useFeatureStore } from '@/stores/feature'
 import { useOAuthStore } from '@/stores/oauth'
 import { ApiError } from '@/utils/api'
+import { resolveProviderAccent, resolveProviderIcon } from '@/utils/oauth-brand'
+
+type AccountProfile = {
+  displayName?: string | null
+  email?: string | null
+  userPrincipalName?: string | null
+  avatarDataUri?: string | null
+}
+
+type BoundAccount = {
+  id: string
+  provider: string
+  providerAccountId: string
+  createdAt?: string
+  profile?: AccountProfile | null
+}
 
 const auth = useAuthStore()
 const featureStore = useFeatureStore()
@@ -12,16 +28,92 @@ const toast = useToast()
 
 const oauthProviders = computed(() => featureStore.flags.oauthProviders ?? [])
 
-const accounts = computed(() => {
+function parseProfile(value: unknown): AccountProfile | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const profile = value as Record<string, unknown>
+  return {
+    displayName:
+      typeof profile.displayName === 'string' ? profile.displayName : undefined,
+    email: typeof profile.email === 'string' ? profile.email : undefined,
+    userPrincipalName:
+      typeof profile.userPrincipalName === 'string'
+        ? profile.userPrincipalName
+        : undefined,
+    avatarDataUri:
+      typeof profile.avatarDataUri === 'string'
+        ? profile.avatarDataUri
+        : undefined,
+  }
+}
+
+const boundAccounts = computed<BoundAccount[]>(() => {
   const raw = (auth.user as { accounts?: unknown } | null)?.accounts
   if (!Array.isArray(raw)) return []
-  return raw.filter((entry): entry is Record<string, unknown> => Boolean(entry))
+  const normalized: BoundAccount[] = []
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue
+    const record = entry as Record<string, unknown>
+    const provider = record.provider
+    const providerAccountId = record.providerAccountId
+    const id = record.id
+    if (
+      typeof provider !== 'string' ||
+      typeof providerAccountId !== 'string' ||
+      typeof id !== 'string'
+    ) {
+      continue
+    }
+    normalized.push({
+      id,
+      provider,
+      providerAccountId,
+      createdAt:
+        typeof record.createdAt === 'string' ? record.createdAt : undefined,
+      profile: parseProfile(record.profile),
+    })
+  }
+  return normalized
+})
+
+const accountMap = computed<Map<string, BoundAccount>>(() => {
+  const map = new Map<string, BoundAccount>()
+  for (const account of boundAccounts.value) {
+    map.set(account.provider, account)
+  }
+  return map
 })
 
 function linkedAccount(providerKey: string) {
-  return accounts.value.find(
-    (account) => (account as { provider?: string }).provider === providerKey,
+  return accountMap.value.get(providerKey) ?? null
+}
+
+function accountPrimaryLabel(account: BoundAccount | null) {
+  if (!account) return ''
+  const profile = account.profile
+  return (
+    profile?.displayName ??
+    profile?.userPrincipalName ??
+    profile?.email ??
+    account.providerAccountId
   )
+}
+
+function accountSecondaryLabel(account: BoundAccount | null) {
+  if (!account) return null
+  const profile = account.profile
+  if (!profile) return null
+  const primary = accountPrimaryLabel(account)
+  const candidate =
+    profile.userPrincipalName && profile.userPrincipalName !== primary
+      ? profile.userPrincipalName
+      : profile.email && profile.email !== primary
+        ? profile.email
+        : null
+  return candidate
+}
+
+function accountAvatar(account: BoundAccount | null) {
+  return account?.profile?.avatarDataUri ?? null
 }
 
 const loadingProvider = ref<string | null>(null)
@@ -92,20 +184,38 @@ async function unbindProvider(providerKey: string) {
         :key="provider.key"
         class="rounded-xl border border-slate-200/60 bg-white p-4 dark:border-slate-800/60 dark:bg-slate-700/60"
       >
-        <div class="flex items-center justify-between">
-          <div>
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
             <div
-              class="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-100"
+              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200"
             >
-              {{ provider.name }}
-
-              <UBadge
-                v-if="linkedAccount(provider.key)"
-                color="primary"
-                size="sm"
-                variant="soft"
-                >已绑定</UBadge
+              <UIcon
+                :name="resolveProviderIcon(provider.type)"
+                class="h-6 w-6"
+                :class="resolveProviderAccent(provider.type)"
+              />
+            </div>
+            <div>
+              <div
+                class="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-100"
               >
+                {{ provider.name }}
+                <UBadge
+                  v-if="linkedAccount(provider.key)"
+                  color="primary"
+                  size="sm"
+                  variant="soft"
+                  >已绑定</UBadge
+                >
+                <UBadge v-else color="gray" size="sm" variant="soft"
+                  >未绑定</UBadge
+                >
+              </div>
+              <p
+                class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                {{ provider.type }}
+              </p>
             </div>
           </div>
           <div class="flex gap-2">
@@ -131,17 +241,46 @@ async function unbindProvider(providerKey: string) {
             </UButton>
           </div>
         </div>
-        <div class="grid gap-4 md:grid-cols-2 mt-3 text-sm text-slate-600 dark:text-slate-300">
+        <div
+          class="mt-4 grid gap-4 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-3"
+        >
           <template v-if="linkedAccount(provider.key)">
-            <div>
-              <div class="text-xs text-slate-500 dark:text-slate-500">账号</div>
+            <div class="col-span-2 flex items-center gap-3">
+              <UAvatar
+                v-if="accountAvatar(linkedAccount(provider.key))"
+                :src="accountAvatar(linkedAccount(provider.key))!"
+                size="md"
+                class="ring-2 ring-slate-100 dark:ring-slate-600"
+              />
               <div
-                class="line-clamp-1 truncate text-base font-semibold text-slate-800 dark:text-slate-300"
+                v-else
+                class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800"
               >
-                {{
-                  (linkedAccount(provider.key)?.providerAccountId as string) ??
-                  '已绑定'
-                }}
+                <UIcon name="i-lucide-user-round" class="h-5 w-5" />
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs text-slate-500 dark:text-slate-500">
+                  账号
+                </div>
+                <div
+                  class="text-base font-semibold text-slate-800 dark:text-slate-200"
+                >
+                  {{ accountPrimaryLabel(linkedAccount(provider.key)) }}
+                </div>
+                <p
+                  v-if="accountSecondaryLabel(linkedAccount(provider.key))"
+                  class="text-xs text-slate-500 dark:text-slate-400"
+                >
+                  {{ accountSecondaryLabel(linkedAccount(provider.key)) }}
+                </p>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500 dark:text-slate-500">
+                外部账号 ID
+              </div>
+              <div class="break-all font-mono text-sm">
+                {{ linkedAccount(provider.key)?.providerAccountId }}
               </div>
             </div>
             <div class="text-xs text-slate-500">

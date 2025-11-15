@@ -138,6 +138,10 @@ export class OAuthLogService {
         ORDER BY date ASC
       `,
     );
-    return rows;
+    return rows.map((row) => ({
+      date: row.date,
+      action: row.action,
+      count: Number(row.count),
+    }));
   }
 }

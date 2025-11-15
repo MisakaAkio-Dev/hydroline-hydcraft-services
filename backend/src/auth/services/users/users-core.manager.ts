@@ -344,6 +344,7 @@ export async function getSessionUser(ctx: UsersServiceContext, userId: string) {
           id: true,
           provider: true,
           providerAccountId: true,
+          profile: true,
           createdAt: true,
           updatedAt: true,
         },

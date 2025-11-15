@@ -16,6 +16,7 @@ export type AdminOAuthProvider = {
     tokenUrl?: string
     redirectUri?: string
     graphUserUrl?: string
+    graphPhotoUrl?: string
     scopes?: string[]
     hasClientSecret: boolean
   }
@@ -85,7 +86,9 @@ export const useOAuthStore = defineStore('oauth-admin', {
     async updateProvider(
       providerId: string,
       payload: {
+        key?: string
         name?: string
+        type?: string
         description?: string | null
         enabled?: boolean
         settings?: Record<string, unknown>

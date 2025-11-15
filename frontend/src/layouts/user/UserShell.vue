@@ -249,7 +249,6 @@ const routerPush = (path: string) => {
           v-else
           color="neutral"
           variant="link"
-          size="xs"
           class="rounded-full"
           @click="openLogin"
           >登录</UButton

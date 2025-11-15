@@ -4,7 +4,7 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { OAuthLogAction, OAuthLogStatus } from '@prisma/client';
+import { OAuthLogAction, OAuthLogStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OAuthProvidersService } from './oauth-providers.service';
 import { OAuthStateService } from './oauth-state.service';
@@ -24,6 +24,14 @@ interface StartFlowInput {
   redirectUri: string;
   userId?: string;
   rememberMe?: boolean;
+}
+
+interface AccountProfilePayload extends Record<string, unknown> {
+  id: string;
+  displayName?: string | null;
+  email?: string | null;
+  userPrincipalName?: string | null;
+  avatarDataUri?: string | null;
 }
 
 @Injectable()
@@ -98,7 +106,10 @@ export class OAuthFlowService {
     return `${authorizeUrl}?${params.toString()}`;
   }
 
-  private resolveRedirectUri(settings: OAuthProviderSettings, providerKey: string) {
+  private resolveRedirectUri(
+    settings: OAuthProviderSettings,
+    providerKey: string,
+  ) {
     const base =
       (settings.redirectUri as string) ||
       `${process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'}/oauth/providers/{provider}/callback`;
@@ -124,18 +135,25 @@ export class OAuthFlowService {
       input.code,
       input.providerKey,
     );
-    const profile = await this.fetchMicrosoftProfile(
-      token.access_token,
-      runtime.settings,
-    );
+    const [profile, avatarDataUri] = await Promise.all([
+      this.fetchMicrosoftProfile(token.access_token, runtime.settings),
+      this.fetchMicrosoftPhoto(token.access_token, runtime.settings),
+    ]);
+    const accountProfile = this.buildAccountProfile(profile, avatarDataUri);
 
     const resultPayload =
       statePayload.mode === 'BIND'
-        ? await this.handleBinding(runtime.provider, statePayload, profile)
+        ? await this.handleBinding(
+            runtime.provider,
+            statePayload,
+            profile,
+            accountProfile,
+          )
         : await this.handleLogin(
             runtime.provider,
             statePayload,
             profile,
+            accountProfile,
             input.context,
           );
 
@@ -158,14 +176,18 @@ export class OAuthFlowService {
       throw new BadRequestException('当前未绑定该 Provider');
     }
     await this.prisma.account.delete({ where: { id: account.id } });
+    const runtime = await this.providers.resolveRuntimeProvider(providerKey);
     await this.logService.record({
+      providerId: runtime?.provider.id ?? null,
       providerKey,
-      providerType: account.providerId,
+      providerType:
+        runtime?.provider.type ?? providerKey.toUpperCase() ?? 'OAUTH',
       action: OAuthLogAction.UNBIND,
       status: OAuthLogStatus.SUCCESS,
       userId,
-      accountId: account.id,
+      accountId: null,
       message: 'User removed OAuth binding',
+      metadata: { providerAccountId: account.providerAccountId },
     });
     return true;
   }
@@ -243,6 +265,57 @@ export class OAuthFlowService {
     };
   }
 
+  private buildAccountProfile(
+    profile: {
+      id: string;
+      mail?: string | null;
+      userPrincipalName?: string;
+      displayName?: string | null;
+    },
+    avatarDataUri?: string | null,
+  ): AccountProfilePayload {
+    return {
+      id: profile.id,
+      displayName: profile.displayName ?? null,
+      email: profile.mail ?? null,
+      userPrincipalName: profile.userPrincipalName ?? null,
+      avatarDataUri: avatarDataUri ?? null,
+    };
+  }
+
+  private async fetchMicrosoftPhoto(
+    accessToken: string,
+    settings: OAuthProviderSettings,
+  ) {
+    const url =
+      (settings.graphPhotoUrl as string) ??
+      'https://graph.microsoft.com/v1.0/me/photo/$value';
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      if (!arrayBuffer.byteLength) {
+        return null;
+      }
+      const contentType = response.headers.get('content-type') ?? 'image/jpeg';
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      return `data:${contentType};base64,${base64}`;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch Microsoft profile avatar: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
+  }
+
   private async handleLogin(
     provider: { id: string; key: string; type: string },
     state: OAuthStatePayload,
@@ -252,6 +325,7 @@ export class OAuthFlowService {
       userPrincipalName?: string;
       displayName?: string | null;
     },
+    accountProfile: AccountProfilePayload,
     context: RequestContext,
   ): Promise<OAuthResultPayload> {
     const externalId = profile.id;
@@ -264,6 +338,14 @@ export class OAuthFlowService {
       },
     });
     if (account) {
+      await this.prisma.account.update({
+        where: { id: account.id },
+        data: {
+          profile: accountProfile
+            ? (accountProfile as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
+        },
+      });
       const session = await this.authService.createSessionForUser(
         account.userId,
         state.rememberMe ?? false,
@@ -302,6 +384,7 @@ export class OAuthFlowService {
       externalId,
       registerResult.user.id,
       registerResult.tokens.refreshToken ?? null,
+      accountProfile,
     );
     await this.logService.record({
       providerId: provider.id,
@@ -324,6 +407,7 @@ export class OAuthFlowService {
     provider: { id: string; key: string; type: string },
     state: OAuthStatePayload,
     profile: { id: string },
+    accountProfile: AccountProfilePayload,
   ): Promise<OAuthResultPayload> {
     if (!state.userId) {
       throw new UnauthorizedException('Binding requires authenticated user');
@@ -346,6 +430,7 @@ export class OAuthFlowService {
       profile.id,
       state.userId,
       null,
+      accountProfile,
     );
     await this.logService.record({
       providerId: provider.id,
@@ -368,6 +453,7 @@ export class OAuthFlowService {
     providerAccountId: string,
     userId: string,
     refreshToken: string | null,
+    accountProfile?: AccountProfilePayload,
   ) {
     await this.prisma.account.upsert({
       where: {
@@ -379,6 +465,9 @@ export class OAuthFlowService {
       update: {
         userId,
         refreshToken,
+        ...(accountProfile && {
+          profile: accountProfile as Prisma.InputJsonValue,
+        }),
       },
       create: {
         userId,
@@ -388,6 +477,9 @@ export class OAuthFlowService {
         providerAccountId,
         type: 'oauth',
         refreshToken,
+        profile: accountProfile
+          ? (accountProfile as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
       },
     });
   }

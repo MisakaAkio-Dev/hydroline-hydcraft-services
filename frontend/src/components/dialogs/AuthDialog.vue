@@ -8,6 +8,7 @@ import { useFeatureStore } from '@/stores/feature'
 import { useOAuthStore } from '@/stores/oauth'
 import { ApiError } from '@/utils/api'
 import { translateAuthErrorMessage } from '@/utils/auth-errors'
+import { resolveProviderIcon } from '@/utils/oauth-brand'
 
 const authStore = useAuthStore()
 const uiStore = useUiStore()
@@ -76,13 +77,6 @@ const oauthProviders = computed(() =>
   ),
 )
 const oauthLoadingProvider = ref<string | null>(null)
-
-function resolveProviderIcon(type: string) {
-  if (type.toUpperCase() === 'MICROSOFT') {
-    return 'i-logos-microsoft-icon'
-  }
-  return 'i-lucide-plug'
-}
 
 watch(
   () => featureStore.flags,
@@ -279,9 +273,7 @@ async function confirmForgotReset() {
     :ui="modalUi.auth"
   >
     <template #content>
-      <div
-        class="p-6 rounded-2xl border border-slate-200/70 bg-white/90 backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/80"
-      >
+      <div class="p-6 bg-white/90 backdrop-blur-md dark:bg-slate-900/80">
         <div>
           <div
             class="mt-4 flex rounded-full bg-slate-100/80 p-1 text-sm dark:bg-slate-800/60"
@@ -583,6 +575,36 @@ async function confirmForgotReset() {
             </div>
           </div>
 
+          <div
+            v-if="oauthProviders.length && registerMode === 'EMAIL'"
+            class="space-y-3 rounded-xl border border-slate-200/70 px-4 py-3 dark:border-slate-700/60"
+          >
+            <p class="text-xs text-center text-slate-500">
+              直接使用第三方账号完成注册
+            </p>
+            <div class="flex flex-wrap justify-center gap-2">
+              <UButton
+                v-for="provider in oauthProviders"
+                :key="provider.key"
+                size="sm"
+                variant="ghost"
+                :loading="oauthLoadingProvider === provider.key"
+                :disabled="
+                  oauthLoadingProvider !== null &&
+                  oauthLoadingProvider !== provider.key
+                "
+                class="min-w-[130px] justify-center gap-2"
+                @click="startOAuthLogin(provider.key)"
+              >
+                <UIcon
+                  :name="resolveProviderIcon(provider.type)"
+                  class="h-4 w-4"
+                />
+                {{ provider.name }}
+              </UButton>
+            </div>
+          </div>
+
           <UButton
             v-if="authmeRegisterEnabled && registerMode === 'EMAIL'"
             type="button"
@@ -631,9 +653,7 @@ async function confirmForgotReset() {
     :ui="modalUi.forgot"
   >
     <template #content>
-      <div
-        class="p-6 rounded-2xl border border-slate-200/70 bg-white/90 backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/80"
-      >
+      <div class="p-6 bg-white/90 backdrop-blur-md dark:bg-slate-900/80">
         <div class="flex items-start justify-between gap-3">
           <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
             找回密码

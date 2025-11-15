@@ -9,6 +9,7 @@ export interface OAuthProviderSettings {
   redirectUri?: string;
   scopes?: string[];
   graphUserUrl?: string;
+  graphPhotoUrl?: string;
   extra?: Record<string, unknown>;
 }
 

@@ -36,6 +36,10 @@ export class ProviderSettingsDto {
   graphUserUrl?: string;
 
   @IsOptional()
+  @IsString()
+  graphPhotoUrl?: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayNotEmpty()
   @ArrayUnique()

@@ -61,7 +61,9 @@ export class OAuthProvidersService implements OnModuleInit {
     }
     const payload = value as Record<string, unknown>;
     const scopes = Array.isArray(payload.scopes)
-      ? (payload.scopes.filter((item): item is string => typeof item === 'string') as string[])
+      ? (payload.scopes.filter(
+          (item): item is string => typeof item === 'string',
+        ) as string[])
       : undefined;
     return {
       tenantId: this.toString(payload.tenantId),
@@ -71,6 +73,7 @@ export class OAuthProvidersService implements OnModuleInit {
       tokenUrl: this.toString(payload.tokenUrl),
       redirectUri: this.toString(payload.redirectUri),
       graphUserUrl: this.toString(payload.graphUserUrl),
+      graphPhotoUrl: this.toString(payload.graphPhotoUrl),
       scopes,
     };
   }
@@ -161,7 +164,9 @@ export class OAuthProvidersService implements OnModuleInit {
   async updateProvider(
     providerId: string,
     data: {
+      key?: string;
       name?: string;
+      type?: string;
       description?: string | null;
       enabled?: boolean;
       settings?: OAuthProviderSettings;
@@ -174,11 +179,17 @@ export class OAuthProvidersService implements OnModuleInit {
     if (!provider) {
       throw new NotFoundException('Provider not found');
     }
+    if (data.key && data.key !== provider.key) {
+      throw new BadRequestException('Provider key cannot be modified');
+    }
     const payload: Prisma.OAuthProviderUpdateInput = {
       name: data.name ?? provider.name,
       description: data.description ?? provider.description,
       enabled: data.enabled ?? provider.enabled,
     };
+    if (data.type) {
+      payload.type = data.type;
+    }
     if (data.settings) {
       payload.settings = data.settings as Prisma.InputJsonValue;
     }
@@ -311,15 +322,8 @@ export class OAuthProvidersService implements OnModuleInit {
       clientId: process.env.MICROSOFT_OAUTH_CLIENT_ID,
       authorizeUrl:
         'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize',
-      tokenUrl:
-        'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token',
-      scopes: [
-        'openid',
-        'profile',
-        'email',
-        'offline_access',
-        'User.Read',
-      ],
+      tokenUrl: 'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token',
+      scopes: ['openid', 'profile', 'email', 'offline_access', 'User.Read'],
       redirectUri:
         process.env.MICROSOFT_OAUTH_REDIRECT_URI ??
         'http://localhost:3000/oauth/providers/microsoft/callback',

@@ -44,7 +44,7 @@ async function handleResult(providerKey: string, state: string) {
       await authStore.fetchCurrentUser().catch(() => {})
       await portalStore.fetchHome(true)
       status.value = 'SUCCESS'
-      message.value = '绑定已完成，可返回个人中心查看'
+      message.value = '绑定成功'
       return
     }
     throw new Error('未能获取有效的授权结果')
@@ -74,12 +74,14 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-100 via-white to-slate-100 px-4 text-center dark:from-slate-950 dark:via-slate-900 dark:to-slate-950"
+    class="flex min-h-screen flex-col items-center justify-center bg-linear-to-br from-slate-100 via-white to-slate-100 px-4 text-center dark:from-slate-950 dark:via-slate-900 dark:to-slate-950"
   >
     <div
       class="w-full max-w-md rounded-2xl border border-slate-200/70 bg-white/90 p-8 shadow-2xl shadow-slate-500/10 dark:border-slate-800/60 dark:bg-slate-900/90"
     >
-      <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+      <div
+        class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200"
+      >
         <UIcon
           :name="
             status === 'SUCCESS'
@@ -88,7 +90,7 @@ onMounted(() => {
                 ? 'i-lucide-alert-triangle'
                 : 'i-lucide-loader-circle'
           "
-          class="h-8 w-8"
+          :class="['h-8 w-8', { 'animate-spin': status === 'PENDING' }]"
         />
       </div>
       <h1 class="mt-6 text-2xl font-semibold text-slate-900 dark:text-white">
@@ -107,7 +109,7 @@ onMounted(() => {
         <UButton
           v-if="status !== 'PENDING'"
           color="primary"
-          class="w-full"
+          variant="soft"
           @click="router.replace('/')"
         >
           返回首页
