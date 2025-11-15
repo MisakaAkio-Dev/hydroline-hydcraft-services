@@ -17,7 +17,7 @@ const oauthStore = useOAuthStore()
 const toast = useToast()
 
 const tab = ref<'login' | 'register'>('login')
-const loginMode = ref<'EMAIL' | 'AUTHME'>('EMAIL')
+const loginMode = ref<'EMAIL' | 'AUTHME' | 'EMAIL_CODE'>('EMAIL')
 const registerMode = ref<'EMAIL' | 'AUTHME'>('EMAIL')
 const loginError = ref('')
 const forgotOpen = ref(false)
@@ -26,6 +26,10 @@ const forgotForm = reactive({ email: '', code: '', password: '' })
 const forgotSending = ref(false)
 const forgotError = ref('')
 const registerError = ref('')
+const loginCode = ref('')
+const registerCode = ref('')
+const loginCodeSending = ref(false)
+const registerCodeSending = ref(false)
 
 const modalUi = {
   auth: {
@@ -90,6 +94,12 @@ watch(
 
 async function handleLogin() {
   loginError.value = ''
+  const trimmedEmail = loginForm.email.trim()
+  const trimmedCode = loginCode.value.trim()
+  if (loginMode.value === 'EMAIL_CODE' && (!trimmedEmail || !trimmedCode)) {
+    loginError.value = '请填写邮箱和验证码'
+    return
+  }
   uiStore.startLoading()
   try {
     if (loginMode.value === 'AUTHME') {
@@ -99,10 +109,17 @@ async function handleLogin() {
         password: authmeLoginForm.password,
         rememberMe: authmeLoginForm.rememberMe,
       })
+    } else if (loginMode.value === 'EMAIL_CODE') {
+      await authStore.login({
+        mode: 'EMAIL_CODE',
+        email: trimmedEmail,
+        code: trimmedCode,
+        rememberMe: loginForm.rememberMe,
+      })
     } else {
       await authStore.login({
         mode: 'EMAIL',
-        email: loginForm.email,
+        email: trimmedEmail,
         password: loginForm.password,
         rememberMe: loginForm.rememberMe,
       })
@@ -117,6 +134,31 @@ async function handleLogin() {
     }
   } finally {
     uiStore.stopLoading()
+  }
+}
+
+async function sendLoginCode() {
+  loginError.value = ''
+  const email = loginForm.email.trim()
+  if (!email) {
+    loginError.value = '请填写邮箱地址'
+    return
+  }
+  loginCodeSending.value = true
+  try {
+    await authStore.requestEmailLoginCode(email)
+    toast.add({
+      title: '验证码已发送',
+      description: `请查收 ${email} 邮箱的 6 位验证码`,
+      color: 'success',
+    })
+  } catch (error) {
+    loginError.value =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '验证码发送失败，请稍后重试'
+  } finally {
+    loginCodeSending.value = false
   }
 }
 
@@ -144,6 +186,11 @@ async function startOAuthLogin(providerKey: string) {
 
 async function handleRegister() {
   registerError.value = ''
+  const targetEmail =
+    registerMode.value === 'AUTHME'
+      ? authmeRegisterForm.email.trim()
+      : registerForm.email.trim()
+  const trimmedCode = registerCode.value.trim()
   if (
     registerMode.value === 'EMAIL' &&
     registerForm.password !== registerForm.confirmPassword
@@ -151,15 +198,18 @@ async function handleRegister() {
     registerError.value = '两次输入的密码不一致'
     return
   }
+  if (!targetEmail) {
+    registerError.value = '请填写邮箱地址'
+    return
+  }
+  if (!trimmedCode) {
+    registerError.value = '请输入邮箱验证码'
+    return
+  }
   if (registerMode.value === 'AUTHME') {
     const trimmedAuthmeId = authmeRegisterForm.authmeId.trim()
-    const trimmedEmail = authmeRegisterForm.email.trim()
     if (!trimmedAuthmeId) {
       registerError.value = '请填写服务器账号'
-      return
-    }
-    if (!trimmedEmail) {
-      registerError.value = '请填写邮箱地址'
       return
     }
   }
@@ -170,13 +220,15 @@ async function handleRegister() {
         mode: 'AUTHME',
         authmeId: authmeRegisterForm.authmeId.trim(),
         password: authmeRegisterForm.password,
-        email: authmeRegisterForm.email.trim(),
+        email: targetEmail,
+        code: trimmedCode,
       })
     } else {
       await authStore.register({
         mode: 'EMAIL',
-        email: registerForm.email,
+        email: targetEmail,
         password: registerForm.password,
+        code: trimmedCode,
         rememberMe: true,
       })
     }
@@ -190,6 +242,34 @@ async function handleRegister() {
     }
   } finally {
     uiStore.stopLoading()
+  }
+}
+
+async function sendRegisterCode() {
+  registerError.value = ''
+  const email =
+    registerMode.value === 'AUTHME'
+      ? authmeRegisterForm.email.trim()
+      : registerForm.email.trim()
+  if (!email) {
+    registerError.value = '请填写邮箱地址'
+    return
+  }
+  registerCodeSending.value = true
+  try {
+    await authStore.requestEmailRegisterCode(email)
+    toast.add({
+      title: '验证码已发送',
+      description: `验证码已发送至 ${email}`,
+      color: 'success',
+    })
+  } catch (error) {
+    registerError.value =
+      error instanceof ApiError
+        ? translateAuthErrorMessage(error.message)
+        : '验证码发送失败，请稍后再试'
+  } finally {
+    registerCodeSending.value = false
   }
 }
 
@@ -332,8 +412,69 @@ async function confirmForgotReset() {
                 记住我
               </label>
               <div>
-                <UButton class="px-1!" variant="link">邮箱验证码登录</UButton>
-                <UButton class="px-1!" variant="link" @click="openForgot">忘记密码</UButton>
+                <UButton
+                  class="px-1!"
+                  variant="link"
+                  @click="loginMode = 'EMAIL_CODE'"
+                  >邮箱验证码登录</UButton
+                >
+                <UButton class="px-1!" variant="link" @click="openForgot"
+                  >忘记密码</UButton
+                >
+              </div>
+            </div>
+          </template>
+          <template v-else-if="loginMode === 'EMAIL_CODE'">
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>邮箱</span>
+              <UInput
+                v-model="loginForm.email"
+                type="email"
+                placeholder="you@example.com"
+                required
+              />
+            </label>
+            <label
+              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              <span>验证码</span>
+              <div class="flex gap-2">
+                <UInput
+                  class="flex-1"
+                  v-model="loginCode"
+                  inputmode="numeric"
+                  placeholder="请输入 6 位验证码"
+                  required
+                />
+                <UButton
+                  type="button"
+                  color="primary"
+                  variant="soft"
+                  :loading="loginCodeSending"
+                  @click="sendLoginCode"
+                  >获取验证码</UButton
+                >
+              </div>
+            </label>
+            <div class="flex items-center justify-between text-sm">
+              <label
+                class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+              >
+                <UCheckbox v-model="loginForm.rememberMe" />
+                记住我
+              </label>
+              <div class="flex items-center gap-1">
+                <UButton
+                  class="px-1!"
+                  variant="link"
+                  @click="loginMode = 'EMAIL'"
+                  >密码登录</UButton
+                >
+                <UButton class="px-1!" variant="link" @click="openForgot"
+                  >忘记密码</UButton
+                >
               </div>
             </div>
           </template>
@@ -386,7 +527,7 @@ async function confirmForgotReset() {
             >
 
             <UButton
-              v-if="authmeLoginEnabled && loginMode === 'EMAIL'"
+              v-if="authmeLoginEnabled && loginMode !== 'AUTHME'"
               type="button"
               variant="outline"
               class="w-full flex justify-center items-center gap-2"
@@ -520,6 +661,29 @@ async function confirmForgotReset() {
               系统会校验服务器账号数据库并自动完成 Hydroline 账号绑定。
             </p>
           </template>
+
+          <label
+            class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+          >
+            <span>邮箱验证码</span>
+            <div class="flex gap-2">
+              <UInput
+                class="flex-1"
+                v-model="registerCode"
+                inputmode="numeric"
+                placeholder="请输入 6 位验证码"
+                required
+              />
+              <UButton
+                type="button"
+                color="primary"
+                variant="soft"
+                :loading="registerCodeSending"
+                @click="sendRegisterCode"
+                >获取验证码</UButton
+              >
+            </div>
+          </label>
 
           <div
             v-if="registerError"

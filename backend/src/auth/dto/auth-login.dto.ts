@@ -4,14 +4,15 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  Length,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
 
 export class AuthLoginDto {
   @IsString()
-  @IsIn(['EMAIL', 'AUTHME'])
-  mode: 'EMAIL' | 'AUTHME' = 'EMAIL';
+  @IsIn(['EMAIL', 'AUTHME', 'EMAIL_CODE'])
+  mode: 'EMAIL' | 'AUTHME' | 'EMAIL_CODE' = 'EMAIL';
 
   @ValidateIf((dto: AuthLoginDto) => dto.mode === 'EMAIL')
   @IsEmail({}, { message: 'Email must be an email' })
@@ -23,9 +24,15 @@ export class AuthLoginDto {
   @MaxLength(64)
   authmeId?: string;
 
+  @ValidateIf((dto: AuthLoginDto) => dto.mode !== 'EMAIL_CODE')
   @IsString()
   @MaxLength(128)
-  password!: string;
+  password?: string;
+
+  @ValidateIf((dto: AuthLoginDto) => dto.mode === 'EMAIL_CODE')
+  @IsString()
+  @Length(6, 6)
+  code?: string;
 
   @IsOptional()
   @IsBoolean()

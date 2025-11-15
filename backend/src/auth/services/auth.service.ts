@@ -78,8 +78,11 @@ export class AuthService {
 
   private readonly passwordCodeTtlMs = 10 * 60 * 1000;
   private readonly publicPasswordCodeIdentifierPrefix = 'password:';
+  private readonly emailLoginIdentifierPrefix = 'login:';
+  private readonly emailRegisterIdentifierPrefix = 'register:';
   private readonly emailVerificationIdentifierPrefix = 'email-verify:';
   private readonly maxPublicPasswordRequestsPerHour = 5; // 可后续从 config 读取
+  private readonly maxEmailCodeRequestsPerHour = 5;
 
   async initializeDefaults() {
     await this.rolesService.ensureDefaultRolesAndPermissions();
@@ -103,6 +106,9 @@ export class AuthService {
     dto: AuthLoginDto,
     context: RequestContext = {},
   ): Promise<AuthOperationResult> {
+    if (dto.mode === 'EMAIL_CODE') {
+      return this.loginWithEmailCode(dto, context);
+    }
     if (dto.mode === 'AUTHME') {
       return this.loginWithAuthme(dto, context);
     }
@@ -389,6 +395,133 @@ export class AuthService {
     return { user: userPayload };
   }
 
+  // ================= 公共邮箱验证码（登录 / 注册） =================
+  async requestEmailLoginCode(emailRaw: string, context: RequestContext = {}) {
+    const email = this.normalizeEmail(emailRaw);
+    if (!email) {
+      throw new BadRequestException('Email address cannot be empty');
+    }
+    const user = await this.findUserByAnyEmail(email);
+    if (!user) {
+      return { success: true } as const;
+    }
+    await this.createEmailVerificationCode({
+      identifier: this.buildLoginCodeIdentifier(email),
+      email,
+      displayName: user.name ?? email,
+      subject: 'Hydroline 登录验证码',
+      operation: '邮箱登录验证',
+      context,
+    });
+    return { success: true } as const;
+  }
+
+  async requestEmailRegisterCode(
+    emailRaw: string,
+    context: RequestContext = {},
+  ) {
+    const email = this.normalizeEmail(emailRaw);
+    if (!email) {
+      throw new BadRequestException('Email address cannot be empty');
+    }
+    const existing = await this.findUserByAnyEmail(email);
+    if (existing) {
+      throw new BadRequestException('Email already registered');
+    }
+
+    await this.createEmailVerificationCode({
+      identifier: this.buildRegisterCodeIdentifier(email),
+      email,
+      displayName: email,
+      subject: 'Hydroline 注册验证码',
+      operation: '注册邮箱验证',
+      context,
+    });
+    return { success: true } as const;
+  }
+
+  private async verifyEmailCode(identifier: string, codeRaw: string) {
+    const code = codeRaw.trim();
+    if (!code) {
+      throw new BadRequestException('Verification code is required');
+    }
+    const record = await this.prisma.verification.findFirst({
+      where: { identifier, expiresAt: { gt: new Date() } },
+      orderBy: { expiresAt: 'desc' },
+    });
+    if (!record) {
+      throw new UnauthorizedException('Verification code expired or invalid');
+    }
+    const isMatch = await bcryptCompare(code, record.value);
+    if (!isMatch) {
+      throw new UnauthorizedException('Verification code expired or invalid');
+    }
+    await this.prisma.verification
+      .delete({ where: { id: record.id } })
+      .catch(() => undefined);
+  }
+
+  private async createEmailVerificationCode(options: {
+    identifier: string;
+    email: string;
+    displayName: string;
+    subject: string;
+    operation: string;
+    context: RequestContext;
+  }) {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentCount = await this.prisma.verification.count({
+      where: { identifier: options.identifier, createdAt: { gt: oneHourAgo } },
+    });
+    if (recentCount >= this.maxEmailCodeRequestsPerHour) {
+      return false;
+    }
+
+    const code = generateRandomString(6, '0-9');
+    const hashed = await bcryptHash(code, 10);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.verification.deleteMany({
+        where: { identifier: options.identifier },
+      });
+      await tx.verification.create({
+        data: {
+          identifier: options.identifier,
+          value: hashed,
+          expiresAt: new Date(Date.now() + this.passwordCodeTtlMs),
+        },
+      });
+    });
+
+    const ipHint = options.context.ip ? `（IP：${options.context.ip}）` : '';
+    const now = new Date();
+    const datetime = formatDateTimeCn(now);
+    const currentYear = now.getFullYear();
+    const plainText = `您好 ${options.displayName}，\n\n您的${options.operation}验证码为 ${code}，有效期 10 分钟${ipHint}。如非本人操作，请忽略本邮件。\n\nHydroline（氢气工艺）敬上`;
+
+    try {
+      await this.mailService.sendMail({
+        to: options.email,
+        subject: options.subject,
+        text: plainText,
+        template: 'password-code',
+        context: {
+          displayName: options.displayName,
+          code,
+          ipHint,
+          datetime,
+          currentYear: String(currentYear),
+          plaintext: plainText,
+          operation: options.operation,
+        },
+      });
+    } catch {
+      // 忽略邮件发送失败，前端统一提示
+    }
+
+    return true;
+  }
+
   // ================= 未登录场景：找回密码（统一 success 防止枚举） =================
   async requestPublicPasswordCode(
     emailRaw: string,
@@ -532,6 +665,11 @@ export class AuthService {
     if (!email) {
       throw new BadRequestException('Email address cannot be empty');
     }
+    const code = (dto.code ?? '').trim();
+    if (!code) {
+      throw new BadRequestException('Verification code is required');
+    }
+    await this.verifyEmailCode(this.buildRegisterCodeIdentifier(email), code);
     const result = await this.signUpInternal(
       {
         email,
@@ -540,6 +678,7 @@ export class AuthService {
         rememberMe: dto.rememberMe ?? false,
         minecraftId: dto.minecraftId,
         minecraftNick: dto.minecraftNick,
+        emailVerified: true,
       },
       context,
     );
@@ -583,6 +722,11 @@ export class AuthService {
         safeMessage: '请填写邮箱地址',
       });
     }
+    const code = (dto.code ?? '').trim();
+    if (!code) {
+      throw new BadRequestException('Verification code is required');
+    }
+    await this.verifyEmailCode(this.buildRegisterCodeIdentifier(email), code);
     const usernameLower = authmeAccount.username.toLowerCase();
     const existingBinding =
       await this.authmeBindingService.getBindingByUsernameLower(usernameLower);
@@ -600,6 +744,7 @@ export class AuthService {
         password: generateRandomString(48),
         name: authmeAccount.realname || authmeAccount.username,
         rememberMe: dto.rememberMe ?? false,
+        emailVerified: true,
       },
       context,
     );
@@ -638,14 +783,53 @@ export class AuthService {
     return `password:${email.toLowerCase()}`;
   }
 
+  private buildLoginCodeIdentifier(email: string) {
+    return `${this.emailLoginIdentifierPrefix}${email.toLowerCase()}`;
+  }
+
+  private buildRegisterCodeIdentifier(email: string) {
+    return `${this.emailRegisterIdentifierPrefix}${email.toLowerCase()}`;
+  }
+
+  private async loginWithEmailCode(dto: AuthLoginDto, context: RequestContext) {
+    const email = this.normalizeEmail(dto.email);
+    if (!email) {
+      throw new BadRequestException('Email address cannot be empty');
+    }
+    const code = (dto.code ?? '').trim();
+    if (!code) {
+      throw new BadRequestException('Verification code is required');
+    }
+
+    const user = await this.findUserByAnyEmail(email);
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or verification code');
+    }
+
+    await this.verifyEmailCode(this.buildLoginCodeIdentifier(email), code);
+
+    await this.prisma.user
+      .update({
+        where: { id: user.id },
+        data: { emailVerified: true },
+      })
+      .catch(() => undefined);
+
+    return this.createSessionForUser(user.id, dto.rememberMe ?? false, context);
+  }
+
   private async loginWithEmail(dto: AuthLoginDto, context: RequestContext) {
-    if (dto.password.length < 8) {
+    if (!dto.password || dto.password.length < 8) {
       throw new BadRequestException(
         'Password must be at least 8 characters long',
       );
     }
+    const email = this.normalizeEmail(dto.email);
+    if (!email) {
+      throw new BadRequestException('Email address cannot be empty');
+    }
     const result = await this.signInInternal({
-      email: dto.email!,
+      email,
       password: dto.password,
       rememberMe: dto.rememberMe ?? false,
     });
@@ -674,6 +858,9 @@ export class AuthService {
     }
     if (!dto.authmeId) {
       throw new BadRequestException('AuthMe account ID is required');
+    }
+    if (!dto.password) {
+      throw new BadRequestException('Password is required');
     }
 
     const authmeAccount = await this.authmeService.verifyCredentials(

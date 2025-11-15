@@ -42,6 +42,7 @@ export type { GenderType, UpdateCurrentUserPayload }
 
 type AuthLoginPayload =
   | { mode: 'EMAIL'; email: string; password: string; rememberMe?: boolean }
+  | { mode: 'EMAIL_CODE'; email: string; code: string; rememberMe?: boolean }
   | { mode: 'AUTHME'; authmeId: string; password: string; rememberMe?: boolean }
 
 type AuthRegisterPayload =
@@ -49,6 +50,7 @@ type AuthRegisterPayload =
       mode: 'EMAIL'
       email: string
       password: string
+      code: string
       name?: string
       minecraftId?: string
       minecraftNick?: string
@@ -59,6 +61,7 @@ type AuthRegisterPayload =
       authmeId: string
       password: string
       email: string
+      code: string
       rememberMe?: boolean
     }
 
@@ -206,6 +209,28 @@ export const useAuthStore = defineStore('auth', {
           localStorage.removeItem(ACCESS_TOKEN_KEY)
         }
       }
+    },
+    async requestEmailLoginCode(email: string) {
+      const trimmed = (email || '').trim()
+      if (!trimmed) {
+        throw new ApiError(400, '请输入邮箱')
+      }
+      await apiFetch<{ success: boolean }>('/auth/login/code', {
+        method: 'POST',
+        body: { email: trimmed },
+      })
+      return true
+    },
+    async requestEmailRegisterCode(email: string) {
+      const trimmed = (email || '').trim()
+      if (!trimmed) {
+        throw new ApiError(400, '请输入邮箱')
+      }
+      await apiFetch<{ success: boolean }>('/auth/register/code', {
+        method: 'POST',
+        body: { email: trimmed },
+      })
+      return true
     },
     // Public: request a password reset verification code to email
     async requestPasswordResetCode(email: string) {

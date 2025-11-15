@@ -64,6 +64,10 @@ const STATIC_TRANSLATIONS: Record<string, string> = {
   'Email contact not found': '未找到对应的邮箱',
   'Verification code expired or invalid': '验证码无效或已过期',
   'Verification code incorrect': '验证码错误',
+  'Verification code is required': '请输入验证码',
+  'Invalid email or verification code': '邮箱或验证码错误',
+  'code must be longer than or equal to 6 characters': '验证码需为 6 位',
+  'code must be shorter than or equal to 6 characters': '验证码需为 6 位',
   'Verification code sent failed, please try again later':
     '验证码发送失败，请稍后重试',
   'Cannot send verification code, please bind email first':

@@ -1,12 +1,18 @@
 import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
+import { IsEmail } from 'class-validator';
 import { AuthService } from '../services/auth.service';
 import { AuthRegisterDto } from '../dto/auth-register.dto';
 import { AuthLoginDto } from '../dto/auth-login.dto';
 import { rethrowAuthmeError } from '../helpers/authme-error.helper';
 import { AuthmeService } from '../../authme/authme.service';
 import { buildRequestContext } from '../helpers/request-context.helper';
+
+class EmailCodeRequestDto {
+  @IsEmail({}, { message: 'Email must be an email' })
+  email!: string;
+}
 
 @ApiTags('认证')
 @Controller('auth')
@@ -58,6 +64,30 @@ export class ApiAuthController {
     } catch (error) {
       rethrowAuthmeError(error);
     }
+  }
+
+  @Post('login/code')
+  @ApiOperation({ summary: '发送邮箱登录验证码' })
+  async requestLoginCode(
+    @Body() dto: EmailCodeRequestDto,
+    @Req() req: Request,
+  ) {
+    return this.authService.requestEmailLoginCode(
+      dto.email,
+      buildRequestContext(req),
+    );
+  }
+
+  @Post('register/code')
+  @ApiOperation({ summary: '发送注册邮箱验证码' })
+  async requestRegisterCode(
+    @Body() dto: EmailCodeRequestDto,
+    @Req() req: Request,
+  ) {
+    return this.authService.requestEmailRegisterCode(
+      dto.email,
+      buildRequestContext(req),
+    );
   }
 
   @Get('features')
