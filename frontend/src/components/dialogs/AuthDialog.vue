@@ -8,6 +8,8 @@ import { useOAuthStore } from '@/stores/oauth'
 import { ApiError } from '@/utils/api'
 import { translateAuthErrorMessage } from '@/utils/auth-errors'
 import { resolveProviderIcon } from '@/utils/oauth-brand'
+import AuthDialogBackground from './AuthDialogBackground.vue'
+import HydrolineLogo from '@/assets/resources/hydroline_logo.svg'
 
 const authStore = useAuthStore()
 const uiStore = useUiStore()
@@ -344,426 +346,449 @@ async function confirmForgotReset() {
     :ui="modalUi.auth"
   >
     <template #content>
-      <div class="p-6">
-        <div>
-          <div
-            class="mt-4 flex rounded-full bg-slate-100/80 p-1 text-sm dark:bg-slate-800/60"
-          >
-            <button
-              type="button"
-              class="flex-1 rounded-full px-3 py-1 font-medium transition duration-300"
-              :class="
-                tab === 'login'
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
-              "
-              @click="tab = 'login'"
-            >
-              登录
-            </button>
-            <button
-              type="button"
-              class="flex-1 rounded-full px-3 py-1 font-medium transition duration-300"
-              :class="
-                tab === 'register'
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
-              "
-              @click="tab = 'register'"
-            >
-              注册
-            </button>
-          </div>
-        </div>
-
-        <form
-          v-if="tab === 'login'"
-          class="mt-6 space-y-4"
-          @submit.prevent="handleLogin"
-        >
-          <template v-if="loginMode === 'EMAIL'">
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>邮箱</span>
-              <UInput
-                v-model="loginForm.email"
-                type="email"
-                placeholder="you@example.com"
-                required
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>密码</span>
-              <UInput
-                v-model="loginForm.password"
-                type="password"
-                placeholder="请输入密码"
-                required
-              />
-            </label>
-            <div class="flex items-center justify-between text-sm">
-              <label
-                class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
-              >
-                <UCheckbox v-model="loginForm.rememberMe" />
-                记住我
-              </label>
-              <div>
-                <UButton
-                  class="px-1!"
-                  variant="link"
-                  @click="loginMode = 'EMAIL_CODE'"
-                  >邮箱验证码登录</UButton
-                >
-                <UButton class="px-1!" variant="link" @click="openForgot"
-                  >忘记密码</UButton
-                >
+      <AuthDialogBackground>
+        <template #background>
+          <video
+            src="@/assets/images/video_background_240726.webm"
+            autoplay
+            muted
+            loop
+            class="w-full h-1/2 object-cover"
+          ></video>
+        </template>
+        <template #foreground>
+          <div class="p-6">
+            <div>
+              <div class="flex flex-col items-center gap-1">
+                <HydrolineLogo class="h-9 w-9" />
+                <div class="font-semibold text-2xl">Hydroline</div>
               </div>
-            </div>
-          </template>
-          <template v-else-if="loginMode === 'EMAIL_CODE'">
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>邮箱</span>
-              <UInput
-                v-model="loginForm.email"
-                type="email"
-                placeholder="you@example.com"
-                required
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>验证码</span>
-              <div class="flex gap-2">
-                <UInput
-                  class="flex-1"
-                  v-model="loginCode"
-                  inputmode="numeric"
-                  placeholder="请输入 6 位验证码"
-                  required
-                />
-                <UButton
+
+              <div
+                class="mt-5 flex rounded-full p-1 text-sm bg-slate-200 dark:bg-slate-800 inset-shadow-lg"
+              >
+                <button
                   type="button"
-                  color="primary"
-                  variant="soft"
-                  :loading="loginCodeSending"
-                  @click="sendLoginCode"
-                  >获取验证码</UButton
+                  class="flex-1 rounded-full px-3 py-1 font-medium transition duration-300"
+                  :class="
+                    tab === 'login'
+                      ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                  "
+                  @click="tab = 'login'"
                 >
+                  登录
+                </button>
+                <button
+                  type="button"
+                  class="flex-1 rounded-full px-3 py-1 font-medium transition duration-300"
+                  :class="
+                    tab === 'register'
+                      ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                  "
+                  @click="tab = 'register'"
+                >
+                  注册
+                </button>
               </div>
-            </label>
-            <div class="flex items-center justify-between text-sm">
-              <label
-                class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+            </div>
+
+            <form
+              v-if="tab === 'login'"
+              class="mt-6 space-y-4"
+              @submit.prevent="handleLogin"
+            >
+              <template v-if="loginMode === 'EMAIL'">
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>邮箱</span>
+                  <UInput
+                    v-model="loginForm.email"
+                    type="email"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </label>
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>密码</span>
+                  <UInput
+                    v-model="loginForm.password"
+                    type="password"
+                    placeholder="请输入密码"
+                    required
+                  />
+                </label>
+                <div class="flex items-center justify-between text-sm">
+                  <label
+                    class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+                  >
+                    <UCheckbox v-model="loginForm.rememberMe" />
+                    记住我
+                  </label>
+                  <div>
+                    <UButton
+                      class="px-1!"
+                      variant="link"
+                      @click="loginMode = 'EMAIL_CODE'"
+                      >邮箱验证码登录</UButton
+                    >
+                    <UButton class="px-1!" variant="link" @click="openForgot"
+                      >忘记密码</UButton
+                    >
+                  </div>
+                </div>
+              </template>
+              <template v-else-if="loginMode === 'EMAIL_CODE'">
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>邮箱</span>
+                  <UInput
+                    v-model="loginForm.email"
+                    type="email"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </label>
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>验证码</span>
+                  <div class="flex gap-2">
+                    <UInput
+                      class="flex-1"
+                      v-model="loginCode"
+                      inputmode="numeric"
+                      placeholder="请输入 6 位验证码"
+                      required
+                    />
+                    <UButton
+                      type="button"
+                      color="primary"
+                      variant="soft"
+                      :loading="loginCodeSending"
+                      @click="sendLoginCode"
+                      >获取验证码</UButton
+                    >
+                  </div>
+                </label>
+                <div class="flex items-center justify-between text-sm">
+                  <label
+                    class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+                  >
+                    <UCheckbox v-model="loginForm.rememberMe" />
+                    记住我
+                  </label>
+                  <div class="flex items-center gap-1">
+                    <UButton
+                      class="px-1!"
+                      variant="link"
+                      @click="loginMode = 'EMAIL'"
+                      >密码登录</UButton
+                    >
+                    <UButton class="px-1!" variant="link" @click="openForgot"
+                      >忘记密码</UButton
+                    >
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>服务器账号</span>
+                  <UInput
+                    v-model="authmeLoginForm.authmeId"
+                    placeholder="请输入服务器内登录过的游戏 ID"
+                    required
+                  />
+                </label>
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>服务器密码</span>
+                  <UInput
+                    v-model="authmeLoginForm.password"
+                    type="password"
+                    placeholder="请输入服务器内的登录密码"
+                    required
+                  />
+                </label>
+                <div class="flex items-center justify-between text-sm">
+                  <label
+                    class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+                  >
+                    <UCheckbox v-model="authmeLoginForm.rememberMe" />
+                    记住我
+                  </label>
+                </div>
+              </template>
+
+              <div
+                v-if="loginError"
+                class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
               >
-                <UCheckbox v-model="loginForm.rememberMe" />
-                记住我
-              </label>
-              <div class="flex items-center gap-1">
+                {{ loginError }}
+              </div>
+
+              <div class="flex gap-2 items-center">
                 <UButton
-                  class="px-1!"
-                  variant="link"
+                  type="submit"
+                  color="primary"
+                  class="w-full flex justify-center items-center"
+                  :loading="uiStore.isLoading"
+                  >登录</UButton
+                >
+
+                <UButton
+                  v-if="authmeLoginEnabled && loginMode !== 'AUTHME'"
+                  type="button"
+                  variant="soft"
+                  class="w-full flex justify-center items-center gap-2"
+                  @click="loginMode = 'AUTHME'"
+                >
+                  <UIcon
+                    name="i-lucide-database"
+                    class="h-4 w-4"
+                    aria-hidden="true"
+                  />
+                  服务器账号登录
+                </UButton>
+
+                <UButton
+                  v-if="loginMode === 'AUTHME'"
+                  :loading="uiStore.isLoading"
+                  variant="soft"
+                  class="w-full flex justify-center items-center"
                   @click="loginMode = 'EMAIL'"
-                  >密码登录</UButton
                 >
-                <UButton class="px-1!" variant="link" @click="openForgot"
-                  >忘记密码</UButton
-                >
+                  返回邮箱登录
+                </UButton>
               </div>
-            </div>
-          </template>
-          <template v-else>
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+
+              <div class="relative">
+                <div class="absolute inset-0 flex items-center">
+                  <div
+                    class="w-full border-t border-slate-200 dark:border-slate-700"
+                  ></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                  <span
+                    class="bg-white px-2 text-slate-500 dark:bg-slate-900/70 dark:text-slate-400"
+                    >使用第三方账号快速登录</span
+                  >
+                </div>
+              </div>
+
+              <div v-if="oauthProviders.length" class="space-y-2 rounded-xl">
+                <UButton
+                  v-for="provider in oauthProviders"
+                  :key="provider.key"
+                  variant="outline"
+                  :loading="oauthLoadingProvider === provider.key"
+                  :disabled="
+                    oauthLoadingProvider !== null &&
+                    oauthLoadingProvider !== provider.key
+                  "
+                  class="w-full justify-center gap-2"
+                  @click="startOAuthLogin(provider.key)"
+                >
+                  <UIcon
+                    :name="resolveProviderIcon(provider.type)"
+                    class="h-4 w-4"
+                  />
+                  {{ provider.name }}
+                </UButton>
+              </div>
+            </form>
+
+            <form
+              v-else
+              class="mt-6 space-y-4"
+              @submit.prevent="handleRegister"
             >
-              <span>服务器账号</span>
-              <UInput
-                v-model="authmeLoginForm.authmeId"
-                placeholder="请输入服务器内登录过的游戏 ID"
-                required
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>服务器密码</span>
-              <UInput
-                v-model="authmeLoginForm.password"
-                type="password"
-                placeholder="请输入服务器内的登录密码"
-                required
-              />
-            </label>
-            <div class="flex items-center justify-between text-sm">
+              <template v-if="registerMode === 'EMAIL'">
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>邮箱</span>
+                  <UInput
+                    v-model="registerForm.email"
+                    type="email"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </label>
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>密码</span>
+                  <UInput
+                    v-model="registerForm.password"
+                    type="password"
+                    placeholder="设置登录密码"
+                    required
+                  />
+                </label>
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>确认密码</span>
+                  <UInput
+                    v-model="registerForm.confirmPassword"
+                    type="password"
+                    placeholder="再次输入密码"
+                    required
+                  />
+                </label>
+              </template>
+              <template v-else>
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>邮箱</span>
+                  <UInput
+                    v-model="authmeRegisterForm.email"
+                    type="email"
+                    placeholder="帐户邮箱"
+                    required
+                  />
+                </label>
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>服务器账号</span>
+                  <UInput
+                    v-model="authmeRegisterForm.authmeId"
+                    placeholder="请输入服务器内登录过的游戏 ID"
+                    required
+                  />
+                </label>
+                <label
+                  class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span>服务器密码</span>
+                  <UInput
+                    v-model="authmeRegisterForm.password"
+                    type="password"
+                    placeholder="请输入服务器内的登录密码"
+                    required
+                  />
+                </label>
+              </template>
+
               <label
-                class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300"
+                class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
               >
-                <UCheckbox v-model="authmeLoginForm.rememberMe" />
-                记住我
+                <span>邮箱验证码</span>
+                <div class="flex gap-2">
+                  <UInput
+                    class="flex-1"
+                    v-model="registerCode"
+                    inputmode="numeric"
+                    placeholder="请输入 6 位验证码"
+                    required
+                  />
+                  <UButton
+                    type="button"
+                    color="primary"
+                    variant="soft"
+                    :loading="registerCodeSending"
+                    @click="sendRegisterCode"
+                    >获取验证码</UButton
+                  >
+                </div>
               </label>
-            </div>
-          </template>
 
-          <div
-            v-if="loginError"
-            class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
-          >
-            {{ loginError }}
-          </div>
+              <p class="text-xs text-slate-500 dark:text-slate-300">
+                系统会校验服务器账号数据库并自动完成 Hydroline 账号绑定。
+              </p>
 
-          <div class="flex gap-2 items-center">
-            <UButton
-              type="submit"
-              color="primary"
-              class="w-full flex justify-center items-center"
-              :loading="uiStore.isLoading"
-              >登录</UButton
-            >
-
-            <UButton
-              v-if="authmeLoginEnabled && loginMode !== 'AUTHME'"
-              type="button"
-              variant="soft"
-              class="w-full flex justify-center items-center gap-2"
-              @click="loginMode = 'AUTHME'"
-            >
-              <UIcon
-                name="i-lucide-database"
-                class="h-4 w-4"
-                aria-hidden="true"
-              />
-              服务器账号登录
-            </UButton>
-
-            <UButton
-              v-if="loginMode === 'AUTHME'"
-              :loading="uiStore.isLoading"
-              variant="soft"
-              class="w-full flex justify-center items-center"
-              @click="loginMode = 'EMAIL'"
-            >
-              返回邮箱登录
-            </UButton>
-          </div>
-
-          <div class="relative">
-            <div class="absolute inset-0 flex items-center">
               <div
-                class="w-full border-t border-slate-200 dark:border-slate-700"
-              ></div>
-            </div>
-            <div class="relative flex justify-center text-sm">
-              <span
-                class="bg-white px-2 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
-                >使用第三方账号快速登录</span
+                v-if="registerError"
+                class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
               >
-            </div>
+                {{ registerError }}
+              </div>
+
+              <div class="flex gap-2 items-center">
+                <UButton
+                  type="submit"
+                  color="primary"
+                  :loading="uiStore.isLoading"
+                  class="w-full flex justify-center items-center"
+                >
+                  立即注册
+                </UButton>
+
+                <UButton
+                  v-if="authmeRegisterEnabled && registerMode === 'EMAIL'"
+                  type="button"
+                  variant="soft"
+                  class="w-full flex justify-center items-center gap-2"
+                  @click="registerMode = 'AUTHME'"
+                >
+                  <UIcon
+                    name="i-lucide-database"
+                    class="h-4 w-4"
+                    aria-hidden="true"
+                  />
+                  服务器账号注册
+                </UButton>
+
+                <UButton
+                  v-if="registerMode === 'AUTHME'"
+                  type="button"
+                  variant="soft"
+                  class="w-full flex justify-center items-center"
+                  @click="registerMode = 'EMAIL'"
+                >
+                  返回常规注册
+                </UButton>
+              </div>
+
+              <div class="relative">
+                <div class="absolute inset-0 flex items-center">
+                  <div
+                    class="w-full border-t border-slate-200 dark:border-slate-700"
+                  ></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                  <span
+                    class="bg-white px-2 text-slate-500 dark:bg-slate-900/70 dark:text-slate-400"
+                    >使用第三方账号快速注册</span
+                  >
+                </div>
+              </div>
+
+              <div v-if="oauthProviders.length" class="space-y-2 rounded-xl">
+                <UButton
+                  v-for="provider in oauthProviders"
+                  :key="provider.key"
+                  variant="outline"
+                  :loading="oauthLoadingProvider === provider.key"
+                  :disabled="
+                    oauthLoadingProvider !== null &&
+                    oauthLoadingProvider !== provider.key
+                  "
+                  class="w-full justify-center gap-2"
+                  @click="startOAuthLogin(provider.key)"
+                >
+                  <UIcon
+                    :name="resolveProviderIcon(provider.type)"
+                    class="h-4 w-4"
+                  />
+                  {{ provider.name }}
+                </UButton>
+              </div>
+            </form>
           </div>
-
-          <div v-if="oauthProviders.length" class="space-y-2 rounded-xl">
-            <UButton
-              v-for="provider in oauthProviders"
-              :key="provider.key"
-              variant="outline"
-              :loading="oauthLoadingProvider === provider.key"
-              :disabled="
-                oauthLoadingProvider !== null &&
-                oauthLoadingProvider !== provider.key
-              "
-              class="w-full justify-center gap-2"
-              @click="startOAuthLogin(provider.key)"
-            >
-              <UIcon
-                :name="resolveProviderIcon(provider.type)"
-                class="h-4 w-4"
-              />
-              {{ provider.name }}
-            </UButton>
-          </div>
-        </form>
-
-        <form v-else class="mt-6 space-y-4" @submit.prevent="handleRegister">
-          <template v-if="registerMode === 'EMAIL'">
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>邮箱</span>
-              <UInput
-                v-model="registerForm.email"
-                type="email"
-                placeholder="you@example.com"
-                required
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>密码</span>
-              <UInput
-                v-model="registerForm.password"
-                type="password"
-                placeholder="设置登录密码"
-                required
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>确认密码</span>
-              <UInput
-                v-model="registerForm.confirmPassword"
-                type="password"
-                placeholder="再次输入密码"
-                required
-              />
-            </label>
-          </template>
-          <template v-else>
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>邮箱</span>
-              <UInput
-                v-model="authmeRegisterForm.email"
-                type="email"
-                placeholder="帐户邮箱"
-                required
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>服务器账号</span>
-              <UInput
-                v-model="authmeRegisterForm.authmeId"
-                placeholder="请输入服务器内登录过的游戏 ID"
-                required
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-            >
-              <span>服务器密码</span>
-              <UInput
-                v-model="authmeRegisterForm.password"
-                type="password"
-                placeholder="请输入服务器内的登录密码"
-                required
-              />
-            </label>
-            <p class="text-xs text-slate-500 dark:text-slate-300">
-              系统会校验服务器账号数据库并自动完成 Hydroline 账号绑定。
-            </p>
-          </template>
-
-          <label
-            class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
-          >
-            <span>邮箱验证码</span>
-            <div class="flex gap-2">
-              <UInput
-                class="flex-1"
-                v-model="registerCode"
-                inputmode="numeric"
-                placeholder="请输入 6 位验证码"
-                required
-              />
-              <UButton
-                type="button"
-                color="primary"
-                variant="soft"
-                :loading="registerCodeSending"
-                @click="sendRegisterCode"
-                >获取验证码</UButton
-              >
-            </div>
-          </label>
-
-          <div
-            v-if="registerError"
-            class="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
-          >
-            {{ registerError }}
-          </div>
-
-          <div class="flex gap-2 items-center">
-            <UButton
-              type="submit"
-              color="primary"
-              :loading="uiStore.isLoading"
-              class="w-full flex justify-center items-center"
-            >
-              立即注册
-            </UButton>
-
-            <UButton
-              v-if="authmeRegisterEnabled && registerMode === 'EMAIL'"
-              type="button"
-              variant="soft"
-              class="w-full flex justify-center items-center gap-2"
-              @click="registerMode = 'AUTHME'"
-            >
-              <UIcon
-                name="i-lucide-database"
-                class="h-4 w-4"
-                aria-hidden="true"
-              />
-              服务器账号注册
-            </UButton>
-
-            <UButton
-              v-if="registerMode === 'AUTHME'"
-              type="button"
-              variant="soft"
-              class="w-full flex justify-center items-center"
-              @click="registerMode = 'EMAIL'"
-            >
-              返回常规注册
-            </UButton>
-          </div>
-
-          <div class="relative">
-            <div class="absolute inset-0 flex items-center">
-              <div
-                class="w-full border-t border-slate-200 dark:border-slate-700"
-              ></div>
-            </div>
-            <div class="relative flex justify-center text-sm">
-              <span
-                class="bg-white px-2 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
-                >使用第三方账号快速注册</span
-              >
-            </div>
-          </div>
-
-          <div v-if="oauthProviders.length" class="space-y-2 rounded-xl">
-            <UButton
-              v-for="provider in oauthProviders"
-              :key="provider.key"
-              variant="outline"
-              :loading="oauthLoadingProvider === provider.key"
-              :disabled="
-                oauthLoadingProvider !== null &&
-                oauthLoadingProvider !== provider.key
-              "
-              class="w-full justify-center gap-2"
-              @click="startOAuthLogin(provider.key)"
-            >
-              <UIcon
-                :name="resolveProviderIcon(provider.type)"
-                class="h-4 w-4"
-              />
-              {{ provider.name }}
-            </UButton>
-          </div>
-        </form>
-      </div>
+        </template>
+      </AuthDialogBackground>
     </template>
   </UModal>
 

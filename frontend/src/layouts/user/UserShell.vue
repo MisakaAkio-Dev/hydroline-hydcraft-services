@@ -358,7 +358,7 @@ const routerPush = (path: string) => {
             </span>
           </div>
           <div
-            class="hidden lg:block select-none font-bold mx-2 text-slate-300 dark:text-slate-200"
+            class="hidden lg:block select-none font-bold mx-2 text-slate-300 dark:text-slate-500"
           >
             ·
           </div>
