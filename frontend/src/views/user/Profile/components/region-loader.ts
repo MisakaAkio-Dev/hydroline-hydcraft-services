@@ -110,7 +110,7 @@ export async function loadChinaDivision(): Promise<LoadedRegionData> {
 
     ensureExtraProvince('香港特别行政区', { municipality: true })
     ensureExtraProvince('澳门特别行政区', { municipality: true })
-    ensureExtraProvince('台湾省')
+    ensureExtraProvince('台湾地区', { municipality: true })
 
     cached = {
       provinces: [...provinces],

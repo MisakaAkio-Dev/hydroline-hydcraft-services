@@ -21,7 +21,7 @@ export const municipalities = [
 export const singleLevelRegions = [
   '香港特别行政区',
   '澳门特别行政区',
-  '台湾省',
+  '台湾地区',
 ]
 
 export const provinces: string[] = [
@@ -51,7 +51,7 @@ export const provinces: string[] = [
   '陕西省',
   '甘肃省',
   '青海省',
-  '台湾省',
+  '台湾地区',
   '内蒙古自治区',
   '广西壮族自治区',
   '西藏自治区',
