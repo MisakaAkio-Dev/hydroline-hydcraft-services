@@ -12,9 +12,11 @@ import { Ip2RegionModule } from './lib/ip2region/ip2region.module';
 import { LuckpermsModule } from './luckperms/luckperms.module';
 import { MinecraftModule } from './minecraft/minecraft.module';
 import { OAuthModule } from './oauth/oauth.module';
+import { RedisModule } from './lib/redis/redis.module';
 
 @Module({
   imports: [
+    RedisModule,
     PrismaModule,
     AuthModule,
     AttachmentsModule,
