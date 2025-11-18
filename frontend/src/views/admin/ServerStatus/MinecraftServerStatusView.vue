@@ -18,6 +18,11 @@ import type {
 } from '@/types/minecraft'
 import VChart from 'vue-echarts'
 import dayjs from 'dayjs'
+import MinecraftServerFormDialog from './components/MinecraftServerFormDialog.vue'
+import MinecraftServerAdhocPingDialog from './components/MinecraftServerAdhocPingDialog.vue'
+import MinecraftServerDetailDialog from './components/MinecraftServerDetailDialog.vue'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import MinecraftServerBeaconDialog from './components/MinecraftServerBeaconDialog.vue'
 // ECharts modules are registered globally in main.ts; no need to register here.
 
 const serverStore = useMinecraftServerStore()
@@ -217,6 +222,7 @@ async function refreshBeaconConn() {
     beaconConnLoading.value = false
   }
 }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function manualConnectBeacon() {
   const id = beaconDialogServer.value?.id
   if (!id) return
@@ -239,6 +245,7 @@ async function manualConnectBeacon() {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function disconnectBeacon() {
   const id = beaconDialogServer.value?.id
   if (!id) return
@@ -261,6 +268,7 @@ async function disconnectBeacon() {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function reconnectBeacon() {
   const id = beaconDialogServer.value?.id
   if (!id) return
@@ -283,6 +291,7 @@ async function reconnectBeacon() {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function checkBeaconConnectivity() {
   const id = beaconDialogServer.value?.id
   if (!id) return
@@ -789,23 +798,6 @@ function editionLabel(edition: MinecraftServerEdition) {
   return edition === 'BEDROCK' ? '基岩版' : 'Java 版'
 }
 
-function mcsmStatusLabel(status?: number | null) {
-  if (status === -1) return '忙碌'
-  if (status === 0) return '停止'
-  if (status === 1) return '停止中'
-  if (status === 2) return '启动中'
-  if (status === 3) return '运行中'
-  return '未知'
-}
-
-function mcsmStatusColor(status?: number | null) {
-  if (status === 3) return 'success'
-  if (status === 2) return 'primary'
-  if (status === 1) return 'warning'
-  if (status === 0) return 'neutral'
-  return 'info'
-}
-
 async function handlePing(server: MinecraftServer) {
   await triggerPing(server.id)
 }
@@ -815,6 +807,7 @@ function confirmDelete(server: MinecraftServer) {
   deleteConfirmDialogOpen.value = true
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function handleConfirmDelete() {
   if (!deleteConfirmServer.value) return
   deleteConfirmSubmitting.value = true
@@ -1186,7 +1179,7 @@ async function controlMcsm(
               </UBadge>
             </td>
             <td class="px-4 py-3 text-right">
-              <div class="flex items-center justify-end gap-2">
+              <div class="flex items-center justify-end gap-0.5">
                 <UButton
                   v-if="row.beaconEnabled || (row as any).beaconConfigured"
                   size="xs"
@@ -1203,15 +1196,6 @@ async function controlMcsm(
                   @click="openBeaconDialog(row)"
                 >
                   Beacon
-                  {{
-                    beaconConnStatus[row.id]?.connected
-                      ? '在线'
-                      : beaconConnStatus[row.id]?.connecting
-                        ? '连接中'
-                        : beaconConnStatus[row.id]?.lastError
-                          ? '错误'
-                          : '离线'
-                  }}
                 </UButton>
                 <UButton size="xs" variant="ghost" @click="openDetail(row)"
                   >查看</UButton
@@ -1267,877 +1251,59 @@ async function controlMcsm(
       </div>
     </div>
 
-    <!-- 查看详情弹窗：展示当前选中服务器的 Ping 结果与 MOTD 与历史图表 -->
-    <UModal :open="detailOpen" @update:open="detailOpen = $event">
-      <template #content>
-        <UCard>
-          <template #header>
-            <div class="flex items-center justify-between">
-              <div class="text-sm text-slate-600 dark:text-slate-300">
-                {{ editingServer?.displayName ?? '未选择服务器' }} ·
-                {{ editingServer ? editionLabel(editingServer.edition) : '' }}
-              </div>
-              <UButton
-                size="xs"
-                variant="ghost"
-                icon="i-lucide-refresh-ccw"
-                :loading="pingLoading"
-                @click="triggerPing(editingServer?.id ?? null)"
-              >
-                重新 Ping
-              </UButton>
-            </div>
-          </template>
-          <div v-if="lastPing" class="grid gap-4 md:grid-cols-3">
-            <div>
-              <p class="text-xs text-slate-500 dark:text-slate-400">版本</p>
-              <p class="text-base font-semibold text-slate-900 dark:text-white">
-                {{
-                  lastPing.edition === 'BEDROCK'
-                    ? lastPing.response.version
-                    : (lastPing.response.version?.name ?? '未知')
-                }}
-              </p>
-            </div>
-            <div>
-              <p class="text-xs text-slate-500 dark:text-slate-400">玩家</p>
-              <p class="text-base font-semibold text-slate-900 dark:text-white">
-                {{ lastPing.response.players?.online ?? 0 }} /
-                {{ lastPing.response.players?.max ?? 0 }}
-              </p>
-            </div>
-            <div>
-              <p class="text-xs text-slate-500 dark:text-slate-400">延迟</p>
-              <p class="text-base font-semibold text-slate-900 dark:text-white">
-                {{ lastPing.response.latency ?? '—' }} ms
-              </p>
-            </div>
-          </div>
-          <div
-            class="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 dark:border-slate-800/60 dark:bg-slate-900/60"
-          >
-            <p class="text-xs text-slate-500 dark:text-slate-400">MOTD</p>
-            <div
-              v-if="motdHtml"
-              class="prose prose-sm mt-2 dark:prose-invert"
-              v-html="motdHtml"
-            ></div>
-            <p v-else class="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              暂无 MOTD 数据
-            </p>
-          </div>
+    <MinecraftServerDetailDialog
+      :open="detailOpen"
+      :server="editingServer"
+      :last-ping="lastPing"
+      :motd-html="motdHtml"
+      :mcsm-detail="mcsmDetail"
+      :mcsm-config-ready="mcsmConfigReady"
+      :mcsm-status-loading="mcsmStatusLoading"
+      :mcsm-controls-loading="mcsmControlsLoading"
+      :mcsm-command="mcsmCommand"
+      :mcsm-command-loading="mcsmCommandLoading"
+      :mcsm-output="mcsmOutput"
+      :history="history"
+      :history-days="historyDays"
+      :history-loading="historyLoading"
+      :format-chart-label="formatChartLabel"
+      @update:open="detailOpen = $event"
+      @refresh-ping="triggerPing(editingServer?.id ?? null)"
+      @load-mcsm-status="editingServer?.id && loadMcsmStatus(editingServer.id)"
+      @load-mcsm-output="
+        editingServer?.id && loadMcsmOutput(editingServer.id, 1024)
+      "
+      @run-mcsm-command="editingServer?.id && runMcsmCommand(editingServer.id)"
+      @control-mcsm="
+        (action) => editingServer?.id && controlMcsm(editingServer.id, action)
+      "
+      @update:mcsmCommand="mcsmCommand = $event"
+    />
 
-          <div
-            class="mt-4 rounded-2xl border border-slate-200/70 bg-white/70 p-4 dark:border-slate-800/60 dark:bg-slate-900/50"
-          >
-            <div class="mb-3 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span
-                  class="text-sm font-medium text-slate-700 dark:text-slate-200"
-                  >MCSM 实例</span
-                >
-                <UBadge
-                  size="xs"
-                  variant="soft"
-                  :color="mcsmStatusColor(mcsmDetail?.status)"
-                  >{{ mcsmStatusLabel(mcsmDetail?.status) }}</UBadge
-                >
-              </div>
-              <UButton
-                size="xs"
-                variant="ghost"
-                icon="i-lucide-refresh-cw"
-                :loading="mcsmStatusLoading"
-                :disabled="!mcsmConfigReady"
-                @click="
-                  editingServer?.id ? loadMcsmStatus(editingServer.id) : null
-                "
-              >
-                刷新状态
-              </UButton>
-            </div>
-            <div v-if="!mcsmConfigReady" class="text-sm text-slate-500">
-              未配置 MCSM 参数（或未保存 API Key），请在编辑表单中补充。
-            </div>
-            <div v-else class="grid gap-3 md:grid-cols-4">
-              <div class="md:col-span-4">
-                <div class="mt-2 flex flex-wrap gap-2">
-                  <UButton
-                    size="xs"
-                    :loading="mcsmControlsLoading.start"
-                    :disabled="mcsmStatusLoading"
-                    icon="i-lucide-play"
-                    @click="
-                      editingServer?.id
-                        ? controlMcsm(editingServer.id, 'start')
-                        : null
-                    "
-                    >启动</UButton
-                  >
-                  <UButton
-                    size="xs"
-                    :loading="mcsmControlsLoading.stop"
-                    :disabled="mcsmStatusLoading"
-                    color="warning"
-                    icon="i-lucide-square"
-                    @click="
-                      editingServer?.id
-                        ? controlMcsm(editingServer.id, 'stop')
-                        : null
-                    "
-                    >停止</UButton
-                  >
-                  <UButton
-                    size="xs"
-                    :loading="mcsmControlsLoading.restart"
-                    :disabled="mcsmStatusLoading"
-                    color="primary"
-                    icon="i-lucide-rotate-ccw"
-                    @click="
-                      editingServer?.id
-                        ? controlMcsm(editingServer.id, 'restart')
-                        : null
-                    "
-                    >重启</UButton
-                  >
-                  <UButton
-                    size="xs"
-                    :loading="mcsmControlsLoading.kill"
-                    :disabled="mcsmStatusLoading"
-                    color="error"
-                    icon="i-lucide-zap"
-                    @click="
-                      editingServer?.id
-                        ? controlMcsm(editingServer.id, 'kill')
-                        : null
-                    "
-                    >强制终止</UButton
-                  >
-                </div>
-              </div>
+    <MinecraftServerFormDialog
+      :open="dialogOpen"
+      :dialog-title="dialogTitle"
+      :form="form"
+      :edition-options="editionOptions"
+      :history-days="historyDays"
+      :history="history"
+      :history-loading="historyLoading"
+      :saving="saving"
+      :format-chart-label="formatChartLabel"
+      :is-editing="!!editingServer"
+      @update:open="dialogOpen = $event"
+      @save="saveServer"
+    />
 
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">CPU</p>
-                <p
-                  class="text-base font-semibold text-slate-900 dark:text-white"
-                >
-                  {{ mcsmDetail?.processInfo?.cpu ?? '—' }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">内存</p>
-                <p
-                  class="text-base font-semibold text-slate-900 dark:text-white"
-                >
-                  {{ mcsmDetail?.processInfo?.memory ?? '—' }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  在线人数
-                </p>
-                <p
-                  class="text-base font-semibold text-slate-900 dark:text-white"
-                >
-                  {{ mcsmDetail?.info?.currentPlayers ?? '—' }} /
-                  {{ mcsmDetail?.info?.maxPlayers ?? '—' }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">版本</p>
-                <p
-                  class="text-base font-semibold text-slate-900 dark:text-white"
-                >
-                  {{ mcsmDetail?.info?.version ?? '—' }}
-                </p>
-              </div>
-            </div>
-            <div v-if="mcsmConfigReady" class="mt-4 space-y-3">
-              <div class="flex items-center gap-2">
-                <UInput
-                  v-model="mcsmCommand"
-                  class="flex-1"
-                  placeholder="输入要发送到实例的命令"
-                  :disabled="mcsmCommandLoading"
-                />
-                <UButton
-                  color="primary"
-                  :loading="mcsmCommandLoading"
-                  :disabled="!editingServer?.id"
-                  @click="
-                    editingServer?.id ? runMcsmCommand(editingServer.id) : null
-                  "
-                  >发送命令</UButton
-                >
-              </div>
-              <div>
-                <div class="mb-2 flex items-center justify-between">
-                  <span class="text-xs text-slate-500 dark:text-slate-400"
-                    >输出日志</span
-                  >
-                  <UButton
-                    size="xs"
-                    variant="ghost"
-                    :loading="mcsmOutputLoading"
-                    :disabled="!editingServer?.id"
-                    @click="
-                      editingServer?.id
-                        ? loadMcsmOutput(editingServer.id, 1024)
-                        : null
-                    "
-                    >刷新输出</UButton
-                  >
-                </div>
-                <pre
-                  class="max-h-64 overflow-auto rounded-xl bg-slate-900/80 p-3 text-xs text-slate-100"
-                  >{{ mcsmOutput || '暂无输出' }}</pre
-                >
-              </div>
-            </div>
-          </div>
-        </UCard>
-      </template>
-    </UModal>
-
-    <UModal :open="dialogOpen" @update:open="dialogOpen = $event">
-      <template #content>
-        <div class="max-h-[80vh] overflow-y-auto">
-          <UCard>
-            <template #header>
-              <div class="flex items-center justify-between">
-                <h3
-                  class="text-lg font-semibold text-slate-900 dark:text-white"
-                >
-                  {{ dialogTitle }}
-                </h3>
-                <UTooltip text="保存后可立即 Ping">
-                  <UIcon
-                    name="i-lucide-info"
-                    class="h-4 w-4 text-slate-400 dark:text-slate-500"
-                  />
-                </UTooltip>
-              </div>
-            </template>
-
-            <!-- 统一的两列布局，左侧 Label 右侧控件；保证所有标签对齐 -->
-            <div class="grid gap-4 md:grid-cols-2">
-              <!-- 显示名称 -->
-              <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                <label
-                  for="displayName"
-                  class="text-sm text-slate-600 dark:text-slate-300"
-                  >显示名称<span class="text-red-500">*</span></label
-                >
-                <UInput
-                  id="displayName"
-                  v-model="form.displayName"
-                  placeholder="示例：七周目"
-                />
-              </div>
-              <!-- 中文内部代号 -->
-              <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                <label
-                  for="internalCodeCn"
-                  class="text-sm text-slate-600 dark:text-slate-300"
-                  >中文内部代号<span class="text-red-500">*</span></label
-                >
-                <UInput
-                  id="internalCodeCn"
-                  v-model="form.internalCodeCn"
-                  placeholder="示例：氮"
-                />
-              </div>
-              <!-- 英文内部代号 -->
-              <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                <label
-                  for="internalCodeEn"
-                  class="text-sm text-slate-600 dark:text-slate-300"
-                  >英文内部代号<span class="text-red-500">*</span></label
-                >
-                <UInput
-                  id="internalCodeEn"
-                  v-model="form.internalCodeEn"
-                  placeholder="示例：Nitrogen"
-                />
-              </div>
-              <!-- 版本 -->
-              <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                <label
-                  for="edition"
-                  class="text-sm text-slate-600 dark:text-slate-300"
-                  >版本</label
-                >
-                <USelect
-                  id="edition"
-                  v-model="form.edition"
-                  :items="editionOptions"
-                  value-key="value"
-                  label-key="label"
-                />
-              </div>
-              <!-- Host -->
-              <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                <label
-                  for="host"
-                  class="text-sm text-slate-600 dark:text-slate-300"
-                  >服务器 Host<span class="text-red-500">*</span></label
-                >
-                <UInput
-                  id="host"
-                  v-model="form.host"
-                  placeholder="mc.hydroline.example"
-                />
-              </div>
-              <!-- Port -->
-              <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                <label
-                  for="port"
-                  class="text-sm text-slate-600 dark:text-slate-300"
-                  >端口</label
-                >
-                <UInput
-                  id="port"
-                  v-model.number="form.port"
-                  type="number"
-                  min="1"
-                  max="65535"
-                  placeholder="留空=自动（默认或 SRV）"
-                />
-              </div>
-              <!-- 描述 -->
-              <div
-                class="grid grid-cols-[7rem,1fr] items-start gap-2 md:col-span-2"
-              >
-                <label
-                  for="description"
-                  class="mt-2 text-sm text-slate-600 dark:text-slate-300"
-                  >描述</label
-                >
-                <UTextarea
-                  id="description"
-                  v-model="form.description"
-                  placeholder="用于后台备注信息"
-                />
-              </div>
-              <!-- 显示顺序 -->
-              <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                <label
-                  for="displayOrder"
-                  class="text-sm text-slate-600 dark:text-slate-300"
-                  >显示顺序</label
-                >
-                <UInput
-                  id="displayOrder"
-                  v-model.number="form.displayOrder"
-                  type="number"
-                />
-              </div>
-              <!-- 状态 -->
-              <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                <label
-                  for="isActive"
-                  class="text-sm text-slate-600 dark:text-slate-300"
-                  >状态</label
-                >
-                <div
-                  class="flex h-10 items-center rounded-xl border border-slate-200 px-3 dark:border-slate-700"
-                >
-                  <UCheckbox
-                    id="isActive"
-                    v-model="form.isActive"
-                    label="启用"
-                  />
-                </div>
-              </div>
-
-              <div class="md:col-span-2">
-                <div class="mb-2 flex items-center gap-2">
-                  <span
-                    class="text-sm font-medium text-slate-700 dark:text-slate-200"
-                    >MCSM 配置</span
-                  >
-                  <UTooltip text="仅 API Key 不会回显，留空则不更新">
-                    <UIcon
-                      name="i-lucide-info"
-                      class="h-4 w-4 text-slate-400 dark:text-slate-500"
-                    />
-                  </UTooltip>
-                </div>
-                <div class="grid gap-3 md:grid-cols-2">
-                  <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                    <label
-                      for="mcsmPanelUrl"
-                      class="text-sm text-slate-600 dark:text-slate-300"
-                      >面板地址</label
-                    >
-                    <UInput
-                      id="mcsmPanelUrl"
-                      v-model="form.mcsmPanelUrl"
-                      placeholder="http://panel.hydcraft.cn/"
-                    />
-                  </div>
-                  <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                    <label
-                      for="mcsmDaemonId"
-                      class="text-sm text-slate-600 dark:text-slate-300"
-                      >Daemon ID</label
-                    >
-                    <UInput
-                      id="mcsmDaemonId"
-                      v-model="form.mcsmDaemonId"
-                      placeholder="daemons-xxxx"
-                    />
-                  </div>
-                  <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                    <label
-                      for="mcsmInstanceUuid"
-                      class="text-sm text-slate-600 dark:text-slate-300"
-                      >Instance UUID</label
-                    >
-                    <UInput
-                      id="mcsmInstanceUuid"
-                      v-model="form.mcsmInstanceUuid"
-                      placeholder="50c7..."
-                    />
-                  </div>
-                  <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                    <label
-                      for="mcsmApiKey"
-                      class="text-sm text-slate-600 dark:text-slate-300"
-                      >API Key</label
-                    >
-                    <UInput
-                      id="mcsmApiKey"
-                      v-model="form.mcsmApiKey"
-                      type="password"
-                      placeholder="输入以更新，留空保持不变"
-                    />
-                  </div>
-                  <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                    <label
-                      for="mcsmRequestTimeoutMs"
-                      class="text-sm text-slate-600 dark:text-slate-300"
-                      >超时 (ms)</label
-                    >
-                    <UInput
-                      id="mcsmRequestTimeoutMs"
-                      v-model.number="form.mcsmRequestTimeoutMs"
-                      type="number"
-                      min="1000"
-                      placeholder="默认 10000"
-                    />
-                  </div>
-                </div>
-
-                <div class="mt-4 md:col-span-2">
-                  <div class="mb-2 flex items-center gap-2">
-                    <span
-                      class="text-sm font-medium text-slate-700 dark:text-slate-200"
-                      >Hydroline Beacon</span
-                    >
-                    <UTooltip
-                      text="仅保存 Host/端口与 Key；Key 不会回显，留空则不更新"
-                    >
-                      <UIcon
-                        name="i-lucide-info"
-                        class="h-4 w-4 text-slate-400 dark:text-slate-500"
-                      />
-                    </UTooltip>
-                  </div>
-                  <div class="grid gap-3 md:grid-cols-2">
-                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                      <label
-                        for="beaconHost"
-                        class="text-sm text-slate-600 dark:text-slate-300"
-                        >Host</label
-                      >
-                      <UInput
-                        id="beaconHost"
-                        v-model="form.beaconHost"
-                        placeholder="127.0.0.1 或 beacon.example"
-                      />
-                    </div>
-                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                      <label
-                        for="beaconPort"
-                        class="text-sm text-slate-600 dark:text-slate-300"
-                        >端口</label
-                      >
-                      <UInput
-                        id="beaconPort"
-                        v-model.number="form.beaconPort"
-                        type="number"
-                        min="1"
-                        max="65535"
-                        placeholder="必填，例如 1145"
-                      />
-                    </div>
-                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                      <label
-                        for="beaconKey"
-                        class="text-sm text-slate-600 dark:text-slate-300"
-                        >Key</label
-                      >
-                      <UInput
-                        id="beaconKey"
-                        v-model="form.beaconKey"
-                        type="password"
-                        placeholder="输入以更新，留空保持不变"
-                      />
-                    </div>
-                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                      <label
-                        for="beaconEnabled"
-                        class="text-sm text-slate-600 dark:text-slate-300"
-                        >启用 Beacon</label
-                      >
-                      <div
-                        class="flex h-10 items-center rounded-xl border border-slate-200 px-3 dark:border-slate-700"
-                      >
-                        <UCheckbox
-                          id="beaconEnabled"
-                          v-model="form.beaconEnabled"
-                          label="启用"
-                        />
-                      </div>
-                    </div>
-                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                      <label
-                        for="beaconRequestTimeoutMs"
-                        class="text-sm text-slate-600 dark:text-slate-300"
-                        >超时 (ms)</label
-                      >
-                      <UInput
-                        id="beaconRequestTimeoutMs"
-                        v-model.number="form.beaconRequestTimeoutMs"
-                        type="number"
-                        min="1000"
-                        placeholder="默认 10000"
-                      />
-                    </div>
-                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                      <label
-                        for="beaconMaxRetry"
-                        class="text-sm text-slate-600 dark:text-slate-300"
-                        >最大重试</label
-                      >
-                      <UInput
-                        id="beaconMaxRetry"
-                        v-model.number="form.beaconMaxRetry"
-                        type="number"
-                        min="0"
-                        placeholder="默认 3"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 历史图表 -->
-            <div class="mt-4">
-              <p class="mb-2 text-xs text-slate-500 dark:text-slate-400">
-                最近 {{ historyDays }} 天走势
-              </p>
-              <div class="h-60">
-                <VChart
-                  v-if="history.length"
-                  :option="{
-                    tooltip: { trigger: 'axis' },
-                    grid: { left: 40, right: 20, top: 30, bottom: 30 },
-                    xAxis: {
-                      type: 'category',
-                      data: history
-                        .slice()
-                        .reverse()
-                        .map((p) => formatChartLabel(p.createdAt)),
-                    },
-                    yAxis: {
-                      type: 'value',
-                      min: 0,
-                      splitLine: { show: false },
-                    },
-                    // 默认隐藏延迟图层
-                    legend: {
-                      top: 0,
-                      selected: { 在线人数: true, '延迟(ms)': false },
-                      selectedMode: 'single',
-                    },
-                    series: [
-                      {
-                        type: 'line',
-                        name: '在线人数',
-                        smooth: true,
-                        showSymbol: false,
-                        data: history
-                          .slice()
-                          .reverse()
-                          .map((p) => p.onlinePlayers ?? 0),
-                      },
-                      {
-                        type: 'line',
-                        name: '延迟(ms)',
-                        smooth: true,
-                        showSymbol: false,
-                        data: history
-                          .slice()
-                          .reverse()
-                          .map((p) => p.latency ?? 0),
-                      },
-                    ],
-                  }"
-                  autoresize
-                />
-                <div
-                  v-else
-                  class="flex h-full items-center justify-center text-xs text-slate-500 dark:text-slate-400"
-                >
-                  {{ historyLoading ? '加载中...' : '暂无历史数据' }}
-                </div>
-              </div>
-            </div>
-            <div
-              class="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-4 dark:border-slate-800"
-            >
-              <div class="text-xs text-slate-500 dark:text-slate-400">
-                保存后会自动刷新服务端状态。
-              </div>
-              <div class="flex justify-end gap-2">
-                <UButton variant="ghost" @click="dialogOpen = false"
-                  >取消</UButton
-                >
-                <UButton color="primary" :loading="saving" @click="saveServer">
-                  {{ editingServer ? '保存修改' : '创建' }}
-                </UButton>
-              </div>
-            </div>
-          </UCard>
-        </div>
-      </template>
-    </UModal>
-
-    <!-- 临时 Ping 弹窗 -->
-    <UModal :open="adhocDialog" @update:open="adhocDialog = $event">
-      <template #content>
-        <UCard>
-          <template #header>
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-600 dark:text-slate-300"
-                >临时 Ping 工具</span
-              >
-              <UButton
-                size="xs"
-                variant="ghost"
-                icon="i-lucide-refresh-ccw"
-                :loading="adhocLoading"
-                @click="submitAdhoc"
-                >执行</UButton
-              >
-            </div>
-          </template>
-          <div class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-3">
-              <div class="flex flex-col gap-1">
-                <label class="text-xs text-slate-500 dark:text-slate-400"
-                  >主机名 / 域名</label
-                >
-                <UInput
-                  v-model="adhocForm.host"
-                  placeholder="play.example.com"
-                />
-              </div>
-              <div class="flex flex-col gap-1">
-                <label class="text-xs text-slate-500 dark:text-slate-400"
-                  >端口 (可选)</label
-                >
-                <UInput
-                  v-model.number="adhocForm.port"
-                  type="number"
-                  placeholder="留空自动/SRV"
-                />
-              </div>
-              <div class="flex flex-col gap-1">
-                <label class="text-xs text-slate-500 dark:text-slate-400"
-                  >版本</label
-                >
-                <USelect
-                  v-model="adhocForm.edition"
-                  :items="editionOptions"
-                  value-key="value"
-                  label-key="label"
-                />
-              </div>
-            </div>
-            <div
-              v-if="adhocResult"
-              class="rounded-xl border border-slate-200/60 bg-slate-50/70 p-3 text-xs dark:border-slate-700 dark:bg-slate-900/50"
-            >
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <span class="font-medium"
-                  >结果:
-                  {{
-                    adhocResult.edition === 'BEDROCK'
-                      ? adhocResult.response.version
-                      : adhocResult.response.version?.name
-                  }}</span
-                >
-                <UBadge variant="soft" color="neutral">{{
-                  editionLabel(adhocResult.edition)
-                }}</UBadge>
-              </div>
-              <div class="mt-2 grid grid-cols-3 gap-2">
-                <div>
-                  <p class="text-slate-500 dark:text-slate-400">玩家</p>
-                  <p class="font-semibold">
-                    {{ adhocResult.response.players?.online ?? 0 }} /
-                    {{ adhocResult.response.players?.max ?? 0 }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-slate-500 dark:text-slate-400">延迟</p>
-                  <p class="font-semibold">
-                    {{ adhocResult.response.latency ?? '—' }} ms
-                  </p>
-                </div>
-                <div class="col-span-1">
-                  <p class="text-slate-500 dark:text-slate-400">MOTD</p>
-                  <p class="line-clamp-3 break-all">
-                    {{
-                      adhocResult.edition === 'JAVA'
-                        ? adhocResult.response.description
-                        : adhocResult.response.motd
-                    }}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div v-else class="text-xs text-slate-500 dark:text-slate-400">
-              {{ adhocLoading ? '请求中...' : '填写参数后点击执行' }}
-            </div>
-
-            <div
-              class="mt-4 rounded-2xl border border-slate-200/70 bg-white/70 p-4 dark:border-slate-800/60 dark:bg-slate-900/50"
-            >
-              <div class="mb-3 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span
-                    class="text-sm font-medium text-slate-700 dark:text-slate-200"
-                    >Hydroline Beacon 状态</span
-                  >
-                  <UBadge
-                    v-if="beaconStatus?.fromCache"
-                    size="xs"
-                    variant="soft"
-                    color="warning"
-                    >缓存数据</UBadge
-                  >
-                </div>
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  icon="i-lucide-refresh-cw"
-                  :loading="beaconLoading"
-                  :disabled="
-                    !editingServer?.beaconEnabled &&
-                    !editingServer?.beaconConfigured
-                  "
-                  @click="loadBeaconStatus(editingServer?.id ?? null)"
-                >
-                  刷新心跳
-                </UButton>
-              </div>
-              <div
-                v-if="
-                  !editingServer?.beaconEnabled &&
-                  !editingServer?.beaconConfigured
-                "
-                class="text-sm text-slate-500 dark:text-slate-400"
-              >
-                未配置 Beacon 参数，请在编辑表单中补充 Endpoint 与 Key。
-              </div>
-              <div
-                v-else-if="!beaconStatus"
-                class="text-sm text-slate-500 dark:text-slate-400"
-              >
-                正在加载 Beacon 心跳数据……
-              </div>
-              <div
-                v-else
-                class="grid gap-3 md:grid-cols-4 text-sm text-slate-700 dark:text-slate-200"
-              >
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    在线玩家
-                  </p>
-                  <p class="text-base font-semibold">
-                    {{ beaconStatus.status.online_player_count ?? 0 }} /
-                    {{ beaconStatus.status.server_max_players ?? 0 }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    MTR 日志总数
-                  </p>
-                  <p class="text-base font-semibold">
-                    {{ beaconStatus.status.mtr_logs_total ?? 0 }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    成就条目
-                  </p>
-                  <p class="text-base font-semibold">
-                    {{ beaconStatus.status.advancements_total ?? 0 }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    统计条目
-                  </p>
-                  <p class="text-base font-semibold">
-                    {{ beaconStatus.status.stats_total ?? 0 }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    扫描周期
-                  </p>
-                  <p class="text-base font-semibold">
-                    {{
-                      beaconStatus.status.interval_time_seconds ??
-                      beaconStatus.status.interval_time_ticks ??
-                      '—'
-                    }}
-                    <span class="text-xs text-slate-500 dark:text-slate-400">
-                      {{
-                        beaconStatus.status.interval_time_seconds
-                          ? '秒'
-                          : beaconStatus.status.interval_time_ticks
-                            ? 'tick'
-                            : ''
-                      }}
-                    </span>
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    最后心跳时间
-                  </p>
-                  <p class="text-base font-semibold">
-                    {{
-                      dayjs(beaconStatus.lastHeartbeatAt).format(
-                        'YYYY-MM-DD HH:mm:ss',
-                      )
-                    }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </UCard>
-      </template>
-    </UModal>
-
+    <MinecraftServerAdhocPingDialog
+      :open="adhocDialog"
+      :adhoc-form="adhocForm"
+      :adhoc-result="adhocResult"
+      :adhoc-loading="adhocLoading"
+      :edition-options="editionOptions"
+      @update:open="adhocDialog = $event"
+      @submit="submitAdhoc"
+    />
     <!-- 删除确认对话框 -->
     <UModal
       :open="deleteConfirmDialogOpen"
@@ -2172,288 +1338,25 @@ async function controlMcsm(
       </template>
     </UModal>
 
-    <!-- Beacon 连接详情弹窗 -->
-    <UModal :open="beaconDialogOpen" @update:open="beaconDialogOpen = $event">
-      <template #content>
-        <UCard>
-          <template #header>
-            <div class="flex items-center justify-between">
-              <div class="text-sm text-slate-600 dark:text-slate-300">
-                Beacon 连接 · {{ beaconDialogServer?.displayName || '未选择' }}
-              </div>
-              <div class="flex items-center gap-2">
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  icon="i-lucide-pencil"
-                  :disabled="!beaconDialogServer"
-                  @click="
-                    beaconDialogServer
-                      ? (openEditDialog(beaconDialogServer),
-                        (beaconDialogOpen = false))
-                      : null
-                  "
-                  >编辑</UButton
-                >
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  icon="i-lucide-cable"
-                  :loading="beaconConnLoading"
-                  :disabled="!beaconDialogServer?.id"
-                  @click="manualConnectBeacon"
-                  >手动连接</UButton
-                >
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  color="warning"
-                  icon="i-lucide-plug"
-                  :loading="beaconConnLoading"
-                  :disabled="!beaconDialogServer?.id"
-                  @click="disconnectBeacon"
-                  >断开</UButton
-                >
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  color="primary"
-                  icon="i-lucide-rotate-ccw"
-                  :loading="beaconConnLoading"
-                  :disabled="!beaconDialogServer?.id"
-                  @click="reconnectBeacon"
-                  >重连</UButton
-                >
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  icon="i-lucide-activity"
-                  :loading="beaconCheckLoading"
-                  :disabled="!beaconDialogServer?.id"
-                  @click="checkBeaconConnectivity"
-                  >检查连通性</UButton
-                >
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  icon="i-lucide-refresh-cw"
-                  :loading="beaconConnLoading"
-                  :disabled="!beaconDialogServer?.id"
-                  @click="refreshBeaconConn"
-                  >刷新</UButton
-                >
-              </div>
-            </div>
-          </template>
-          <div class="space-y-3 text-sm">
-            <div class="grid gap-3 md:grid-cols-2">
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  Endpoint
-                </p>
-                <p class="font-medium text-slate-900 dark:text-white">
-                  {{
-                    beaconConnDetail?.config?.endpoint ||
-                    beaconConnDetail?.connection?.endpoint ||
-                    '—'
-                  }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">状态</p>
-                <div class="flex items-center gap-2">
-                  <UBadge
-                    variant="soft"
-                    :color="
-                      beaconConnDetail?.connection?.connected
-                        ? 'success'
-                        : beaconConnDetail?.connection?.connecting
-                          ? 'primary'
-                          : beaconConnDetail?.connection?.lastError
-                            ? 'error'
-                            : 'neutral'
-                    "
-                  >
-                    {{
-                      beaconConnDetail?.connection?.connected
-                        ? '在线'
-                        : beaconConnDetail?.connection?.connecting
-                          ? '连接中'
-                          : beaconConnDetail?.connection?.lastError
-                            ? '错误'
-                            : '离线'
-                    }}
-                  </UBadge>
-                  <span class="text-xs text-slate-500 dark:text-slate-400">
-                    重试
-                    {{ beaconConnDetail?.connection?.reconnectAttempts ?? 0 }}
-                    次
-                  </span>
-                  <UBadge
-                    v-if="
-                      (beaconConnDetail?.connection?.reconnectAttempts ?? 0) >=
-                        10 &&
-                      !beaconConnDetail?.connection?.connected &&
-                      !beaconConnDetail?.connection?.connecting
-                    "
-                    size="xs"
-                    variant="soft"
-                    color="warning"
-                  >
-                    已停止重试
-                  </UBadge>
-                </div>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  最后连接时间
-                </p>
-                <p class="text-slate-900 dark:text-white">
-                  {{
-                    beaconConnDetail?.connection?.lastConnectedAt
-                      ? dayjs(
-                          beaconConnDetail?.connection?.lastConnectedAt,
-                        ).format('YYYY-MM-DD HH:mm:ss')
-                      : '—'
-                  }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  最近错误
-                </p>
-                <p class="text-slate-900 dark:text-white break-all">
-                  {{ beaconConnDetail?.connection?.lastError || '—' }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  启用 / 已配置
-                </p>
-                <p class="text-slate-900 dark:text-white">
-                  {{ beaconConnDetail?.config?.enabled ? '启用' : '禁用' }} /
-                  {{ beaconConnDetail?.config?.configured ? '是' : '否' }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  超时 / 最大重试
-                </p>
-                <p class="text-slate-900 dark:text-white">
-                  {{ beaconConnDetail?.config?.timeoutMs ?? '默认' }} /
-                  {{ beaconConnDetail?.config?.maxRetry ?? '默认' }}
-                </p>
-              </div>
-            </div>
-
-            <div
-              v-if="!beaconConnDetail"
-              class="text-xs text-slate-500 dark:text-slate-400"
-            >
-              {{ beaconConnLoading ? '加载连接信息中...' : '暂无连接信息' }}
-            </div>
-
-            <div
-              class="mt-2 rounded-xl border border-slate-200/60 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40"
-            >
-              <div class="mb-2 flex items-center justify-between">
-                <span
-                  class="text-xs font-medium text-slate-700 dark:text-slate-200"
-                  >服务状态</span
-                >
-                <div class="flex items-center gap-2">
-                  <UBadge
-                    v-if="beaconStatusDetail?.fromCache"
-                    size="xs"
-                    variant="soft"
-                    color="warning"
-                    >缓存</UBadge
-                  >
-                </div>
-              </div>
-              <div
-                v-if="beaconStatusLoading"
-                class="text-xs text-slate-500 dark:text-slate-400"
-              >
-                加载状态中...
-              </div>
-              <div
-                v-else-if="!beaconStatusDetail"
-                class="text-xs text-slate-500 dark:text-slate-400"
-              >
-                暂无状态数据
-              </div>
-              <div v-else class="grid gap-3 md:grid-cols-3 text-sm">
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    在线玩家
-                  </p>
-                  <p class="font-semibold text-slate-900 dark:text-white">
-                    {{ beaconStatusDetail.status.online_player_count ?? 0 }} /
-                    {{ beaconStatusDetail.status.server_max_players ?? 0 }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    MTR 日志总数
-                  </p>
-                  <p class="font-semibold text-slate-900 dark:text-white">
-                    {{ beaconStatusDetail.status.mtr_logs_total ?? 0 }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    统计条目
-                  </p>
-                  <p class="font-semibold text-slate-900 dark:text-white">
-                    {{ beaconStatusDetail.status.stats_total ?? 0 }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    成就条目
-                  </p>
-                  <p class="font-semibold text-slate-900 dark:text-white">
-                    {{ beaconStatusDetail.status.advancements_total ?? 0 }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    扫描周期
-                  </p>
-                  <p class="font-semibold text-slate-900 dark:text-white">
-                    {{
-                      beaconStatusDetail.status.interval_time_seconds ??
-                      beaconStatusDetail.status.interval_time_ticks ??
-                      '—'
-                    }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    最后心跳时间
-                  </p>
-                  <p class="font-semibold text-slate-900 dark:text-white">
-                    {{
-                      dayjs(beaconStatusDetail.lastHeartbeatAt).format(
-                        'YYYY-MM-DD HH:mm:ss',
-                      )
-                    }}
-                  </p>
-                </div>
-                <!-- 在线玩家列表展示依赖 list_online_players，按文档已从 Beacon 状态移除 -->
-              </div>
-            </div>
-          </div>
-          <template #footer>
-            <div class="flex justify-end gap-2">
-              <UButton variant="ghost" @click="beaconDialogOpen = false"
-                >关闭</UButton
-              >
-            </div>
-          </template>
-        </UCard>
-      </template>
-    </UModal>
+    <MinecraftServerBeaconDialog
+      :open="beaconDialogOpen"
+      :server="beaconDialogServer"
+      :connection-detail="beaconConnDetail"
+      :status-detail="beaconStatusDetail"
+      :conn-loading="beaconConnLoading"
+      :status-loading="beaconStatusLoading"
+      :check-loading="beaconCheckLoading"
+      @update:open="beaconDialogOpen = $event"
+      @edit="
+        beaconDialogServer
+          ? (openEditDialog(beaconDialogServer), (beaconDialogOpen = false))
+          : null
+      "
+      @manual-connect="manualConnectBeacon"
+      @disconnect="disconnectBeacon"
+      @reconnect="reconnectBeacon"
+      @check-connectivity="checkBeaconConnectivity"
+      @refresh-conn="refreshBeaconConn"
+    />
   </div>
 </template>
