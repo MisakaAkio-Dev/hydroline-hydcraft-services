@@ -7,13 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useFeatureStore } from '@/stores/feature'
 import { useAdminUsersStore } from '@/stores/adminUsers'
 import { useAdminRbacStore } from '@/stores/adminRbac'
-import type {
-  AdminBindingHistoryEntry,
-  AdminPhoneContactEntry,
-  AdminUserDetail,
-} from '@/types/admin'
-import { phoneRegions } from '@/constants/profile'
-import { playerStatusOptions, type PlayerStatus } from '@/constants/status'
+import type { AdminBindingHistoryEntry, AdminUserDetail } from '@/types/admin'
 import UserDetailSectionOverview from './components/UserDetailSectionOverview.vue'
 import UserDetailSectionProfile from './components/UserDetailSectionProfile.vue'
 import UserDetailSectionServerAccounts from './components/UserDetailSectionServerAccounts.vue'
@@ -22,8 +16,24 @@ import UserBindingHistoryDialog from './components/UserBindingHistoryDialog.vue'
 import UserSessionsDialog from './components/UserSessionsDialog.vue'
 import ResetPasswordResultDialog from './components/ResetPasswordResultDialog.vue'
 import ErrorDialog from './components/ErrorDialog.vue'
+import UserStatusDialog from './components/UserStatusDialog.vue'
+import UserEmailDialog from './components/UserEmailDialog.vue'
+import UserPhoneDialog from './components/UserPhoneDialog.vue'
+import UserPiicDialog from './components/UserPiicDialog.vue'
+import UserBindingDialog from './components/UserBindingDialog.vue'
+import UserMinecraftNicknameDialog from './components/UserMinecraftNicknameDialog.vue'
+import UserResetPasswordDialog from './components/UserResetPasswordDialog.vue'
+import UserDeleteDialog from './components/UserDeleteDialog.vue'
 
-type PasswordMode = 'temporary' | 'custom'
+type ProfileForm = {
+  displayName?: string
+  birthday?: string
+  gender?: string
+  motto?: string
+  timezone?: string
+  locale?: string
+  region?: RegionValue
+}
 
 const props = defineProps<{ userId: string | null; emailToken?: number }>()
 const emit = defineEmits<{ (event: 'deleted'): void }>()
@@ -43,35 +53,21 @@ const resetResult = ref<{
   temporaryPassword: string | null
   message: string
 } | null>(null)
-
-// 弹窗控制：原先内联显示的重置结果与错误信息改为弹窗
 const resetResultDialogOpen = ref(false)
 const errorDialogOpen = ref(false)
-
+const statusDialogOpen = ref(false)
+const emailDialogOpen = ref(false)
+const phoneDialogOpen = ref(false)
+const piicDialogOpen = ref(false)
+const createBindingDialogOpen = ref(false)
+const minecraftProfileDialogOpen = ref(false)
 const passwordDialogOpen = ref(false)
-const passwordMode = ref<PasswordMode>('temporary')
-const customPassword = ref('')
-const showCustomPassword = ref(false)
-const passwordSubmitting = ref(false)
 const deleteDialogOpen = ref(false)
-const deleteSubmitting = ref(false)
-
-const oauthUnbindingId = ref<string | null>(null)
-
-// 新增：三个列表对话框的开关
+const contactsListDialogOpen = ref(false)
 const bindingHistoryDialogOpen = ref(false)
 const sessionsDialogOpen = ref(false)
-const contactsListDialogOpen = ref(false)
-
-type ProfileForm = {
-  displayName?: string
-  birthday?: string
-  gender?: string
-  motto?: string
-  timezone?: string
-  locale?: string
-  region?: RegionValue
-}
+const pendingEmailToken = ref<number | null>(null)
+const oauthUnbindingId = ref<string | null>(null)
 
 const profileForm = reactive<ProfileForm>({
   displayName: undefined,
@@ -92,32 +88,32 @@ const labelSelection = ref<string[]>([])
 const roleSaving = ref(false)
 const labelSaving = ref(false)
 
-const piicDialogOpen = ref(false)
-const piicSubmitting = ref(false)
+const contactDialogOpen = ref(false)
+const contactEditingId = ref<string | null>(null)
+const contactChannelId = ref<string | undefined>(undefined)
+const contactValue = ref('')
+const contactIsPrimary = ref(false)
+const contactSubmitting = ref(false)
+const contactChannels = ref<
+  Array<{ id: string; key: string; displayName: string }>
+>([])
 
-const statusDialogOpen = ref(false)
-const statusSelection = ref<PlayerStatus | null>(null)
-const statusReason = ref('')
-const statusSubmitting = ref(false)
-const statusOptionMap = new Map<
-  PlayerStatus,
-  (typeof playerStatusOptions)[number]
->()
-for (const option of playerStatusOptions) {
-  statusOptionMap.set(option.value, option)
-}
-const currentStatusOption = computed(() => {
-  const status = detail.value?.statusSnapshot?.status as
-    | PlayerStatus
-    | undefined
-  if (!status) return null
-  return statusOptionMap.get(status) ?? null
-})
-const selectedStatusOption = computed(() => {
-  if (!statusSelection.value) return null
-  return statusOptionMap.get(statusSelection.value) ?? null
-})
+const deleteConfirmDialogOpen = ref(false)
+const deleteConfirmMessage = ref('')
+const deleteConfirmCallback = ref<(() => Promise<void>) | null>(null)
+const deleteConfirmSubmitting = ref(false)
 
+const sessions = computed(() => detail.value?.sessions ?? [])
+const oauthProviders = computed(() => featureStore.flags.oauthProviders ?? [])
+const oauthAccounts = computed(() => detail.value?.oauthAccounts ?? [])
+const minecraftProfiles = computed(() => {
+  const list = detail.value?.nicknames ?? []
+  return list.map((n) => ({
+    id: n.id,
+    isPrimary: n.isPrimary,
+    nickname: n.nickname ?? null,
+  }))
+})
 const roleOptions = computed(() =>
   rbacStore.roles.map((role) => ({ label: role.name, value: role.key })),
 )
@@ -129,418 +125,51 @@ const labelOptions = computed(() =>
   })),
 )
 
-const sessions = computed(() => detail.value?.sessions ?? [])
-
-const oauthProviders = computed(() => featureStore.flags.oauthProviders ?? [])
-const oauthAccounts = computed(() => detail.value?.oauthAccounts ?? [])
-
-// 已迁移到分离的 Section 组件中计算主 Minecraft 信息与昵称列表。
-const minecraftProfiles = computed(() => {
-  const list = detail.value?.nicknames ?? []
-  return list.map((n) => ({
-    id: n.id,
-    isPrimary: n.isPrimary,
-    nickname: n.nickname ?? null,
-  }))
-})
-
-// === 联系方式管理（声明与加载渠道） ===
-const contactDialogOpen = ref(false)
-const contactEditingId = ref<string | null>(null)
-const contactChannelId = ref<string | undefined>(undefined)
-const contactValue = ref('')
-const contactIsPrimary = ref(false)
-const contactSubmitting = ref(false)
-const contactChannels = ref<
-  Array<{ id: string; key: string; displayName: string }>
->([])
-
-// 删除确认对话框
-const deleteConfirmDialogOpen = ref(false)
-const deleteConfirmMessage = ref('')
-const deleteConfirmCallback = ref<(() => Promise<void>) | null>(null)
-const deleteConfirmSubmitting = ref(false)
-
-type EmailDialogEntry = {
-  id: string | null
-  value: string
-  isPrimary: boolean
-  verified: boolean
-  manageable: boolean
+function openStatusDialog() {
+  if (!detail.value) return
+  statusDialogOpen.value = true
 }
-
-type PhoneDialogEntry = {
-  id: string | null
-  dialCode: string
-  number: string
-  display: string
-  isPrimary: boolean
-  verified: boolean
-  manageable: boolean
-}
-
-function normalizeEmail(value: string | null | undefined) {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-const emailDialogOpen = ref(false)
-const emailInputValue = ref('')
-const emailSubmitting = ref(false)
-const pendingEmailToken = ref<number | null>(null)
-
-const phoneDialogOpen = ref(false)
-const phoneDialOptions = phoneRegions.map((region) => ({
-  label: region.name,
-  value: region.dial,
-}))
-const phoneDialCode = ref(phoneDialOptions[0]?.value ?? '+86')
-const phoneInputValue = ref('')
-const phoneIsPrimary = ref(false)
-const phoneSubmitting = ref(false)
-
-const emailEntries = computed<EmailDialogEntry[]>(() => {
-  const data = detail.value
-  if (!data) return []
-
-  const items: EmailDialogEntry[] = []
-  const seen = new Map<string, EmailDialogEntry>()
-
-  for (const contact of data.contacts ?? []) {
-    if (contact.channel?.key !== 'email') continue
-    const value = normalizeEmail(contact.value)
-    if (!value) continue
-    const key = value.toLowerCase()
-    const entry: EmailDialogEntry = {
-      id: contact.id ?? null,
-      value,
-      isPrimary: Boolean(contact.isPrimary),
-      verified:
-        contact.verification === 'VERIFIED' || Boolean(contact.verifiedAt),
-      manageable: Boolean(contact.id),
-    }
-    const existing = seen.get(key)
-    if (existing) {
-      existing.isPrimary = existing.isPrimary || entry.isPrimary
-      existing.verified = existing.verified || entry.verified
-      if (!existing.id && entry.id) existing.id = entry.id
-      existing.manageable = existing.manageable || entry.manageable
-      continue
-    }
-    seen.set(key, entry)
-    items.push(entry)
-  }
-
-  const accountEmail = normalizeEmail(data.email)
-  if (accountEmail) {
-    const key = accountEmail.toLowerCase()
-    const existing = seen.get(key)
-    if (existing) {
-      existing.isPrimary = true
-      // 使用后端返回的 emailVerified 字段判断验证状态
-      existing.verified = existing.verified || Boolean(data.emailVerified)
-      existing.manageable = existing.manageable && Boolean(existing.id)
-    } else {
-      items.push({
-        id: null,
-        value: accountEmail,
-        isPrimary: true,
-        // 使用后端返回的 emailVerified 字段
-        verified: Boolean(data.emailVerified),
-        manageable: false,
-      })
-    }
-  }
-
-  if (items.length > 0 && !items.some((entry) => entry.isPrimary)) {
-    items[0].isPrimary = true
-  }
-
-  return items.sort((a, b) => {
-    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
-    if (a.verified !== b.verified) return a.verified ? -1 : 1
-    return a.value.localeCompare(b.value)
-  })
-})
-
-function extractDialCodeFromMetadata(metadata: unknown) {
-  if (!metadata || typeof metadata !== 'object') return null
-  const dial = (metadata as Record<string, unknown>).dialCode
-  return typeof dial === 'string' ? dial : null
-}
-
-function extractDialCodeFromValue(value: string) {
-  const match = value.match(/^\+\d{2,6}/)
-  return match ? match[0] : null
-}
-
-function buildPhoneDialogEntry(
-  contact: AdminPhoneContactEntry | AdminContactEntry,
-): PhoneDialogEntry | null {
-  const rawValue = typeof contact.value === 'string' ? contact.value.trim() : ''
-  if (!rawValue) return null
-  const dial =
-    extractDialCodeFromMetadata(contact.metadata) ??
-    extractDialCodeFromValue(rawValue) ??
-    ''
-  const remaining =
-    dial && rawValue.startsWith(dial) ? rawValue.slice(dial.length) : rawValue
-  const normalized = remaining.replace(/\s+/g, '')
-  return {
-    id: contact.id ?? null,
-    dialCode: dial,
-    number: normalized,
-    display: dial ? `${dial} ${normalized}`.trim() : normalized,
-    isPrimary: Boolean(contact.isPrimary),
-    verified:
-      contact.verification === 'VERIFIED' || Boolean(contact.verifiedAt),
-    manageable: Boolean(contact.id),
-  }
-}
-
-const phoneEntries = computed<PhoneDialogEntry[]>(() => {
-  const data = detail.value
-  if (!data) return []
-  const source: Array<AdminPhoneContactEntry | AdminContactEntry> =
-    data.phoneContacts && data.phoneContacts.length > 0
-      ? data.phoneContacts
-      : (data.contacts ?? []).filter((entry) => entry.channel?.key === 'phone')
-
-  const entries: PhoneDialogEntry[] = []
-  for (const contact of source) {
-    const entry = buildPhoneDialogEntry(contact)
-    if (entry) {
-      entries.push(entry)
-    }
-  }
-
-  return entries.sort((a, b) => {
-    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
-    if (a.verified !== b.verified) return a.verified ? -1 : 1
-    return a.display.localeCompare(b.display)
-  })
-})
-
-function canDeletePhone(entry: PhoneDialogEntry) {
-  return entry.manageable && Boolean(entry.id)
-}
-
-function canSetPrimaryPhone(entry: PhoneDialogEntry) {
-  return entry.manageable && Boolean(entry.id) && !entry.isPrimary
-}
-
-const emailChannel = computed(
-  () => contactChannels.value.find((c) => c.key === 'email') ?? null,
-)
-const emailChannelId = computed(() => emailChannel.value?.id ?? null)
-const emailChannelMissing = computed(() => !emailChannel.value)
 
 function openEmailDialog() {
   if (!detail.value) return
   emailDialogOpen.value = true
-  emailInputValue.value = ''
-  pendingEmailToken.value = null
-  void ensureContactChannels()
-}
-
-function closeEmailDialog() {
-  emailDialogOpen.value = false
-}
-
-function openStatusDialog() {
-  if (!detail.value) return
-  statusSelection.value =
-    ((detail.value.statusSnapshot?.status ?? null) as PlayerStatus | null) ??
-    'ACTIVE'
-  statusReason.value = ''
-  statusDialogOpen.value = true
-}
-
-function closeStatusDialog() {
-  statusDialogOpen.value = false
-}
-
-async function submitStatusChange() {
-  if (!auth.token || !detail.value) return
-  const status = statusSelection.value
-  if (!status) {
-    toast.add({ title: '请选择目标状态', color: 'warning' })
-    return
-  }
-  const reasonDetail = statusReason.value.trim()
-  statusSubmitting.value = true
-  try {
-    await apiFetch(`/auth/users/${detail.value.id}/status`, {
-      method: 'PATCH',
-      token: auth.token,
-      body: {
-        status,
-        reasonDetail: reasonDetail || undefined,
-      },
-    })
-    toast.add({ title: '状态已更新', color: 'primary' })
-    closeStatusDialog()
-    await fetchDetail()
-    await usersStore.fetch({ page: usersStore.pagination.page })
-  } catch (error) {
-    console.warn('[admin] update user status failed', error)
-    toast.add({ title: '状态更新失败', color: 'error' })
-  } finally {
-    statusSubmitting.value = false
-  }
 }
 
 function openPhoneDialog() {
   if (!detail.value) return
   phoneDialogOpen.value = true
-  phoneIsPrimary.value = phoneEntries.value.length === 0
 }
 
-function closePhoneDialog() {
-  phoneDialogOpen.value = false
+function openPiicDialog() {
+  if (!detail.value) return
+  piicDialogOpen.value = true
 }
 
-watch(emailDialogOpen, (value) => {
-  if (!value) {
-    emailInputValue.value = ''
-    emailSubmitting.value = false
-  }
-})
-
-watch(statusDialogOpen, (value) => {
-  if (!value) {
-    statusReason.value = ''
-    statusSubmitting.value = false
-    statusSelection.value = null
-  }
-})
-
-watch(phoneDialogOpen, (value) => {
-  if (!value) {
-    phoneDialCode.value = phoneDialOptions[0]?.value ?? '+86'
-    phoneInputValue.value = ''
-    phoneIsPrimary.value = false
-    phoneSubmitting.value = false
-  }
-})
-
-const manageableEmailCount = computed(
-  () => emailEntries.value.filter((entry) => entry.manageable).length,
-)
-
-function canDeleteEmail(entry: EmailDialogEntry) {
-  if (!entry.manageable || !entry.id) return false
-  return manageableEmailCount.value > 1
+function openCreateBindingDialog() {
+  if (!detail.value) return
+  createBindingDialogOpen.value = true
 }
 
-function canSetPrimaryEmail(entry: EmailDialogEntry) {
-  return entry.manageable && Boolean(entry.id) && !entry.isPrimary
+function openMinecraftProfileDialog() {
+  if (!detail.value) return
+  minecraftProfileDialogOpen.value = true
 }
 
-async function submitAddEmail() {
-  if (!auth.token || !detail.value) return
-  const email = emailInputValue.value.trim()
-  if (!email) {
-    toast.add({ title: '请输入邮箱地址', color: 'warning' })
-    return
-  }
-
-  let channel = emailChannel.value
-  if (!channel) {
-    await ensureContactChannels()
-    channel = emailChannel.value
-  }
-
-  if (!channel) {
-    toast.add({ title: '未配置邮箱渠道，无法添加', color: 'error' })
-    return
-  }
-
-  emailSubmitting.value = true
-  try {
-    await apiFetch(`/auth/users/${detail.value.id}/contacts`, {
-      method: 'POST',
-      token: auth.token,
-      body: {
-        channelKey: channel.key,
-        value: email,
-        isPrimary: false,
-      },
-    })
-    toast.add({ title: '邮箱已添加', color: 'primary' })
-    emailInputValue.value = ''
-    await fetchDetail()
-  } catch (error) {
-    console.warn('[admin] add email contact failed', error)
-    toast.add({ title: '添加邮箱失败', color: 'error' })
-  } finally {
-    emailSubmitting.value = false
-  }
+function openResetPasswordDialog() {
+  if (!detail.value) return
+  passwordDialogOpen.value = true
 }
 
-async function handleDeleteEmail(entry: EmailDialogEntry) {
-  if (!entry.manageable || !entry.id) return
-  if (manageableEmailCount.value <= 1) {
-    toast.add({ title: '至少需要保留一个邮箱，无法删除', color: 'warning' })
-    return
-  }
-  await deleteContact(entry.id)
-}
-
-async function handleSetPrimaryEmail(entry: EmailDialogEntry) {
-  if (!entry.manageable || !entry.id || entry.isPrimary) return
-  await submitSetPrimaryEmail(entry.id)
-}
-
-async function submitAddPhone() {
-  if (!auth.token || !detail.value) return
-  const dial = phoneDialCode.value || phoneDialOptions[0]?.value || '+86'
-  const digits = phoneInputValue.value.replace(/[^0-9]/g, '')
-  if (!digits) {
-    toast.add({ title: '请输入手机号', color: 'warning' })
-    return
-  }
-  if (digits.length < 5 || digits.length > 20) {
-    toast.add({ title: '手机号长度需在 5-20 位之间', color: 'warning' })
-    return
-  }
-  phoneSubmitting.value = true
-  try {
-    await apiFetch(`/auth/users/${detail.value.id}/contacts/phone`, {
-      method: 'POST',
-      token: auth.token,
-      body: {
-        dialCode: dial,
-        phone: digits,
-        isPrimary: phoneIsPrimary.value,
-      },
-    })
-    toast.add({ title: '手机号已添加', color: 'primary' })
-    phoneInputValue.value = ''
-    phoneIsPrimary.value = false
-    await fetchDetail()
-  } catch (error) {
-    console.warn('[admin] add phone contact failed', error)
-    toast.add({ title: '添加手机号失败', color: 'error' })
-  } finally {
-    phoneSubmitting.value = false
-  }
-}
-
-async function handleDeletePhone(entry: PhoneDialogEntry) {
-  if (!entry.manageable || !entry.id) return
-  await deleteContact(entry.id)
-}
-
-async function handleSetPrimaryPhone(entry: PhoneDialogEntry) {
-  if (!entry.manageable || !entry.id || entry.isPrimary) return
-  await submitSetPrimaryPhone(entry.id)
+function openDeleteDialog() {
+  if (!detail.value) return
+  deleteDialogOpen.value = true
 }
 
 function tryOpenEmailDialog() {
   if (pendingEmailToken.value === null) return
   if (!detail.value) return
   pendingEmailToken.value = null
-  openEmailDialog()
+  emailDialogOpen.value = true
 }
 
 async function ensureContactChannels() {
@@ -697,88 +326,64 @@ async function submitSetPrimaryPhone(contactId: string) {
   }
 }
 
-// === 新增绑定 UI 状态 ===
-const createBindingDialogOpen = ref(false)
-const createBindingIdentifier = ref('')
-const createBindingSetPrimary = ref(true)
-const createBindingSubmitting = ref(false)
-
-function openCreateBindingDialog() {
-  createBindingIdentifier.value = ''
-  createBindingSetPrimary.value = true
-  createBindingDialogOpen.value = true
-}
-
-function closeCreateBindingDialog() {
-  createBindingDialogOpen.value = false
-  createBindingSubmitting.value = false
-}
-
-async function submitCreateBinding() {
+async function markPrimaryBinding(bindingId: string) {
   if (!auth.token || !detail.value) return
-  const identifier = createBindingIdentifier.value.trim()
-  if (!identifier) {
-    toast.add({ title: '请输入要绑定的 AuthMe 标识', color: 'warning' })
-    return
-  }
-  createBindingSubmitting.value = true
   try {
-    await apiFetch(`/auth/users/${detail.value.id}/bindings`, {
-      method: 'POST',
-      token: auth.token,
-      body: { identifier, setPrimary: createBindingSetPrimary.value },
-    })
-    toast.add({ title: '绑定成功', color: 'primary' })
-    closeCreateBindingDialog()
+    await apiFetch(
+      `/auth/users/${detail.value.id}/bindings/${bindingId}/primary`,
+      { method: 'PATCH', token: auth.token },
+    )
+    toast.add({ title: '已标记为主绑定', color: 'primary' })
     await fetchDetail()
     await fetchBindingHistory()
   } catch (error) {
-    console.warn('[admin] create binding failed', error)
-    toast.add({ title: '绑定失败', color: 'error' })
-  } finally {
-    createBindingSubmitting.value = false
+    console.warn('[admin] mark primary binding failed', error)
+    toast.add({ title: '操作失败', color: 'error' })
   }
 }
 
-// === Minecraft 昵称管理 ===
-const minecraftProfileDialogOpen = ref(false)
-const minecraftNicknameInput = ref('')
-const minecraftPrimaryCheckbox = ref(false)
-const minecraftSubmitting = ref(false)
-
-function openMinecraftProfileDialog() {
-  minecraftNicknameInput.value = ''
-  minecraftPrimaryCheckbox.value = false
-  minecraftProfileDialogOpen.value = true
-}
-
-function closeMinecraftProfileDialog() {
-  minecraftProfileDialogOpen.value = false
-  minecraftSubmitting.value = false
-}
-
-async function submitMinecraftProfile() {
+async function unbind(bindingId: string) {
   if (!auth.token || !detail.value) return
-  const nickname = minecraftNicknameInput.value.trim()
-  if (!nickname) {
-    toast.add({ title: '请输入昵称', color: 'warning' })
-    return
+  const detailId = detail.value.id
+  deleteConfirmMessage.value = '确定要解绑该 AuthMe 账号吗？'
+  deleteConfirmCallback.value = async () => {
+    try {
+      await apiFetch(`/auth/users/${detailId}/bindings/${bindingId}`, {
+        method: 'DELETE',
+        token: auth.token,
+      })
+      toast.add({ title: '已解绑', color: 'primary' })
+      await fetchDetail()
+      await fetchBindingHistory()
+    } catch (error) {
+      console.warn('[admin] unbind authme failed', error)
+      toast.add({ title: '解绑失败', color: 'error' })
+    }
   }
-  minecraftSubmitting.value = true
+  deleteConfirmDialogOpen.value = true
+}
+
+async function unbindOauthAccount(accountId: string) {
+  if (!auth.token || !detail.value) return
+  oauthUnbindingId.value = accountId
   try {
-    await apiFetch(`/auth/users/${detail.value.id}/minecraft-profiles`, {
-      method: 'POST',
-      token: auth.token,
-      body: { nickname, isPrimary: minecraftPrimaryCheckbox.value },
-    })
-    toast.add({ title: '已添加昵称', color: 'primary' })
-    closeMinecraftProfileDialog()
+    await apiFetch(
+      `/auth/users/${detail.value.id}/oauth/accounts/${accountId}`,
+      {
+        method: 'DELETE',
+        token: auth.token,
+      },
+    )
+    toast.add({ title: '已解除 OAuth 绑定', color: 'success' })
     await fetchDetail()
   } catch (error) {
-    console.warn('[admin] add minecraft profile failed', error)
-    toast.add({ title: '添加失败', color: 'error' })
+    toast.add({
+      title: '解绑失败',
+      description: error instanceof ApiError ? error.message : '请稍后再试',
+      color: 'error',
+    })
   } finally {
-    minecraftSubmitting.value = false
+    oauthUnbindingId.value = null
   }
 }
 
@@ -824,42 +429,12 @@ async function deleteMinecraftProfile(profileId: string) {
   deleteConfirmDialogOpen.value = true
 }
 
-// fmtDateTime: 原本用于本文件模态内部，现已由各子组件自行实现
-
-function hydratedRoleKeys(data: AdminUserDetail | null) {
-  return data?.roles.map((link) => link.role.key).sort() ?? []
-}
-
-function hydratedLabelKeys(data: AdminUserDetail | null) {
-  return data?.permissionLabels?.map((link) => link.label.key).sort() ?? []
-}
-
-function normalizeSelection(input: unknown): string[] {
-  if (Array.isArray(input)) {
-    if (input.every((item) => typeof item === 'string')) {
-      return [...(input as string[])]
-    }
-    return (input as Array<{ value?: string | null }>)
-      .map((item) => item?.value ?? null)
-      .filter(
-        (value): value is string =>
-          typeof value === 'string' && value.length > 0,
-      )
+function copyTemporaryPassword() {
+  const pwd = resetResult.value?.temporaryPassword
+  if (pwd) {
+    navigator.clipboard.writeText(pwd).catch(() => {})
+    toast.add({ title: '已复制临时密码', color: 'primary' })
   }
-  if (!input) {
-    return []
-  }
-  if (typeof input === 'string') {
-    return [input]
-  }
-  if (
-    typeof input === 'object' &&
-    'value' in (input as Record<string, unknown>)
-  ) {
-    const value = (input as Record<string, unknown>).value
-    return typeof value === 'string' && value.length > 0 ? [value] : []
-  }
-  return []
 }
 
 async function fetchDetail() {
@@ -873,7 +448,6 @@ async function fetchDetail() {
     )
     detail.value = data
     profileForm.displayName = data.profile?.displayName ?? undefined
-    // 转换 birthday 为 YYYY-MM-DD 格式
     profileForm.birthday = data.profile?.birthday
       ? dayjs(data.profile.birthday).format('YYYY-MM-DD')
       : undefined
@@ -881,7 +455,6 @@ async function fetchDetail() {
     profileForm.motto = data.profile?.motto ?? undefined
     profileForm.timezone = data.profile?.timezone ?? undefined
     profileForm.locale = data.profile?.locale ?? undefined
-    // 来自 extra 的电话与行政区划
     const extra =
       data.profile?.extra && typeof data.profile.extra === 'object'
         ? (data.profile.extra as Record<string, unknown>)
@@ -901,7 +474,6 @@ async function fetchDetail() {
         ? (extra['regionDistrict'] as string)
         : null
     profileForm.region = { country, province, city, district }
-    // 转换 joinDate 为 YYYY-MM-DD 格式
     joinDateEditing.value = data.joinDate
       ? dayjs(data.joinDate).format('YYYY-MM-DD')
       : null
@@ -946,7 +518,6 @@ async function saveProfile() {
         motto: profileForm.motto || undefined,
         timezone: profileForm.timezone || undefined,
         locale: profileForm.locale || undefined,
-        // 额外资料：与用户端一致，采用扁平 extra 键
         extra: {
           regionCountry: profileForm.region?.country || undefined,
           regionProvince: profileForm.region?.province || undefined,
@@ -1047,213 +618,20 @@ async function handleLabelsUpdate(nextValue: unknown) {
   }
 }
 
-function openPiicDialog() {
-  if (!detail.value) return
-  piicDialogOpen.value = true
-}
-
-function closePiicDialog() {
-  piicDialogOpen.value = false
-}
-
-watch(passwordDialogOpen, (value) => {
-  if (!value) {
-    passwordMode.value = 'temporary'
-    customPassword.value = ''
-    showCustomPassword.value = false
-  }
-})
-
-watch(deleteDialogOpen, (value) => {
-  if (!value) {
-    deleteSubmitting.value = false
-  }
-})
-
-// 当出现重置结果时自动弹出结果对话框
 watch(resetResult, (val) => {
   if (val) {
     resetResultDialogOpen.value = true
   }
 })
 
-// 当出现错误信息时自动弹出错误对话框
 watch(errorMsg, (val) => {
-  if (val) {
-    errorDialogOpen.value = true
-  }
+  errorDialogOpen.value = Boolean(val)
 })
-
-async function confirmPiicRegeneration() {
-  if (!auth.token || !detail.value) return
-  piicSubmitting.value = true
-  try {
-    await apiFetch(`/auth/users/${detail.value.id}/piic/regenerate`, {
-      method: 'POST',
-      token: auth.token,
-    })
-    toast.add({ title: 'PIIC 已重新生成', color: 'primary' })
-    closePiicDialog()
-    await fetchDetail()
-    await usersStore.fetch({ page: usersStore.pagination.page })
-  } catch (error) {
-    console.warn('[admin] regenerate piic failed', error)
-    toast.add({ title: 'PIIC 生成失败', color: 'error' })
-  } finally {
-    piicSubmitting.value = false
-  }
-}
-
-function openResetPasswordDialog() {
-  if (!detail.value) return
-  passwordDialogOpen.value = true
-}
-
-function closeResetPasswordDialog() {
-  passwordDialogOpen.value = false
-}
-
-function copyTemporaryPassword() {
-  const pwd = resetResult.value?.temporaryPassword
-  if (pwd) {
-    navigator.clipboard.writeText(pwd).catch(() => {})
-    toast.add({ title: '已复制临时密码', color: 'primary' })
-  }
-}
-
-async function confirmResetPassword() {
-  if (!auth.token || !detail.value) return
-  if (passwordMode.value === 'custom' && !customPassword.value.trim()) {
-    toast.add({ title: '请填写要设置的密码', color: 'warning' })
-    return
-  }
-  passwordSubmitting.value = true
-  try {
-    const result = await usersStore.resetPassword(
-      detail.value.id,
-      passwordMode.value === 'custom' ? customPassword.value : undefined,
-    )
-    resetResult.value = {
-      temporaryPassword: result.temporaryPassword,
-      message: result.temporaryPassword
-        ? '已生成临时密码，请尽快通知用户并提示修改。'
-        : '密码已重置，请尽快通知用户修改。',
-    }
-    toast.add({ title: '密码已重置', color: 'primary' })
-    closeResetPasswordDialog()
-  } catch (error) {
-    console.warn('[admin] reset password failed', error)
-    toast.add({ title: '密码重置失败', color: 'error' })
-  } finally {
-    passwordSubmitting.value = false
-  }
-}
-
-function openDeleteDialog() {
-  if (!detail.value) return
-  deleteDialogOpen.value = true
-}
-
-function closeDeleteDialog() {
-  deleteDialogOpen.value = false
-  deleteSubmitting.value = false
-}
-
-async function confirmDeleteUser() {
-  if (!auth.token || !detail.value) return
-  deleteSubmitting.value = true
-  try {
-    await usersStore.delete(detail.value.id)
-    toast.add({ title: '用户已删除', color: 'primary' })
-    closeDeleteDialog()
-    emit('deleted')
-  } catch (error) {
-    console.warn('[admin] delete user failed', error)
-    toast.add({ title: '删除失败', color: 'error' })
-  } finally {
-    deleteSubmitting.value = false
-  }
-}
-
-async function markPrimaryBinding(bindingId: string) {
-  if (!auth.token || !detail.value) return
-  try {
-    await apiFetch(
-      `/auth/users/${detail.value.id}/bindings/${bindingId}/primary`,
-      { method: 'PATCH', token: auth.token },
-    )
-    toast.add({ title: '已标记为主绑定', color: 'primary' })
-    await fetchDetail()
-    await fetchBindingHistory()
-  } catch (error) {
-    console.warn('[admin] mark primary binding failed', error)
-    toast.add({ title: '操作失败', color: 'error' })
-  }
-}
-
-async function unbind(bindingId: string) {
-  if (!auth.token || !detail.value) return
-  const detailId = detail.value.id
-  deleteConfirmMessage.value = '确定要解绑该 AuthMe 账号吗？'
-  deleteConfirmCallback.value = async () => {
-    try {
-      await apiFetch(`/auth/users/${detailId}/bindings/${bindingId}`, {
-        method: 'DELETE',
-        token: auth.token,
-      })
-      toast.add({ title: '已解绑', color: 'primary' })
-      await fetchDetail()
-      await fetchBindingHistory()
-    } catch (error) {
-      console.warn('[admin] unbind authme failed', error)
-      toast.add({ title: '解绑失败', color: 'error' })
-    }
-  }
-  deleteConfirmDialogOpen.value = true
-}
-
-async function unbindOauthAccount(accountId: string) {
-  if (!auth.token || !detail.value) return
-  oauthUnbindingId.value = accountId
-  try {
-    await apiFetch(
-      `/auth/users/${detail.value.id}/oauth/accounts/${accountId}`,
-      {
-        method: 'DELETE',
-        token: auth.token,
-      },
-    )
-    toast.add({ title: '已解除 OAuth 绑定', color: 'success' })
-    await fetchDetail()
-  } catch (error) {
-    toast.add({
-      title: '解绑失败',
-      description: error instanceof ApiError ? error.message : '请稍后再试',
-      color: 'error',
-    })
-  } finally {
-    oauthUnbindingId.value = null
-  }
-}
-
-onMounted(async () => {
-  if (rbacStore.roles.length === 0) {
-    await rbacStore.fetchRoles()
-  }
-  if (rbacStore.labels.length === 0) {
-    await rbacStore.fetchLabels()
-  }
-  if (!featureStore.loaded) {
-    await featureStore.initialize()
-  }
-})
-
-// inline typed handler used in template for joinDate updates
 
 watch(
   () => props.emailToken,
   (token) => {
-    if (typeof token === 'number' && detail.value) {
+    if (typeof token === 'number') {
       pendingEmailToken.value = token
       tryOpenEmailDialog()
     }
@@ -1279,18 +657,17 @@ watch(
       resetResultDialogOpen.value = false
       errorDialogOpen.value = false
       emailDialogOpen.value = false
-      emailInputValue.value = ''
-      emailSubmitting.value = false
-      pendingEmailToken.value = null
       phoneDialogOpen.value = false
-      phoneInputValue.value = ''
-      phoneIsPrimary.value = false
-      phoneSubmitting.value = false
-      phoneDialCode.value = phoneDialOptions[0]?.value ?? '+86'
-      closeResetPasswordDialog()
-      closePiicDialog()
-      closeDeleteDialog()
-      oauthUnbindingId.value = null
+      piicDialogOpen.value = false
+      createBindingDialogOpen.value = false
+      minecraftProfileDialogOpen.value = false
+      passwordDialogOpen.value = false
+      statusDialogOpen.value = false
+      deleteDialogOpen.value = false
+      contactsListDialogOpen.value = false
+      bindingHistoryDialogOpen.value = false
+      sessionsDialogOpen.value = false
+      pendingEmailToken.value = null
       return
     }
     await fetchDetail()
@@ -1311,6 +688,84 @@ async function confirmDelete() {
     deleteConfirmMessage.value = ''
   }
 }
+
+function hydratedRoleKeys(data: AdminUserDetail | null) {
+  return data?.roles.map((link) => link.role.key).sort() ?? []
+}
+
+function hydratedLabelKeys(data: AdminUserDetail | null) {
+  return data?.permissionLabels?.map((link) => link.label.key).sort() ?? []
+}
+
+function normalizeSelection(input: unknown): string[] {
+  if (Array.isArray(input)) {
+    if (input.every((item) => typeof item === 'string')) {
+      return [...(input as string[])]
+    }
+    return (input as Array<{ value?: string | null }>)
+      .map((item) => item?.value ?? null)
+      .filter(
+        (value): value is string =>
+          typeof value === 'string' && value.length > 0,
+      )
+  }
+  if (!input) {
+    return []
+  }
+  if (typeof input === 'string') {
+    return [input]
+  }
+  if (
+    typeof input === 'object' &&
+    'value' in (input as Record<string, unknown>)
+  ) {
+    const value = (input as Record<string, unknown>).value
+    return typeof value === 'string' && value.length > 0 ? [value] : []
+  }
+  return []
+}
+
+function handleStatusSaved() {
+  void fetchDetail()
+  void usersStore.fetch({ page: usersStore.pagination.page })
+}
+
+function handleGeneralRefresh() {
+  void fetchDetail()
+}
+
+function handleBindingSaved() {
+  void fetchDetail()
+  void fetchBindingHistory()
+}
+
+function handlePiicSaved() {
+  void fetchDetail()
+  void usersStore.fetch({ page: usersStore.pagination.page })
+}
+
+function handleResetPasswordResult(payload: {
+  temporaryPassword: string | null
+  message: string
+}) {
+  resetResult.value = payload
+}
+
+function handleUserDeleted() {
+  emit('deleted')
+}
+
+onMounted(async () => {
+  if (rbacStore.roles.length === 0) {
+    await rbacStore.fetchRoles()
+  }
+  if (rbacStore.labels.length === 0) {
+    await rbacStore.fetchLabels()
+  }
+  if (!featureStore.loaded) {
+    await featureStore.initialize()
+  }
+})
 </script>
 
 <template>
@@ -1366,7 +821,6 @@ async function confirmDelete() {
     />
   </div>
 
-  <!-- 绑定流转记录 对话框（组件化） -->
   <UserBindingHistoryDialog
     :open="bindingHistoryDialogOpen"
     :items="bindingHistory"
@@ -1374,14 +828,12 @@ async function confirmDelete() {
     @update:open="bindingHistoryDialogOpen = $event"
   />
 
-  <!-- 登录轨迹对话框组件化 -->
   <UserSessionsDialog
     :open="sessionsDialogOpen"
     :sessions="sessions"
     @update:open="sessionsDialogOpen = $event"
   />
 
-  <!-- 密码重置结果对话框组件化 -->
   <ResetPasswordResultDialog
     :open="resetResultDialogOpen"
     :result="resetResult"
@@ -1389,103 +841,69 @@ async function confirmDelete() {
     @copy="copyTemporaryPassword"
   />
 
-  <!-- 错误信息对话框组件化 -->
   <ErrorDialog
     :open="errorDialogOpen"
     :message="errorMsg"
     @update:open="errorDialogOpen = $event"
   />
 
-  <UModal
+  <UserStatusDialog
     :open="statusDialogOpen"
+    :detail="detail"
     @update:open="statusDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-lg' }"
-  >
-    <template #content>
-      <div class="space-y-5 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold">调整用户状态</h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="closeStatusDialog"
-          />
-        </div>
-        <div
-          v-if="detail?.statusSnapshot"
-          class="rounded-lg border border-slate-200/70 bg-slate-50/70 px-4 py-3 text-xs text-slate-500 dark:border-slate-800/60 dark:bg-slate-900/40 dark:text-slate-400"
-        >
-          <p class="text-[11px] font-semibold uppercase tracking-wide">
-            当前状态
-          </p>
-          <p class="text-base font-semibold text-slate-900 dark:text-white">
-            {{ currentStatusOption?.label ?? detail?.statusSnapshot?.status }}
-          </p>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-            {{
-              detail?.statusSnapshot?.event?.reasonDetail ||
-              detail?.statusSnapshot?.event?.reasonCode ||
-              '暂无备注'
-            }}
-          </p>
-        </div>
-        <div class="space-y-2">
-          <label
-            class="block text-xs font-semibold text-slate-600 dark:text-slate-300"
-            >目标状态</label
-          >
-          <USelect
-            class="w-full"
-            v-model="statusSelection"
-            :items="playerStatusOptions"
-            label-key="label"
-            value-key="value"
-            :disabled="statusSubmitting || !detail"
-          />
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">
-            {{ selectedStatusOption?.description ?? '请选择要切换到的状态。' }}
-          </p>
-        </div>
-        <div class="space-y-2">
-          <label
-            class="block text-xs font-semibold text-slate-600 dark:text-slate-300"
-            >备注</label
-          >
-          <UTextarea
-            class="w-full"
-            v-model="statusReason"
-            :rows="4"
-            maxlength="512"
-            :disabled="statusSubmitting || !detail"
-            placeholder="记录调整原因以便后续审计"
-          />
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">
-            将写入生命周期事件，可留空，最长 512 字。
-          </p>
-        </div>
-        <div class="flex justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="statusSubmitting"
-            @click="closeStatusDialog"
-          >
-            取消
-          </UButton>
-          <UButton
-            color="primary"
-            :loading="statusSubmitting"
-            :disabled="statusSubmitting || !detail || !statusSelection"
-            @click="submitStatusChange"
-          >
-            保存
-          </UButton>
-        </div>
-      </div>
-    </template>
-  </UModal>
+    @saved="handleStatusSaved"
+  />
+
+  <UserEmailDialog
+    :open="emailDialogOpen"
+    :detail="detail"
+    :on-delete-contact="deleteContact"
+    @update:open="emailDialogOpen = $event"
+    @saved="handleGeneralRefresh"
+  />
+
+  <UserPhoneDialog
+    :open="phoneDialogOpen"
+    :detail="detail"
+    :on-delete-contact="deleteContact"
+    @update:open="phoneDialogOpen = $event"
+    @saved="handleGeneralRefresh"
+  />
+
+  <UserPiicDialog
+    :open="piicDialogOpen"
+    :detail="detail"
+    @update:open="piicDialogOpen = $event"
+    @saved="handlePiicSaved"
+  />
+
+  <UserBindingDialog
+    :open="createBindingDialogOpen"
+    :detail="detail"
+    @update:open="createBindingDialogOpen = $event"
+    @saved="handleBindingSaved"
+  />
+
+  <UserMinecraftNicknameDialog
+    :open="minecraftProfileDialogOpen"
+    :detail="detail"
+    @update:open="minecraftProfileDialogOpen = $event"
+    @saved="handleGeneralRefresh"
+  />
+
+  <UserResetPasswordDialog
+    :open="passwordDialogOpen"
+    :detail="detail"
+    @update:open="passwordDialogOpen = $event"
+    @result="handleResetPasswordResult"
+  />
+
+  <UserDeleteDialog
+    :open="deleteDialogOpen"
+    :detail="detail"
+    @update:open="deleteDialogOpen = $event"
+    @deleted="handleUserDeleted"
+  />
 
   <!-- 删除确认对话框 -->
   <UModal
@@ -1520,285 +938,6 @@ async function confirmDelete() {
       </div>
     </template>
   </UModal>
-
-  <!-- 登录轨迹 对话框 -->
-
-  <UModal
-    :open="emailDialogOpen"
-    @update:open="emailDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-2xl' }"
-  >
-    <template #content>
-      <div class="space-y-5 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3
-            class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
-          >
-            邮箱管理
-          </h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="closeEmailDialog"
-          />
-        </div>
-        <div v-if="emailEntries.length" class="space-y-2">
-          <ul class="space-y-2 text-xs">
-            <li
-              v-for="entry in emailEntries"
-              :key="entry.value"
-              class="flex items-start justify-between gap-3 rounded-lg bg-slate-100/60 px-4 py-3 dark:bg-slate-900/40"
-            >
-              <div class="flex flex-col gap-1">
-                <div
-                  class="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-white"
-                >
-                  <span class="break-all">{{ entry.value }}</span>
-                  <UBadge
-                    :color="entry.isPrimary ? 'primary' : 'neutral'"
-                    size="sm"
-                    variant="soft"
-                  >
-                    {{ entry.isPrimary ? '主' : '辅' }}
-                  </UBadge>
-                  <UBadge
-                    :color="entry.verified ? 'success' : 'warning'"
-                    size="sm"
-                    variant="soft"
-                  >
-                    {{ entry.verified ? '已验证' : '未验证' }}
-                  </UBadge>
-                  <UBadge
-                    v-if="!entry.manageable"
-                    color="neutral"
-                    size="sm"
-                    variant="soft"
-                  >
-                    账号邮箱
-                  </UBadge>
-                </div>
-                <p class="text-[11px] text-slate-500 dark:text-slate-400">
-                  {{
-                    entry.manageable
-                      ? '可在此调整主辅状态或删除。'
-                      : '来自账号邮箱字段，无法直接修改。'
-                  }}
-                </p>
-              </div>
-              <div class="flex shrink-0 items-center gap-2">
-                <UButton
-                  v-if="canSetPrimaryEmail(entry)"
-                  size="xs"
-                  color="primary"
-                  variant="ghost"
-                  :loading="loading"
-                  :disabled="loading || emailSubmitting"
-                  @click="handleSetPrimaryEmail(entry)"
-                >
-                  设为主
-                </UButton>
-                <UButton
-                  v-if="canDeleteEmail(entry)"
-                  size="xs"
-                  color="error"
-                  variant="ghost"
-                  :loading="loading"
-                  :disabled="loading || emailSubmitting"
-                  @click="handleDeleteEmail(entry)"
-                >
-                  删除
-                </UButton>
-              </div>
-            </li>
-          </ul>
-        </div>
-        <div
-          v-else
-          class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400"
-        >
-          暂无邮箱记录
-        </div>
-        <div class="space-y-2">
-          <label
-            class="block text-xs font-semibold text-slate-600 dark:text-slate-300"
-          >
-            新增邮箱
-          </label>
-          <div class="flex flex-col gap-2 sm:flex-row">
-            <UInput
-              v-model="emailInputValue"
-              type="email"
-              placeholder="user@example.com"
-              class="flex-1"
-              :disabled="emailSubmitting || !detail"
-            />
-            <UButton
-              color="primary"
-              variant="soft"
-              class="sm:w-auto"
-              :disabled="
-                emailSubmitting ||
-                !detail ||
-                !emailInputValue ||
-                emailChannelMissing
-              "
-              :loading="emailSubmitting"
-              @click="submitAddEmail"
-            >
-              添加
-            </UButton>
-          </div>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">
-            添加后可在上方列表调整主辅或删除。
-            <span
-              v-if="emailChannelMissing"
-              class="text-amber-600 dark:text-amber-400"
-            >
-              当前没有可用的邮箱渠道，请先在联系方式配置中启用邮箱类型。
-            </span>
-          </p>
-        </div>
-      </div>
-    </template>
-  </UModal>
-
-  <UModal
-    :open="phoneDialogOpen"
-    @update:open="phoneDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-2xl' }"
-  >
-    <template #content>
-      <div class="space-y-5 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3
-            class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
-          >
-            手机号管理
-          </h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="closePhoneDialog"
-          />
-        </div>
-        <div v-if="phoneEntries.length" class="space-y-2">
-          <ul class="space-y-2 text-xs">
-            <li
-              v-for="entry in phoneEntries"
-              :key="entry.id ?? entry.display"
-              class="flex items-start justify-between gap-3 rounded-lg bg-slate-100/60 px-4 py-3 dark:bg-slate-900/40"
-            >
-              <div class="flex flex-col gap-1">
-                <div
-                  class="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-white"
-                >
-                  <span class="break-all">{{ entry.display }}</span>
-                  <UBadge
-                    :color="entry.isPrimary ? 'primary' : 'neutral'"
-                    size="sm"
-                    variant="soft"
-                  >
-                    {{ entry.isPrimary ? '主' : '辅' }}
-                  </UBadge>
-                  <UBadge
-                    :color="entry.verified ? 'success' : 'warning'"
-                    size="sm"
-                    variant="soft"
-                  >
-                    {{ entry.verified ? '已验证' : '未验证' }}
-                  </UBadge>
-                </div>
-                <p class="text-[11px] text-slate-500 dark:text-slate-400">
-                  通过管理端添加或同步的手机号，可在此设置主辅或删除。
-                </p>
-              </div>
-              <div class="flex shrink-0 items-center gap-2">
-                <UButton
-                  v-if="canSetPrimaryPhone(entry)"
-                  size="xs"
-                  color="primary"
-                  variant="ghost"
-                  :loading="loading"
-                  :disabled="loading || phoneSubmitting"
-                  @click="handleSetPrimaryPhone(entry)"
-                >
-                  设为主
-                </UButton>
-                <UButton
-                  v-if="canDeletePhone(entry)"
-                  size="xs"
-                  color="error"
-                  variant="ghost"
-                  :loading="loading"
-                  :disabled="loading || phoneSubmitting"
-                  @click="handleDeletePhone(entry)"
-                >
-                  删除
-                </UButton>
-              </div>
-            </li>
-          </ul>
-        </div>
-        <div
-          v-else
-          class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400"
-        >
-          暂无手机号记录
-        </div>
-        <div class="space-y-3">
-          <label
-            class="block text-xs font-semibold text-slate-600 dark:text-slate-300"
-          >
-            新增手机号
-          </label>
-          <div class="flex flex-col gap-2 sm:flex-row">
-            <USelect
-              v-model="phoneDialCode"
-              :items="phoneDialOptions"
-              value-key="value"
-              label-key="label"
-              class="sm:w-48"
-              :disabled="phoneSubmitting || !detail"
-            />
-            <UInput
-              v-model="phoneInputValue"
-              type="tel"
-              placeholder="例如 13800000000"
-              class="flex-1"
-              :disabled="phoneSubmitting || !detail"
-            />
-            <UButton
-              color="primary"
-              variant="soft"
-              class="sm:w-auto"
-              :disabled="phoneSubmitting || !detail || !phoneInputValue"
-              :loading="phoneSubmitting"
-              @click="submitAddPhone"
-            >
-              添加
-            </UButton>
-          </div>
-          <div
-            class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
-          >
-            <UCheckbox
-              v-model="phoneIsPrimary"
-              label="设为主手机号"
-              :disabled="phoneSubmitting || !detail"
-            />
-          </div>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">
-            手机号将按区号 + 数字保存，如需验证会自动向账号邮箱发送验证码。
-          </p>
-        </div>
-      </div>
-    </template>
-  </UModal>
-
   <!-- 联系方式列表 对话框 -->
   <UModal
     :open="contactsListDialogOpen"
@@ -1904,166 +1043,6 @@ async function confirmDelete() {
       </div>
     </template>
   </UModal>
-
-  <!-- 错误信息弹窗 -->
-
-  <UModal
-    :open="piicDialogOpen"
-    @update:open="piicDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-lg' }"
-  >
-    <template #content>
-      <div class="space-y-4 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold">重新生成 PIIC</h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="closePiicDialog"
-          />
-        </div>
-        <p class="text-xs text-slate-500 dark:text-slate-400">
-          将为用户重新生成 PIIC 编号，历史编号会作废。
-        </p>
-        <div class="flex justify-end gap-2">
-          <UButton color="neutral" variant="ghost" @click="closePiicDialog"
-            >取消</UButton
-          >
-          <UButton
-            color="primary"
-            :loading="piicSubmitting"
-            @click="confirmPiicRegeneration"
-            >确认重新生成</UButton
-          >
-        </div>
-      </div>
-    </template>
-  </UModal>
-
-  <!-- 新增绑定对话框 -->
-  <UModal
-    :open="createBindingDialogOpen"
-    @update:open="createBindingDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-lg' }"
-  >
-    <template #content>
-      <div class="space-y-4 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold">新增 AuthMe 绑定</h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="closeCreateBindingDialog"
-          />
-        </div>
-        <p class="text-xs text-slate-500 dark:text-slate-400">
-          输入 AuthMe 用户名或 Realname
-          进行绑定，若已存在将更新信息；可选择设为当前用户主绑定。
-        </p>
-        <div class="space-y-1">
-          <label
-            class="block text-xs font-medium text-slate-600 dark:text-slate-300"
-            >标识</label
-          >
-          <UInput
-            v-model="createBindingIdentifier"
-            placeholder="AuthMe 用户名或 Realname"
-            :disabled="createBindingSubmitting"
-          />
-        </div>
-        <label
-          class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200/70 bg-white/70 px-4 py-3 text-xs dark:border-slate-800/60 dark:bg-slate-900/50"
-        >
-          <input
-            type="checkbox"
-            v-model="createBindingSetPrimary"
-            :disabled="createBindingSubmitting"
-            class="h-4 w-4"
-          />
-          <span>设为主绑定</span>
-        </label>
-        <div class="flex justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="createBindingSubmitting"
-            @click="closeCreateBindingDialog"
-            >取消</UButton
-          >
-          <UButton
-            color="primary"
-            :loading="createBindingSubmitting"
-            @click="submitCreateBinding"
-            >绑定</UButton
-          >
-        </div>
-      </div>
-    </template>
-  </UModal>
-
-  <!-- 新增 Minecraft 昵称对话框 -->
-  <UModal
-    :open="minecraftProfileDialogOpen"
-    @update:open="minecraftProfileDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-lg' }"
-  >
-    <template #content>
-      <div class="space-y-4 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold">添加 Minecraft 昵称</h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="closeMinecraftProfileDialog"
-          />
-        </div>
-        <div class="space-y-1">
-          <label
-            class="block text-xs font-medium text-slate-600 dark:text-slate-300"
-            >昵称</label
-          >
-          <UInput
-            v-model="minecraftNicknameInput"
-            placeholder="输入昵称"
-            :disabled="minecraftSubmitting"
-          />
-        </div>
-        <label
-          class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200/70 bg-white/70 px-4 py-3 text-xs dark:border-slate-800/60 dark:bg-slate-900/50"
-        >
-          <input
-            type="checkbox"
-            v-model="minecraftPrimaryCheckbox"
-            :disabled="minecraftSubmitting"
-            class="h-4 w-4"
-          />
-          <span>设为主昵称</span>
-        </label>
-        <div class="flex justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="minecraftSubmitting"
-            @click="closeMinecraftProfileDialog"
-            >取消</UButton
-          >
-          <UButton
-            color="primary"
-            :loading="minecraftSubmitting"
-            @click="submitMinecraftProfile"
-            >保存</UButton
-          >
-        </div>
-      </div>
-    </template>
-  </UModal>
-
   <!-- 联系方式编辑/新增对话框 -->
   <UModal
     :open="contactDialogOpen"
@@ -2137,138 +1116,6 @@ async function confirmDelete() {
             @click="submitContact"
             >保存</UButton
           >
-        </div>
-      </div>
-    </template>
-  </UModal>
-
-  <UModal
-    :open="passwordDialogOpen"
-    @update:open="passwordDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-lg' }"
-  >
-    <template #content>
-      <div class="space-y-5 p-6 text-sm">
-        <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold">重置密码</h3>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="closeResetPasswordDialog"
-          />
-        </div>
-        <p class="text-xs text-slate-500 dark:text-slate-400">
-          请选择重置方式，可以生成临时密码或直接指定新密码。
-        </p>
-        <div class="space-y-3">
-          <label
-            class="flex cursor-pointer gap-3 rounded-xl border border-slate-200 bg-white/80 p-4 transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900/60 dark:hover:border-slate-600"
-          >
-            <input
-              v-model="passwordMode"
-              class="mt-1 h-4 w-4"
-              type="radio"
-              value="temporary"
-            />
-            <div class="space-y-1">
-              <p class="text-sm font-medium text-slate-900 dark:text-white">
-                生成临时密码
-              </p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                系统将自动生成随机密码并显示给你，用户首次登录需修改。
-              </p>
-            </div>
-          </label>
-
-          <label
-            class="flex cursor-pointer gap-3 rounded-xl border border-slate-200 bg-white/80 p-4 transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900/60 dark:hover:border-slate-600"
-          >
-            <input
-              v-model="passwordMode"
-              class="mt-1 h-4 w-4"
-              type="radio"
-              value="custom"
-            />
-            <div class="flex-1 space-y-2">
-              <div>
-                <p class="text-sm font-medium text-slate-900 dark:text-white">
-                  指定新密码
-                </p>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  管理员自定义密码，系统不会额外生成临时密码。
-                </p>
-              </div>
-              <div class="flex items-center gap-2">
-                <UInput
-                  v-model="customPassword"
-                  :disabled="passwordMode !== 'custom'"
-                  :type="showCustomPassword ? 'text' : 'password'"
-                  autocomplete="new-password"
-                  placeholder="输入要设置的新密码"
-                />
-                <UButton
-                  color="neutral"
-                  variant="ghost"
-                  size="xs"
-                  :disabled="passwordMode !== 'custom'"
-                  @click="showCustomPassword = !showCustomPassword"
-                >
-                  <span v-if="showCustomPassword">隐藏</span>
-                  <span v-else>显示</span>
-                </UButton>
-              </div>
-            </div>
-          </label>
-        </div>
-        <div class="flex justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            @click="closeResetPasswordDialog"
-            >取消</UButton
-          >
-          <UButton
-            color="primary"
-            :loading="passwordSubmitting"
-            @click="confirmResetPassword"
-          >
-            确认重置
-          </UButton>
-        </div>
-      </div>
-    </template>
-  </UModal>
-
-  <UModal
-    :open="deleteDialogOpen"
-    @update:open="deleteDialogOpen = $event"
-    :ui="{ content: 'w-full max-w-md z-[1101]', overlay: 'z-[1100]' }"
-  >
-    <template #content>
-      <div class="space-y-4 p-6 text-sm">
-        <div class="space-y-1">
-          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-            确认删除用户
-          </h3>
-        </div>
-        <div
-          class="rounded-lg bg-slate-50/70 px-4 py-3 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
-        >
-          {{ detail?.profile?.displayName ?? detail?.email ?? detail?.id }}
-        </div>
-        <div class="flex justify-end gap-2">
-          <UButton color="neutral" variant="ghost" @click="closeDeleteDialog">
-            取消
-          </UButton>
-          <UButton
-            color="error"
-            :loading="deleteSubmitting"
-            @click="confirmDeleteUser"
-          >
-            确认删除
-          </UButton>
         </div>
       </div>
     </template>
