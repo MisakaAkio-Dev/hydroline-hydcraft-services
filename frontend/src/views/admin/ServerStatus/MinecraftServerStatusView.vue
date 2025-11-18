@@ -2441,27 +2441,7 @@ async function controlMcsm(
                     }}
                   </p>
                 </div>
-                <div class="md:col-span-3">
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    在线玩家列表
-                  </p>
-                  <div class="mt-1 flex flex-wrap gap-1">
-                    <UBadge
-                      v-for="p in beaconStatusDetail.onlinePlayers?.players ||
-                      []"
-                      :key="p.uuid"
-                      size="xs"
-                      variant="soft"
-                      >{{ p.displayName || p.name }}</UBadge
-                    >
-                  </div>
-                  <p
-                    v-if="!beaconStatusDetail.onlinePlayers?.players?.length"
-                    class="text-xs text-slate-500 dark:text-slate-400 mt-1"
-                  >
-                    暂无在线玩家
-                  </p>
-                </div>
+                <!-- 在线玩家列表展示依赖 list_online_players，按文档已从 Beacon 状态移除 -->
               </div>
             </div>
           </div>

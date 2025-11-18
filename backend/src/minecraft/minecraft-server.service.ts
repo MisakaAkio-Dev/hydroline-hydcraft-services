@@ -282,12 +282,10 @@ export class MinecraftServerService {
   async getBeaconStatus(id: string) {
     const { server, client } = await this.prepareBeaconClient(id);
     const statusPayload = await client.emit<any>('get_status', {});
-    const onlinePlayers = await client.emit<any>('list_online_players', {});
     const connection = client.getConnectionStatus();
     return {
       server: this.stripSecret(server),
       status: statusPayload,
-      onlinePlayers,
       connection,
       lastHeartbeatAt: new Date().toISOString(),
       fromCache: false,

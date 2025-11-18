@@ -40,20 +40,9 @@ export interface BeaconServerStatusPayload {
   [key: string]: unknown
 }
 
-export interface BeaconOnlinePlayersPayload {
-  success?: boolean
-  players?: {
-    uuid: string
-    name: string
-    displayName?: string
-  }[]
-  [key: string]: unknown
-}
-
 export interface BeaconStatusResponse {
   server: MinecraftServer
   status: BeaconServerStatusPayload
-  onlinePlayers: BeaconOnlinePlayersPayload
   lastHeartbeatAt: string
   fromCache: boolean
   connection?: BeaconConnectionStatus
