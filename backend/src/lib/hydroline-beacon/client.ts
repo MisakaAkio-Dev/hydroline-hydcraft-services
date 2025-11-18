@@ -32,8 +32,14 @@ type Socket = ReturnType<typeof socketIo>;
 export class HydrolineBeaconClient {
   private socket: Socket | null = null;
   private connecting = false;
+  private lastError: string | null = null;
+  private lastConnectedAt: Date | null = null;
+  private reconnectAttempts = 0;
+  private initialOptions: HydrolineBeaconClientOptions;
 
-  constructor(private readonly options: HydrolineBeaconClientOptions) {}
+  constructor(private readonly options: HydrolineBeaconClientOptions) {
+    this.initialOptions = { ...options };
+  }
 
   private ensureSocket(): Socket {
     if (this.socket && this.socket.connected) {
@@ -43,24 +49,30 @@ export class HydrolineBeaconClient {
       return this.socket;
     }
     this.connecting = true;
-    const socket = socketIo(this.options.endpoint, {
+    const socket: Socket = socketIo(this.options.endpoint, {
       transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: this.options.maxRetry ?? 3,
+      // 由上层 Pool 统一管理重连节奏与次数
+      reconnection: false,
       timeout: this.options.timeoutMs ?? 10000,
     });
     this.socket = socket;
     socket.on('connect', () => {
       this.connecting = false;
+      this.lastConnectedAt = new Date();
+      this.lastError = null;
+      this.reconnectAttempts = 0;
     });
     socket.on('disconnect', () => {
       this.connecting = false;
     });
     socket.on('connect_error', (err: Error) => {
-      void err;
+      this.lastError = err.message;
+      this.reconnectAttempts++;
     });
     socket.on('error', (err: unknown) => {
-      void err;
+      this.lastError =
+        (err instanceof Error ? err.message : String(err)) ?? 'UNKNOWN_ERROR';
+      this.reconnectAttempts++;
     });
     return socket;
   }
@@ -94,5 +106,26 @@ export class HydrolineBeaconClient {
       this.socket = null;
       this.connecting = false;
     }
+  }
+
+  /** 强制重建底层 socket（用于超过重试次数后的自定义重连） */
+  forceReconnect() {
+    this.disconnect();
+    this.ensureSocket();
+  }
+
+  isConnected() {
+    return Boolean(this.socket?.connected);
+  }
+
+  getConnectionStatus() {
+    return {
+      connected: this.isConnected(),
+      connecting: this.connecting,
+      lastConnectedAt: this.lastConnectedAt?.toISOString() ?? null,
+      lastError: this.lastError,
+      reconnectAttempts: this.reconnectAttempts,
+      endpoint: this.options.endpoint,
+    };
   }
 }

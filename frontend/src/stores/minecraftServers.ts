@@ -217,6 +217,46 @@ export const useMinecraftServerStore = defineStore('minecraft-servers', {
       })
     },
 
+    async getBeaconConnectionStatus(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/connection-status`,
+        { token },
+      )
+    },
+
+    async connectBeacon(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/connect`,
+        { method: 'POST', token },
+      )
+    },
+
+    async disconnectBeacon(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/disconnect`,
+        { method: 'POST', token },
+      )
+    },
+
+    async reconnectBeacon(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/reconnect`,
+        { method: 'POST', token },
+      )
+    },
+
+    async checkBeaconConnectivity(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/check`,
+        { method: 'POST', token },
+      )
+    },
+
     async getBeaconMtrLogs(
       id: string,
       params: Record<string, string | number | undefined>,

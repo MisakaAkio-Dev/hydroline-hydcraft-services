@@ -45,20 +45,53 @@ const activeServer = computed<MinecraftServer | null>(() => {
   )
 })
 
-// 默认展示的关键统计字段前缀
+// 默认展示的关键统计字段前缀（兼容两种形态）
+// 后端可能返回两种结构：
+// 1) 扁平化："minecraft:custom:total_world_time": 123
+// 2) 分组：{"stats:minecraft:custom": {"minecraft:total_world_time": 123}, ...}
 const importantPrefixes = [
+  // 扁平化键前缀
+  'minecraft:custom',
+  'minecraft:killed',
+  'minecraft:killed_by',
+  'minecraft:mined',
+  // 分组键前缀
   'stats:minecraft:custom',
   'stats:minecraft:killed',
   'stats:minecraft:killed_by',
   'stats:minecraft:mined',
 ]
 
+function flattenStats(
+  stats: Record<string, unknown>,
+): Array<{ key: string; value: number }> {
+  const entries = Object.entries(stats)
+  if (!entries.length) return []
+
+  // 判断是否为分组结构（顶层 value 为对象）
+  const hasGroupedValue = entries.some(
+    ([, v]) => typeof v === 'object' && v !== null && !Array.isArray(v),
+  )
+
+  if (!hasGroupedValue) {
+    return entries.map(([key, value]) => ({ key, value: Number(value ?? 0) }))
+  }
+
+  // 展平分组：{"stats:minecraft:custom": {"minecraft:total_world_time": 1}, ...}
+  const flat: Array<{ key: string; value: number }> = []
+  for (const [, group] of entries) {
+    if (typeof group === 'object' && group !== null) {
+      for (const [k, v] of Object.entries(group as Record<string, unknown>)) {
+        flat.push({ key: k, value: Number(v ?? 0) })
+      }
+    }
+  }
+  return flat
+}
+
 const rows = computed(() => {
   const stats = data.value?.result.stats ?? {}
-  return Object.entries(stats).map(([key, value]) => ({
-    key,
-    value,
-  }))
+  return flattenStats(stats)
 })
 
 const filteredRows = computed(() => {
@@ -77,8 +110,8 @@ const detailOpen = ref(false)
 const detailStats = computed(() => data.value?.result.stats ?? {})
 
 const total = computed(() => {
-  const stats = data.value?.result.stats ?? {}
-  const allRows = Object.entries(stats).map(([key, value]) => ({ key, value }))
+  const allRows = rows.value
+  if (!allRows.length) return 0
   const important = allRows.filter((r) =>
     importantPrefixes.some((p) => r.key.startsWith(p)),
   )
@@ -267,9 +300,7 @@ onMounted(async () => {
         v-if="hasQueried && total > 0"
         class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
       >
-        <span>
-          第 {{ page }} / {{ pageCount }} 页，共 {{ total }} 条统计
-        </span>
+        <span> 第 {{ page }} / {{ pageCount }} 页，共 {{ total }} 条统计 </span>
         <div class="flex flex-wrap items-center gap-2">
           <UButton
             color="neutral"

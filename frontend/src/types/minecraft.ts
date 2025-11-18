@@ -56,6 +56,7 @@ export interface BeaconStatusResponse {
   onlinePlayers: BeaconOnlinePlayersPayload
   lastHeartbeatAt: string
   fromCache: boolean
+  connection?: BeaconConnectionStatus
 }
 
 export interface BeaconMtrLogRecord {
@@ -124,6 +125,34 @@ export interface BeaconPlayerSessionsResult {
 export interface BeaconPlayerGenericResponse<T = unknown> {
   server: MinecraftServer
   result: T
+}
+
+export interface BeaconConnectionStatus {
+  connected: boolean
+  connecting: boolean
+  lastConnectedAt?: string | null
+  lastError?: string | null
+  reconnectAttempts?: number
+  endpoint?: string | null
+}
+
+export interface BeaconConnectionStatusResponse {
+  server: MinecraftServer
+  connection: BeaconConnectionStatus
+  config?: {
+    endpoint?: string | null
+    enabled?: boolean
+    configured?: boolean
+    timeoutMs?: number
+    maxRetry?: number
+  }
+}
+
+export interface BeaconConnectivityCheckResponse {
+  server: MinecraftServer
+  ok: boolean
+  latencyMs?: number
+  error?: string
 }
 
 export interface JavaPingResponse {

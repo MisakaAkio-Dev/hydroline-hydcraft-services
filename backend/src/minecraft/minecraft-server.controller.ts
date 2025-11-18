@@ -155,6 +155,36 @@ export class MinecraftServerController {
     return this.service.getBeaconStatus(id);
   }
 
+  @Get(':id/beacon/connection-status')
+  @ApiOperation({ summary: '获取 Beacon Socket 连接状态' })
+  getBeaconConnectionStatus(@Param('id') id: string) {
+    return this.service.getBeaconConnectionStatus(id);
+  }
+
+  @Post(':id/beacon/connect')
+  @ApiOperation({ summary: '手动触发 Beacon 连接/重连' })
+  connectBeacon(@Param('id') id: string) {
+    return this.service.connectBeacon(id);
+  }
+
+  @Post(':id/beacon/disconnect')
+  @ApiOperation({ summary: '手动断开 Beacon 连接' })
+  disconnectBeacon(@Param('id') id: string) {
+    return this.service.disconnectBeacon(id);
+  }
+
+  @Post(':id/beacon/reconnect')
+  @ApiOperation({ summary: '手动重连 Beacon' })
+  reconnectBeacon(@Param('id') id: string) {
+    return this.service.reconnectBeacon(id);
+  }
+
+  @Post(':id/beacon/check')
+  @ApiOperation({ summary: '检查 Beacon 连通性（轻量请求）' })
+  checkBeacon(@Param('id') id: string) {
+    return this.service.checkBeaconConnectivity(id);
+  }
+
   @Get(':id/beacon/mtr-logs')
   @ApiOperation({ summary: '查询 Beacon MTR 审计日志（带分页/筛选）' })
   getBeaconMtrLogs(

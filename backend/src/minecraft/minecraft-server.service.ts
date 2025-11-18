@@ -8,7 +8,7 @@ import { MinecraftPingScheduler } from './ping.scheduler';
 import { PingMinecraftRequestDto } from './dto/ping-minecraft.dto';
 import { McsmClient } from '../lib/mcsmanager/mcsmanager.client';
 import { McsmInstanceDetail } from '../lib/mcsmanager/types';
-import { HydrolineBeaconClient } from '../lib/hydroline-beacon';
+import { HydrolineBeaconClient, HydrolineBeaconPoolService, BeaconLibService } from '../lib/hydroline-beacon';
 
 @Injectable()
 export class MinecraftServerService {
@@ -16,6 +16,8 @@ export class MinecraftServerService {
     private readonly prisma: PrismaService,
     private readonly minecraftService: MinecraftService,
     private readonly pingScheduler: MinecraftPingScheduler,
+    private readonly beaconPool: HydrolineBeaconPoolService,
+    private readonly beaconLib: BeaconLibService,
   ) {}
 
   // 递归移除字符串中的 \u0000，避免 Postgres 22P05（text/json 不允许零字节）
@@ -92,6 +94,10 @@ export class MinecraftServerService {
   async createServer(dto: CreateMinecraftServerDto, actorId?: string) {
     const payload = this.toCreatePayload(dto, actorId);
     const created = await this.prisma.minecraftServer.create({ data: payload });
+    // 若新增配置包含 Beacon 信息，刷新连接
+    if (created.beaconEnabled && created.beaconEndpoint && created.beaconKey) {
+      void this.beaconLib.refreshForServer(created.id);
+    }
     return this.stripSecret(created);
   }
 
@@ -106,6 +112,12 @@ export class MinecraftServerService {
       where: { id },
       data: payload,
     });
+    if (updated.beaconEnabled && updated.beaconEndpoint && updated.beaconKey) {
+      void this.beaconLib.refreshForServer(updated.id);
+    } else if (!updated.beaconEnabled) {
+      // 若禁用，移除连接
+      this.beaconPool.remove(updated.id);
+    }
     return this.stripSecret(updated);
   }
 
@@ -452,7 +464,8 @@ export class MinecraftServerService {
 
   private async prepareBeaconClient(id: string) {
     const server = await this.getServerWithBeaconSecret(id);
-    const client = new HydrolineBeaconClient({
+    const client = this.beaconPool.getOrCreate({
+      serverId: server.id,
       endpoint: server.beaconEndpoint!,
       key: server.beaconKey!,
       timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
@@ -461,15 +474,39 @@ export class MinecraftServerService {
     return { server, client };
   }
 
-  async getBeaconStatus(id: string) {
-    const { server, client } = await this.prepareBeaconClient(id);
-    const status = await client.emit<any>('get_status', {});
-    const onlinePlayers = await client.emit<any>('list_online_players', {});
-    client.disconnect();
+  async getBeaconConnectionStatus(id: string) {
+    const server = await this.getServerWithBeaconSecret(id);
+    const status = this.beaconPool.getStatus(server.id) ?? {
+      connected: false,
+      connecting: false,
+      lastConnectedAt: null,
+      lastError: 'NOT_INITIALIZED',
+      reconnectAttempts: 0,
+      endpoint: server.beaconEndpoint,
+    };
     return {
       server: this.stripSecret(server),
-      status,
+      connection: status,
+      config: {
+        endpoint: server.beaconEndpoint,
+        enabled: !!server.beaconEnabled,
+        configured: !!server.beaconKey,
+        timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
+        maxRetry: server.beaconMaxRetry ?? undefined,
+      },
+    } as unknown;
+  }
+
+  async getBeaconStatus(id: string) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const statusPayload = await client.emit<any>('get_status', {});
+    const onlinePlayers = await client.emit<any>('list_online_players', {});
+    const connection = client.getConnectionStatus();
+    return {
+      server: this.stripSecret(server),
+      status: statusPayload,
       onlinePlayers,
+      connection,
       lastHeartbeatAt: new Date().toISOString(),
       fromCache: false,
     };
@@ -499,7 +536,6 @@ export class MinecraftServerService {
     payload.page = query.page ?? 1;
     payload.pageSize = query.pageSize ?? 50;
     const result = await client.emit<any>('get_player_mtr_logs', payload);
-    client.disconnect();
     return { server: this.stripSecret(server), result };
   }
 
@@ -508,7 +544,6 @@ export class MinecraftServerService {
     const result = await client.emit<any>('get_mtr_log_detail', {
       id: Number(logId),
     });
-    client.disconnect();
     return { server: this.stripSecret(server), result };
   }
 
@@ -521,7 +556,6 @@ export class MinecraftServerService {
     if (player.playerUuid) payload.playerUuid = player.playerUuid;
     if (player.playerName) payload.playerName = player.playerName;
     const result = await client.emit<any>('get_player_advancements', payload);
-    client.disconnect();
     return { server: this.stripSecret(server), result };
   }
 
@@ -534,7 +568,6 @@ export class MinecraftServerService {
     if (player.playerUuid) payload.playerUuid = player.playerUuid;
     if (player.playerName) payload.playerName = player.playerName;
     const result = await client.emit<any>('get_player_stats', payload);
-    client.disconnect();
     return { server: this.stripSecret(server), result };
   }
 
@@ -562,7 +595,6 @@ export class MinecraftServerService {
     payload.page = query.page ?? 1;
     payload.pageSize = query.pageSize ?? 50;
     const result = await client.emit<any>('get_player_sessions', payload);
-    client.disconnect();
     return { server: this.stripSecret(server), result };
   }
 
@@ -575,7 +607,6 @@ export class MinecraftServerService {
     if (player.playerUuid) payload.playerUuid = player.playerUuid;
     if (player.playerName) payload.playerName = player.playerName;
     const result = await client.emit<any>('get_player_nbt', payload);
-    client.disconnect();
     return { server: this.stripSecret(server), result };
   }
 
@@ -588,14 +619,62 @@ export class MinecraftServerService {
     if (player.playerUuid) payload.playerUuid = player.playerUuid;
     if (player.playerName) payload.playerName = player.playerName;
     const result = await client.emit<any>('lookup_player_identity', payload);
-    client.disconnect();
     return { server: this.stripSecret(server), result };
   }
 
   async triggerBeaconForceUpdate(id: string) {
     const { server, client } = await this.prepareBeaconClient(id);
     const result = await client.emit<any>('force_update', {});
-    client.disconnect();
     return { server: this.stripSecret(server), result };
+  }
+
+  async connectBeacon(id: string) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    client.forceReconnect();
+    const connection = client.getConnectionStatus();
+    return {
+      server: this.stripSecret(server),
+      connection,
+      config: {
+        endpoint: server.beaconEndpoint,
+        enabled: !!server.beaconEnabled,
+        configured: !!server.beaconKey,
+        timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
+        maxRetry: server.beaconMaxRetry ?? undefined,
+      },
+    } as unknown;
+  }
+
+  async disconnectBeacon(id: string) {
+    const server = await this.getServerWithBeaconSecret(id);
+    const status = this.beaconPool.disconnect(server.id);
+    return { server: this.stripSecret(server), connection: status } as unknown;
+  }
+
+  async reconnectBeacon(id: string) {
+    const server = await this.getServerWithBeaconSecret(id);
+    const status = this.beaconPool.reconnect(server.id);
+    return { server: this.stripSecret(server), connection: status } as unknown;
+  }
+
+  async checkBeaconConnectivity(id: string) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const started = Date.now();
+    try {
+      const r = await client.emit<any>('get_server_time', {});
+      const latencyMs = Date.now() - started;
+      return {
+        server: this.stripSecret(server),
+        ok: true,
+        latencyMs,
+        result: r,
+      } as unknown;
+    } catch (e) {
+      return {
+        server: this.stripSecret(server),
+        ok: false,
+        error: (e as Error).message,
+      } as unknown;
+    }
   }
 }

@@ -6,6 +6,9 @@ import { useUiStore } from '@/stores/ui'
 import { apiFetch } from '@/utils/api'
 import type {
   BeaconStatusResponse,
+  BeaconConnectionStatus,
+  BeaconConnectionStatusResponse,
+  BeaconConnectivityCheckResponse,
   MinecraftPingResult,
   MinecraftServer,
   MinecraftServerEdition,
@@ -177,6 +180,217 @@ const mcsmConfigReady = computed(() => {
 const beaconStatus = ref<BeaconStatusResponse | null>(null)
 const beaconLoading = ref(false)
 let beaconTimer: ReturnType<typeof setInterval> | null = null
+// Beacon 连接状态缓存（按服务器）
+const beaconConnStatus = reactive<Record<string, BeaconConnectionStatus>>({})
+
+// Beacon 连接详情弹窗
+const beaconDialogOpen = ref(false)
+const beaconDialogServer = ref<MinecraftServer | null>(null)
+const beaconConnDetail = ref<BeaconConnectionStatusResponse | null>(null)
+const beaconConnLoading = ref(false)
+const beaconStatusDetail = ref<BeaconStatusResponse | null>(null)
+const beaconStatusLoading = ref(false)
+const beaconCheckLoading = ref(false)
+async function openBeaconDialog(server: MinecraftServer) {
+  beaconDialogServer.value = server
+  beaconDialogOpen.value = true
+  await Promise.all([refreshBeaconConn(), refreshBeaconStatus()])
+}
+async function refreshBeaconConn() {
+  const id = beaconDialogServer.value?.id
+  if (!id) return
+  beaconConnLoading.value = true
+  try {
+    const res = (await serverStore.getBeaconConnectionStatus(
+      id,
+    )) as BeaconConnectionStatusResponse
+    beaconConnDetail.value = res
+    // 同步缓存用于表格徽标
+    beaconConnStatus[id] = res.connection
+  } catch (e) {
+    toast.add({
+      title: '获取连接状态失败',
+      description: (e as Error).message,
+      color: 'error',
+    })
+  } finally {
+    beaconConnLoading.value = false
+  }
+}
+async function manualConnectBeacon() {
+  const id = beaconDialogServer.value?.id
+  if (!id) return
+  beaconConnLoading.value = true
+  try {
+    const res = (await serverStore.connectBeacon(
+      id,
+    )) as BeaconConnectionStatusResponse
+    beaconConnDetail.value = res
+    beaconConnStatus[id] = res.connection
+    toast.add({ title: '已触发重连', color: 'success' })
+  } catch (e) {
+    toast.add({
+      title: '重连失败',
+      description: (e as Error).message,
+      color: 'error',
+    })
+  } finally {
+    beaconConnLoading.value = false
+  }
+}
+
+async function disconnectBeacon() {
+  const id = beaconDialogServer.value?.id
+  if (!id) return
+  beaconConnLoading.value = true
+  try {
+    const res = (await serverStore.disconnectBeacon(
+      id,
+    )) as BeaconConnectionStatusResponse
+    beaconConnDetail.value = res
+    beaconConnStatus[id] = res.connection
+    toast.add({ title: '已断开连接', color: 'success' })
+  } catch (e) {
+    toast.add({
+      title: '断开失败',
+      description: (e as Error).message,
+      color: 'error',
+    })
+  } finally {
+    beaconConnLoading.value = false
+  }
+}
+
+async function reconnectBeacon() {
+  const id = beaconDialogServer.value?.id
+  if (!id) return
+  beaconConnLoading.value = true
+  try {
+    const res = (await serverStore.reconnectBeacon(
+      id,
+    )) as BeaconConnectionStatusResponse
+    beaconConnDetail.value = res
+    beaconConnStatus[id] = res.connection
+    toast.add({ title: '已触发重连', color: 'success' })
+  } catch (e) {
+    toast.add({
+      title: '重连失败',
+      description: (e as Error).message,
+      color: 'error',
+    })
+  } finally {
+    beaconConnLoading.value = false
+  }
+}
+
+async function checkBeaconConnectivity() {
+  const id = beaconDialogServer.value?.id
+  if (!id) return
+  beaconCheckLoading.value = true
+  try {
+    const res = (await serverStore.checkBeaconConnectivity(
+      id,
+    )) as BeaconConnectivityCheckResponse
+    if (res.ok) {
+      toast.add({
+        title: '连通性正常',
+        description: `延迟约 ${res.latencyMs ?? '-'} ms`,
+        color: 'success',
+      })
+    } else {
+      toast.add({
+        title: '连通性异常',
+        description: res.error || '未知错误',
+        color: 'warning',
+      })
+    }
+    await refreshBeaconConn()
+  } catch (e) {
+    toast.add({
+      title: '连通性检查失败',
+      description: (e as Error).message,
+      color: 'error',
+    })
+  } finally {
+    beaconCheckLoading.value = false
+  }
+}
+async function refreshBeaconStatus() {
+  const id = beaconDialogServer.value?.id
+  if (!id) return
+  // 若未启用或未配置，提示并返回
+  if (
+    !beaconDialogServer.value?.beaconEnabled &&
+    !beaconDialogServer.value?.beaconConfigured
+  ) {
+    toast.add({
+      title: '未配置 Beacon',
+      description: '请在编辑表单中配置并启用 Beacon',
+      color: 'warning',
+    })
+    return
+  }
+  beaconStatusLoading.value = true
+  try {
+    const res = (await serverStore.getBeaconStatus(id)) as BeaconStatusResponse
+    beaconStatusDetail.value = res
+  } catch (e) {
+    beaconStatusDetail.value = null
+    toast.add({
+      title: '获取 Beacon 状态失败',
+      description: (e as Error).message,
+      color: 'error',
+    })
+  } finally {
+    beaconStatusLoading.value = false
+  }
+}
+
+// Beacon 对话框自动轮询
+let beaconDialogTimer: ReturnType<typeof setInterval> | null = null
+function stopBeaconDialogPolling() {
+  if (beaconDialogTimer) {
+    clearInterval(beaconDialogTimer)
+    beaconDialogTimer = null
+  }
+}
+function startBeaconDialogPolling() {
+  stopBeaconDialogPolling()
+  beaconDialogTimer = setInterval(() => {
+    void refreshBeaconConn()
+    void refreshBeaconStatus()
+  }, 10000)
+}
+watch(beaconDialogOpen, (open) => {
+  if (open) {
+    startBeaconDialogPolling()
+  } else {
+    stopBeaconDialogPolling()
+  }
+})
+
+async function loadBeaconConnStatus(id: string) {
+  try {
+    const res = (await serverStore.getBeaconConnectionStatus(
+      id,
+    )) as BeaconConnectionStatusResponse
+    beaconConnStatus[id] = res.connection
+  } catch (e) {
+    beaconConnStatus[id] = {
+      connected: false,
+      connecting: false,
+      lastError: (e as Error).message,
+    }
+  }
+}
+
+async function loadBeaconConnStatusAll() {
+  for (const s of servers.value) {
+    if (s.beaconEnabled || s.beaconConfigured) {
+      await loadBeaconConnStatus(s.id)
+    }
+  }
+}
 
 const editionOptions = [
   { label: 'Java 版', value: 'JAVA' },
@@ -192,6 +406,7 @@ onMounted(async () => {
     chartServerId.value = servers.value[0]?.id ?? undefined
     await autoPingAll()
     await loadChartHistory()
+    await loadBeaconConnStatusAll()
   } finally {
     uiStore.stopLoading()
   }
@@ -621,6 +836,7 @@ function openDetail(server: MinecraftServer) {
   // 即时刷新一次
   void triggerPing(server.id)
   void loadHistory(server.id)
+  void loadBeaconConnStatus(server.id)
   if (
     server.mcsmPanelUrl &&
     server.mcsmDaemonId &&
@@ -971,6 +1187,32 @@ async function controlMcsm(
             </td>
             <td class="px-4 py-3 text-right">
               <div class="flex items-center justify-end gap-2">
+                <UButton
+                  v-if="row.beaconEnabled || (row as any).beaconConfigured"
+                  size="xs"
+                  variant="ghost"
+                  :color="
+                    beaconConnStatus[row.id]?.connected
+                      ? 'success'
+                      : beaconConnStatus[row.id]?.connecting
+                        ? 'primary'
+                        : beaconConnStatus[row.id]?.lastError
+                          ? 'error'
+                          : 'neutral'
+                  "
+                  @click="openBeaconDialog(row)"
+                >
+                  Beacon
+                  {{
+                    beaconConnStatus[row.id]?.connected
+                      ? '在线'
+                      : beaconConnStatus[row.id]?.connecting
+                        ? '连接中'
+                        : beaconConnStatus[row.id]?.lastError
+                          ? '错误'
+                          : '离线'
+                  }}
+                </UButton>
                 <UButton size="xs" variant="ghost" @click="openDetail(row)"
                   >查看</UButton
                 >
@@ -1927,6 +2169,308 @@ async function controlMcsm(
             >
           </div>
         </div>
+      </template>
+    </UModal>
+
+    <!-- Beacon 连接详情弹窗 -->
+    <UModal :open="beaconDialogOpen" @update:open="beaconDialogOpen = $event">
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div class="text-sm text-slate-600 dark:text-slate-300">
+                Beacon 连接 · {{ beaconDialogServer?.displayName || '未选择' }}
+              </div>
+              <div class="flex items-center gap-2">
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  icon="i-lucide-pencil"
+                  :disabled="!beaconDialogServer"
+                  @click="
+                    beaconDialogServer ? (openEditDialog(beaconDialogServer), (beaconDialogOpen = false)) : null
+                  "
+                  >编辑</UButton
+                >
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  icon="i-lucide-cable"
+                  :loading="beaconConnLoading"
+                  :disabled="!beaconDialogServer?.id"
+                  @click="manualConnectBeacon"
+                  >手动连接</UButton
+                >
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  color="warning"
+                  icon="i-lucide-plug"
+                  :loading="beaconConnLoading"
+                  :disabled="!beaconDialogServer?.id"
+                  @click="disconnectBeacon"
+                  >断开</UButton
+                >
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  color="primary"
+                  icon="i-lucide-rotate-ccw"
+                  :loading="beaconConnLoading"
+                  :disabled="!beaconDialogServer?.id"
+                  @click="reconnectBeacon"
+                  >重连</UButton
+                >
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  icon="i-lucide-activity"
+                  :loading="beaconCheckLoading"
+                  :disabled="!beaconDialogServer?.id"
+                  @click="checkBeaconConnectivity"
+                  >检查连通性</UButton
+                >
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  icon="i-lucide-refresh-cw"
+                  :loading="beaconConnLoading"
+                  :disabled="!beaconDialogServer?.id"
+                  @click="refreshBeaconConn"
+                  >刷新</UButton
+                >
+              </div>
+            </div>
+          </template>
+          <div class="space-y-3 text-sm">
+            <div class="grid gap-3 md:grid-cols-2">
+              <div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  Endpoint
+                </p>
+                <p class="font-medium text-slate-900 dark:text-white">
+                  {{
+                    beaconConnDetail?.config?.endpoint ||
+                    beaconConnDetail?.connection?.endpoint ||
+                    '—'
+                  }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">状态</p>
+                <div class="flex items-center gap-2">
+                  <UBadge
+                    variant="soft"
+                    :color="
+                      beaconConnDetail?.connection?.connected
+                        ? 'success'
+                        : beaconConnDetail?.connection?.connecting
+                          ? 'primary'
+                          : beaconConnDetail?.connection?.lastError
+                            ? 'error'
+                            : 'neutral'
+                    "
+                  >
+                    {{
+                      beaconConnDetail?.connection?.connected
+                        ? '在线'
+                        : beaconConnDetail?.connection?.connecting
+                          ? '连接中'
+                          : beaconConnDetail?.connection?.lastError
+                            ? '错误'
+                            : '离线'
+                    }}
+                  </UBadge>
+                  <span class="text-xs text-slate-500 dark:text-slate-400">
+                    重试
+                    {{
+                      beaconConnDetail?.connection?.reconnectAttempts ?? 0
+                    }}
+                    次
+                  </span>
+                  <UBadge
+                    v-if="
+                      (beaconConnDetail?.connection?.reconnectAttempts ?? 0) >= 10 &&
+                      !beaconConnDetail?.connection?.connected &&
+                      !beaconConnDetail?.connection?.connecting
+                    "
+                    size="xs"
+                    variant="soft"
+                    color="warning"
+                  >
+                    已停止重试
+                  </UBadge>
+                </div>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  最后连接时间
+                </p>
+                <p class="text-slate-900 dark:text-white">
+                  {{
+                    beaconConnDetail?.connection?.lastConnectedAt
+                      ? dayjs(
+                          beaconConnDetail?.connection?.lastConnectedAt,
+                        ).format('YYYY-MM-DD HH:mm:ss')
+                      : '—'
+                  }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  最近错误
+                </p>
+                <p class="text-slate-900 dark:text-white break-all">
+                  {{ beaconConnDetail?.connection?.lastError || '—' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  启用 / 已配置
+                </p>
+                <p class="text-slate-900 dark:text-white">
+                  {{ beaconConnDetail?.config?.enabled ? '启用' : '禁用' }} /
+                  {{ beaconConnDetail?.config?.configured ? '是' : '否' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  超时 / 最大重试
+                </p>
+                <p class="text-slate-900 dark:text-white">
+                  {{ beaconConnDetail?.config?.timeoutMs ?? '默认' }} /
+                  {{ beaconConnDetail?.config?.maxRetry ?? '默认' }}
+                </p>
+              </div>
+            </div>
+
+            <div
+              v-if="!beaconConnDetail"
+              class="text-xs text-slate-500 dark:text-slate-400"
+            >
+              {{ beaconConnLoading ? '加载连接信息中...' : '暂无连接信息' }}
+            </div>
+
+            <div
+              class="mt-2 rounded-xl border border-slate-200/60 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40"
+            >
+              <div class="mb-2 flex items-center justify-between">
+                <span
+                  class="text-xs font-medium text-slate-700 dark:text-slate-200"
+                  >服务状态</span
+                >
+                <div class="flex items-center gap-2">
+                  <UBadge
+                    v-if="beaconStatusDetail?.fromCache"
+                    size="xs"
+                    variant="soft"
+                    color="warning"
+                    >缓存</UBadge
+                  >
+                </div>
+              </div>
+              <div
+                v-if="beaconStatusLoading"
+                class="text-xs text-slate-500 dark:text-slate-400"
+              >
+                加载状态中...
+              </div>
+              <div
+                v-else-if="!beaconStatusDetail"
+                class="text-xs text-slate-500 dark:text-slate-400"
+              >
+                暂无状态数据
+              </div>
+              <div v-else class="grid gap-3 md:grid-cols-3 text-sm">
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    在线玩家
+                  </p>
+                  <p class="font-semibold text-slate-900 dark:text-white">
+                    {{ beaconStatusDetail.status.online_player_count ?? 0 }} /
+                    {{ beaconStatusDetail.status.server_max_players ?? 0 }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    MTR 日志总数
+                  </p>
+                  <p class="font-semibold text-slate-900 dark:text-white">
+                    {{ beaconStatusDetail.status.mtr_logs_total ?? 0 }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    统计条目
+                  </p>
+                  <p class="font-semibold text-slate-900 dark:text-white">
+                    {{ beaconStatusDetail.status.stats_total ?? 0 }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    成就条目
+                  </p>
+                  <p class="font-semibold text-slate-900 dark:text-white">
+                    {{ beaconStatusDetail.status.advancements_total ?? 0 }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    扫描周期
+                  </p>
+                  <p class="font-semibold text-slate-900 dark:text-white">
+                    {{
+                      beaconStatusDetail.status.interval_time_seconds ??
+                      beaconStatusDetail.status.interval_time_ticks ??
+                      '—'
+                    }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    最后心跳时间
+                  </p>
+                  <p class="font-semibold text-slate-900 dark:text-white">
+                    {{
+                      dayjs(beaconStatusDetail.lastHeartbeatAt).format(
+                        'YYYY-MM-DD HH:mm:ss',
+                      )
+                    }}
+                  </p>
+                </div>
+                <div class="md:col-span-3">
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    在线玩家列表
+                  </p>
+                  <div class="mt-1 flex flex-wrap gap-1">
+                    <UBadge
+                      v-for="p in beaconStatusDetail.onlinePlayers?.players ||
+                      []"
+                      :key="p.uuid"
+                      size="xs"
+                      variant="soft"
+                      >{{ p.displayName || p.name }}</UBadge
+                    >
+                  </div>
+                  <p
+                    v-if="!beaconStatusDetail.onlinePlayers?.players?.length"
+                    class="text-xs text-slate-500 dark:text-slate-400 mt-1"
+                  >
+                    暂无在线玩家
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton variant="ghost" @click="beaconDialogOpen = false"
+                >关闭</UButton
+              >
+            </div>
+          </template>
+        </UCard>
       </template>
     </UModal>
   </div>
