@@ -5,6 +5,7 @@ import { useMinecraftServerStore } from '@/stores/minecraftServers'
 import { useUiStore } from '@/stores/ui'
 import { apiFetch } from '@/utils/api'
 import type {
+  BeaconStatusResponse,
   MinecraftPingResult,
   MinecraftServer,
   MinecraftServerEdition,
@@ -126,6 +127,12 @@ const form = reactive({
   mcsmInstanceUuid: '',
   mcsmApiKey: '',
   mcsmRequestTimeoutMs: undefined as number | undefined,
+  beaconHost: '',
+  beaconPort: undefined as number | undefined,
+  beaconKey: '',
+  beaconEnabled: false,
+  beaconRequestTimeoutMs: undefined as number | undefined,
+  beaconMaxRetry: undefined as number | undefined,
 })
 
 const tableRows = computed(() =>
@@ -166,6 +173,10 @@ const mcsmConfigReady = computed(() => {
       (s.mcsmConfigured || form.mcsmApiKey),
   )
 })
+
+const beaconStatus = ref<BeaconStatusResponse | null>(null)
+const beaconLoading = ref(false)
+let beaconTimer: ReturnType<typeof setInterval> | null = null
 
 const editionOptions = [
   { label: 'Java 版', value: 'JAVA' },
@@ -257,6 +268,19 @@ watch(historyDays, () => {
   void loadHistory(editingServer.value?.id ?? null)
 })
 
+watch(detailOpen, (open) => {
+  if (
+    open &&
+    (editingServer.value?.beaconEnabled ||
+      editingServer.value?.beaconConfigured)
+  ) {
+    beaconStatus.value = null
+    startBeaconPolling()
+  } else {
+    stopBeaconPolling()
+  }
+})
+
 function openCreateDialog() {
   editingServer.value = null
   resetForm()
@@ -284,6 +308,29 @@ function populateForm(server: MinecraftServer) {
   form.mcsmInstanceUuid = server.mcsmInstanceUuid ?? ''
   form.mcsmApiKey = ''
   form.mcsmRequestTimeoutMs = server.mcsmRequestTimeoutMs ?? undefined
+  // 解析 Beacon endpoint，拆分为 host + port，兼容 http://host:port / https://host:port / host:port
+  form.beaconHost = ''
+  form.beaconPort = undefined
+  const rawEndpoint = server.beaconEndpoint ?? ''
+  if (rawEndpoint) {
+    const withProto =
+      rawEndpoint.startsWith('http://') || rawEndpoint.startsWith('https://')
+        ? rawEndpoint
+        : `http://${rawEndpoint}`
+    try {
+      const url = new URL(withProto)
+      form.beaconHost = url.hostname
+      form.beaconPort = url.port ? Number(url.port) : undefined
+    } catch {
+      form.beaconHost = rawEndpoint
+    }
+  }
+  form.beaconKey = ''
+  form.beaconEnabled = Boolean(
+    server.beaconEnabled ?? server.beaconConfigured ?? false,
+  )
+  form.beaconRequestTimeoutMs = server.beaconRequestTimeoutMs ?? undefined
+  form.beaconMaxRetry = server.beaconMaxRetry ?? undefined
 }
 
 function resetForm() {
@@ -301,12 +348,30 @@ function resetForm() {
   form.mcsmInstanceUuid = ''
   form.mcsmApiKey = ''
   form.mcsmRequestTimeoutMs = undefined
+  form.beaconHost = ''
+  form.beaconPort = undefined
+  form.beaconKey = ''
+  form.beaconEnabled = false
+  form.beaconRequestTimeoutMs = undefined
+  form.beaconMaxRetry = undefined
 }
 
 function buildPayload() {
   const portNumber = Number(form.port)
   const payloadPort =
     Number.isFinite(portNumber) && portNumber > 0 ? portNumber : undefined
+  const beaconPortNumber = Number(form.beaconPort)
+  const beaconPort =
+    Number.isFinite(beaconPortNumber) && beaconPortNumber > 0
+      ? beaconPortNumber
+      : undefined
+  const beaconHost = form.beaconHost.trim()
+  const beaconEndpoint =
+    beaconHost && beaconPort
+      ? `http://${beaconHost}:${beaconPort}`
+      : beaconHost
+        ? beaconHost
+        : undefined
   return {
     displayName: form.displayName.trim(),
     internalCodeCn: form.internalCodeCn.trim(),
@@ -322,6 +387,11 @@ function buildPayload() {
     mcsmInstanceUuid: form.mcsmInstanceUuid.trim() || undefined,
     mcsmApiKey: form.mcsmApiKey.trim() || undefined,
     mcsmRequestTimeoutMs: form.mcsmRequestTimeoutMs,
+    beaconEndpoint,
+    beaconKey: form.beaconKey.trim() || undefined,
+    beaconEnabled: form.beaconEnabled,
+    beaconRequestTimeoutMs: form.beaconRequestTimeoutMs,
+    beaconMaxRetry: form.beaconMaxRetry,
   }
 }
 
@@ -443,6 +513,37 @@ async function triggerPing(serverId: string | null) {
   } finally {
     pingLoading.value = false
   }
+}
+
+async function loadBeaconStatus(serverId: string | null) {
+  if (!serverId) return
+  beaconLoading.value = true
+  try {
+    const res = (await serverStore.getBeaconStatus(
+      serverId,
+    )) as BeaconStatusResponse
+    beaconStatus.value = res
+  } catch {
+    beaconStatus.value = null
+  } finally {
+    beaconLoading.value = false
+  }
+}
+
+function stopBeaconPolling() {
+  if (beaconTimer) {
+    clearInterval(beaconTimer)
+    beaconTimer = null
+  }
+}
+
+function startBeaconPolling() {
+  if (!editingServer.value?.id) return
+  stopBeaconPolling()
+  void loadBeaconStatus(editingServer.value.id)
+  beaconTimer = setInterval(() => {
+    void loadBeaconStatus(editingServer.value?.id ?? null)
+  }, 10000)
 }
 
 async function pingOnCard(server: MinecraftServer) {
@@ -1385,6 +1486,109 @@ async function controlMcsm(
                     />
                   </div>
                 </div>
+
+                <div class="mt-4 md:col-span-2">
+                  <div class="mb-2 flex items-center gap-2">
+                    <span
+                      class="text-sm font-medium text-slate-700 dark:text-slate-200"
+                      >Hydroline Beacon</span
+                    >
+                    <UTooltip
+                      text="仅保存 Host/端口与 Key；Key 不会回显，留空则不更新"
+                    >
+                      <UIcon
+                        name="i-lucide-info"
+                        class="h-4 w-4 text-slate-400 dark:text-slate-500"
+                      />
+                    </UTooltip>
+                  </div>
+                  <div class="grid gap-3 md:grid-cols-2">
+                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
+                      <label
+                        for="beaconHost"
+                        class="text-sm text-slate-600 dark:text-slate-300"
+                        >Host</label
+                      >
+                      <UInput
+                        id="beaconHost"
+                        v-model="form.beaconHost"
+                        placeholder="127.0.0.1 或 beacon.example"
+                      />
+                    </div>
+                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
+                      <label
+                        for="beaconPort"
+                        class="text-sm text-slate-600 dark:text-slate-300"
+                        >端口</label
+                      >
+                      <UInput
+                        id="beaconPort"
+                        v-model.number="form.beaconPort"
+                        type="number"
+                        min="1"
+                        max="65535"
+                        placeholder="必填，例如 1145"
+                      />
+                    </div>
+                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
+                      <label
+                        for="beaconKey"
+                        class="text-sm text-slate-600 dark:text-slate-300"
+                        >Key</label
+                      >
+                      <UInput
+                        id="beaconKey"
+                        v-model="form.beaconKey"
+                        type="password"
+                        placeholder="输入以更新，留空保持不变"
+                      />
+                    </div>
+                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
+                      <label
+                        for="beaconEnabled"
+                        class="text-sm text-slate-600 dark:text-slate-300"
+                        >启用 Beacon</label
+                      >
+                      <div
+                        class="flex h-10 items-center rounded-xl border border-slate-200 px-3 dark:border-slate-700"
+                      >
+                        <UCheckbox
+                          id="beaconEnabled"
+                          v-model="form.beaconEnabled"
+                          label="启用"
+                        />
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
+                      <label
+                        for="beaconRequestTimeoutMs"
+                        class="text-sm text-slate-600 dark:text-slate-300"
+                        >超时 (ms)</label
+                      >
+                      <UInput
+                        id="beaconRequestTimeoutMs"
+                        v-model.number="form.beaconRequestTimeoutMs"
+                        type="number"
+                        min="1000"
+                        placeholder="默认 10000"
+                      />
+                    </div>
+                    <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
+                      <label
+                        for="beaconMaxRetry"
+                        class="text-sm text-slate-600 dark:text-slate-300"
+                        >最大重试</label
+                      >
+                      <UInput
+                        id="beaconMaxRetry"
+                        v-model.number="form.beaconMaxRetry"
+                        type="number"
+                        min="0"
+                        placeholder="默认 3"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1567,6 +1771,125 @@ async function controlMcsm(
             </div>
             <div v-else class="text-xs text-slate-500 dark:text-slate-400">
               {{ adhocLoading ? '请求中...' : '填写参数后点击执行' }}
+            </div>
+
+            <div
+              class="mt-4 rounded-2xl border border-slate-200/70 bg-white/70 p-4 dark:border-slate-800/60 dark:bg-slate-900/50"
+            >
+              <div class="mb-3 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="text-sm font-medium text-slate-700 dark:text-slate-200"
+                    >Hydroline Beacon 状态</span
+                  >
+                  <UBadge
+                    v-if="beaconStatus?.fromCache"
+                    size="xs"
+                    variant="soft"
+                    color="warning"
+                    >缓存数据</UBadge
+                  >
+                </div>
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  icon="i-lucide-refresh-cw"
+                  :loading="beaconLoading"
+                  :disabled="
+                    !editingServer?.beaconEnabled &&
+                    !editingServer?.beaconConfigured
+                  "
+                  @click="loadBeaconStatus(editingServer?.id ?? null)"
+                >
+                  刷新心跳
+                </UButton>
+              </div>
+              <div
+                v-if="
+                  !editingServer?.beaconEnabled &&
+                  !editingServer?.beaconConfigured
+                "
+                class="text-sm text-slate-500 dark:text-slate-400"
+              >
+                未配置 Beacon 参数，请在编辑表单中补充 Endpoint 与 Key。
+              </div>
+              <div
+                v-else-if="!beaconStatus"
+                class="text-sm text-slate-500 dark:text-slate-400"
+              >
+                正在加载 Beacon 心跳数据……
+              </div>
+              <div
+                v-else
+                class="grid gap-3 md:grid-cols-4 text-sm text-slate-700 dark:text-slate-200"
+              >
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    在线玩家
+                  </p>
+                  <p class="text-base font-semibold">
+                    {{ beaconStatus.status.online_player_count ?? 0 }} /
+                    {{ beaconStatus.status.server_max_players ?? 0 }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    MTR 日志总数
+                  </p>
+                  <p class="text-base font-semibold">
+                    {{ beaconStatus.status.mtr_logs_total ?? 0 }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    成就条目
+                  </p>
+                  <p class="text-base font-semibold">
+                    {{ beaconStatus.status.advancements_total ?? 0 }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    统计条目
+                  </p>
+                  <p class="text-base font-semibold">
+                    {{ beaconStatus.status.stats_total ?? 0 }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    扫描周期
+                  </p>
+                  <p class="text-base font-semibold">
+                    {{
+                      beaconStatus.status.interval_time_seconds ??
+                      beaconStatus.status.interval_time_ticks ??
+                      '—'
+                    }}
+                    <span class="text-xs text-slate-500 dark:text-slate-400">
+                      {{
+                        beaconStatus.status.interval_time_seconds
+                          ? '秒'
+                          : beaconStatus.status.interval_time_ticks
+                            ? 'tick'
+                            : ''
+                      }}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    最后心跳时间
+                  </p>
+                  <p class="text-base font-semibold">
+                    {{
+                      dayjs(beaconStatus.lastHeartbeatAt).format(
+                        'YYYY-MM-DD HH:mm:ss',
+                      )
+                    }}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </UCard>

@@ -20,6 +20,12 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
 import { McsmCommandDto } from './dto/mcsm-command.dto';
+import { BeaconMtrLogsQueryDto } from './dto/beacon-mtr-logs.dto';
+import {
+  BeaconPlayerScopedQueryDto,
+  BeaconPlayerSessionsQueryDto,
+} from './dto/beacon-player.dto';
+import { BeaconStatusQueryDto } from './dto/beacon-status.dto';
 
 @ApiTags('Minecraft 服务器')
 @ApiBearerAuth()
@@ -135,5 +141,86 @@ export class MinecraftServerController {
   @ApiOperation({ summary: '强制终止 MCSM 实例进程' })
   killMcsm(@Param('id') id: string) {
     return this.service.killMcsmInstance(id);
+  }
+
+  // Hydroline Beacon HTTP 网关
+
+  @Get(':id/beacon/status')
+  @ApiOperation({ summary: '获取 Beacon 服务器状态与在线玩家信息' })
+  getBeaconStatus(
+    @Param('id') id: string,
+    @Query() _dto: BeaconStatusQueryDto,
+  ) {
+    // 目前仅预留 scope 等参数，后端暂不区分
+    return this.service.getBeaconStatus(id);
+  }
+
+  @Get(':id/beacon/mtr-logs')
+  @ApiOperation({ summary: '查询 Beacon MTR 审计日志（带分页/筛选）' })
+  getBeaconMtrLogs(
+    @Param('id') id: string,
+    @Query() dto: BeaconMtrLogsQueryDto,
+  ) {
+    return this.service.getBeaconMtrLogs(id, dto);
+  }
+
+  @Get(':id/beacon/mtr-logs/:logId')
+  @ApiOperation({ summary: '查询单条 Beacon MTR 日志详情' })
+  getBeaconMtrLogDetail(
+    @Param('id') id: string,
+    @Param('logId') logId: string,
+  ) {
+    return this.service.getBeaconMtrLogDetail(id, logId);
+  }
+
+  @Get(':id/beacon/players/advancements')
+  @ApiOperation({ summary: '查询玩家成就信息（Beacon）' })
+  getBeaconPlayerAdvancements(
+    @Param('id') id: string,
+    @Query() dto: BeaconPlayerScopedQueryDto,
+  ) {
+    return this.service.getBeaconPlayerAdvancements(id, dto);
+  }
+
+  @Get(':id/beacon/players/stats')
+  @ApiOperation({ summary: '查询玩家统计信息（Beacon）' })
+  getBeaconPlayerStats(
+    @Param('id') id: string,
+    @Query() dto: BeaconPlayerScopedQueryDto,
+  ) {
+    return this.service.getBeaconPlayerStats(id, dto);
+  }
+
+  @Get(':id/beacon/players/sessions')
+  @ApiOperation({ summary: '查询玩家会话记录（Beacon）' })
+  getBeaconPlayerSessions(
+    @Param('id') id: string,
+    @Query() dto: BeaconPlayerSessionsQueryDto,
+  ) {
+    return this.service.getBeaconPlayerSessions(id, dto);
+  }
+
+  @Get(':id/beacon/players/nbt')
+  @ApiOperation({ summary: '查询玩家 NBT 原始数据（Beacon）' })
+  getBeaconPlayerNbt(
+    @Param('id') id: string,
+    @Query() dto: BeaconPlayerScopedQueryDto,
+  ) {
+    return this.service.getBeaconPlayerNbt(id, dto);
+  }
+
+  @Get(':id/beacon/players/identity')
+  @ApiOperation({ summary: '查询玩家身份信息（Beacon）' })
+  lookupBeaconPlayerIdentity(
+    @Param('id') id: string,
+    @Query() dto: BeaconPlayerScopedQueryDto,
+  ) {
+    return this.service.lookupBeaconPlayerIdentity(id, dto);
+  }
+
+  @Post(':id/beacon/force-update')
+  @ApiOperation({ summary: '触发 Beacon 全量 Diff 扫描' })
+  triggerBeaconForceUpdate(@Param('id') id: string) {
+    return this.service.triggerBeaconForceUpdate(id);
   }
 }

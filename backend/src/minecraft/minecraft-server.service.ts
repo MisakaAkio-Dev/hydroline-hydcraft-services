@@ -8,6 +8,7 @@ import { MinecraftPingScheduler } from './ping.scheduler';
 import { PingMinecraftRequestDto } from './dto/ping-minecraft.dto';
 import { McsmClient } from '../lib/mcsmanager/mcsmanager.client';
 import { McsmInstanceDetail } from '../lib/mcsmanager/types';
+import { HydrolineBeaconClient } from '../lib/hydroline-beacon';
 
 @Injectable()
 export class MinecraftServerService {
@@ -114,6 +115,17 @@ export class MinecraftServerService {
     return { success: true };
   }
 
+  private async getServerWithBeaconSecret(id: string) {
+    const server = await this.getServerWithSecret(id);
+    if (!server.beaconEnabled) {
+      throw new HttpException('Beacon 未启用或未配置', 400);
+    }
+    if (!server.beaconEndpoint || !server.beaconKey) {
+      throw new HttpException('Beacon 配置不完整：请设置 endpoint 与 key', 400);
+    }
+    return server;
+  }
+
   async pingManagedServer(id: string) {
     const server = await this.getServerById(id);
     const pingInput: PingMinecraftRequestDto = {
@@ -172,7 +184,10 @@ export class MinecraftServerService {
               raw: { error: message },
             },
           });
-          throw new HttpException(`Unable to connect to server (${message})`, 400);
+          throw new HttpException(
+            `Unable to connect to server (${message})`,
+            400,
+          );
         }
       }
       throw err;
@@ -221,9 +236,13 @@ export class MinecraftServerService {
       if (remote) {
         const chartPoint = remote.cpuMemChart?.[remote.cpuMemChart.length - 1];
         const cpuPercent =
-          chartPoint?.cpu ?? (remote.process?.cpu ? remote.process.cpu / 1_000_000 : undefined);
+          chartPoint?.cpu ??
+          (remote.process?.cpu ? remote.process.cpu / 1_000_000 : undefined);
         const memPercent =
-          chartPoint?.mem ?? (remote.process?.memory ? remote.process.memory / 1024 / 1024 : undefined);
+          chartPoint?.mem ??
+          (remote.process?.memory
+            ? remote.process.memory / 1024 / 1024
+            : undefined);
         detail.processInfo = {
           cpu: cpuPercent,
           memory: memPercent,
@@ -295,6 +314,11 @@ export class MinecraftServerService {
       mcsmInstanceUuid: dto.mcsmInstanceUuid,
       mcsmApiKey: dto.mcsmApiKey,
       mcsmRequestTimeoutMs: dto.mcsmRequestTimeoutMs,
+      beaconEndpoint: dto.beaconEndpoint,
+      beaconKey: dto.beaconKey,
+      beaconEnabled: dto.beaconEnabled ?? false,
+      beaconRequestTimeoutMs: dto.beaconRequestTimeoutMs,
+      beaconMaxRetry: dto.beaconMaxRetry,
       createdBy: actorId ? { connect: { id: actorId } } : undefined,
       updatedBy: actorId ? { connect: { id: actorId } } : undefined,
     };
@@ -352,6 +376,21 @@ export class MinecraftServerService {
     if (dto.mcsmRequestTimeoutMs !== undefined) {
       payload.mcsmRequestTimeoutMs = dto.mcsmRequestTimeoutMs;
     }
+    if (dto.beaconEndpoint !== undefined) {
+      payload.beaconEndpoint = dto.beaconEndpoint;
+    }
+    if (dto.beaconKey !== undefined) {
+      payload.beaconKey = dto.beaconKey;
+    }
+    if (dto.beaconEnabled !== undefined) {
+      payload.beaconEnabled = dto.beaconEnabled;
+    }
+    if (dto.beaconRequestTimeoutMs !== undefined) {
+      payload.beaconRequestTimeoutMs = dto.beaconRequestTimeoutMs;
+    }
+    if (dto.beaconMaxRetry !== undefined) {
+      payload.beaconMaxRetry = dto.beaconMaxRetry;
+    }
     return payload;
   }
 
@@ -359,13 +398,23 @@ export class MinecraftServerService {
     return value.trim();
   }
 
-  private stripSecret<T extends { mcsmApiKey?: string | null }>(server: T) {
+  private stripSecret<
+    T extends { mcsmApiKey?: string | null; beaconKey?: string | null },
+  >(server: T) {
     if (!server) return server;
-    const { mcsmApiKey: apiKey, ...rest } = server as Record<string, unknown>;
+    const {
+      mcsmApiKey: apiKey,
+      beaconKey,
+      ...rest
+    } = server as Record<string, unknown>;
     return {
       ...rest,
       mcsmConfigured: Boolean(apiKey),
-    } as Omit<T, 'mcsmApiKey'> & { mcsmConfigured: boolean };
+      beaconConfigured: Boolean(beaconKey),
+    } as Omit<T, 'mcsmApiKey' | 'beaconKey'> & {
+      mcsmConfigured: boolean;
+      beaconConfigured: boolean;
+    };
   }
 
   private async getServerWithSecret(id: string) {
@@ -399,5 +448,154 @@ export class MinecraftServerService {
       timeoutMs: server.mcsmRequestTimeoutMs ?? undefined,
     });
     return { server, client };
+  }
+
+  private async prepareBeaconClient(id: string) {
+    const server = await this.getServerWithBeaconSecret(id);
+    const client = new HydrolineBeaconClient({
+      endpoint: server.beaconEndpoint!,
+      key: server.beaconKey!,
+      timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
+      maxRetry: server.beaconMaxRetry ?? undefined,
+    });
+    return { server, client };
+  }
+
+  async getBeaconStatus(id: string) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const status = await client.emit<any>('get_status', {});
+    const onlinePlayers = await client.emit<any>('list_online_players', {});
+    client.disconnect();
+    return {
+      server: this.stripSecret(server),
+      status,
+      onlinePlayers,
+      lastHeartbeatAt: new Date().toISOString(),
+      fromCache: false,
+    };
+  }
+
+  async getBeaconMtrLogs(
+    id: string,
+    query: {
+      playerUuid?: string;
+      playerName?: string;
+      singleDate?: string;
+      startDate?: string;
+      endDate?: string;
+      changeType?: string;
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const payload: Record<string, unknown> = {};
+    if (query.playerUuid) payload.playerUuid = query.playerUuid;
+    if (query.playerName) payload.playerName = query.playerName;
+    if (query.singleDate) payload.singleDate = query.singleDate;
+    if (query.startDate) payload.startDate = query.startDate;
+    if (query.endDate) payload.endDate = query.endDate;
+    if (query.changeType) payload.changeType = query.changeType;
+    payload.page = query.page ?? 1;
+    payload.pageSize = query.pageSize ?? 50;
+    const result = await client.emit<any>('get_player_mtr_logs', payload);
+    client.disconnect();
+    return { server: this.stripSecret(server), result };
+  }
+
+  async getBeaconMtrLogDetail(id: string, logId: string) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const result = await client.emit<any>('get_mtr_log_detail', {
+      id: Number(logId),
+    });
+    client.disconnect();
+    return { server: this.stripSecret(server), result };
+  }
+
+  async getBeaconPlayerAdvancements(
+    id: string,
+    player: { playerUuid?: string; playerName?: string },
+  ) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const payload: Record<string, unknown> = {};
+    if (player.playerUuid) payload.playerUuid = player.playerUuid;
+    if (player.playerName) payload.playerName = player.playerName;
+    const result = await client.emit<any>('get_player_advancements', payload);
+    client.disconnect();
+    return { server: this.stripSecret(server), result };
+  }
+
+  async getBeaconPlayerStats(
+    id: string,
+    player: { playerUuid?: string; playerName?: string },
+  ) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const payload: Record<string, unknown> = {};
+    if (player.playerUuid) payload.playerUuid = player.playerUuid;
+    if (player.playerName) payload.playerName = player.playerName;
+    const result = await client.emit<any>('get_player_stats', payload);
+    client.disconnect();
+    return { server: this.stripSecret(server), result };
+  }
+
+  async getBeaconPlayerSessions(
+    id: string,
+    query: {
+      playerUuid?: string;
+      playerName?: string;
+      singleDate?: string;
+      startDate?: string;
+      endDate?: string;
+      eventType?: string;
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const payload: Record<string, unknown> = {};
+    if (query.playerUuid) payload.playerUuid = query.playerUuid;
+    if (query.playerName) payload.playerName = query.playerName;
+    if (query.singleDate) payload.singleDate = query.singleDate;
+    if (query.startDate) payload.startDate = query.startDate;
+    if (query.endDate) payload.endDate = query.endDate;
+    if (query.eventType) payload.eventType = query.eventType;
+    payload.page = query.page ?? 1;
+    payload.pageSize = query.pageSize ?? 50;
+    const result = await client.emit<any>('get_player_sessions', payload);
+    client.disconnect();
+    return { server: this.stripSecret(server), result };
+  }
+
+  async getBeaconPlayerNbt(
+    id: string,
+    player: { playerUuid?: string; playerName?: string },
+  ) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const payload: Record<string, unknown> = {};
+    if (player.playerUuid) payload.playerUuid = player.playerUuid;
+    if (player.playerName) payload.playerName = player.playerName;
+    const result = await client.emit<any>('get_player_nbt', payload);
+    client.disconnect();
+    return { server: this.stripSecret(server), result };
+  }
+
+  async lookupBeaconPlayerIdentity(
+    id: string,
+    player: { playerUuid?: string; playerName?: string },
+  ) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const payload: Record<string, unknown> = {};
+    if (player.playerUuid) payload.playerUuid = player.playerUuid;
+    if (player.playerName) payload.playerName = player.playerName;
+    const result = await client.emit<any>('lookup_player_identity', payload);
+    client.disconnect();
+    return { server: this.stripSecret(server), result };
+  }
+
+  async triggerBeaconForceUpdate(id: string) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const result = await client.emit<any>('force_update', {});
+    client.disconnect();
+    return { server: this.stripSecret(server), result };
   }
 }

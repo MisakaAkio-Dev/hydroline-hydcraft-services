@@ -156,6 +156,41 @@ export const adminRoutes: RouteRecordRaw[] = [
           layout: 'admin',
         },
       },
+      // 服务端信息 / Hydroline Beacon
+      {
+        path: 'beacon/mtr-logs',
+        name: 'admin.beacon.mtr-logs',
+        component: () => import('@/views/admin/Beacon/BeaconMtrLogsView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['minecraft.manage.servers'],
+          layout: 'admin',
+          section: 'server-info',
+        },
+      },
+      {
+        path: 'beacon/advancements',
+        name: 'admin.beacon.advancements',
+        component: () =>
+          import('@/views/admin/Beacon/BeaconAdvancementsView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['minecraft.manage.servers'],
+          layout: 'admin',
+          section: 'server-info',
+        },
+      },
+      {
+        path: 'beacon/stats',
+        name: 'admin.beacon.stats',
+        component: () => import('@/views/admin/Beacon/BeaconStatsView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['minecraft.manage.servers'],
+          layout: 'admin',
+          section: 'server-info',
+        },
+      },
       {
         path: 'rbac',
         name: 'admin.rbac',

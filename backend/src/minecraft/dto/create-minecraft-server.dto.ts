@@ -83,4 +83,25 @@ export class CreateMinecraftServerDto {
   @IsOptional()
   @IsInt()
   mcsmRequestTimeoutMs?: number;
+
+  // Hydroline Beacon integration
+  @IsOptional()
+  @IsString()
+  beaconEndpoint?: string;
+
+  @IsOptional()
+  @IsString()
+  beaconKey?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  beaconEnabled?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  beaconRequestTimeoutMs?: number;
+
+  @IsOptional()
+  @IsInt()
+  beaconMaxRetry?: number;
 }

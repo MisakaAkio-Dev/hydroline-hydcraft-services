@@ -25,6 +25,12 @@ type CreateServerPayload = {
   mcsmInstanceUuid?: string
   mcsmApiKey?: string
   mcsmRequestTimeoutMs?: number
+  // Hydroline Beacon
+  beaconEndpoint?: string
+  beaconKey?: string
+  beaconEnabled?: boolean
+  beaconRequestTimeoutMs?: number
+  beaconMaxRetry?: number
 }
 
 type UpdateServerPayload = Partial<CreateServerPayload>
@@ -199,6 +205,136 @@ export const useMinecraftServerStore = defineStore('minecraft-servers', {
       const token = this.authHeaders()
       return await apiFetch<{ server: MinecraftServer; result: unknown }>(
         `/admin/minecraft/servers/${id}/mcsm/kill`,
+        { method: 'POST', token },
+      )
+    },
+
+    // Hydroline Beacon HTTP 代理
+    async getBeaconStatus(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch(`/admin/minecraft/servers/${id}/beacon/status`, {
+        token,
+      })
+    },
+
+    async getBeaconMtrLogs(
+      id: string,
+      params: Record<string, string | number | undefined>,
+    ) {
+      const token = this.authHeaders()
+      const search = new URLSearchParams()
+      Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return
+        search.set(key, String(value))
+      })
+      const query = search.toString()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/mtr-logs${
+          query ? `?${query}` : ''
+        }`,
+        { token },
+      )
+    },
+
+    async getBeaconMtrLogDetail(id: string, logId: string | number) {
+      const token = this.authHeaders()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/mtr-logs/${logId}`,
+        { token },
+      )
+    },
+
+    async getBeaconPlayerAdvancements(
+      id: string,
+      params: { playerUuid?: string; playerName?: string },
+    ) {
+      const token = this.authHeaders()
+      const search = new URLSearchParams()
+      if (params.playerUuid) search.set('playerUuid', params.playerUuid)
+      if (params.playerName) search.set('playerName', params.playerName)
+      const query = search.toString()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/players/advancements${
+          query ? `?${query}` : ''
+        }`,
+        { token },
+      )
+    },
+
+    async getBeaconPlayerStats(
+      id: string,
+      params: { playerUuid?: string; playerName?: string },
+    ) {
+      const token = this.authHeaders()
+      const search = new URLSearchParams()
+      if (params.playerUuid) search.set('playerUuid', params.playerUuid)
+      if (params.playerName) search.set('playerName', params.playerName)
+      const query = search.toString()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/players/stats${
+          query ? `?${query}` : ''
+        }`,
+        { token },
+      )
+    },
+
+    async getBeaconPlayerSessions(
+      id: string,
+      params: Record<string, string | number | undefined>,
+    ) {
+      const token = this.authHeaders()
+      const search = new URLSearchParams()
+      Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return
+        search.set(key, String(value))
+      })
+      const query = search.toString()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/players/sessions${
+          query ? `?${query}` : ''
+        }`,
+        { token },
+      )
+    },
+
+    async getBeaconPlayerNbt(
+      id: string,
+      params: { playerUuid?: string; playerName?: string },
+    ) {
+      const token = this.authHeaders()
+      const search = new URLSearchParams()
+      if (params.playerUuid) search.set('playerUuid', params.playerUuid)
+      if (params.playerName) search.set('playerName', params.playerName)
+      const query = search.toString()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/players/nbt${
+          query ? `?${query}` : ''
+        }`,
+        { token },
+      )
+    },
+
+    async lookupBeaconPlayerIdentity(
+      id: string,
+      params: { playerUuid?: string; playerName?: string },
+    ) {
+      const token = this.authHeaders()
+      const search = new URLSearchParams()
+      if (params.playerUuid) search.set('playerUuid', params.playerUuid)
+      if (params.playerName) search.set('playerName', params.playerName)
+      const query = search.toString()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/players/identity${
+          query ? `?${query}` : ''
+        }`,
+        { token },
+      )
+    },
+
+    async triggerBeaconForceUpdate(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch(
+        `/admin/minecraft/servers/${id}/beacon/force-update`,
         { method: 'POST', token },
       )
     },

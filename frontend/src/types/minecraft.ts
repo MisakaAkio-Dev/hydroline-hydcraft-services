@@ -17,8 +17,113 @@ export interface MinecraftServer {
   mcsmInstanceUuid?: string | null
   mcsmRequestTimeoutMs?: number | null
   mcsmConfigured?: boolean
+  beaconEndpoint?: string | null
+  beaconEnabled?: boolean | null
+  beaconRequestTimeoutMs?: number | null
+  beaconMaxRetry?: number | null
+  beaconConfigured?: boolean
   createdAt: string
   updatedAt: string
+}
+
+// Hydroline Beacon DTOs
+
+export interface BeaconServerStatusPayload {
+  mtr_logs_total?: number
+  advancements_total?: number
+  interval_time_ticks?: number
+  success?: boolean
+  online_player_count?: number
+  interval_time_seconds?: number
+  server_max_players?: number
+  stats_total?: number
+  [key: string]: unknown
+}
+
+export interface BeaconOnlinePlayersPayload {
+  success?: boolean
+  players?: {
+    uuid: string
+    name: string
+    displayName?: string
+  }[]
+  [key: string]: unknown
+}
+
+export interface BeaconStatusResponse {
+  server: MinecraftServer
+  status: BeaconServerStatusPayload
+  onlinePlayers: BeaconOnlinePlayersPayload
+  lastHeartbeatAt: string
+  fromCache: boolean
+}
+
+export interface BeaconMtrLogRecord {
+  id: number
+  player_uuid?: string | null
+  player_name?: string | null
+  change_type?: string | null
+  timestamp?: string | null
+  source_file_path?: string | null
+  dimension_context?: string | null
+  class_name?: string | null
+  position?: string | null
+  entry_name?: string | null
+  old_data?: string | null
+  new_data?: string | null
+  [key: string]: unknown
+}
+
+export interface BeaconMtrLogsResult {
+  total?: number
+  records?: BeaconMtrLogRecord[]
+  page?: number
+  page_size?: number
+  success?: boolean
+  [key: string]: unknown
+}
+
+export interface BeaconMtrLogsResponse {
+  server: MinecraftServer
+  result: BeaconMtrLogsResult
+}
+
+export interface BeaconPlayerAdvancementsResult {
+  success?: boolean
+  player_uuid?: string
+  advancements?: Record<string, string>
+  [key: string]: unknown
+}
+
+export interface BeaconPlayerStatsResult {
+  success?: boolean
+  player_uuid?: string
+  stats?: Record<string, number>
+  [key: string]: unknown
+}
+
+export interface BeaconPlayerSessionsRecord {
+  id: number
+  player_uuid?: string | null
+  player_name?: string | null
+  event_type?: string | null
+  timestamp?: string | null
+  ip?: string | null
+  [key: string]: unknown
+}
+
+export interface BeaconPlayerSessionsResult {
+  total?: number
+  records?: BeaconPlayerSessionsRecord[]
+  page?: number
+  page_size?: number
+  success?: boolean
+  [key: string]: unknown
+}
+
+export interface BeaconPlayerGenericResponse<T = unknown> {
+  server: MinecraftServer
+  result: T
 }
 
 export interface JavaPingResponse {

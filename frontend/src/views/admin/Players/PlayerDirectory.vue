@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useAdminPlayersStore } from '@/stores/adminPlayers'
+import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { useAdminUsersStore } from '@/stores/adminUsers'
 import PlayerDetailDialog from '@/views/admin/components/PlayerDetailDialog.vue'
@@ -193,6 +194,8 @@ const userDetailDialogSummary = ref<{
   email?: string | null
 } | null>(null)
 
+const router = useRouter()
+
 function openEntryDialog(username: string) {
   entryForm.username = username
   entryForm.action = 'MANUAL_ENTRY'
@@ -280,6 +283,27 @@ async function handleUserDeletedFromDialog() {
   userDetailDialogUserId.value = null
   userDetailDialogSummary.value = null
   await refresh(pagination.value.page)
+}
+
+function openBeaconForPlayer(
+  player: AdminPlayerEntry,
+  target: 'mtr' | 'advancements' | 'stats',
+) {
+  const username =
+    player.authme?.username ?? player.binding?.authmeUsername ?? ''
+  if (!username) return
+  const routeName =
+    target === 'mtr'
+      ? 'admin.beacon.mtr-logs'
+      : target === 'advancements'
+        ? 'admin.beacon.advancements'
+        : 'admin.beacon.stats'
+  void router.push({
+    name: routeName,
+    query: {
+      playerName: username,
+    },
+  })
 }
 </script>
 
@@ -526,6 +550,14 @@ async function handleUserDeletedFromDialog() {
                   "
                   >绑定到用户</UButton
                 >
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="outline"
+                  @click="openBeaconForPlayer(player, 'mtr')"
+                >
+                  Beacon
+                </UButton>
               </div>
             </td>
           </tr>

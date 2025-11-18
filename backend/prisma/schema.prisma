@@ -594,6 +594,12 @@ model MinecraftServer {
   mcsmInstanceUuid String?
   mcsmApiKey     String?
   mcsmRequestTimeoutMs Int?
+  // Hydroline Beacon integration
+  beaconEndpoint        String?
+  beaconKey             String?
+  beaconEnabled         Boolean? @default(false)
+  beaconRequestTimeoutMs Int?
+  beaconMaxRetry         Int?
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
   createdById    String?

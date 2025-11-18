@@ -87,6 +87,29 @@ const menuGroups = computed<MenuGroup[]>(() => [
     ],
   },
   {
+    key: 'server-info',
+    label: '服务端信息',
+    collapsible: true,
+    defaultCollapsed: false,
+    items: [
+      {
+        label: 'MTR 审计日志',
+        to: '/admin/beacon/mtr-logs',
+        icon: 'i-lucide-clipboard-list',
+      },
+      {
+        label: '玩家成就信息',
+        to: '/admin/beacon/advancements',
+        icon: 'i-lucide-medal',
+      },
+      {
+        label: '玩家统计信息',
+        to: '/admin/beacon/stats',
+        icon: 'i-lucide-bar-chart-3',
+      },
+    ],
+  },
+  {
     key: 'oauth',
     label: 'OAuth',
     collapsible: true,
