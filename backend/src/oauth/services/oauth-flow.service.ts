@@ -341,7 +341,10 @@ export class OAuthFlowService {
     if (!profile.id) {
       throw new UnauthorizedException('Invalid Google profile payload');
     }
-    const avatarDataUri = await this.fetchImageAsDataUri(data.picture ?? null);
+    const avatarDataUri = await this.fetchImageAsDataUri(
+      data.picture ?? null,
+      settings,
+    );
     return { profile, avatarDataUri };
   }
 
@@ -392,12 +395,15 @@ export class OAuthFlowService {
     }
   }
 
-  private async fetchImageAsDataUri(url: string | null | undefined) {
+  private async fetchImageAsDataUri(
+    url: string | null | undefined,
+    settings: OAuthProviderSettings,
+  ) {
     if (!url) {
       return null;
     }
     try {
-      const response = await fetch(url);
+      const response = await oauthProxyFetch(url, {}, settings);
       if (!response.ok) {
         return null;
       }

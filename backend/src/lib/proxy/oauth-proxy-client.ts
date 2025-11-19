@@ -1,13 +1,14 @@
 import { OAuthProviderSettings } from '../../oauth/types/provider.types';
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
 
-export interface OAuthProxyResponse {
+type ProxyBodyType = 'json' | 'text' | 'binary';
+
+interface OAuthProxyPacket {
   ok: boolean;
   status: number;
   headers: Record<string, string>;
-  json(): Promise<unknown>;
-  text(): Promise<string>;
-  arrayBuffer(): Promise<ArrayBuffer>;
+  bodyType: ProxyBodyType;
+  body: string; // json/text as string; binary as base64 string
 }
 
 export function getProxyConfig() {
@@ -29,6 +30,55 @@ async function fetchWithProxy(url: string, init: RequestInit): Promise<Response>
   }
 
   return fetch(url, init);
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = Buffer.from(base64, 'base64');
+  return binaryString.buffer.slice(
+    binaryString.byteOffset,
+    binaryString.byteOffset + binaryString.byteLength,
+  );
+}
+
+async function unwrapProxyResponse(response: Response): Promise<Response> {
+  // Proxy worker returns a JSON envelope: { ok, status, headers, bodyType, body }
+  // If shape doesn't match, return original response.
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+  if (!isJson) return response;
+
+  let packet: OAuthProxyPacket | null = null;
+  try {
+    packet = (await response.json()) as OAuthProxyPacket;
+  } catch {
+    return response;
+  }
+
+  if (!packet || typeof packet.status !== 'number' || !('bodyType' in packet)) {
+    // Not our proxy envelope
+    // Recreate original JSON body Response so upstream can still read it
+    return new Response(JSON.stringify(packet ?? null), {
+      status: response.status,
+      headers: response.headers,
+    });
+  }
+
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(packet.headers || {})) headers.set(k, v);
+
+  // Ensure content-type consistent with upstream if provided; otherwise infer
+  if (!headers.has('content-type')) {
+    if (packet.bodyType === 'json') headers.set('content-type', 'application/json');
+    else if (packet.bodyType === 'text') headers.set('content-type', 'text/plain; charset=utf-8');
+  }
+
+  if (packet.bodyType === 'binary') {
+    const buf = base64ToArrayBuffer(packet.body ?? '');
+    return new Response(buf, { status: packet.status, headers });
+  }
+
+  // For json/text, body is plain string (json string for json type)
+  return new Response(packet.body ?? '', { status: packet.status, headers });
 }
 
 export async function oauthProxyFetch(
@@ -72,7 +122,8 @@ export async function oauthProxyFetch(
       body: JSON.stringify(proxyRequestBody),
     });
 
-    return response;
+    // If this is our Worker, unwrap envelope back to real upstream response
+    return await unwrapProxyResponse(response);
   } catch (error) {
     throw new Error(
       `OAuth Proxy request failed (Proxy: ${proxyUrl}): ${
