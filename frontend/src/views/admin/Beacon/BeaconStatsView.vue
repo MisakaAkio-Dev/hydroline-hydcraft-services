@@ -45,10 +45,6 @@ const activeServer = computed<MinecraftServer | null>(() => {
   )
 })
 
-// 默认展示的关键统计字段前缀（兼容两种形态）
-// 后端可能返回两种结构：
-// 1) 扁平化："minecraft:custom:total_world_time": 123
-// 2) 分组：{"stats:minecraft:custom": {"minecraft:total_world_time": 123}, ...}
 const importantPrefixes = [
   // 扁平化键前缀
   'minecraft:custom',

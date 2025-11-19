@@ -1,7 +1,7 @@
 import { HttpException, Logger } from '@nestjs/common';
 
-// 使用 CommonJS 形式加载 socket.io-client 以兼容 v2 的导出结构
 // 否则直接用会出问题
+// 使用 CommonJS 形式加载 socket.io-client 以兼容 v2 的导出结构
 const socketIo =
   require('socket.io-client') as typeof import('socket.io-client');
 
@@ -40,14 +40,12 @@ export class HydrolineBeaconClient {
   private initialOptions: HydrolineBeaconClientOptions;
   private readonly logger = new Logger(
     `BeaconClient: ${(() => {
-      // 延迟日志标签的生成，避免在构造函数中获取 endpoint
       return '';
     })()}`,
   );
 
   constructor(private readonly options: HydrolineBeaconClientOptions) {
     this.initialOptions = { ...options };
-    // 重新设置 logger 标签为包含 endpoint 的版本
     (this.logger as any).context = `BeaconClient: ${this.options.endpoint}`;
   }
 
@@ -61,7 +59,6 @@ export class HydrolineBeaconClient {
     this.connecting = true;
     const socket: Socket = socketIo(this.options.endpoint, {
       transports: ['websocket', 'polling'],
-      // 由上层 Pool 统一管理重连节奏与次数
       reconnection: false,
       timeout: this.options.timeoutMs ?? 10000,
     });
@@ -139,7 +136,6 @@ export class HydrolineBeaconClient {
     }
   }
 
-  /** 强制重建底层 socket（用于超过重试次数后的自定义重连） */
   forceReconnect() {
     this.disconnect();
     this.ensureSocket();

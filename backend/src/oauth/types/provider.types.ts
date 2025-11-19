@@ -10,6 +10,9 @@ export interface OAuthProviderSettings {
   scopes?: string[];
   graphUserUrl?: string;
   graphPhotoUrl?: string;
+  // 当 providerProxyEnabled 为 true 时，后端会将 OAuth HTTP 请求
+  // 通过外部中转服务转发（例如腾讯云 Serverless），以规避直连受限的问题。
+  providerProxyEnabled?: boolean;
   extra?: Record<string, unknown>;
 }
 

@@ -73,8 +73,6 @@ export class IpLocationService implements OnModuleInit, OnModuleDestroy {
       if (!searcher) {
         return null;
       }
-      // searcher.search is async in the JS implementation; TypeScript typings declare string.
-      // Using Promise.resolve to support both forms safely.
       const regionRaw = await Promise.resolve(
         searcher.search(value as unknown as string),
       );
@@ -205,7 +203,6 @@ export class IpLocationService implements OnModuleInit, OnModuleDestroy {
 
   private parseRegion(regionText: string): IpLocationResult {
     const parts = regionText.split('|').map((s) => (s ?? '').trim());
-    // ip2region variants may return 4 or 5 pipe-separated fields depending on DB/version
     let country: string | null = null;
     let region: string | null = null;
     let province: string | null = null;
