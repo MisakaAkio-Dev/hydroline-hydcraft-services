@@ -352,7 +352,8 @@ export class OAuthFlowService {
     if (!profile.id) {
       throw new UnauthorizedException('Invalid Google profile payload');
     }
-    return { profile, avatarDataUri: data.picture ?? null };
+    const avatarDataUri = await this.fetchImageAsDataUri(data.picture ?? null);
+    return { profile, avatarDataUri };
   }
 
   private buildAccountProfile(
@@ -396,6 +397,35 @@ export class OAuthFlowService {
     } catch (error) {
       this.logger.warn(
         `Failed to fetch Microsoft profile avatar: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
+  }
+
+  private async fetchImageAsDataUri(url: string | null | undefined) {
+    if (!url) {
+      return null;
+    }
+    try {
+      const response = await fetch(url, {
+        dispatcher: this.dispatcher,
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      if (!arrayBuffer.byteLength) {
+        return null;
+      }
+      const contentType =
+        response.headers.get('content-type') ?? 'application/octet-stream';
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      return `data:${contentType};base64,${base64}`;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch image for avatar: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
