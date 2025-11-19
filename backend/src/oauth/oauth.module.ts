@@ -8,6 +8,7 @@ import { OAuthFlowService } from './services/oauth-flow.service';
 import { OAuthStateService } from './services/oauth-state.service';
 import { OAuthAdminController } from './controllers/oauth-admin.controller';
 import { OAuthPublicController } from './controllers/oauth-public.controller';
+import { OAuthProxyTestController } from './controllers/oauth-proxy-test.controller';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { OAuthPublicController } from './controllers/oauth-public.controller';
     forwardRef(() => AuthModule),
     forwardRef(() => ConfigModule),
   ],
-  controllers: [OAuthAdminController, OAuthPublicController],
+  controllers: [OAuthAdminController, OAuthPublicController, OAuthProxyTestController],
   providers: [
     OAuthProvidersService,
     OAuthLogService,

@@ -9,13 +9,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { OAuthProvidersService } from './oauth-providers.service';
 import { OAuthStateService } from './oauth-state.service';
 import { OAuthLogService } from './oauth-log.service';
-import { Dispatcher, ProxyAgent, fetch } from 'undici';
 import {
   OAuthFlowMode,
   OAuthProviderSettings,
   OAuthResultPayload,
   OAuthStatePayload,
 } from '../types/provider.types';
+import { oauthProxyFetch } from '../../lib/proxy/oauth-proxy-client';
 import { AuthService, RequestContext } from '../../auth/services/auth.service';
 import { generateRandomString } from 'better-auth/crypto';
 
@@ -46,7 +46,6 @@ type ProviderProfile = {
 @Injectable()
 export class OAuthFlowService {
   private readonly logger = new Logger(OAuthFlowService.name);
-  private readonly dispatcher: Dispatcher | undefined;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -54,14 +53,7 @@ export class OAuthFlowService {
     private readonly stateService: OAuthStateService,
     private readonly logService: OAuthLogService,
     private readonly authService: AuthService,
-  ) {
-    const proxy =
-      process.env.HTTPS_PROXY ||
-      process.env.https_proxy ||
-      process.env.HTTP_PROXY ||
-      process.env.http_proxy;
-    this.dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
-  }
+  ) {}
 
   async start(input: StartFlowInput, context: RequestContext) {
     const runtime = await this.providers.requireRuntimeProvider(
@@ -236,14 +228,13 @@ export class OAuthFlowService {
       client_secret: clientSecret ?? '',
     });
 
-    const response = await fetch(tokenUrl.replace('{tenant}', tenant), {
+    const response = await oauthProxyFetch(tokenUrl.replace('{tenant}', tenant), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body,
-      dispatcher: this.dispatcher,
-    });
+    }, settings);
     if (!response.ok) {
       const text = await response.text();
       throw new UnauthorizedException(`Token exchange failed: ${text}`);
@@ -287,12 +278,11 @@ export class OAuthFlowService {
     const url =
       (settings.graphUserUrl as string) ??
       'https://graph.microsoft.com/v1.0/me';
-    const response = await fetch(url, {
+    const response = await oauthProxyFetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
-      dispatcher: this.dispatcher,
-    });
+    }, settings);
     if (!response.ok) {
       const text = await response.text();
       throw new UnauthorizedException(
@@ -316,12 +306,11 @@ export class OAuthFlowService {
     const url =
       (settings.graphUserUrl as string) ??
       'https://www.googleapis.com/oauth2/v3/userinfo';
-    const response = await fetch(url, {
+    const response = await oauthProxyFetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
-      dispatcher: this.dispatcher,
-    });
+    }, settings);
     if (!response.ok) {
       const text = await response.text();
       throw new UnauthorizedException(`Failed to fetch Google profile: ${text}`);
@@ -378,12 +367,11 @@ export class OAuthFlowService {
       (settings.graphPhotoUrl as string) ??
       'https://graph.microsoft.com/v1.0/me/photo/$value';
     try {
-      const response = await fetch(url, {
+      const response = await oauthProxyFetch(url, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
-        dispatcher: this.dispatcher,
-      });
+      }, settings);
       if (!response.ok) {
         return null;
       }
@@ -409,9 +397,7 @@ export class OAuthFlowService {
       return null;
     }
     try {
-      const response = await fetch(url, {
-        dispatcher: this.dispatcher,
-      });
+      const response = await fetch(url);
       if (!response.ok) {
         return null;
       }

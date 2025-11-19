@@ -10,6 +10,7 @@ const toast = useToast()
 
 const loading = computed(() => oauthStore.loadingProviders)
 const formModalOpen = ref(false)
+const proxyTestModalOpen = ref(false)
 const formSaving = ref(false)
 const formError = ref('')
 const editingProvider = ref<AdminOAuthProvider | null>(null)
@@ -26,6 +27,7 @@ const form = reactive({
   authorizeUrl: '',
   tokenUrl: '',
   redirectUri: '',
+  providerProxyEnabled: false,
   scopes: 'openid profile email offline_access User.Read',
 })
 
@@ -35,7 +37,46 @@ onMounted(() => {
       console.warn('[oauth] failed to load providers', error)
     })
   }
+  void oauthStore.fetchProxyEnv().catch((error) => {
+    console.warn('[oauth] failed to load proxy env', error)
+  })
 })
+
+async function runProxyConnectivityTest() {
+  try {
+    const result = await oauthStore.testProxyConnectivity()
+    proxyTestResult.value = {
+      ok: !!(result as any).ok,
+      status: result.status,
+      error: result.error,
+      env: result.env,
+    }
+    toast.add({
+      title: (result as any).ok ? '已收到 Proxy 响应' : 'Proxy 不可用',
+      description: (result as any).ok
+        ? `status=${result.status ?? 'unknown'}, elapsed=${result.elapsedMs ?? '-'}ms`
+        : result.error ?? 'Unknown error',
+      color: (result as any).ok ? 'success' : 'error',
+    })
+  } catch (error) {
+    const message =
+      error instanceof ApiError ? error.message : '测试失败，请稍后再试'
+    proxyTestResult.value = { ok: false, error: message }
+    toast.add({ title: '测试失败', description: message, color: 'error' })
+  }
+}
+
+const proxyTestResult = ref<null | {
+  ok: boolean
+  status?: number
+  error?: string
+  env?: { proxyUrl?: string | null; hasProxyKey?: boolean }
+}>(null)
+
+function openProxyTestDialog() {
+  proxyTestResult.value = null
+  proxyTestModalOpen.value = true
+}
 
 function openCreate() {
   editingProvider.value = null
@@ -55,6 +96,7 @@ function openEdit(provider: AdminOAuthProvider) {
   form.authorizeUrl = provider.settings.authorizeUrl ?? ''
   form.tokenUrl = provider.settings.tokenUrl ?? ''
   form.redirectUri = provider.settings.redirectUri ?? ''
+  form.providerProxyEnabled = provider.settings.providerProxyEnabled ?? false
   form.scopes = (provider.settings.scopes ?? []).join(' ')
   form.clientSecret = ''
   formModalOpen.value = true
@@ -72,6 +114,7 @@ function resetForm() {
   form.authorizeUrl = ''
   form.tokenUrl = ''
   form.redirectUri = ''
+  form.providerProxyEnabled = false
   form.scopes = 'openid profile email offline_access User.Read'
 }
 
@@ -92,6 +135,7 @@ async function submitForm() {
         authorizeUrl: form.authorizeUrl.trim() || undefined,
         tokenUrl: form.tokenUrl.trim() || undefined,
         redirectUri: form.redirectUri.trim() || undefined,
+        providerProxyEnabled: form.providerProxyEnabled,
         scopes: form.scopes
           .split(/\s+/)
           .map((item) => item.trim())
@@ -136,6 +180,14 @@ function closeForm() {
         >
           刷新
         </UButton>
+        <UButton
+          color="neutral"
+          variant="soft"
+          icon="i-lucide-flask-conical"
+          @click="openProxyTestDialog"
+        >
+          测试 Provider Proxy
+        </UButton>
         <UButton color="primary" icon="i-lucide-plus" @click="openCreate">
           新增 Provider
         </UButton>
@@ -144,6 +196,8 @@ function closeForm() {
         </span>
       </div>
     </div>
+
+    <!-- Proxy 信息不再在顶部展示，放入对话框中 -->
 
     <div
       class="rounded-3xl overflow-hidden border border-slate-200/70 bg-white/80 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
@@ -307,6 +361,16 @@ function closeForm() {
 
             <div class="space-y-1">
               <div class="text-xs text-slate-500 dark:text-slate-500">
+                启用 Provider Proxy
+              </div>
+              <USwitch v-model="form.providerProxyEnabled" />
+              <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
+                启用后，后端将通过配置的 PROXY 服务中转 OAuth HTTP 请求，用于规避直连受限（仅对该 Provider 生效）。
+              </p>
+            </div>
+
+            <div class="space-y-1">
+              <div class="text-xs text-slate-500 dark:text-slate-500">
                 Redirect URL
               </div>
               <UInput class="w-full" v-model="form.redirectUri" />
@@ -337,6 +401,63 @@ function closeForm() {
             <UButton color="primary" :loading="formSaving" @click="submitForm">
               保存
             </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="proxyTestModalOpen">
+      <template #content>
+        <div class="space-y-4 p-6">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            测试 Provider Proxy
+          </h3>
+
+          <div class="space-y-2 text-xs text-slate-500 dark:text-slate-400">
+            <div>
+              <span class="font-medium">Proxy URL:</span>
+              <span class="ml-1">
+                {{ oauthStore.proxyEnv?.proxyUrl || '未配置' }}
+              </span>
+            </div>
+            <div>
+              <span class="font-medium">Proxy Key:</span>
+              <span class="ml-1">
+                {{ oauthStore.proxyEnv?.hasProxyKey ? '已配置' : '未配置' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- 不需要自定义 URL，直接执行连通性测试 -->
+
+          <div class="flex justify-end gap-2">
+            <UButton variant="ghost" @click="proxyTestModalOpen = false">
+              关闭
+            </UButton>
+            <UButton color="primary" @click="runProxyConnectivityTest">
+              执行测试
+            </UButton>
+          </div>
+
+          <div v-if="proxyTestResult" class="mt-4 text-xs">
+            <div
+              :class="[
+                'mb-2 font-medium',
+                proxyTestResult.ok ? 'text-emerald-600' : 'text-rose-600',
+              ]"
+            >
+              {{ proxyTestResult.ok ? '测试成功' : '测试失败' }}
+              <span v-if="proxyTestResult.status">
+                （HTTP {{ proxyTestResult.status }}）
+              </span>
+            </div>
+            <!-- 无需展示响应体，仅显示错误信息（若有） -->
+            <div
+              v-if="proxyTestResult.error"
+              class="text-rose-500 text-[11px]"
+            >
+              {{ proxyTestResult.error }}
+            </div>
           </div>
         </div>
       </template>

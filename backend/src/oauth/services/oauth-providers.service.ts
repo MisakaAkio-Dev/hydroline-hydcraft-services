@@ -76,6 +76,10 @@ export class OAuthProvidersService implements OnModuleInit {
       graphUserUrl: this.toString(payload.graphUserUrl),
       graphPhotoUrl: this.toString(payload.graphPhotoUrl),
       scopes,
+      providerProxyEnabled:
+        typeof payload.providerProxyEnabled === 'boolean'
+          ? payload.providerProxyEnabled
+          : undefined,
     };
   }
 

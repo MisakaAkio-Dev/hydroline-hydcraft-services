@@ -2,6 +2,7 @@ import {
   IsArray,
   IsOptional,
   IsString,
+  IsBoolean,
   ArrayNotEmpty,
   ArrayUnique,
 } from 'class-validator';
@@ -38,6 +39,11 @@ export class ProviderSettingsDto {
   @IsOptional()
   @IsString()
   graphPhotoUrl?: string;
+
+  // 是否为当前 Provider 启用代理中转
+  @IsOptional()
+  @IsBoolean()
+  providerProxyEnabled?: boolean;
 
   @IsOptional()
   @IsArray()

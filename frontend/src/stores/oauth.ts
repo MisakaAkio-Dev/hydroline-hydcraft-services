@@ -18,6 +18,7 @@ export type AdminOAuthProvider = {
     graphUserUrl?: string
     graphPhotoUrl?: string
     scopes?: string[]
+    providerProxyEnabled?: boolean
     hasClientSecret: boolean
   }
   createdAt: string
@@ -39,6 +40,7 @@ export const useOAuthStore = defineStore('oauth-admin', {
     providers: [] as AdminOAuthProvider[],
     providersLoaded: false,
     loadingProviders: false,
+    proxyEnv: null as null | { proxyUrl: string | null; hasProxyKey: boolean },
   }),
   actions: {
     requireToken() {
@@ -62,6 +64,41 @@ export const useOAuthStore = defineStore('oauth-admin', {
       } finally {
         this.loadingProviders = false
       }
+    },
+    async fetchProxyEnv() {
+      const token = this.requireToken()
+      this.proxyEnv = await apiFetch<{ proxyUrl: string | null; hasProxyKey: boolean }>(
+        '/auth/oauth/proxy-env',
+        { token },
+      )
+    },
+    async testProxyConnectivity() {
+      const token = this.requireToken()
+      return apiFetch<{
+        ok: boolean
+        status?: number
+        elapsedMs?: number
+        env?: { proxyUrl: string | null; hasProxyKey: boolean }
+        error?: string
+      }>('/auth/oauth/proxy-test', { token })
+    },
+    async testProviderProxy(providerId?: string, url?: string) {
+      const token = this.requireToken()
+      const qs = new URLSearchParams()
+      if (url) qs.set('url', url)
+      const targetProviderId = providerId ?? (this.providers[0]?.id ?? '')
+      const path =
+        qs.toString().length > 0
+          ? `/auth/oauth/providers/${targetProviderId}/proxy-test?${qs.toString()}`
+          : `/auth/oauth/providers/${targetProviderId}/proxy-test`
+      return apiFetch<{
+        ok: boolean
+        status?: number
+        env?: { proxyUrl?: string | null; hasProxyKey?: boolean }
+        providerProxyEnabled?: boolean
+        snippet?: string
+        error?: string
+      }>(path, { token })
     },
     async createProvider(payload: {
       key: string
