@@ -16,7 +16,7 @@ import { UsersService } from '../services/users/users.service';
 import { AuthGuard } from '../auth.guard';
 import { PermissionsGuard } from '../permissions.guard';
 import { RequirePermissions } from '../permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../services/roles.service';
+import { PERMISSIONS } from '../services/roles.service';
 import { UpdateUserProfileDto } from '../dto/update-user-profile.dto';
 import { CreateMinecraftProfileDto } from '../dto/create-minecraft-profile.dto';
 import { UpdateMinecraftProfileDto } from '../dto/update-minecraft-profile.dto';
@@ -43,12 +43,12 @@ type CreateBindingBody = { identifier: string; setPrimary?: boolean };
 @ApiBearerAuth()
 @Controller('auth/users')
 @UseGuards(AuthGuard, PermissionsGuard)
-@RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_USERS)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
   @ApiOperation({ summary: '分页查询用户' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_USERS)
   async list(
     @Query('keyword') keyword?: string,
     @Query('page') page?: string,
@@ -67,24 +67,28 @@ export class UsersController {
 
   @Get(':userId')
   @ApiOperation({ summary: '获取用户详情' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_USERS)
   async detail(@Param('userId') userId: string) {
     return this.usersService.getUserDetail(userId);
   }
 
   @Delete(':userId')
   @ApiOperation({ summary: '删除用户' })
+  @RequirePermissions(PERMISSIONS.AUTH_ADMIN_USER_SECURITY)
   async remove(@Param('userId') userId: string) {
     return this.usersService.deleteUser(userId);
   }
 
   @Get(':userId/oauth/accounts')
   @ApiOperation({ summary: '查看用户的 OAuth 绑定' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_USERS)
   async listOauthAccounts(@Param('userId') userId: string) {
     return this.usersService.listUserOauthAccounts(userId);
   }
 
   @Delete(':userId/oauth/accounts/:accountId')
   @ApiOperation({ summary: '解绑指定的 OAuth 账户' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_USERS)
   async unlinkOauthAccount(
     @Param('userId') userId: string,
     @Param('accountId') accountId: string,
@@ -99,6 +103,7 @@ export class UsersController {
 
   @Patch(':userId/profile')
   @ApiOperation({ summary: '更新用户档案' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_USERS)
   async updateProfile(
     @Param('userId') userId: string,
     @Body() dto: UpdateUserProfileDto,
@@ -109,6 +114,7 @@ export class UsersController {
   // Update user's in-game join date (admin only). Registration time is immutable.
   @Patch(':userId/join-date')
   @ApiOperation({ summary: '调整入服日期' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_USERS)
   async updateJoinDate(
     @Param('userId') userId: string,
     @Body() dto: UpdateJoinDateDto,
@@ -118,6 +124,7 @@ export class UsersController {
 
   @Post(':userId/reset-password')
   @ApiOperation({ summary: '重置用户密码' })
+  @RequirePermissions(PERMISSIONS.AUTH_ADMIN_USER_SECURITY)
   async resetPassword(
     @Param('userId') userId: string,
     @Body() dto: ResetUserPasswordDto,
@@ -232,6 +239,7 @@ export class UsersController {
 
   @Post(':userId/status-events')
   @ApiOperation({ summary: '新增状态事件' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_USERS)
   async addStatusEvent(
     @Param('userId') userId: string,
     @Body() dto: CreateStatusEventDto,
@@ -242,6 +250,7 @@ export class UsersController {
 
   @Patch(':userId/status')
   @ApiOperation({ summary: '直接调整用户状态' })
+  @RequirePermissions(PERMISSIONS.AUTH_ADMIN_USER_SECURITY)
   async updateStatus(
     @Param('userId') userId: string,
     @Body() dto: UpdateUserStatusDto,
@@ -252,6 +261,7 @@ export class UsersController {
 
   @Post(':userId/lifecycle-events')
   @ApiOperation({ summary: '新增生命周期事件' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_USERS)
   async addLifecycleEvent(
     @Param('userId') userId: string,
     @Body() dto: CreateLifecycleEventDto,

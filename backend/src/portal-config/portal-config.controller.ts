@@ -14,7 +14,7 @@ import { Request } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
+import { PERMISSIONS } from '../auth/services/roles.service';
 import { PortalConfigService } from './portal-config.service';
 import { UpdateHeroSubtitleDto } from './dto/update-hero-subtitle.dto';
 import { CreateHeroBackgroundDto } from './dto/create-hero-background.dto';
@@ -29,18 +29,19 @@ import { UpdateCardVisibilityDto } from './dto/update-card-visibility.dto';
 @ApiBearerAuth()
 @Controller('admin/portal/config')
 @UseGuards(AuthGuard, PermissionsGuard)
-@RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_PORTAL_HOME)
 export class PortalConfigController {
   constructor(private readonly portalConfigService: PortalConfigService) {}
 
   @Get()
   @ApiOperation({ summary: '获取门户配置草稿' })
+  @RequirePermissions(PERMISSIONS.PORTAL_VIEW_HOME_CONFIG)
   async getConfig() {
     return this.portalConfigService.getAdminConfig();
   }
 
   @Patch('hero')
   @ApiOperation({ summary: '更新英雄区副标题' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT)
   async updateHeroSubtitle(
     @Body() dto: UpdateHeroSubtitleDto,
     @Req() req: Request,
@@ -52,6 +53,7 @@ export class PortalConfigController {
 
   @Post('hero/backgrounds')
   @ApiOperation({ summary: '新增英雄区背景' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT)
   async addHeroBackground(
     @Body() dto: CreateHeroBackgroundDto,
     @Req() req: Request,
@@ -63,6 +65,7 @@ export class PortalConfigController {
 
   @Patch('hero/backgrounds/:backgroundId')
   @ApiOperation({ summary: '更新英雄区背景' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT)
   async updateHeroBackground(
     @Param('backgroundId') backgroundId: string,
     @Body() dto: UpdateHeroBackgroundDto,
@@ -75,6 +78,7 @@ export class PortalConfigController {
 
   @Delete('hero/backgrounds/:backgroundId')
   @ApiOperation({ summary: '删除英雄区背景' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT)
   async removeHeroBackground(
     @Param('backgroundId') backgroundId: string,
     @Req() req: Request,
@@ -86,6 +90,7 @@ export class PortalConfigController {
 
   @Patch('hero/backgrounds/reorder')
   @ApiOperation({ summary: '调整英雄区背景排序' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT)
   async reorderHeroBackgrounds(
     @Body() dto: ReorderHeroBackgroundsDto,
     @Req() req: Request,
@@ -97,6 +102,7 @@ export class PortalConfigController {
 
   @Post('navigation')
   @ApiOperation({ summary: '创建导航链接' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT)
   async createNavigationItem(
     @Body() dto: CreateNavigationItemDto,
     @Req() req: Request,
@@ -108,6 +114,7 @@ export class PortalConfigController {
 
   @Patch('navigation/:navigationId')
   @ApiOperation({ summary: '更新导航链接' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT)
   async updateNavigationItem(
     @Param('navigationId') navigationId: string,
     @Body() dto: UpdateNavigationItemDto,
@@ -131,6 +138,7 @@ export class PortalConfigController {
 
   @Delete('navigation/:navigationId')
   @ApiOperation({ summary: '删除导航链接' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT)
   async removeNavigationItem(
     @Param('navigationId') navigationId: string,
     @Req() req: Request,
@@ -142,6 +150,7 @@ export class PortalConfigController {
 
   @Patch('navigation/reorder')
   @ApiOperation({ summary: '重新排序导航' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT)
   async reorderNavigation(
     @Body() dto: ReorderNavigationDto,
     @Req() req: Request,
@@ -153,6 +162,7 @@ export class PortalConfigController {
 
   @Patch('cards/:cardId')
   @ApiOperation({ summary: '更新门户卡片可见性' })
+  @RequirePermissions(PERMISSIONS.PORTAL_MANAGE_HOME_VISIBILITY)
   async updateCardVisibility(
     @Param('cardId') cardId: string,
     @Body() dto: UpdateCardVisibilityDto,

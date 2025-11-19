@@ -22,6 +22,7 @@ const rbacOperationCounter = new Counter({
   labelNames: ['action'],
 });
 
+// 兼容旧版默认权限（仍然保留，不直接移除）
 export const DEFAULT_PERMISSIONS = {
   MANAGE_USERS: 'auth.manage.users',
   MANAGE_CONTACT_CHANNELS: 'auth.manage.contact-channels',
@@ -32,6 +33,139 @@ export const DEFAULT_PERMISSIONS = {
   MANAGE_PORTAL_HOME: 'portal.manage.home',
   MANAGE_MINECRAFT: 'minecraft.manage.servers',
 };
+
+// 新的细粒度权限常量（供后端控制器与前端使用）
+export const PERMISSIONS = {
+  // Portal / 管理概览
+  PORTAL_VIEW_ADMIN_DASHBOARD: 'portal.view.admin-dashboard',
+  PORTAL_VIEW_ADMIN_STATS: 'portal.view.admin-stats',
+
+  // 用户 & 玩家
+  AUTH_VIEW_USERS: 'auth.view.users',
+  AUTH_MANAGE_USERS: 'auth.manage.users',
+  AUTH_ADMIN_USER_SECURITY: 'auth.admin.user-security',
+  AUTH_MANAGE_USER_PERMISSIONS: 'auth.manage.user-permissions',
+  AUTH_VIEW_PLAYERS: 'auth.view.players',
+  AUTH_MANAGE_PLAYERS: 'auth.manage.players',
+
+  // RBAC
+  AUTH_VIEW_RBAC: 'auth.view.rbac',
+  AUTH_MANAGE_ROLES: 'auth.manage.roles',
+  AUTH_MANAGE_PERMISSIONS: 'auth.manage.permissions',
+  AUTH_MANAGE_PERMISSION_LABELS: 'auth.manage.permission-labels',
+  AUTH_ADMIN_SELF_PERMISSIONS: 'auth.admin.self-permissions',
+
+  // 附件
+  ASSETS_VIEW_ATTACHMENTS: 'assets.view.attachments',
+  ASSETS_MANAGE_ATTACHMENTS: 'assets.manage.attachments',
+  ASSETS_ADMIN_ATTACHMENTS_PUBLIC: 'assets.admin.attachments-public',
+
+  // 数据同步 / 外部服务
+  CONFIG_VIEW_AUTHME: 'config.view.authme',
+  CONFIG_MANAGE_AUTHME: 'config.manage.authme',
+  CONFIG_VIEW_LUCKPERMS: 'config.view.luckperms',
+  CONFIG_MANAGE_LUCKPERMS: 'config.manage.luckperms',
+  CONFIG_VIEW_EXTERNAL_SYNC: 'config.view.external-sync',
+  CONFIG_MANAGE_EXTERNAL_SYNC: 'config.manage.external-sync',
+
+  // Minecraft / Beacon
+  MINECRAFT_VIEW_SERVERS: 'minecraft.view.servers',
+  MINECRAFT_MANAGE_SERVERS: 'minecraft.manage.servers',
+  MINECRAFT_MANAGE_MCSM_CONTROL: 'minecraft.manage.mcsm-control',
+  BEACON_VIEW_STATUS: 'beacon.view.status',
+  BEACON_VIEW_LOGS: 'beacon.view.logs',
+  BEACON_MANAGE_CONNECTION: 'beacon.manage.connection',
+  BEACON_ADMIN_FORCE_UPDATE: 'beacon.admin.force-update',
+
+  // Verification / 安全策略
+  CONFIG_VIEW_VERIFICATION: 'config.view.verification',
+  CONFIG_MANAGE_VERIFICATION: 'config.manage.verification',
+  CONFIG_MANAGE_AUTH_POLICY: 'config.manage.auth-policy',
+  CONFIG_MANAGE_SECURITY: 'config.manage.security',
+
+  // Portal 首页配置
+  PORTAL_VIEW_HOME_CONFIG: 'portal.view.home-config',
+  PORTAL_MANAGE_HOME_CONTENT: 'portal.manage.home-content',
+  PORTAL_MANAGE_HOME_VISIBILITY: 'portal.manage.home-visibility',
+  PORTAL_MANAGE_HOME_PUBLISH: 'portal.manage.home-publish',
+
+  // OAuth 管理
+  OAUTH_VIEW_PROVIDERS: 'oauth.view.providers',
+  OAUTH_MANAGE_PROVIDERS: 'oauth.manage.providers',
+  OAUTH_VIEW_ACCOUNTS: 'oauth.view.accounts',
+  OAUTH_MANAGE_ACCOUNTS: 'oauth.manage.accounts',
+  OAUTH_VIEW_LOGS: 'oauth.view.logs',
+  OAUTH_VIEW_STATS: 'oauth.view.stats',
+
+  // 通用配置
+  CONFIG_VIEW_GENERAL: 'config.view.general',
+  CONFIG_MANAGE_GENERAL: 'config.manage.general',
+  CONFIG_MANAGE_INTEGRATIONS: 'config.manage.integrations',
+
+  // 兼容旧权限常量（方便引用）
+  LEGACY_AUTH_MANAGE_USERS: 'auth.manage.users',
+  LEGACY_AUTH_MANAGE_ROLES: 'auth.manage.roles',
+  LEGACY_AUTH_MANAGE_OAUTH: 'auth.manage.oauth',
+  LEGACY_ASSETS_MANAGE_ATTACHMENTS: 'assets.manage.attachments',
+  LEGACY_CONFIG_MANAGE: 'config.manage',
+  LEGACY_PORTAL_MANAGE_HOME: 'portal.manage.home',
+  LEGACY_MINECRAFT_MANAGE_SERVERS: 'minecraft.manage.servers',
+} as const;
+
+const DEFAULT_PERMISSION_KEYS = Object.values(DEFAULT_PERMISSIONS);
+
+const GRANULAR_PERMISSION_KEYS: string[] = [
+  PERMISSIONS.PORTAL_VIEW_ADMIN_DASHBOARD,
+  PERMISSIONS.PORTAL_VIEW_ADMIN_STATS,
+  PERMISSIONS.AUTH_VIEW_USERS,
+  PERMISSIONS.AUTH_MANAGE_USERS,
+  PERMISSIONS.AUTH_ADMIN_USER_SECURITY,
+  PERMISSIONS.AUTH_MANAGE_USER_PERMISSIONS,
+  PERMISSIONS.AUTH_VIEW_PLAYERS,
+  PERMISSIONS.AUTH_MANAGE_PLAYERS,
+  PERMISSIONS.AUTH_VIEW_RBAC,
+  PERMISSIONS.AUTH_MANAGE_ROLES,
+  PERMISSIONS.AUTH_MANAGE_PERMISSIONS,
+  PERMISSIONS.AUTH_MANAGE_PERMISSION_LABELS,
+  PERMISSIONS.AUTH_ADMIN_SELF_PERMISSIONS,
+  PERMISSIONS.ASSETS_VIEW_ATTACHMENTS,
+  PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS,
+  PERMISSIONS.ASSETS_ADMIN_ATTACHMENTS_PUBLIC,
+  PERMISSIONS.CONFIG_VIEW_AUTHME,
+  PERMISSIONS.CONFIG_MANAGE_AUTHME,
+  PERMISSIONS.CONFIG_VIEW_LUCKPERMS,
+  PERMISSIONS.CONFIG_MANAGE_LUCKPERMS,
+  PERMISSIONS.CONFIG_VIEW_EXTERNAL_SYNC,
+  PERMISSIONS.CONFIG_MANAGE_EXTERNAL_SYNC,
+  PERMISSIONS.MINECRAFT_VIEW_SERVERS,
+  PERMISSIONS.MINECRAFT_MANAGE_SERVERS,
+  PERMISSIONS.MINECRAFT_MANAGE_MCSM_CONTROL,
+  PERMISSIONS.BEACON_VIEW_STATUS,
+  PERMISSIONS.BEACON_VIEW_LOGS,
+  PERMISSIONS.BEACON_MANAGE_CONNECTION,
+  PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE,
+  PERMISSIONS.CONFIG_VIEW_VERIFICATION,
+  PERMISSIONS.CONFIG_MANAGE_VERIFICATION,
+  PERMISSIONS.CONFIG_MANAGE_AUTH_POLICY,
+  PERMISSIONS.CONFIG_MANAGE_SECURITY,
+  PERMISSIONS.PORTAL_VIEW_HOME_CONFIG,
+  PERMISSIONS.PORTAL_MANAGE_HOME_CONTENT,
+  PERMISSIONS.PORTAL_MANAGE_HOME_VISIBILITY,
+  PERMISSIONS.PORTAL_MANAGE_HOME_PUBLISH,
+  PERMISSIONS.OAUTH_VIEW_PROVIDERS,
+  PERMISSIONS.OAUTH_MANAGE_PROVIDERS,
+  PERMISSIONS.OAUTH_VIEW_ACCOUNTS,
+  PERMISSIONS.OAUTH_MANAGE_ACCOUNTS,
+  PERMISSIONS.OAUTH_VIEW_LOGS,
+  PERMISSIONS.OAUTH_VIEW_STATS,
+  PERMISSIONS.CONFIG_VIEW_GENERAL,
+  PERMISSIONS.CONFIG_MANAGE_GENERAL,
+  PERMISSIONS.CONFIG_MANAGE_INTEGRATIONS,
+];
+
+const ALL_PERMISSION_KEYS = Array.from(
+  new Set<string>([...DEFAULT_PERMISSION_KEYS, ...GRANULAR_PERMISSION_KEYS]),
+);
 
 export const DEFAULT_ROLES = {
   ADMIN: 'admin',
@@ -305,9 +439,10 @@ export class RolesService {
   async ensureDefaultRolesAndPermissions() {
     await this.prisma.$transaction(async (tx) => {
       const permissionEntries = await tx.permission.findMany({
-        where: { key: { in: Object.values(DEFAULT_PERMISSIONS) } },
+        where: { key: { in: ALL_PERMISSION_KEYS } },
       });
-      const missingPermissions = Object.values(DEFAULT_PERMISSIONS).filter(
+      const existingKeys = new Set(permissionEntries.map((p) => p.key));
+      const missingPermissions = ALL_PERMISSION_KEYS.filter(
         (key) => !permissionEntries.find((p) => p.key === key),
       );
       if (missingPermissions.length > 0) {
@@ -322,7 +457,7 @@ export class RolesService {
       });
 
       const permissions = await tx.permission.findMany({
-        where: { key: { in: Object.values(DEFAULT_PERMISSIONS) } },
+        where: { key: { in: ALL_PERMISSION_KEYS } },
       });
       const permissionMap = new Map(
         permissions.map((permission) => [permission.key, permission]),
@@ -381,7 +516,7 @@ export class RolesService {
       await ensureRole(
         DEFAULT_ROLES.ADMIN,
         { name: 'Administrator', isSystem: true },
-        Object.values(DEFAULT_PERMISSIONS),
+        ALL_PERMISSION_KEYS,
       );
 
       await ensureRole(

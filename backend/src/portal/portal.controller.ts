@@ -6,7 +6,7 @@ import { OptionalAuthGuard } from '../auth/optional-auth.guard';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
+import { PERMISSIONS } from '../auth/services/roles.service';
 import { AttachmentsService } from '../attachments/attachments.service';
 import { PortalAttachmentSearchDto } from './dto/portal-attachment-search.dto';
 
@@ -27,7 +27,7 @@ export class PortalController {
 
   @Get('admin/overview')
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_USERS)
+  @RequirePermissions(PERMISSIONS.PORTAL_VIEW_ADMIN_DASHBOARD)
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取后台门户总览数据' })
   async adminOverview(@Req() req: Request) {
@@ -36,7 +36,7 @@ export class PortalController {
 
   @Get('attachments/search')
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_PORTAL_HOME)
+  @RequirePermissions(PERMISSIONS.PORTAL_VIEW_HOME_CONFIG)
   @ApiBearerAuth()
   @ApiOperation({ summary: '搜索可公开引用的附件' })
   async searchAttachments(@Query() query: PortalAttachmentSearchDto) {

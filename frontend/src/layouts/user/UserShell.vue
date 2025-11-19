@@ -31,7 +31,7 @@ const mainNav = computed(() => {
       icon: 'i-lucide-user-round',
     },
   ]
-  if (authStore.permissionKeys.includes('auth.manage.users')) {
+  if (authStore.permissionKeys.includes('portal.view.admin-dashboard')) {
     links.push({
       name: '后台控制台',
       to: '/admin',

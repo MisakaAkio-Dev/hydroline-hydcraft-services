@@ -14,7 +14,7 @@ import { PlayersService } from '../services/players.service';
 import { AuthGuard } from '../auth.guard';
 import { PermissionsGuard } from '../permissions.guard';
 import { RequirePermissions } from '../permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../services/roles.service';
+import { PERMISSIONS } from '../services/roles.service';
 import { CreateAuthmeHistoryEntryDto } from '../../authme/dto/create-authme-history-entry.dto';
 // 使用内联 DTO 以降低耦合
 
@@ -22,12 +22,12 @@ import { CreateAuthmeHistoryEntryDto } from '../../authme/dto/create-authme-hist
 @ApiBearerAuth()
 @Controller('auth/players')
 @UseGuards(AuthGuard, PermissionsGuard)
-@RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_USERS)
 export class PlayersController {
   constructor(private readonly playersService: PlayersService) {}
 
   @Get()
   @ApiOperation({ summary: '列出 AuthMe 玩家' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_PLAYERS)
   async list(
     @Query('keyword') keyword?: string,
     @Query('page') page?: string,
@@ -47,6 +47,7 @@ export class PlayersController {
 
   @Get(':username/history')
   @ApiOperation({ summary: '查看玩家绑定流转记录' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_PLAYERS)
   async history(
     @Param('username') username: string,
     @Query('page') page?: string,
@@ -60,6 +61,7 @@ export class PlayersController {
 
   @Post(':username/history')
   @ApiOperation({ summary: '手动补录玩家流转事件' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_PLAYERS)
   async createHistory(
     @Param('username') username: string,
     @Body() dto: CreateAuthmeHistoryEntryDto,
@@ -70,6 +72,7 @@ export class PlayersController {
 
   @Post(':username/bind')
   @ApiOperation({ summary: '将指定 AuthMe 玩家绑定到站内用户' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_PLAYERS)
   async bindPlayer(
     @Param('username') username: string,
     @Body() dto: { userId: string },

@@ -16,7 +16,7 @@ import { ConfigService } from './config.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
+import { PERMISSIONS } from '../auth/services/roles.service';
 import { CreateNamespaceDto } from './dto/create-namespace.dto';
 import { UpdateNamespaceDto } from './dto/update-namespace.dto';
 import { CreateConfigEntryDto } from './dto/create-config-entry.dto';
@@ -27,24 +27,26 @@ import { QueryNamespacesDto } from './dto/query-namespaces.dto';
 @ApiBearerAuth()
 @Controller('config')
 @UseGuards(AuthGuard, PermissionsGuard)
-@RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_CONFIG)
 export class ConfigController {
   constructor(private readonly configService: ConfigService) {}
 
   @Get('namespaces')
   @ApiOperation({ summary: '列出配置命名空间' })
+  @RequirePermissions(PERMISSIONS.CONFIG_VIEW_GENERAL)
   async listNamespaces(@Query() query: QueryNamespacesDto) {
     return this.configService.listNamespaces(query);
   }
 
   @Post('namespaces')
   @ApiOperation({ summary: '创建配置命名空间' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_GENERAL)
   async createNamespace(@Body() dto: CreateNamespaceDto) {
     return this.configService.createNamespace(dto);
   }
 
   @Patch('namespaces/:namespaceId')
   @ApiOperation({ summary: '更新配置命名空间' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_GENERAL)
   async updateNamespace(
     @Param('namespaceId') namespaceId: string,
     @Body() dto: UpdateNamespaceDto,
@@ -54,6 +56,7 @@ export class ConfigController {
 
   @Delete('namespaces/:namespaceId')
   @ApiOperation({ summary: '删除配置命名空间' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_GENERAL)
   async deleteNamespace(@Param('namespaceId') namespaceId: string) {
     await this.configService.removeNamespace(namespaceId);
     return { success: true };
@@ -61,12 +64,14 @@ export class ConfigController {
 
   @Get('namespaces/:namespaceId/entries')
   @ApiOperation({ summary: '列出命名空间下的配置项' })
+  @RequirePermissions(PERMISSIONS.CONFIG_VIEW_GENERAL)
   async listEntries(@Param('namespaceId') namespaceId: string) {
     return this.configService.listEntries(namespaceId);
   }
 
   @Post('namespaces/:namespaceId/entries')
   @ApiOperation({ summary: '创建配置项' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_GENERAL)
   async createEntry(
     @Param('namespaceId') namespaceId: string,
     @Body() dto: CreateConfigEntryDto,
@@ -77,6 +82,7 @@ export class ConfigController {
 
   @Patch('entries/:entryId')
   @ApiOperation({ summary: '更新配置项' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_GENERAL)
   async updateEntry(
     @Param('entryId') entryId: string,
     @Body() dto: UpdateConfigEntryDto,
@@ -87,6 +93,7 @@ export class ConfigController {
 
   @Delete('entries/:entryId')
   @ApiOperation({ summary: '删除配置项' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_GENERAL)
   async deleteEntry(@Param('entryId') entryId: string) {
     await this.configService.removeEntry(entryId);
     return { success: true };

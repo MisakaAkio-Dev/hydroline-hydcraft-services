@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
-import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
+import { PERMISSIONS } from '../auth/services/roles.service';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { AuthmeService } from './authme.service';
 import { AuthFeatureService } from './auth-feature.service';
@@ -14,7 +14,6 @@ import { UpdateAuthmeFeatureDto } from './dto/update-authme-feature.dto';
 @ApiBearerAuth()
 @Controller('authme/admin')
 @UseGuards(AuthGuard, PermissionsGuard)
-@RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_CONFIG)
 export class AuthmeAdminController {
   constructor(
     private readonly authmeService: AuthmeService,
@@ -23,6 +22,7 @@ export class AuthmeAdminController {
 
   @Get('overview')
   @ApiOperation({ summary: '获取 AuthMe 连接及功能状态' })
+  @RequirePermissions(PERMISSIONS.CONFIG_VIEW_AUTHME)
   async getOverview() {
     const [health, configSnapshot, featureSnapshot] = await Promise.all([
       this.authmeService.health().catch((error: unknown) => ({
@@ -49,6 +49,7 @@ export class AuthmeAdminController {
 
   @Patch('config')
   @ApiOperation({ summary: '更新 AuthMe 数据库配置' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_AUTHME)
   async updateConfig(@Body() dto: UpdateAuthmeConfigDto, @Req() req: Request) {
     await this.authmeService.upsertConfig(dto, req.user?.id);
     return this.getOverview();
@@ -56,6 +57,7 @@ export class AuthmeAdminController {
 
   @Patch('feature')
   @ApiOperation({ summary: '更新 AuthMe 功能开关' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_AUTHME)
   async updateFeature(
     @Body() dto: UpdateAuthmeFeatureDto,
     @Req() req: Request,

@@ -15,7 +15,7 @@ import { Request } from 'express';
 import { AuthGuard } from '../../auth/auth.guard';
 import { PermissionsGuard } from '../../auth/permissions.guard';
 import { RequirePermissions } from '../../auth/permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../../auth/services/roles.service';
+import { PERMISSIONS } from '../../auth/services/roles.service';
 import { OAuthProvidersService } from '../services/oauth-providers.service';
 import { CreateOAuthProviderDto } from '../dto/create-provider.dto';
 import { UpdateOAuthProviderDto } from '../dto/update-provider.dto';
@@ -29,7 +29,6 @@ import { ListOauthStatsDto } from '../dto/list-stats.dto';
 @ApiBearerAuth()
 @Controller('auth/oauth')
 @UseGuards(AuthGuard, PermissionsGuard)
-@RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_OAUTH)
 export class OAuthAdminController {
   constructor(
     private readonly providersService: OAuthProvidersService,
@@ -39,18 +38,21 @@ export class OAuthAdminController {
 
   @Get('providers')
   @ApiOperation({ summary: '列出 OAuth Provider' })
+  @RequirePermissions(PERMISSIONS.OAUTH_VIEW_PROVIDERS)
   listProviders() {
     return this.providersService.listProviders();
   }
 
   @Post('providers')
   @ApiOperation({ summary: '创建 Provider' })
+  @RequirePermissions(PERMISSIONS.OAUTH_MANAGE_PROVIDERS)
   createProvider(@Body() dto: CreateOAuthProviderDto, @Req() req: Request) {
     return this.providersService.createProvider(dto, req.user?.id);
   }
 
   @Patch('providers/:providerId')
   @ApiOperation({ summary: '更新 Provider' })
+  @RequirePermissions(PERMISSIONS.OAUTH_MANAGE_PROVIDERS)
   updateProvider(
     @Param('providerId') providerId: string,
     @Body() dto: UpdateOAuthProviderDto,
@@ -61,6 +63,7 @@ export class OAuthAdminController {
 
   @Delete('providers/:providerId')
   @ApiOperation({ summary: '删除 Provider' })
+  @RequirePermissions(PERMISSIONS.OAUTH_MANAGE_PROVIDERS)
   removeProvider(
     @Param('providerId') providerId: string,
     @Req() req: Request,
@@ -70,6 +73,7 @@ export class OAuthAdminController {
 
   @Get('accounts')
   @ApiOperation({ summary: '查看绑定账户' })
+  @RequirePermissions(PERMISSIONS.OAUTH_VIEW_ACCOUNTS)
   async listAccounts(@Query() query: ListOauthAccountsDto) {
     const page = query.page && query.page > 0 ? query.page : 1;
     const sizeInput = query.pageSize && query.pageSize > 0 ? query.pageSize : 20;
@@ -122,6 +126,7 @@ export class OAuthAdminController {
 
   @Delete('accounts/:accountId')
   @ApiOperation({ summary: '解除 OAuth 绑定' })
+  @RequirePermissions(PERMISSIONS.OAUTH_MANAGE_ACCOUNTS)
   async removeAccount(@Param('accountId') accountId: string) {
     await this.prisma.account.delete({
       where: { id: accountId },
@@ -131,6 +136,7 @@ export class OAuthAdminController {
 
   @Get('logs')
   @ApiOperation({ summary: '查看 OAuth 日志' })
+  @RequirePermissions(PERMISSIONS.OAUTH_VIEW_LOGS)
   async listLogs(@Query() query: ListOauthLogsDto) {
     return this.logService.list({
       providerKey: query.providerKey,
@@ -147,6 +153,7 @@ export class OAuthAdminController {
 
   @Get('stats')
   @ApiOperation({ summary: 'OAuth 数据统计' })
+  @RequirePermissions(PERMISSIONS.OAUTH_VIEW_STATS)
   async getStats(@Query() query: ListOauthStatsDto) {
     return this.logService.dailyStats(query.providerKey, query.days);
   }

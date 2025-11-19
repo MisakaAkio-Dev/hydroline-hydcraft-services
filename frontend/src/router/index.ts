@@ -89,7 +89,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/Dashboard/AdminOverview.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['auth.manage.users'],
+          requiresPermissions: ['portal.view.admin-dashboard'],
           layout: 'admin',
         },
       },
@@ -99,7 +99,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/Users/UserDirectory.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['auth.manage.users'],
+          requiresPermissions: ['auth.view.users'],
           layout: 'admin',
         },
       },
@@ -109,7 +109,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/Players/PlayerDirectory.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['auth.manage.users'],
+          requiresPermissions: ['auth.view.players'],
           layout: 'admin',
         },
       },
@@ -120,7 +120,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           import('@/views/admin/Attachments/AttachmentLibrary.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['assets.manage.attachments'],
+          requiresPermissions: ['assets.view.attachments'],
           layout: 'admin',
         },
       },
@@ -130,7 +130,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/DataSync/AuthmeAdminView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['config.manage'],
+          requiresPermissions: ['config.view.authme'],
           layout: 'admin',
         },
       },
@@ -141,7 +141,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           import('@/views/admin/DataSync/LuckpermsAdminView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['config.manage'],
+          requiresPermissions: ['config.view.luckperms'],
           layout: 'admin',
         },
       },
@@ -152,7 +152,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           import('@/views/admin/ServerStatus/MinecraftServerStatusView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['minecraft.manage.servers'],
+          requiresPermissions: ['minecraft.view.servers'],
           layout: 'admin',
         },
       },
@@ -163,7 +163,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/Beacon/BeaconMtrLogsView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['minecraft.manage.servers'],
+          requiresPermissions: ['beacon.view.logs'],
           layout: 'admin',
           section: 'server-info',
         },
@@ -175,7 +175,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           import('@/views/admin/Beacon/BeaconAdvancementsView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['minecraft.manage.servers'],
+          requiresPermissions: ['beacon.view.logs'],
           layout: 'admin',
           section: 'server-info',
         },
@@ -186,7 +186,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/Beacon/BeaconStatsView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['minecraft.manage.servers'],
+          requiresPermissions: ['beacon.view.logs'],
           layout: 'admin',
           section: 'server-info',
         },
@@ -197,7 +197,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/Rbac/RbacConsole.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['auth.manage.roles'],
+          requiresPermissions: ['auth.view.rbac'],
           layout: 'admin',
         },
       },
@@ -207,7 +207,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/Config/ConfigConsole.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['config.manage'],
+          requiresPermissions: ['config.view.general'],
           layout: 'admin',
         },
       },
@@ -218,8 +218,8 @@ export const adminRoutes: RouteRecordRaw[] = [
           import('@/views/admin/Verification/VerificationConsole.vue'),
         meta: {
           requiresAuth: true,
-          // 允许仅具备用户管理权限的人员访问本页（页面内部根据权限控制是否可编辑开关）
-          requiresPermissions: ['auth.manage.users'],
+          // 允许具备用户查看或管理权限的人员访问本页（页面内部根据权限控制是否可编辑开关）
+          requiresPermissions: ['config.view.verification'],
           layout: 'admin',
         },
       },
@@ -229,7 +229,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/Portal/PortalHomeConfig.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['portal.manage.home'],
+          requiresPermissions: ['portal.view.home-config'],
           layout: 'admin',
         },
       },
@@ -239,7 +239,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/OAuth/OAuthProvidersView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['auth.manage.oauth'],
+          requiresPermissions: ['oauth.view.providers'],
           layout: 'admin',
         },
       },
@@ -249,7 +249,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/OAuth/OAuthAccountsView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['auth.manage.oauth'],
+          requiresPermissions: ['oauth.view.accounts'],
           layout: 'admin',
         },
       },
@@ -259,7 +259,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/OAuth/OAuthLogsView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['auth.manage.oauth'],
+          requiresPermissions: ['oauth.view.logs'],
           layout: 'admin',
         },
       },
@@ -269,7 +269,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/OAuth/OAuthStatsView.vue'),
         meta: {
           requiresAuth: true,
-          requiresPermissions: ['auth.manage.oauth'],
+          requiresPermissions: ['oauth.view.stats'],
           layout: 'admin',
         },
       },

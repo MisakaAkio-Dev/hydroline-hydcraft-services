@@ -13,7 +13,7 @@ import { Request } from 'express';
 import { AuthGuard } from '../auth.guard';
 import { PermissionsGuard } from '../permissions.guard';
 import { RequirePermissions } from '../permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../services/roles.service';
+import { PERMISSIONS } from '../services/roles.service';
 import { ConfigService } from '../../config/config.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -36,7 +36,7 @@ export class VerificationAdminController {
   ) {}
 
   @Get('flags')
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_CONFIG)
+  @RequirePermissions(PERMISSIONS.CONFIG_VIEW_VERIFICATION)
   @ApiOperation({ summary: '读取安全验证开关' })
   async getFlags() {
     const entries = await this.configService.getEntriesByNamespaceKey(
@@ -65,7 +65,7 @@ export class VerificationAdminController {
   }
 
   @Post('flags')
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_CONFIG)
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_VERIFICATION)
   @ApiOperation({ summary: '更新安全验证开关' })
   async setFlags(
     @Body()
@@ -122,7 +122,7 @@ export class VerificationAdminController {
   }
 
   @Get('templates')
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_CONFIG)
+  @RequirePermissions(PERMISSIONS.CONFIG_VIEW_VERIFICATION)
   @ApiOperation({ summary: '列出可用的邮件模板' })
   async listMailTemplates() {
     const templates = await this.mailService.listTemplates();
@@ -137,7 +137,7 @@ export class VerificationAdminController {
   }
 
   @Post('test-email')
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_CONFIG)
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_VERIFICATION)
   @ApiOperation({ summary: '发送测试邮件到指定邮箱' })
   async sendTestEmail(@Body() body: SendTestMailDto, @Req() req: Request) {
     const templates = await this.mailService.listTemplates();
@@ -176,7 +176,7 @@ export class VerificationAdminController {
   }
 
   @Get('unverified')
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_USERS)
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_USERS)
   @ApiOperation({ summary: '列出未验证邮箱的用户（分页）' })
   async listUnverified(
     @Query('page') pageStr?: string,
@@ -231,7 +231,7 @@ export class VerificationAdminController {
   }
 
   @Post('resend-email')
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_USERS)
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_USERS)
   @ApiOperation({ summary: '为指定用户邮箱重发验证码' })
   async resendEmail(
     @Body() body: { userId: string; email: string },

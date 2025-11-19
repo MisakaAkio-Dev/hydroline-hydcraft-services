@@ -14,7 +14,7 @@ import { Request } from 'express';
 import { AuthGuard } from '../auth.guard';
 import { PermissionsGuard } from '../permissions.guard';
 import { RequirePermissions } from '../permissions.decorator';
-import { DEFAULT_PERMISSIONS, RolesService } from '../services/roles.service';
+import { PERMISSIONS, RolesService } from '../services/roles.service';
 import { CreateRoleDto } from '../dto/create-role.dto';
 import { UpdateRoleDto } from '../dto/update-role.dto';
 import { UpdateRolePermissionsDto } from '../dto/update-role-permissions.dto';
@@ -27,24 +27,26 @@ import { UpdatePermissionLabelDto } from '../dto/update-permission-label.dto';
 @ApiBearerAuth()
 @Controller('auth')
 @UseGuards(AuthGuard, PermissionsGuard)
-@RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ROLES)
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @Get('roles')
   @ApiOperation({ summary: '列出角色' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_RBAC)
   async listRoles() {
     return this.rolesService.listRoles();
   }
 
   @Post('roles')
   @ApiOperation({ summary: '创建角色' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_ROLES)
   async createRole(@Body() dto: CreateRoleDto, @Req() req: Request) {
     return this.rolesService.createRole(dto, req.user?.id);
   }
 
   @Patch('roles/:roleId')
   @ApiOperation({ summary: '更新角色' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_ROLES)
   async updateRole(
     @Param('roleId') roleId: string,
     @Body() dto: UpdateRoleDto,
@@ -55,6 +57,7 @@ export class RolesController {
 
   @Patch('roles/:roleId/permissions')
   @ApiOperation({ summary: '更新角色权限' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_ROLES)
   async updateRolePermissions(
     @Param('roleId') roleId: string,
     @Body() dto: UpdateRolePermissionsDto,
@@ -65,6 +68,7 @@ export class RolesController {
 
   @Delete('roles/:roleId')
   @ApiOperation({ summary: '删除角色' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_ROLES)
   async deleteRole(@Param('roleId') roleId: string, @Req() req: Request) {
     await this.rolesService.deleteRole(roleId, req.user?.id);
     return { success: true };
@@ -72,18 +76,21 @@ export class RolesController {
 
   @Get('permissions')
   @ApiOperation({ summary: '列出权限点' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_RBAC)
   async listPermissions() {
     return this.rolesService.listPermissions();
   }
 
   @Get('permissions/catalog')
   @ApiOperation({ summary: '查看权限目录' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_RBAC)
   async listPermissionCatalog() {
     return this.rolesService.listPermissionCatalog();
   }
 
   @Post('permissions')
   @ApiOperation({ summary: '创建权限点' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_PERMISSIONS)
   async createPermission(
     @Body() dto: CreatePermissionDto,
     @Req() req: Request,
@@ -93,6 +100,7 @@ export class RolesController {
 
   @Patch('permissions/:permissionId')
   @ApiOperation({ summary: '更新权限点' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_PERMISSIONS)
   async updatePermission(
     @Param('permissionId') permissionId: string,
     @Body() dto: UpdatePermissionDto,
@@ -103,6 +111,7 @@ export class RolesController {
 
   @Delete('permissions/:permissionId')
   @ApiOperation({ summary: '删除权限点' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_PERMISSIONS)
   async deletePermission(
     @Param('permissionId') permissionId: string,
     @Req() req: Request,
@@ -113,12 +122,14 @@ export class RolesController {
 
   @Get('permission-labels')
   @ApiOperation({ summary: '列出权限标签' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_RBAC)
   async listPermissionLabels() {
     return this.rolesService.listPermissionLabels();
   }
 
   @Post('permission-labels')
   @ApiOperation({ summary: '创建权限标签' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_PERMISSION_LABELS)
   async createPermissionLabel(
     @Body() dto: CreatePermissionLabelDto,
     @Req() req: Request,
@@ -128,6 +139,7 @@ export class RolesController {
 
   @Patch('permission-labels/:labelId')
   @ApiOperation({ summary: '更新权限标签' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_PERMISSION_LABELS)
   async updatePermissionLabel(
     @Param('labelId') labelId: string,
     @Body() dto: UpdatePermissionLabelDto,
@@ -138,6 +150,7 @@ export class RolesController {
 
   @Delete('permission-labels/:labelId')
   @ApiOperation({ summary: '删除权限标签' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_PERMISSION_LABELS)
   async deletePermissionLabel(
     @Param('labelId') labelId: string,
     @Req() req: Request,

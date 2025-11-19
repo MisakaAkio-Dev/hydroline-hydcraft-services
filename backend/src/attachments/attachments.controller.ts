@@ -24,7 +24,7 @@ import { UpdateAttachmentDto } from './dto/update-attachment.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { DEFAULT_PERMISSIONS } from '../auth/services/roles.service';
+import { PERMISSIONS } from '../auth/services/roles.service';
 import { CreateFolderDto } from './dto/create-folder.dto';
 import { UpdateFolderDto } from './dto/update-folder.dto';
 import { CreateTagDto } from './dto/create-tag.dto';
@@ -40,7 +40,7 @@ export class AttachmentsController {
   constructor(private readonly attachmentsService: AttachmentsService) {}
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_VIEW_ATTACHMENTS)
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: '查询附件列表' })
@@ -49,7 +49,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
@@ -68,7 +68,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Patch(':attachmentId')
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新附件信息' })
@@ -85,7 +85,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Delete(':attachmentId')
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除附件' })
@@ -95,7 +95,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_VIEW_ATTACHMENTS)
   @Get('folders/all')
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取全部附件文件夹' })
@@ -104,7 +104,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Post('folders')
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建附件文件夹' })
@@ -113,7 +113,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Patch('folders/:folderId')
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新附件文件夹' })
@@ -125,7 +125,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Delete('folders/:folderId')
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除附件文件夹' })
@@ -134,7 +134,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_VIEW_ATTACHMENTS)
   @Get('tags/all')
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取附件标签列表' })
@@ -143,7 +143,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Post('tags')
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建附件标签' })
@@ -152,7 +152,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Patch('tags/:tagId')
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新附件标签' })
@@ -161,7 +161,7 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
+  @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Delete('tags/:tagId')
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除附件标签' })
@@ -171,7 +171,6 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions(DEFAULT_PERMISSIONS.MANAGE_ATTACHMENTS)
   @Post(':attachmentId/share')
   @ApiBearerAuth()
   @ApiOperation({ summary: '生成附件分享链接' })
