@@ -84,6 +84,14 @@ export class BeaconLibService implements OnModuleInit {
     this.logger.log(`Beacon connection ensured serverId=${s.id}`);
   }
 
+  /**
+   * 提供一个简单的只读缓存读取接口，供门户 Header 等调用方从
+   * 已有的 WS 连接中获取最近一次 get_status payload。
+   */
+  getCachedStatus(serverId: string) {
+    return this.pool.getStatusSnapshot(serverId);
+  }
+
   private isUsableConfig(s: BeaconServerRecord): boolean {
     if (!s.beaconEnabled) return false;
     if (!s.beaconEndpoint || !s.beaconKey) return false;

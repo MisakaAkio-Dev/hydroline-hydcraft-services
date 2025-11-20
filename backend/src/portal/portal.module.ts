@@ -5,9 +5,16 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { PortalConfigModule } from '../portal-config/portal-config.module';
 import { AttachmentsModule } from '../attachments/attachments.module';
+import { MinecraftModule } from '../minecraft/minecraft.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, PortalConfigModule, AttachmentsModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    PortalConfigModule,
+    AttachmentsModule,
+    MinecraftModule,
+  ],
   controllers: [PortalController],
   providers: [PortalService],
   exports: [PortalService],

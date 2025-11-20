@@ -25,6 +25,17 @@ export class PortalController {
     return this.portalService.getHomePortal(req.user?.id);
   }
 
+  @Get('header/minecraft-status')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({
+    summary: '获取门户 Header 显示用的 Minecraft 公共状态（无需权限）',
+    description:
+      '返回所有已启用服务器的最近 Ping、Beacon 时钟与 MCSM 连接状态，供前端头部时钟和悬浮卡片展示。',
+  })
+  async publicHeaderMinecraftStatus() {
+    return this.portalService.getPublicHeaderMinecraftStatus();
+  }
+
   @Get('admin/overview')
   @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.PORTAL_VIEW_ADMIN_DASHBOARD)

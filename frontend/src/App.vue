@@ -24,8 +24,6 @@ const showSessionLoader = computed(
 
 <template>
   <UApp :locale="zh_cn" :tooltip="appTooltipConfig" :toaster="appToasterConfig">
-    <UModals />
-    <UNotifications />
     <RouterView />
     <Transition
       appear

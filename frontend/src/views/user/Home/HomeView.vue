@@ -241,7 +241,7 @@ onBeforeUnmount(() => {
       class="relative flex min-h-[60vh] flex-col items-center justify-center px-4 py-24 text-center"
     >
       <div
-        class="fixed inset-0 bottom-24 -z-10 flex flex-col justify-center items-center transition duration-300"
+        class="fixed inset-0 left-16 bottom-24 z-0 flex flex-col justify-center items-center transition duration-300"
         :style="heroBackdropStyle"
       >
         <img
@@ -252,7 +252,7 @@ onBeforeUnmount(() => {
       </div>
 
       <Transition name="fade-slide" mode="out-in">
-        <div class="flex flex-col items-center gap-6">
+        <div class="flex flex-col items-center gap-6 relative z-1">
           <div class="space-y-2">
             <h1 class="drop-shadow-sm">
               <HydrolineTextBold

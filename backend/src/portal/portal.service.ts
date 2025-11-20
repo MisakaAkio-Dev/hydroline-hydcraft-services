@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PortalConfigService } from '../portal-config/portal-config.service';
+import { MinecraftServerService } from '../minecraft/minecraft-server.service';
+import { BeaconLibService } from '../lib/hydroline-beacon';
 import {
   DEFAULT_PORTAL_HOME_CONFIG,
   PORTAL_CARD_REGISTRY,
@@ -123,6 +125,8 @@ export class PortalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly portalConfigService: PortalConfigService,
+    private readonly minecraftServers: MinecraftServerService,
+    private readonly beaconLib: BeaconLibService,
   ) {}
 
   async getHomePortal(userId?: string) {
@@ -175,6 +179,97 @@ export class PortalService {
       navigation: config.navigation,
       cards,
     };
+  }
+
+  /**
+   * 门户 Header 公共 Minecraft 状态聚合（无需登录）
+   * - 基于 MinecraftServer 配置
+   * - 结合最近一次 Ping 记录、Beacon 时间信息、MCSM 状态
+   */
+  async getPublicHeaderMinecraftStatus() {
+    // 仅取启用的、已激活的服务器，按 displayOrder 排序
+    const servers = await this.prisma.minecraftServer.findMany({
+      where: { isActive: true },
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    if (!servers.length) {
+      return { servers: [] } as const;
+    }
+
+    // 批量查询：最近一次 ping 记录 + 可能的 beacon 缓存 + mcsm 状态
+    const results = await Promise.all(
+      servers.map(async (server) => {
+        // 最近一条 Ping 记录
+        const lastPing = await this.prisma.minecraftServerPingRecord.findFirst({
+          where: { serverId: server.id },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        // 根据 Beacon WS 连接中的最近一次 get_status 快照，推导时钟显示与锁定状态
+        let beaconClock: { displayTime?: string; locked?: boolean } | null = null;
+        try {
+          const beaconSnapshot = this.beaconLib.getCachedStatus(server.id);
+          if (beaconSnapshot && beaconSnapshot.status) {
+            const anyStatus = beaconSnapshot.status as any;
+            const locked = Boolean(anyStatus.time_locked ?? anyStatus.locked);
+            let displayTime: string | undefined;
+            if (typeof anyStatus.display_time === 'string') {
+              displayTime = anyStatus.display_time;
+            } else if (typeof anyStatus.time === 'string') {
+              displayTime = anyStatus.time;
+            }
+            beaconClock = {
+              displayTime,
+              locked,
+            };
+          }
+        } catch (e) {
+          this.logger.debug(
+            `Beacon clock lookup failed for server ${server.id}: ${String(e)}`,
+          );
+        }
+
+        // MCSM 连接状态（通过元数据/最近一次状态记录或配置来粗略判断）
+        const mcsmConnected = Boolean(server.mcsmPanelUrl && server.mcsmInstanceUuid);
+
+        // 将最近一次 ping 记录映射为公共结构（不暴露 raw）
+        let ping: {
+          edition: 'JAVA' | 'BEDROCK';
+          response: {
+            latency?: number | null;
+            players?: { online?: number | null; max?: number | null };
+            motdText?: string | null;
+          };
+        } | null = null;
+
+        if (lastPing) {
+          ping = {
+            edition: lastPing.edition as 'JAVA' | 'BEDROCK',
+            response: {
+              latency: lastPing.latency,
+              players: {
+                online: lastPing.onlinePlayers,
+                max: lastPing.maxPlayers,
+              },
+              motdText: lastPing.motd,
+            },
+          };
+        }
+
+        return {
+          id: server.id,
+          displayName: server.displayName,
+          code: `${server.internalCodeCn} / ${server.internalCodeEn}`,
+          edition: server.edition,
+          beacon: beaconClock ? { clock: beaconClock } : null,
+          ping,
+          mcsmConnected,
+        };
+      }),
+    );
+
+    return { servers: results };
   }
 
   async getAdminOverview(operatorId: string | null) {
