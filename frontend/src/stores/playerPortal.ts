@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
 import { apiFetch } from '@/utils/api'
+import { useAuthStore } from '@/stores/auth'
 import type {
   PlayerActionsResponse,
   PlayerAssetsResponse,
   PlayerLoginMap,
   PlayerMinecraftResponse,
+  PlayerPortalProfileResponse,
   PlayerRegionResponse,
   PlayerStatsResponse,
   PlayerSummary,
@@ -23,6 +25,8 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     region: null as PlayerRegionResponse | null,
     minecraft: null as PlayerMinecraftResponse | null,
     stats: null as PlayerStatsResponse | null,
+    viewerId: null as string | null,
+    targetUserId: null as string | null,
     loading: false,
     submitting: false,
     rankCategories: [] as RankCategoryInfo[],
@@ -30,47 +34,63 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     rankContext: null as RankContextResponse | null,
   }),
   actions: {
-    async fetchSummary(force = false) {
-      if (this.summary && !force) return this.summary
-      this.summary = await apiFetch<PlayerSummary>('/portal/player/summary')
-      return this.summary
+    authToken() {
+      const auth = useAuthStore()
+      return auth.token ?? null
     },
-    async fetchLoginMap(force = false) {
-      if (this.loginMap && !force) return this.loginMap
-      this.loginMap = await apiFetch<PlayerLoginMap>(
-        '/portal/player/login-map',
-      )
-      return this.loginMap
+    async fetchProfile(options: {
+      id?: string
+      period?: string
+      actionsPage?: number
+    } = {}) {
+      const params = new URLSearchParams()
+      if (options.id) params.set('id', options.id)
+      if (options.period) params.set('period', options.period)
+      if (options.actionsPage) {
+        params.set('actionsPage', String(options.actionsPage))
+      }
+      this.loading = true
+      try {
+        const query = params.toString()
+        const response = await apiFetch<PlayerPortalProfileResponse>(
+          `/portal/player/profile${query ? `?${query}` : ''}`,
+          { token: this.authToken() ?? undefined },
+        )
+        this.summary = response.summary
+        this.loginMap = response.loginMap
+        this.actions = response.actions
+        this.assets = response.assets
+        this.region = response.region
+        this.minecraft = response.minecraft
+        this.stats = response.stats
+        this.viewerId = response.viewerId
+        this.targetUserId = response.targetId
+        return response
+      } finally {
+        this.loading = false
+      }
     },
-    async fetchActions(page = 1) {
+    async fetchActions(page = 1, id?: string) {
+      const params = new URLSearchParams({ page: String(page) })
+      const effectiveId = id ?? this.targetUserId
+      if (effectiveId) {
+        params.set('id', effectiveId)
+      }
       this.actions = await apiFetch<PlayerActionsResponse>(
-        `/portal/player/actions?page=${page}`,
+        `/portal/player/actions?${params.toString()}`,
+        { token: this.authToken() ?? undefined },
       )
       return this.actions
     },
-    async fetchAssets(force = false) {
-      if (this.assets && !force) return this.assets
-      this.assets = await apiFetch<PlayerAssetsResponse>('/portal/player/assets')
-      return this.assets
-    },
-    async fetchRegion(force = false) {
-      if (this.region && !force) return this.region
-      this.region = await apiFetch<PlayerRegionResponse>('/portal/player/region')
-      return this.region
-    },
-    async fetchMinecraft(force = false) {
-      if (this.minecraft && !force) return this.minecraft
-      this.minecraft = await apiFetch<PlayerMinecraftResponse>(
-        '/portal/player/minecraft',
-      )
-      return this.minecraft
-    },
-    async fetchStats(period = '30d', force = false) {
-      if (this.stats && !force && this.stats.period === period) {
-        return this.stats
+    async fetchStats(period = '30d', id?: string) {
+      const params = new URLSearchParams({ period })
+      const effectiveId = id ?? this.targetUserId
+      if (effectiveId) {
+        params.set('id', effectiveId)
       }
       this.stats = await apiFetch<PlayerStatsResponse>(
-        `/portal/player/stats?period=${period}`,
+        `/portal/player/stats?${params.toString()}`,
+        { token: this.authToken() ?? undefined },
       )
       return this.stats
     },
@@ -80,6 +100,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         await apiFetch('/portal/player/authme/reset-password', {
           method: 'POST',
           body: { reason },
+          token: this.authToken() ?? undefined,
         })
       } finally {
         this.submitting = false
@@ -91,6 +112,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         await apiFetch('/portal/player/authme/force-login', {
           method: 'POST',
           body: { reason },
+          token: this.authToken() ?? undefined,
         })
       } finally {
         this.submitting = false
@@ -102,6 +124,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         await apiFetch('/portal/player/permissions/request-change', {
           method: 'POST',
           body: { targetGroup, reason },
+          token: this.authToken() ?? undefined,
         })
       } finally {
         this.submitting = false
@@ -113,6 +136,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         await apiFetch('/portal/player/server/restart-request', {
           method: 'POST',
           body: { serverId, reason },
+          token: this.authToken() ?? undefined,
         })
       } finally {
         this.submitting = false
@@ -139,6 +163,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     async fetchRankContext(category: string, period: string) {
       this.rankContext = await apiFetch<RankContextResponse>(
         `/portal/rank/me?category=${category}&period=${period}`,
+        { token: this.authToken() ?? undefined },
       )
       return this.rankContext
     },
@@ -150,6 +175,8 @@ export const usePlayerPortalStore = defineStore('player-portal', {
       this.region = null
       this.minecraft = null
       this.stats = null
+      this.viewerId = null
+      this.targetUserId = null
       this.rankContext = null
       this.leaderboard = null
     },

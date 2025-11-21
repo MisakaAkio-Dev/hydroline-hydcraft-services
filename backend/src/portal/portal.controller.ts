@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -61,6 +62,17 @@ export class PortalController {
     private readonly attachmentsService: AttachmentsService,
   ) {}
 
+  private resolveTargetUserId(req: Request, id?: string | null) {
+    const trimmed = id?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+    if (req.user?.id) {
+      return req.user.id;
+    }
+    throw new BadRequestException('缺少玩家 ID');
+  }
+
   @Get('home')
   @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '获取门户首页内容（可选登录）' })
@@ -79,79 +91,99 @@ export class PortalController {
     return this.portalService.getPublicHeaderMinecraftStatus();
   }
 
+  @Get('player/profile')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: '整合获取玩家档案（可通过 id 查询）' })
+  async playerProfile(
+    @Req() req: Request,
+    @Query('id') id?: string,
+    @Query('period') period?: string,
+    @Query('actionsPage') actionsPage?: string,
+  ) {
+    const targetId = this.resolveTargetUserId(req, id);
+    const pageNumber = actionsPage ? Number(actionsPage) : undefined;
+    return this.portalService.getPlayerPortalData(req.user?.id ?? null, targetId, {
+      period,
+      actionsPage: Number.isFinite(pageNumber) ? pageNumber : undefined,
+    });
+  }
+
   @Get('player/summary')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '获取当前玩家档案概要' })
-  async playerSummary(@Req() req: Request) {
-    return this.portalService.getPlayerSummary(req.user!.id);
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: '获取玩家档案概要' })
+  async playerSummary(@Req() req: Request, @Query('id') id?: string) {
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.portalService.getPlayerSummary(targetId);
   }
 
   @Get('player/login-map')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '获取玩家最近登录 IP 分布' })
   async playerLoginMap(
     @Req() req: Request,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('id') id?: string,
   ) {
     const fromDate = from ? new Date(from) : undefined;
     const toDate = to ? new Date(to) : undefined;
-    return this.portalService.getPlayerLoginMap(req.user!.id, {
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.portalService.getPlayerLoginMap(targetId, {
       from: fromDate && !Number.isNaN(fromDate.getTime()) ? fromDate : undefined,
       to: toDate && !Number.isNaN(toDate.getTime()) ? toDate : undefined,
     });
   }
 
   @Get('player/actions')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '玩家历史操作记录' })
   async playerActions(
     @Req() req: Request,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('id') id?: string,
   ) {
-    return this.portalService.getPlayerActions(req.user!.id, {
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.portalService.getPlayerActions(targetId, {
       page: page ? Number(page) : undefined,
       pageSize: pageSize ? Number(pageSize) : undefined,
     });
   }
 
   @Get('player/assets')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '玩家名下资产概览' })
-  async playerAssets(@Req() req: Request) {
-    return this.portalService.getPlayerAssets(req.user!.id);
+  async playerAssets(@Req() req: Request, @Query('id') id?: string) {
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.portalService.getPlayerAssets(targetId);
   }
 
   @Get('player/region')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '玩家行政区信息' })
-  async playerRegion(@Req() req: Request) {
-    return this.portalService.getPlayerRegion(req.user!.id);
+  async playerRegion(@Req() req: Request, @Query('id') id?: string) {
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.portalService.getPlayerRegion(targetId);
   }
 
   @Get('player/minecraft')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '玩家服务器账户与权限' })
-  async playerMinecraft(@Req() req: Request) {
-    return this.portalService.getPlayerMinecraftData(req.user!.id);
+  async playerMinecraft(@Req() req: Request, @Query('id') id?: string) {
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.portalService.getPlayerMinecraftData(targetId);
   }
 
   @Get('player/stats')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '玩家统计信息' })
   async playerStats(
     @Req() req: Request,
     @Query('period') period?: string,
+    @Query('id') id?: string,
   ) {
-    return this.portalService.getPlayerStats(req.user!.id, period);
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.portalService.getPlayerStats(targetId, period);
   }
 
   @Post('player/authme/reset-password')

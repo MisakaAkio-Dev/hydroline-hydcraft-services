@@ -195,6 +195,18 @@ export interface PlayerStatsResponse {
   }>
 }
 
+export interface PlayerPortalProfileResponse {
+  viewerId: string | null
+  targetId: string
+  summary: PlayerSummary
+  loginMap: PlayerLoginMap
+  actions: PlayerActionsResponse
+  assets: PlayerAssetsResponse
+  region: PlayerRegionResponse
+  minecraft: PlayerMinecraftResponse
+  stats: PlayerStatsResponse
+}
+
 export interface RankCategoryInfo {
   id: string
   name: string

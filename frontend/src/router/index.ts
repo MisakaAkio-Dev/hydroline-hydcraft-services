@@ -14,7 +14,7 @@ export const userRoutes: RouteRecordRaw[] = [
         meta: { layout: 'user', title: '仪表盘', icon: 'i-lucide-home' },
       },
       {
-        path: 'player',
+        path: 'player/:playerId?',
         name: 'player',
         component: () => import('@/views/user/Player/PlayerView.vue'),
         meta: {

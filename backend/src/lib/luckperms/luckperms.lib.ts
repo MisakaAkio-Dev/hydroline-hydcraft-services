@@ -30,6 +30,7 @@ export interface LuckpermsLibOptions {
 }
 
 const DEFAULT_LIMIT = 100;
+const QUERY_TIMEOUT_MS = 2000;
 
 export class MysqlLuckpermsLib implements LuckpermsLib {
   readonly pool: Pool;
@@ -191,7 +192,11 @@ export class MysqlLuckpermsLib implements LuckpermsLib {
         try {
           connection = await this.pool.getConnection();
           await this.ensureHealthyConnection(connection);
-          const [rows] = await connection.query(sql, params);
+          const [rows] = await this.executeQueryWithTimeout(
+            connection,
+            sql,
+            params,
+          );
           this.metrics?.setConnected(true);
           return rows as T;
         } catch (error) {
@@ -262,6 +267,29 @@ export class MysqlLuckpermsLib implements LuckpermsLib {
       }
     }
   }
+
+  private async executeQueryWithTimeout(
+    connection: PoolConnection,
+    sql: string,
+    params: unknown[],
+  ) {
+    let timer: NodeJS.Timeout | null = null;
+    try {
+      const queryPromise = connection.query(sql, params);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          connection.destroy();
+          reject(createQueryTimeoutError(QUERY_TIMEOUT_MS));
+        }, QUERY_TIMEOUT_MS);
+        timer.unref?.();
+      });
+      return await Promise.race([queryPromise, timeoutPromise]);
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
+  }
 }
 
 type LuckpermsPlayerRow = RowDataPacket & {
@@ -296,6 +324,7 @@ function resolveStage(error: unknown): 'DNS' | 'CONNECT' | 'AUTH' | 'QUERY' {
       'PROTOCOL_CONNECTION_LOST',
       'EHOSTUNREACH',
       'PING_TIMEOUT',
+      'QUERY_TIMEOUT',
     ].includes(normalized)
   ) {
     return 'CONNECT';
@@ -331,6 +360,7 @@ function isRetryableConnectCode(code?: string): boolean {
     'EHOSTUNREACH',
     'PROTOCOL_CONNECTION_LOST',
     'PING_TIMEOUT',
+    'QUERY_TIMEOUT',
   ].includes(c);
 }
 
@@ -347,6 +377,14 @@ function createPingTimeoutError(timeoutMs: number) {
     `LuckPerms connection ping timed out after ${timeoutMs}ms`,
   ) as Error & { code?: string };
   error.code = 'PING_TIMEOUT';
+  return error;
+}
+
+function createQueryTimeoutError(timeoutMs: number) {
+  const error = new Error(
+    `LuckPerms query timed out after ${timeoutMs}ms`,
+  ) as Error & { code?: string };
+  error.code = 'QUERY_TIMEOUT';
   return error;
 }
 

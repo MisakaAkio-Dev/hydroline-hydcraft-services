@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePlayerPortalStore } from '@/stores/playerPortal'
 import { apiFetch } from '@/utils/api'
@@ -7,7 +8,7 @@ import type { PlayerLoginCluster } from '@/types/portal'
 
 const auth = useAuthStore()
 const playerStore = usePlayerPortalStore()
-const loading = ref(true)
+const route = useRoute()
 const statsPeriod = ref('30d')
 const serverOptions = ref<Array<{ id: string; displayName: string }>>([])
 const permissionDialog = reactive({
@@ -23,6 +24,25 @@ const restartDialog = reactive({
 const actionsPage = ref(1)
 const toast = useToast()
 
+const targetPlayerParam = computed(() => {
+  const param = route.params.playerId
+  if (Array.isArray(param)) {
+    return param[0] ?? null
+  }
+  return (param as string | undefined) ?? null
+})
+
+const canViewProfile = computed(
+  () => Boolean(targetPlayerParam.value) || auth.isAuthenticated,
+)
+
+const isViewingSelf = computed(() => {
+  if (!auth.user?.id || !playerStore.targetUserId) {
+    return false
+  }
+  return auth.user.id === playerStore.targetUserId
+})
+
 const summary = computed(() => playerStore.summary)
 const ownership = computed(() => summary.value?.ownership ?? null)
 const loginMap = computed(() => playerStore.loginMap)
@@ -34,6 +54,7 @@ const region = computed(() => playerStore.region)
 const minecraft = computed(() => playerStore.minecraft)
 const stats = computed(() => playerStore.stats)
 const actions = computed(() => playerStore.actions)
+const storeLoading = computed(() => playerStore.loading)
 
 const regionPositions: Record<string, { x: number; y: number }> = {
   北京: { x: 70, y: 18 },
@@ -60,43 +81,56 @@ const regionPositions: Record<string, { x: number; y: number }> = {
   UnitedStates: { x: 10, y: 30 },
 }
 
-async function initialize() {
-  loading.value = true
-  try {
-    await Promise.all([
-      playerStore.fetchSummary(),
-      playerStore.fetchAssets(),
-      playerStore.fetchLoginMap(),
-      playerStore.fetchRegion(),
-      playerStore.fetchMinecraft(),
-      playerStore.fetchStats(statsPeriod.value),
-      playerStore.fetchActions(actionsPage.value),
-    ])
-    const publicServers = await apiFetch<{
-      servers: Array<{ id: string; displayName: string }>
-    }>('/portal/header/minecraft-status')
-    serverOptions.value = publicServers.servers ?? []
-  } catch (error) {
-    console.error('Failed to initialize player view', error)
-  } finally {
-    loading.value = false
+async function loadServerOptions() {
+  const publicServers = await apiFetch<{
+    servers: Array<{ id: string; displayName: string }>
+  }>('/portal/header/minecraft-status')
+  serverOptions.value = publicServers.servers ?? []
+}
+
+async function loadProfile(actionsPageOverride?: number) {
+  if (!canViewProfile.value) {
+    playerStore.reset()
+    return
   }
+  const nextPage = actionsPageOverride ?? actionsPage.value
+  actionsPage.value = nextPage
+  await playerStore.fetchProfile({
+    id: targetPlayerParam.value ?? undefined,
+    period: statsPeriod.value,
+    actionsPage: nextPage,
+  })
 }
 
 onMounted(() => {
-  void initialize()
+  void loadServerOptions()
+  void loadProfile(1)
 })
 
 watch(
-  () => statsPeriod.value,
-  async (value) => {
-    await playerStore.fetchStats(value, true)
+  () => [targetPlayerParam.value, statsPeriod.value],
+  () => {
+    actionsPage.value = 1
+    void loadProfile(1)
+  },
+)
+
+watch(
+  () => auth.isAuthenticated,
+  () => {
+    if (!targetPlayerParam.value) {
+      actionsPage.value = 1
+      void loadProfile(1)
+    }
   },
 )
 
 async function refreshActions(page = 1) {
   actionsPage.value = page
-  await playerStore.fetchActions(actionsPage.value)
+  await playerStore.fetchActions(
+    actionsPage.value,
+    targetPlayerParam.value ?? undefined,
+  )
 }
 
 async function handleAuthmeReset() {
@@ -223,7 +257,7 @@ function formatMetricValue(value: number, unit: string) {
         </p>
       </div>
       <RouterLink
-        v-if="auth.isAuthenticated"
+        v-if="isViewingSelf"
         to="/profile"
         class="inline-flex items-center gap-2 rounded-full border border-primary-200 px-4 py-1.5 text-sm font-medium text-primary-600 transition hover:border-primary-300 hover:text-primary-500 dark:border-primary-500/40 dark:text-primary-200"
       >
@@ -232,9 +266,26 @@ function formatMetricValue(value: number, unit: string) {
       </RouterLink>
     </header>
 
-    <div class="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
+    <UCard
+      v-if="!canViewProfile"
+      class="mt-8 bg-white/80 text-sm text-slate-600 shadow-sm backdrop-blur dark:bg-slate-900/70 dark:text-slate-300"
+    >
+      <p>
+        请登录账户或通过
+        <code class="rounded bg-slate-100 px-2 py-0.5 dark:bg-slate-800">/player/&lt;玩家ID&gt;</code>
+        指定要查看的玩家档案。
+      </p>
+    </UCard>
+
+    <div
+      v-else
+      class="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]"
+    >
       <div class="space-y-6">
-        <UCard class="bg-white/85 shadow-sm backdrop-blur dark:bg-slate-900/70">
+        <UCard
+          v-if="isViewingSelf"
+          class="bg-white/85 shadow-sm backdrop-blur dark:bg-slate-900/70"
+        >
           <template #header>
             <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
               档案概要

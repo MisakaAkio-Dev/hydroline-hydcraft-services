@@ -349,6 +349,47 @@ export class PortalService {
     };
   }
 
+  async getPlayerPortalData(
+    viewerId: string | null,
+    targetUserId: string,
+    options: { period?: string; actionsPage?: number; actionsPageSize?: number } = {},
+  ) {
+    const period = options.period ?? '30d';
+    const actionsPage = Math.max(options.actionsPage ?? 1, 1);
+    const actionsPageSize = Math.min(Math.max(options.actionsPageSize ?? 10, 1), 50);
+    const [
+      summary,
+      loginMap,
+      assets,
+      region,
+      minecraft,
+      stats,
+      actions,
+    ] = await Promise.all([
+      this.getPlayerSummary(targetUserId),
+      this.getPlayerLoginMap(targetUserId, {}),
+      this.getPlayerAssets(targetUserId),
+      this.getPlayerRegion(targetUserId),
+      this.getPlayerMinecraftData(targetUserId),
+      this.getPlayerStats(targetUserId, period),
+      this.getPlayerActions(targetUserId, {
+        page: actionsPage,
+        pageSize: actionsPageSize,
+      }),
+    ]);
+    return {
+      viewerId,
+      targetId: targetUserId,
+      summary,
+      loginMap,
+      assets,
+      region,
+      minecraft,
+      stats,
+      actions,
+    };
+  }
+
   private async collectServerSnapshots(): Promise<PortalServerSnapshot[]> {
     const servers = await this.prisma.minecraftServer.findMany({
       where: { isActive: true },
