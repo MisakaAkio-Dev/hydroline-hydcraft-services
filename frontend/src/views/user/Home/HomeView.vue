@@ -19,6 +19,7 @@ const observer = ref<IntersectionObserver | null>(null)
 const cycleTimer = ref<number | null>(null)
 const scrolled = ref(false)
 const heroImageLoaded = ref(false)
+const homeLoaded = ref(false)
 const heroPreviewOpen = ref(false)
 
 const navigationLinks = computed(() => home.value?.navigation ?? [])
@@ -46,7 +47,7 @@ const activeHeroBackground = computed(
 )
 
 const activeHeroImage = computed(
-  () => activeHeroBackground.value?.imageUrl ?? fallbackHeroImage,
+  () => activeHeroBackground.value?.imageUrl || null,
 )
 
 const activeHeroDescription = computed(() =>
@@ -149,6 +150,8 @@ onMounted(async () => {
     }
   }
 
+  homeLoaded.value = true
+
   updateScrollState()
   window.addEventListener('scroll', updateScrollState, { passive: true })
 
@@ -247,17 +250,42 @@ function formatLatency(value: number | null | undefined) {
       class="relative flex min-h-[60vh] flex-col items-center justify-center px-4 py-24 text-center"
     >
       <div
+        v-if="homeLoaded && (activeHeroImage || fallbackHeroImage)"
         class="fixed inset-0 left-16 bottom-24 z-0 flex flex-col items-center justify-center transition duration-300"
         :style="heroBackdropStyle"
       >
         <div
-          class="bg-image relative block h-full w-full cursor-zoom-in select-none overflow-hidden rounded-2xl text-left focus:outline-none"
+          class="bg-image relative block h-full w-full select-none overflow-hidden rounded-2xl text-left focus:outline-none"
         >
           <Motion
-            :key="activeHeroImage"
+            v-if="activeHeroImage"
+            :key="activeHeroImage as string"
             as="img"
-            :src="activeHeroImage"
+            :src="activeHeroImage as string"
             :alt="activeHeroDescription"
+            class="block h-full w-full object-cover object-top"
+            :initial="{
+              opacity: 0.2,
+              scale: 1.03,
+              filter: 'blur(18px) saturate(1.4)',
+            }"
+            :animate="{
+              opacity: heroImageLoaded ? 1 : 0.2,
+              scale: heroImageLoaded ? 1 : 1.03,
+              filter: heroImageLoaded
+                ? 'blur(0px) saturate(1)'
+                : 'blur(18px) saturate(1.4)',
+            }"
+            :transition="{ duration: 0.6, ease: 'easeOut' }"
+            @load="handleHeroImageLoaded"
+            @error="handleHeroImageErrored"
+          />
+          <Motion
+            v-else
+            key="fallback-hero"
+            as="img"
+            :src="fallbackHeroImage"
+            :alt="activeHeroDescription || 'Hydroline Portal 背景图'"
             class="block h-full w-full object-cover object-top"
             :initial="{
               opacity: 0.2,
@@ -280,19 +308,32 @@ function formatLatency(value: number | null | undefined) {
 
       <Transition name="fade-slide" mode="out-in">
         <div class="flex flex-col items-center gap-6 relative z-1">
-          <div class="space-y-2">
+          <Motion
+            as="div"
+            class="space-y-2"
+            :initial="{ opacity: 0, filter: 'blur(6px)', y: 8 }"
+            :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
+            :transition="{ duration: 0.35, ease: 'easeOut' }"
+          >
             <h1 class="drop-shadow-sm">
               <HydrolineTextBold
                 class="h-28 text-slate-600 dark:text-slate-300"
               />
             </h1>
-            <p
-              class="text-sm uppercase text-slate-500 dark:text-slate-300"
+
+            <Motion
               v-if="heroSubtitle"
+              :key="heroSubtitle"
+              as="p"
+              class="text-sm uppercase text-slate-500 dark:text-slate-300"
+              :initial="{ opacity: 0, filter: 'blur(6px)', y: 8 }"
+              :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
+              :exit="{ opacity: 0, filter: 'blur(6px)', y: -4 }"
+              :transition="{ duration: 0.25, ease: 'easeOut' }"
             >
               {{ heroSubtitle }}
-            </p>
-          </div>
+            </Motion>
+          </Motion>
 
           <div class="flex flex-wrap items-center justify-center gap-4">
             <UTooltip
@@ -584,7 +625,7 @@ function formatLatency(value: number | null | undefined) {
     <template #content>
       <div class="space-y-2">
         <img
-          :src="activeHeroImage"
+          :src="(activeHeroImage as string) || fallbackHeroImage"
           :alt="activeHeroDescription"
           class="rounded-2xl object-cover"
         />

@@ -15,13 +15,13 @@ import HydrolineSvg from '@/assets/resources/hydroline_logo.svg'
 import MinecraftServerClockPopover from './components/MinecraftServerClockPopover.vue'
 import DesktopSidebar from './components/DesktopSidebar.vue'
 import MobileSidebar from './components/MobileSidebar.vue'
+import AurLemonText from '@/assets/resources/aurlemon_text.svg'
 
 const authStore = useAuthStore()
 const uiStore = useUiStore()
 const route = useRoute()
 const router = useRouter()
 
-// 当前布局无需直接使用 portalStore.home
 const { heroInView, heroActiveDescription } = storeToRefs(uiStore)
 
 const menuOpen = ref(false)
@@ -83,7 +83,13 @@ const headerTitle = computed(() => {
   return 'Hydroline'
 })
 
-// 已改为使用静态 key（header-title / header-logo）进行过渡，这里的动态 key 不再需要
+const headerVariant = computed(() => {
+  if (!isMainPage.value) {
+    return 'brand'
+  }
+  return isScrolled.value ? 'logo' : 'title'
+})
+
 type MaybeUser = {
   profile?: { avatarUrl?: string; displayName?: string } | null
   image?: string | null
@@ -189,7 +195,6 @@ const routerPush = (path: string) => {
     <AppLoadingBar />
     <AuthDialog />
 
-    <!-- Desktop Sidebar -->
     <DesktopSidebar
       :is-sidebar-collapsed="isSidebarCollapsed"
       :main-nav="mainNav"
@@ -197,7 +202,6 @@ const routerPush = (path: string) => {
       @toggle="toggleDesktopSidebar"
     />
 
-    <!-- Mobile Sidebar (Drawer) -->
     <MobileSidebar
       :menu-open="menuOpen"
       :main-nav="mainNav"
@@ -205,7 +209,6 @@ const routerPush = (path: string) => {
       @close="menuOpen = false"
     />
 
-    <!-- Main Content Wrapper -->
     <div
       class="flex min-h-[110vh] flex-col transition-all duration-300"
       :class="[isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64']"
@@ -221,7 +224,6 @@ const routerPush = (path: string) => {
         }"
       >
         <div class="flex items-center gap-3">
-          <!-- Mobile Toggle -->
           <UButton
             color="neutral"
             variant="ghost"
@@ -238,28 +240,22 @@ const routerPush = (path: string) => {
           <div class="flex items-center justify-center">
             <AnimatePresence mode="wait">
               <Motion
-                v-if="isMainPage && !isScrolled"
-                :key="headerTitle"
-                as="p"
-                class="text-lg text-slate-400 dark:text-white/50"
-                :initial="{ opacity: 0, filter: 'blur(4px)' }"
-                :animate="{ opacity: 1, filter: 'blur(0px)' }"
-                :exit="{ opacity: 0, filter: 'blur(4px)' }"
-                :transition="{ duration: 0.2 }"
-              >
-                {{ headerTitle }}
-              </Motion>
-              <Motion
-                v-else-if="isMainPage"
-                key="header-logo"
+                :key="headerVariant"
                 as="div"
-                class="flex items-center"
+                class="flex items-center justify-center"
                 :initial="{ opacity: 0, filter: 'blur(4px)' }"
                 :animate="{ opacity: 1, filter: 'blur(0px)' }"
                 :exit="{ opacity: 0, filter: 'blur(4px)' }"
                 :transition="{ duration: 0.2 }"
               >
-                <HydrolineSvg class="h-6 text-slate-500 dark:text-white/75" />
+                <template v-if="headerVariant === 'title'">
+                  <p class="text-lg text-slate-400 dark:text-white/50">
+                    {{ headerTitle }}
+                  </p>
+                </template>
+                <template v-else>
+                  <HydrolineSvg class="h-6 text-slate-500 dark:text-white/75" />
+                </template>
               </Motion>
             </AnimatePresence>
           </div>
@@ -349,11 +345,27 @@ const routerPush = (path: string) => {
         @close="menuOpen = false"
       />
 
-      <main class="pt-4">
+      <main class="pt-4 mb-8">
         <RouterView />
       </main>
 
-      <footer class="mt-auto py-4 px-6 lg:py-8">
+      <footer class="mt-auto flex flex-col items-center py-4 px-6 lg:py-8">
+        <div
+          class="w-fit flex justify-center mb-10 rounded-2xl px-3 py-1.5 border border-slate-200/50"
+        >
+          <span class="flex items-center text-xs text-slate-500 dark:text-slate-500">
+            <span class="mr-2"> Developed by </span>
+            <span class="flex gap-1.5 items-center">
+              <img
+                class="block h-4 rounded-full select-none"
+                src="@/assets/resources/aurlemon_logo.jpg"
+                alt="AurLemon Logo"
+              />
+              <AurLemonText class="h-3.5 mx-auto text-primary-700" />
+            </span>
+            <span class="ml-2"> and Started in November 2025 </span>
+          </span>
+        </div>
         <div
           class="mx-auto flex flex-col-reverse items-center w-full gap-3 text-sm text-slate-500 dark:text-slate-400 lg:flex-row lg:justify-between lg:max-w-5xl"
         >
