@@ -16,6 +16,7 @@ import MinecraftServerClockPopover from './components/MinecraftServerClockPopove
 import DesktopSidebar from './components/DesktopSidebar.vue'
 import MobileSidebar from './components/MobileSidebar.vue'
 import AurLemonText from '@/assets/resources/aurlemon_text.svg'
+import HoverLinkPreview from '@/components/common/HoverLinkPreview.vue'
 
 const authStore = useAuthStore()
 const uiStore = useUiStore()
@@ -249,9 +250,22 @@ const routerPush = (path: string) => {
                 :transition="{ duration: 0.2 }"
               >
                 <template v-if="headerVariant === 'title'">
-                  <p class="text-lg text-slate-400 dark:text-white/50">
+                  <UButton
+                    v-if="uiStore.previewMode"
+                    color="neutral"
+                    variant="link"
+                    class="font-normal text-lg text-slate-400 dark:text-white/50"
+                    @click="uiStore.previewMode = true"
+                  >
                     {{ headerTitle }}
-                  </p>
+                  </UButton>
+                  <div
+                    v-else
+                    class="font-normal text-lg text-slate-400 dark:text-white/50"
+                    @click="uiStore.previewMode = false"
+                  >
+                    退出预览
+                  </div>
                 </template>
                 <template v-else>
                   <HydrolineSvg class="h-6 text-slate-500 dark:text-white/75" />
@@ -351,20 +365,28 @@ const routerPush = (path: string) => {
 
       <footer class="mt-auto flex flex-col items-center py-4 px-6 lg:py-8">
         <div
-          class="w-fit flex justify-center mb-10 rounded-2xl px-3 py-1.5 border border-slate-200/50"
+          class="w-fit flex justify-center mb-10 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 hover:bg-accented/50 transition"
         >
-          <span class="flex items-center text-xs text-slate-500 dark:text-slate-500">
-            <span class="mr-2"> Developed by </span>
-            <span class="flex gap-1.5 items-center">
-              <img
-                class="block h-4 rounded-full select-none"
-                src="@/assets/resources/aurlemon_logo.jpg"
-                alt="AurLemon Logo"
-              />
-              <AurLemonText class="h-3.5 mx-auto text-primary-700" />
+          <HoverLinkPreview
+            url="https://aurlemon.top"
+            :width="300"
+            :height="180"
+            link-class="block px-3 py-1.5"
+          >
+            <span
+              class="flex items-center text-xs text-slate-500 dark:text-slate-500"
+            >
+              <span class="mr-2">Developed by</span>
+              <span class="flex gap-1 items-center">
+                <img
+                  class="block h-4 rounded-full select-none"
+                  src="@/assets/resources/aurlemon_logo.jpg"
+                  alt="AurLemon Logo"
+                />
+                <AurLemonText class="h-3.5 mx-auto text-primary-700" />
+              </span>
             </span>
-            <span class="ml-2"> and Started in November 2025 </span>
-          </span>
+          </HoverLinkPreview>
         </div>
         <div
           class="mx-auto flex flex-col-reverse items-center w-full gap-3 text-sm text-slate-500 dark:text-slate-400 lg:flex-row lg:justify-between lg:max-w-5xl"

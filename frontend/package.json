@@ -26,6 +26,7 @@
     "echarts": "^6.0.0",
     "motion-v": "^1.7.4",
     "pinia": "^3.0.3",
+    "qss": "^3.0.0",
     "reka-ui": "^2.6.0",
     "skinview3d": "^3.4.1",
     "tailwindcss": "^4.1.16",

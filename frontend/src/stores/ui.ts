@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { preview } from 'vite'
 
 type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -15,6 +16,7 @@ function getSystemTheme(): 'light' | 'dark' {
   if (typeof window === 'undefined') {
     return 'light'
   }
+  
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
@@ -27,6 +29,7 @@ export const useUiStore = defineStore('ui', {
     loginDialogOpen: false,
     heroInView: true,
     heroActiveDescription: '',
+    previewMode: false,
   }),
   getters: {
     isLoading(state) {

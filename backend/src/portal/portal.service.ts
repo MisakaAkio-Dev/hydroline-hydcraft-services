@@ -291,62 +291,30 @@ export class PortalService {
   }
 
   async getHomePortal(userId?: string) {
-    let config: {
-      hero: {
-        subtitle: string;
-        background: Array<{ imageUrl: string; description: string | null }>;
-      };
-      navigation: NavigationLink[];
-      cardsConfig: Record<string, PortalCardVisibilityConfig>;
-    };
-
+    // Simplified home portal response as per new requirement:
+    // Only return hero section. Keep minimal config loading; omit user/authme/mcsm/server aggregations.
+      // We still attempt to read portal home config to allow future extension without changing this method signature.
+      let hero: { subtitle: string; background: Array<{ imageUrl: string; description: string | null }> };
     try {
       const resolved = await this.portalConfigService.getResolvedHomeContent();
-      config = {
-        hero: resolved.hero,
-        navigation: resolved.navigation as NavigationLink[],
-        cardsConfig: resolved.cardsConfig,
-      };
+      hero = resolved.hero;
     } catch (error) {
       this.logger.warn(`Failed to load portal home config: ${String(error)}`);
-      config = {
-        hero: {
-          subtitle: DEFAULT_PORTAL_HOME_CONFIG.hero.subtitle,
-          background: [],
-        },
-        navigation: [],
-        cardsConfig: DEFAULT_PORTAL_HOME_CONFIG.cards,
+      hero = {
+        subtitle: DEFAULT_PORTAL_HOME_CONFIG.hero.subtitle,
+        background: [],
       };
     }
 
-    let userContext: PortalUserAccessContext | null = null;
-    if (userId) {
-      try {
-        userContext = await this.getUserAccessContext(userId);
-      } catch (error) {
-        this.logger.warn(
-          `Failed to resolve user context ${userId}: ${String(error)}`,
-        );
-      }
-    }
-
-    const cards = this.computeAccessibleCards(config.cardsConfig, userContext);
-    const serverSnapshots = await this.collectServerSnapshots();
-    const [dashboard, serverCards] = await Promise.all([
-      this.buildDashboardPayload(userContext, serverSnapshots),
-      this.buildServerCards(serverSnapshots),
-    ]);
-
-    return {
-      hero: {
-        subtitle: config.hero.subtitle,
-        background: config.hero.background,
-      },
-      navigation: config.navigation,
-      cards,
-      dashboard,
-      serverCards,
-    };
+    // Return only hero plus empty placeholders to keep frontend shape stable.
+      return {
+        hero: {
+          subtitle: hero.subtitle,
+          background: hero.background,
+        },
+        navigation: [],
+        cards: [],
+      };
   }
 
   async getPlayerPortalData(

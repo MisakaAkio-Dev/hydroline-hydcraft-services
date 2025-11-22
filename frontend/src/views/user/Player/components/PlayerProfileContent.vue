@@ -45,7 +45,7 @@ const statsPeriodModel = computed({
     <div class="space-y-6">
       <div
         v-if="props.isViewingSelf"
-        class="bg-white/85 shadow-sm backdrop-blur dark:bg-slate-900/70"
+        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200"
       >
         <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
           档案概要
@@ -100,7 +100,9 @@ const statsPeriodModel = computed({
         <USkeleton v-else class="h-32 w-full" />
       </div>
 
-      <div class="bg-white/85 shadow-sm backdrop-blur dark:bg-slate-900/70">
+      <div
+        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200"
+      >
         <div class="flex items-center justify-between">
           <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
             登录地图
@@ -143,7 +145,9 @@ const statsPeriodModel = computed({
         </div>
       </div>
 
-      <div class="bg-white/85 shadow-sm backdrop-blur dark:bg-slate-900/70">
+      <div
+        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200"
+      >
         <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
           操作记录
         </p>
@@ -189,7 +193,9 @@ const statsPeriodModel = computed({
     </div>
 
     <div class="space-y-6">
-      <div class="bg-white/85 shadow-sm backdrop-blur dark:bg-slate-900/70">
+      <div
+        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200"
+      >
         <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
           名下资产
         </p>
@@ -226,7 +232,9 @@ const statsPeriodModel = computed({
         <USkeleton v-else class="h-28 w-full" />
       </div>
 
-      <div class="bg-white/85 shadow-sm backdrop-blur dark:bg-slate-900/70">
+      <div
+        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200"
+      >
         <div class="flex items-center justify-between">
           <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
             服务器账户
@@ -262,7 +270,9 @@ const statsPeriodModel = computed({
         <USkeleton v-else class="h-32 w-full" />
       </div>
 
-      <div class="bg-white/85 shadow-sm backdrop-blur dark:bg-slate-900/70">
+      <div
+        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200"
+      >
         <div class="flex items-center justify-between">
           <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
             统计信息
@@ -294,7 +304,9 @@ const statsPeriodModel = computed({
         <USkeleton v-else class="h-28 w-full" />
       </div>
 
-      <div class="bg-white/85 shadow-sm backdrop-blur dark:bg-slate-900/70">
+      <div
+        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200"
+      >
         <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
           自助操作
         </p>
