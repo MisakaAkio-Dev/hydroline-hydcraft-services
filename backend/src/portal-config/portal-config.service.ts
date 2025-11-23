@@ -101,6 +101,10 @@ export class PortalConfigService {
           id: item.id,
           attachmentId: item.attachmentId,
           description: item.description ?? null,
+          title: item.title ?? null,
+          subtitle: item.subtitle ?? null,
+          shootAt: item.shootAt ?? null,
+          photographer: item.photographer ?? null,
           imageUrl: resolved?.imageUrl ?? null,
           available: Boolean(resolved),
         };
@@ -121,14 +125,18 @@ export class PortalConfigService {
   }
 
   async updateHeroSubtitle(subtitle: string, options: SaveOptions = {}) {
-    const config = await this.getRawConfig();
-    config.hero.subtitle = subtitle;
-    await this.saveConfig(config, options);
-    return { subtitle: config.hero.subtitle };
+    throw new BadRequestException('Hero subtitle is now per-background');
   }
 
   async addHeroBackground(
-    input: { attachmentId: string; description?: string | null },
+    input: {
+      attachmentId: string;
+      description?: string | null;
+      title?: string | null;
+      subtitle?: string | null;
+      shootAt?: string | null;
+      photographer?: string | null;
+    },
     options: SaveOptions = {},
   ) {
     const attachment = await this.attachmentsService.getAttachmentOrThrow(
@@ -144,6 +152,10 @@ export class PortalConfigService {
       id: randomUUID(),
       attachmentId: input.attachmentId,
       description: input.description?.trim() || null,
+      title: input.title?.trim() || null,
+      subtitle: input.subtitle?.trim() || null,
+      shootAt: input.shootAt || null,
+      photographer: input.photographer?.trim() || null,
     };
 
     const config = await this.getRawConfig();
@@ -159,7 +171,14 @@ export class PortalConfigService {
 
   async updateHeroBackground(
     backgroundId: string,
-    input: { attachmentId?: string; description?: string | null },
+    input: {
+      attachmentId?: string;
+      description?: string | null;
+      title?: string | null;
+      subtitle?: string | null;
+      shootAt?: string | null;
+      photographer?: string | null;
+    },
     options: SaveOptions = {},
   ) {
     const config = await this.getRawConfig();
@@ -184,6 +203,19 @@ export class PortalConfigService {
 
     if (input.description !== undefined) {
       target.description = input.description?.trim() || null;
+    }
+
+    if (input.title !== undefined) {
+      target.title = input.title?.trim() || null;
+    }
+    if (input.subtitle !== undefined) {
+      target.subtitle = input.subtitle?.trim() || null;
+    }
+    if (input.shootAt !== undefined) {
+      target.shootAt = input.shootAt || null;
+    }
+    if (input.photographer !== undefined) {
+      target.photographer = input.photographer?.trim() || null;
     }
 
     await this.saveConfig(config, options);
@@ -340,21 +372,41 @@ export class PortalConfigService {
   ): Promise<
     Array<{
       imageUrl: string;
+      id: string;
       description: string | null;
+      title: string | null;
+      subtitle: string | null;
+      shootAt: string | null;
+      photographer: string | null;
     }>
   > {
     const resolvedItems = await Promise.all(
       items.map((item) => this.resolveBackground(item)),
     );
     return resolvedItems.filter(
-      (item): item is { imageUrl: string; description: string | null } =>
-        Boolean(item),
+      (item): item is {
+        imageUrl: string;
+        id: string;
+        description: string | null;
+        title: string | null;
+        subtitle: string | null;
+        shootAt: string | null;
+        photographer: string | null;
+      } => Boolean(item),
     );
   }
 
   private async resolveBackground(
     item: PortalHomeBackgroundConfig,
-  ): Promise<{ imageUrl: string; description: string | null } | null> {
+  ): Promise<{
+    imageUrl: string;
+    id: string;
+    description: string | null;
+    title: string | null;
+    subtitle: string | null;
+    shootAt: string | null;
+    photographer: string | null;
+  } | null> {
     try {
       const attachment = await this.attachmentsService.getAttachmentOrThrow(
         item.attachmentId,
@@ -366,8 +418,13 @@ export class PortalConfigService {
         return null;
       }
       return {
+        id: item.id,
         imageUrl: this.toPublicUrl(`/attachments/public/${attachment.id}`),
         description: item.description ?? null,
+          title: item.title ?? null,
+          subtitle: item.subtitle ?? null,
+          shootAt: item.shootAt ?? null,
+          photographer: item.photographer ?? null,
       };
     } catch (error) {
       this.logger.warn(
@@ -471,7 +528,11 @@ export class PortalConfigService {
     return {
       id: item.id,
       attachmentId: item.attachmentId,
-      description: item.description ?? null,
+      description: item.description?.trim() || null,
+      title: item.title?.trim() || null,
+      subtitle: item.subtitle?.trim() || null,
+      shootAt: item.shootAt || null,
+      photographer: item.photographer?.trim() || null,
     };
   }
 

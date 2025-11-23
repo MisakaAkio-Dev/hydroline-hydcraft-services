@@ -23,7 +23,8 @@ const uiStore = useUiStore()
 const route = useRoute()
 const router = useRouter()
 
-const { heroInView, heroActiveDescription } = storeToRefs(uiStore)
+const { heroInView, heroActiveDescription, heroActiveSubtitle } =
+  storeToRefs(uiStore)
 
 const menuOpen = ref(false)
 const isSidebarCollapsed = ref(true)
@@ -79,7 +80,11 @@ const headerTitle = computed(() => {
     return '管理工作台'
   }
   if (heroInView.value) {
-    return (heroActiveDescription.value || '').trim() || 'Hydroline'
+    return (
+      (heroActiveSubtitle.value || '').trim() ||
+      (heroActiveDescription.value || '').trim() ||
+      'Hydroline'
+    )
   }
   return 'Hydroline'
 })
@@ -250,22 +255,31 @@ const routerPush = (path: string) => {
                 :transition="{ duration: 0.2 }"
               >
                 <template v-if="headerVariant === 'title'">
-                  <UButton
-                    v-if="uiStore.previewMode"
-                    color="neutral"
-                    variant="link"
-                    class="font-normal text-lg text-slate-400 dark:text-white/50"
-                    @click="uiStore.previewMode = true"
+                  <Motion
+                    :key="uiStore.previewMode ? 'preview' : 'normal'"
+                    as="div"
+                    :initial="{ opacity: 0, filter: 'blur(4px)' }"
+                    :animate="{ opacity: 1, filter: 'blur(0px)' }"
+                    :exit="{ opacity: 0, filter: 'blur(4px)' }"
+                    :transition="{ duration: 0.25 }"
                   >
-                    {{ headerTitle }}
-                  </UButton>
-                  <div
-                    v-else
-                    class="font-normal text-lg text-slate-400 dark:text-white/50"
-                    @click="uiStore.previewMode = false"
-                  >
-                    退出预览
-                  </div>
+                    <UButton
+                      v-if="!uiStore.previewMode"
+                      color="neutral"
+                      variant="link"
+                      class="font-normal text-lg text-slate-400 hover:text-slate-600 transition duration-300 cursor-pointer dark:text-white/50 select-none"
+                      @click="uiStore.previewMode = true"
+                    >
+                      {{ headerTitle }}
+                    </UButton>
+                    <div
+                      v-else
+                      class="font-normal text-lg text-slate-400 hover:text-slate-600 transition duration-300 cursor-pointer dark:text-white/50 select-none"
+                      @click="uiStore.previewMode = false"
+                    >
+                      退出预览
+                    </div>
+                  </Motion>
                 </template>
                 <template v-else>
                   <HydrolineSvg class="h-6 text-slate-500 dark:text-white/75" />
@@ -363,7 +377,14 @@ const routerPush = (path: string) => {
         <RouterView />
       </main>
 
-      <footer class="mt-auto flex flex-col items-center py-4 px-6 lg:py-8">
+      <footer
+        v-show="!uiStore.previewMode"
+        class="mt-auto flex flex-col items-center py-4 px-6 lg:py-8 transition-opacity duration-300"
+        :class="{
+          'opacity-0 pointer-events-none': uiStore.previewMode,
+          'opacity-100': !uiStore.previewMode,
+        }"
+      >
         <div
           class="w-fit flex justify-center mb-10 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 hover:bg-accented/50 transition"
         >

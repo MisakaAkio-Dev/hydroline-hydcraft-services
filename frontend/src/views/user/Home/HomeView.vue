@@ -3,10 +3,10 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePortalStore } from '@/stores/portal'
 import { useUiStore } from '@/stores/ui'
-import { useAuthStore } from '@/stores/auth'
 import HydrolineTextBold from '@/assets/resources/hydroline_text_bold.svg'
 import fallbackHeroImage from '@/assets/images/image_home_background_240730.webp'
 import { Motion } from 'motion-v'
+import dayjs from 'dayjs'
 
 const portalStore = usePortalStore()
 const uiStore = useUiStore()
@@ -20,22 +20,19 @@ const cycleTimer = ref<number | null>(null)
 const scrolled = ref(false)
 const heroImageLoaded = ref(false)
 const homeLoaded = ref(false)
-const heroPreviewOpen = ref(false)
 const heroParallaxOffset = reactive({ x: 0, y: 0 })
+const scrollLockPosition = ref(0)
+
+const heroParallaxAnimatedOffset = computed(() => {
+  if (uiStore.previewMode) {
+    return { x: 0, y: 0 }
+  }
+  return { x: heroParallaxOffset.x, y: heroParallaxOffset.y }
+})
 
 const navigationLinks = computed(() => home.value?.navigation ?? [])
-const cardIds = computed(() => home.value?.cards ?? [])
-const dashboard = computed(() => home.value?.dashboard ?? null)
-const serverOverview = computed(() => dashboard.value?.serverOverview ?? null)
-const ownershipOverview = computed(
-  () => dashboard.value?.ownershipOverview ?? null,
-)
-const applicationOverview = computed(
-  () => dashboard.value?.applicationOverview ?? null,
-)
-const serverCards = computed(() => home.value?.serverCards ?? [])
 
-const heroSubtitle = computed(() => home.value?.hero.subtitle ?? null)
+const heroSubtitle = computed(() => home.value?.hero.subtitle ?? '')
 const heroBackgrounds = computed(() => home.value?.hero.background ?? [])
 
 const carouselState = reactive({
@@ -55,10 +52,30 @@ const activeHeroDescription = computed(() =>
   (activeHeroBackground.value?.description ?? '').trim(),
 )
 
+const activeHeroSubtitle = computed(() =>
+  (activeHeroBackground.value?.subtitle ?? '').trim(),
+)
+
+const activeHeroTitle = computed(() =>
+  (activeHeroBackground.value?.title ?? '').trim(),
+)
+
+const activeHeroPhotographer = computed(() =>
+  (activeHeroBackground.value?.photographer ?? '').trim(),
+)
+
+const activeHeroShootDate = computed(() => {
+  const shootAt = activeHeroBackground.value?.shootAt
+  if (!shootAt) return ''
+  const parsed = dayjs(shootAt)
+  if (!parsed.isValid()) return ''
+  return parsed.format('YYYY.MM.DD')
+})
+
 const showHeroIndicators = computed(() => navigationLinks.value.length > 1)
 
 const heroBackdropStyle = computed(() => {
-  if (!heroImageLoaded.value || heroInView.value) {
+  if (!heroImageLoaded.value || heroInView.value || uiStore.previewMode) {
     return {}
   }
   return {
@@ -68,43 +85,16 @@ const heroBackdropStyle = computed(() => {
   }
 })
 
-const secondaryCards = computed(() =>
-  cardIds.value.filter(
-    (cardId) => cardId !== 'profile' && !cardId.startsWith('dashboard-'),
-  ),
-)
-
-const cardMetadata: Record<string, { title: string; description: string }> = {
-  'server-status': {
-    title: '服务端状态',
-    description: '实时掌握在线人数与运行状态。',
-  },
-  tasks: {
-    title: '任务队列',
-    description: '同步作业与自动化任务的进展情况。',
-  },
-  documents: {
-    title: '文档中心',
-    description: '面向成员的知识库与流程文档。',
-  },
-}
-
-function resolveCardMetadata(cardId: string) {
-  return (
-    cardMetadata[cardId] ?? {
-      title: '功能筹备中',
-      description: '敬请期待更多服务能力。',
-    }
-  )
-}
-
 function updateScrollState() {
   scrolled.value = window.scrollY > 80
   uiStore.setHeroInView(!scrolled.value)
 }
 
-function updateHeroDescription() {
+function updateHeroMetadata() {
   uiStore.setHeroActiveDescription(activeHeroDescription.value)
+  uiStore.setHeroActiveSubtitle(
+    activeHeroSubtitle.value || heroSubtitle.value || '',
+  )
 }
 
 function stopHeroCycle() {
@@ -126,7 +116,7 @@ function startHeroCycle() {
       carouselState.navIndex =
         carouselState.heroIndex % navigationLinks.value.length
     }
-    updateHeroDescription()
+    updateHeroMetadata()
   }, 8000)
 }
 
@@ -138,7 +128,7 @@ function activateNavigation(index: number) {
   if (heroBackgrounds.value.length > 1) {
     startHeroCycle()
   }
-  updateHeroDescription()
+  updateHeroMetadata()
 }
 
 onMounted(async () => {
@@ -190,9 +180,27 @@ onMounted(async () => {
   if (heroBackgrounds.value.length > 1) {
     startHeroCycle()
   } else {
-    updateHeroDescription()
+    updateHeroMetadata()
   }
 })
+
+// 伟大的预览模式
+watch(
+  () => uiStore.previewMode,
+  (enabled) => {
+    if (enabled) {
+      scrollLockPosition.value = window.scrollY || 0
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      document.body.style.overflow = 'hidden'
+      uiStore.setHeroInView(true)
+    } else {
+      document.body.style.overflow = ''
+      window.scrollTo({ top: scrollLockPosition.value, behavior: 'smooth' })
+      updateScrollState()
+    }
+  },
+  { immediate: true },
+)
 
 watch(
   () => activeHeroImage.value,
@@ -212,17 +220,18 @@ watch(
     } else {
       stopHeroCycle()
     }
-    updateHeroDescription()
+    updateHeroMetadata()
   },
   { immediate: true },
 )
 
-watch(
-  () => activeHeroDescription.value,
-  () => {
-    updateHeroDescription()
-  },
-)
+watch(heroSubtitle, () => {
+  updateHeroMetadata()
+})
+
+watch([activeHeroDescription, activeHeroSubtitle], () => {
+  updateHeroMetadata()
+})
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', updateScrollState)
@@ -233,6 +242,7 @@ onBeforeUnmount(() => {
   stopHeroCycle()
   uiStore.setHeroInView(true)
   uiStore.setHeroActiveDescription('')
+  uiStore.setHeroActiveSubtitle('')
 })
 
 function handleHeroImageLoaded() {
@@ -241,26 +251,6 @@ function handleHeroImageLoaded() {
 
 function handleHeroImageErrored() {
   heroImageLoaded.value = true
-}
-
-function resetHeroParallax() {
-  heroParallaxOffset.x = 0
-  heroParallaxOffset.y = 0
-}
-
-function formatNumberCompact(value: number | null | undefined) {
-  if (value == null) return '0'
-  return new Intl.NumberFormat('zh-CN').format(value)
-}
-
-function formatPercentage(value: number | null | undefined) {
-  if (value == null) return '0%'
-  return `${Math.round(value)}%`
-}
-
-function formatLatency(value: number | null | undefined) {
-  if (value == null) return '—'
-  return `${value} ms`
 }
 </script>
 
@@ -273,10 +263,12 @@ function formatLatency(value: number | null | undefined) {
       <div
         v-if="homeLoaded && (activeHeroImage || fallbackHeroImage)"
         class="fixed inset-0 left-16 bottom-24 z-0 flex flex-col items-center justify-center transition duration-300"
+        :class="{ 'bottom-0!': uiStore.previewMode }"
         :style="heroBackdropStyle"
       >
         <div
-          class="bg-image relative block h-full w-full select-none overflow-hidden rounded-2xl text-left focus:outline-none"
+          v-if="!uiStore.previewMode"
+          class="bg-image relative block h-full w-full select-none overflow-hidden text-left focus:outline-none"
         >
           <Motion
             v-if="activeHeroImage"
@@ -286,25 +278,34 @@ function formatLatency(value: number | null | undefined) {
             :alt="activeHeroDescription"
             class="block h-full w-full object-cover object-top"
             :initial="{
-              opacity: 0.2,
+              opacity: 0,
               scale: 1.03,
               filter: 'blur(18px) saturate(1.4)',
               translateX: 0,
               translateY: 0,
             }"
             :animate="{
-              opacity: heroImageLoaded ? 1 : 0.2,
+              opacity: 1,
               scale: heroImageLoaded ? 1 : 1.03,
               filter: heroImageLoaded
                 ? 'blur(0px) saturate(1)'
                 : 'blur(18px) saturate(1.4)',
-              translateX: heroParallaxOffset.x,
-              translateY: heroParallaxOffset.y,
+              translateX: heroParallaxAnimatedOffset.x,
+              translateY: heroParallaxAnimatedOffset.y,
             }"
-            :transition="{ duration: 0.45, ease: 'easeOut' }"
+            :exit="{
+              opacity: 0,
+              scale: 1.02,
+              filter: 'blur(18px) saturate(1.4)',
+            }"
+            :transition="{
+              duration: 0.6,
+              ease: 'easeOut',
+            }"
             @load="handleHeroImageLoaded"
             @error="handleHeroImageErrored"
           />
+
           <Motion
             v-else
             key="fallback-hero"
@@ -313,22 +314,146 @@ function formatLatency(value: number | null | undefined) {
             :alt="activeHeroDescription || 'Hydroline Portal 背景图'"
             class="block h-full w-full object-cover object-top"
             :initial="{
-              opacity: 0.2,
+              opacity: 0,
               scale: 1.03,
               filter: 'blur(18px) saturate(1.4)',
               translateX: 0,
               translateY: 0,
             }"
             :animate="{
-              opacity: heroImageLoaded ? 1 : 0.2,
+              opacity: 1,
               scale: heroImageLoaded ? 1 : 1.03,
               filter: heroImageLoaded
                 ? 'blur(0px) saturate(1)'
                 : 'blur(18px) saturate(1.4)',
-              translateX: heroParallaxOffset.x,
-              translateY: heroParallaxOffset.y,
+              translateX: heroParallaxAnimatedOffset.x,
+              translateY: heroParallaxAnimatedOffset.y,
             }"
-            :transition="{ duration: 0.45, ease: 'easeOut' }"
+            :exit="{
+              opacity: 0,
+              scale: 1.02,
+              filter: 'blur(18px) saturate(1.4)',
+            }"
+            :transition="{
+              duration: 0.6,
+              ease: 'easeOut',
+            }"
+            @load="handleHeroImageLoaded"
+            @error="handleHeroImageErrored"
+          />
+        </div>
+
+        <!-- 预览模式 -->
+        <div
+          v-else
+          class="relative block h-full w-full select-none overflow-hidden text-left focus:outline-none"
+        >
+          <div
+            class="absolute inset-0 z-1 flex flex-col items-center bg-[linear-gradient(0deg,white_5%,transparent_30%)] justify-end p-6 text-slate-900 dark:from-slate-950/95 dark:via-slate-950/60 dark:text-slate-100"
+          >
+            <div class="w-full max-w-3xl text-center">
+              <div
+                v-if="activeHeroTitle"
+                class="text-3xl text-slate-800 dark:text-slate-950 font-semibold leading-tight tracking-wide"
+              >
+                {{ activeHeroTitle }}
+              </div>
+              <div
+                v-else-if="heroSubtitle"
+                class="text-base font-semibold leading-tight tracking-wide"
+              >
+                {{ heroSubtitle }}
+              </div>
+              <div
+                v-if="activeHeroSubtitle"
+                class="text-base font-medium text-slate-600 dark:text-slate-300"
+              >
+                {{ activeHeroSubtitle }}
+              </div>
+              <div
+                v-if="activeHeroDescription"
+                class="mt-2 text-sm text-slate-500 dark:text-slate-300"
+              >
+                {{ activeHeroDescription }}
+              </div>
+              <div
+                v-if="activeHeroShootDate || activeHeroPhotographer"
+                class="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400"
+              >
+                <span v-if="activeHeroPhotographer">
+                  <span class="font-semibold">
+                    {{ activeHeroPhotographer }}
+                  </span>
+                  摄
+                </span>
+                <span v-if="activeHeroPhotographer && activeHeroShootDate"
+                  >/</span
+                >
+                <span v-if="activeHeroShootDate">
+                  {{ activeHeroShootDate }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <Motion
+            v-if="activeHeroImage"
+            :key="activeHeroImage as string"
+            as="img"
+            :src="activeHeroImage as string"
+            :alt="activeHeroDescription"
+            class="block h-full w-full object-cover object-top"
+            :initial="{
+              opacity: 0,
+              scale: 1.03,
+              translateX: 0,
+              translateY: 0,
+            }"
+            :animate="{
+              opacity: 1,
+              scale: heroImageLoaded ? 1 : 1.03,
+              translateX: heroParallaxAnimatedOffset.x,
+              translateY: heroParallaxAnimatedOffset.y,
+            }"
+            :exit="{
+              opacity: 0,
+              scale: 1.02,
+            }"
+            :transition="{
+              duration: 0.6,
+              ease: 'easeOut',
+            }"
+            @load="handleHeroImageLoaded"
+            @error="handleHeroImageErrored"
+          />
+
+          <Motion
+            v-else
+            key="fallback-hero-preview"
+            as="img"
+            :src="fallbackHeroImage"
+            :alt="activeHeroDescription || 'Hydroline Portal 背景图'"
+            class="block h-full w-full object-cover object-top"
+            :initial="{
+              opacity: 0,
+              scale: 1.03,
+              translateX: 0,
+              translateY: 0,
+            }"
+            :animate="{
+              opacity: 1,
+              scale: heroImageLoaded ? 1 : 1.03,
+              translateX: heroParallaxAnimatedOffset.x,
+              translateY: heroParallaxAnimatedOffset.y,
+            }"
+            :exit="{
+              opacity: 0,
+              scale: 1.02,
+            }"
+            :transition="{
+              duration: 0.6,
+              ease: 'easeOut',
+            }"
             @load="handleHeroImageLoaded"
             @error="handleHeroImageErrored"
           />
@@ -336,7 +461,10 @@ function formatLatency(value: number | null | undefined) {
       </div>
 
       <Transition name="fade-slide" mode="out-in">
-        <div class="flex flex-col items-center gap-6 relative z-1">
+        <div
+          v-show="!uiStore.previewMode"
+          class="flex flex-col items-center gap-6 relative z-1 opacity-100"
+        >
           <Motion
             as="div"
             class="space-y-2"
@@ -405,27 +533,13 @@ function formatLatency(value: number | null | undefined) {
       </Transition>
     </section>
 
-    <section class="relative z-10 -mt-12 px-4">
-      <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        
-      </div>
+    <section
+      v-show="!uiStore.previewMode"
+      class="relative z-10 -mt-12 px-4 opacity-100"
+    >
+      <div class="mx-auto flex w-full max-w-6xl flex-col gap-6"></div>
     </section>
   </div>
-
-  <UModal v-model:open="heroPreviewOpen" :ui="{ content: 'w-full max-w-4xl' }">
-    <template #content>
-      <div class="space-y-2">
-        <img
-          :src="(activeHeroImage as string) || fallbackHeroImage"
-          :alt="activeHeroDescription"
-          class="rounded-2xl object-cover"
-        />
-        <p class="text-sm text-slate-600 dark:text-slate-300">
-          {{ activeHeroDescription || 'Hydroline Portal 背景图' }}
-        </p>
-      </div>
-    </template>
-  </UModal>
 </template>
 
 <style scoped>

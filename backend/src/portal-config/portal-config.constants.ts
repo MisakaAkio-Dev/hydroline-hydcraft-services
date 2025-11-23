@@ -51,7 +51,7 @@ export const PORTAL_CARD_REGISTRY: PortalCardRegistryEntry[] = [
 
 export const DEFAULT_PORTAL_HOME_CONFIG: PortalHomeConfig = {
   hero: {
-    subtitle: 'ALPHA 测试阶段',
+    subtitle: 'Hydroline HydCraft',
     backgrounds: [],
   },
   navigation: [],

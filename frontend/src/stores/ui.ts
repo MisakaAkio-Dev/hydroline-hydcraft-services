@@ -28,6 +28,7 @@ export const useUiStore = defineStore('ui', {
     loginDialogOpen: false,
     heroInView: true,
     heroActiveDescription: '',
+    heroActiveSubtitle: '',
     previewMode: false,
   }),
   getters: {
@@ -77,6 +78,9 @@ export const useUiStore = defineStore('ui', {
     },
     setHeroActiveDescription(description: string) {
       this.heroActiveDescription = description
+    },
+    setHeroActiveSubtitle(subtitle: string) {
+      this.heroActiveSubtitle = subtitle
     },
   },
 })

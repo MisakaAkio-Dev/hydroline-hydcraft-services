@@ -1,6 +1,11 @@
 export interface PortalHeroBackground {
+  id: string
   imageUrl: string
   description: string | null
+  title: string | null
+  subtitle: string | null
+  shootAt: string | null
+  photographer: string | null
 }
 
 export interface PortalHeroData {

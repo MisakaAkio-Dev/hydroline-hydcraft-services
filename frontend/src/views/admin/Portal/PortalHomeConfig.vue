@@ -11,6 +11,10 @@ type PortalAdminConfigResponse = {
       id: string
       attachmentId: string
       description: string | null
+      title: string | null
+      subtitle: string | null
+      shootAt: string | null
+      photographer: string | null
       imageUrl: string | null
       available: boolean
     }>
@@ -87,8 +91,6 @@ const deleteConfirmCallback = ref<(() => Promise<void>) | null>(null)
 const deleteConfirmSubmitting = ref(false)
 
 const heroSubtitle = ref('')
-const heroSubtitleDraft = ref('')
-const isEditingHeroSubtitle = ref(false)
 const heroBackgrounds = reactive<EditableHeroBackground[]>([])
 const navigationItems = reactive<EditableNavigationItem[]>([])
 const cardsRegistry = ref<CardRegistryEntry[]>([])
@@ -96,6 +98,14 @@ const cardsForm = reactive<Record<string, EditableCardForm>>({})
 
 const newBackgroundDialogOpen = ref(false)
 const showNewNavigationForm = ref(false)
+const heroEditDialogOpen = ref(false)
+const heroSubtitleDialogOpen = ref(false)
+const heroEditItem = ref<EditableHeroBackground | null>(null)
+const heroEditTitle = ref('')
+const heroEditSubtitle = ref('')
+const heroEditDescription = ref('')
+const heroEditShootAt = ref('')
+const heroEditPhotographer = ref('')
 
 const activeTab = ref<'hero' | 'navigation' | 'cards'>('hero')
 const tabs = [
@@ -112,6 +122,25 @@ const heroDetailItem = ref<EditableHeroBackground | null>(null)
 function openHeroDetail(item: EditableHeroBackground) {
   heroDetailItem.value = item
   heroDetailOpen.value = true
+}
+
+function openHeroEdit(item: EditableHeroBackground) {
+  heroEditItem.value = item
+  heroEditTitle.value = item.title || ''
+  heroEditSubtitle.value = item.subtitle || ''
+  heroEditDescription.value = item.description || ''
+  heroEditShootAt.value = item.shootAt || ''
+  heroEditPhotographer.value = item.photographer || ''
+  heroEditDialogOpen.value = true
+}
+
+function resetHeroEditForm() {
+  if (!heroEditItem.value) return
+  heroEditTitle.value = heroEditItem.value.title || ''
+  heroEditSubtitle.value = heroEditItem.value.subtitle || ''
+  heroEditDescription.value = heroEditItem.value.description || ''
+  heroEditShootAt.value = heroEditItem.value.shootAt || ''
+  heroEditPhotographer.value = heroEditItem.value.photographer || ''
 }
 
 const navDetailOpen = ref(false)
@@ -345,8 +374,7 @@ async function fetchConfig() {
         token,
       },
     )
-    heroSubtitle.value = response.hero.subtitle
-    heroSubtitleDraft.value = response.hero.subtitle
+    heroSubtitle.value = response.hero.subtitle || ''
     assignHeroBackgrounds(response.hero.backgrounds)
     assignNavigationItems(response.navigation)
     resetCardsForm()
@@ -377,25 +405,7 @@ async function fetchConfig() {
   }
 }
 
-function startEditHeroSubtitle() {
-  heroSubtitleDraft.value = heroSubtitle.value
-  isEditingHeroSubtitle.value = true
-}
-
-function cancelHeroSubtitleEdit() {
-  heroSubtitleDraft.value = heroSubtitle.value
-  isEditingHeroSubtitle.value = false
-}
-
-async function updateHeroSubtitle() {
-  if (!heroSubtitleDraft.value.trim()) {
-    toast.add({
-      title: '信息不完整',
-      description: '请先填写 Hero 区域副标题',
-      color: 'warning',
-    })
-    return
-  }
+async function saveGlobalSubtitle() {
   try {
     const token = ensureToken()
     isMutating.value = true
@@ -403,17 +413,54 @@ async function updateHeroSubtitle() {
       method: 'PATCH',
       token,
       body: {
-        subtitle: heroSubtitleDraft.value.trim(),
+        subtitle: heroSubtitle.value.trim() || null,
       },
     })
-    isEditingHeroSubtitle.value = false
-    heroSubtitle.value = heroSubtitleDraft.value.trim()
     await fetchConfig()
+    toast.add({
+      title: '已保存全局副标题',
+      color: 'success',
+    })
   } catch (error) {
     if (error instanceof Error && error.message.includes('登录')) {
       return
     }
-    handleError(error, '更新 Hero 副标题失败')
+    handleError(error, '更新全局副标题失败')
+  } finally {
+    isMutating.value = false
+  }
+}
+
+async function saveHeroEdit() {
+  if (!heroEditItem.value) return
+  try {
+    const token = ensureToken()
+    isMutating.value = true
+    await apiFetch(
+      `/admin/portal/config/hero/backgrounds/${heroEditItem.value.id}`,
+      {
+        method: 'PATCH',
+        token,
+        body: {
+          title: heroEditTitle.value.trim() || null,
+          subtitle: heroEditSubtitle.value.trim() || null,
+          description: heroEditDescription.value.trim() || null,
+          shootAt: heroEditShootAt.value || null,
+          photographer: heroEditPhotographer.value.trim() || null,
+        },
+      },
+    )
+    await fetchConfig()
+    heroEditDialogOpen.value = false
+    toast.add({
+      title: '已保存背景图元信息',
+      color: 'success',
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('登录')) {
+      return
+    }
+    handleError(error, '更新背景图元信息失败')
   } finally {
     isMutating.value = false
   }
@@ -713,56 +760,29 @@ onMounted(() => {
           class="rounded-2xl border border-slate-200/70 bg-white/80 p-4 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70"
         >
           <div
-            class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
-            <div>
+            <div class="space-y-1">
               <p
                 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
               >
-                Hero 副标题
+                全局 Hero 副标题
               </p>
-              <p
-                v-if="heroSubtitle"
-                class="text-base font-medium text-slate-900 dark:text-white"
-              >
-                {{ heroSubtitle }}
+              <p class="text-base font-medium text-slate-900 dark:text-white">
+                {{ heroSubtitle || '未设置副标题' }}
               </p>
-              <p v-else class="text-base text-slate-400 dark:text-slate-500">
-                尚未设置副标题
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                展示在首页 Logo 下方，所有背景共用这行文字。
               </p>
             </div>
             <UButton
-              v-if="!isEditingHeroSubtitle"
               size="xs"
               variant="soft"
-              @click="startEditHeroSubtitle"
+              @click="heroSubtitleDialogOpen = true"
             >
               编辑
             </UButton>
           </div>
-          <form
-            v-if="isEditingHeroSubtitle"
-            class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
-            @submit.prevent="updateHeroSubtitle"
-          >
-            <UInput
-              v-model="heroSubtitleDraft"
-              placeholder="例如：ALPHA 测试阶段"
-            />
-            <div class="flex items-center justify-end gap-2 md:justify-start">
-              <UButton type="submit" color="primary" :loading="isMutating">
-                保存副标题
-              </UButton>
-              <UButton
-                type="button"
-                variant="ghost"
-                :disabled="isMutating"
-                @click="cancelHeroSubtitleEdit"
-              >
-                取消
-              </UButton>
-            </div>
-          </form>
         </section>
 
         <section
@@ -862,6 +882,13 @@ onMounted(() => {
                             variant="soft"
                             @click="openHeroDetail(background)"
                             >查看</UButton
+                          >
+                          <UButton
+                            size="xs"
+                            color="primary"
+                            variant="soft"
+                            @click="openHeroEdit(background)"
+                            >编辑</UButton
                           >
                           <UButton
                             size="xs"
@@ -1315,6 +1342,63 @@ onMounted(() => {
     </Teleport>
 
     <UModal
+      :open="heroSubtitleDialogOpen"
+      @update:open="heroSubtitleDialogOpen = $event"
+      :ui="modalUi.form"
+    >
+      <template #content>
+        <div class="space-y-5 p-6">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white">
+              编辑全局 Hero 副标题
+            </h3>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="heroSubtitleDialogOpen = false"
+              >关闭</UButton
+            >
+          </div>
+
+          <div class="space-y-4">
+            <div class="space-y-1.5">
+              <p
+                class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                副标题
+              </p>
+              <UInput
+                v-model="heroSubtitle"
+                placeholder="例如：ALPHA 测试阶段"
+                :disabled="isMutating"
+              />
+            </div>
+
+            <div class="flex justify-end gap-2 pt-1">
+              <UButton
+                type="button"
+                color="neutral"
+                variant="ghost"
+                :disabled="isMutating"
+                @click="void fetchConfig()"
+              >
+                重置
+              </UButton>
+              <UButton
+                type="button"
+                color="primary"
+                :loading="isMutating"
+                @click="saveGlobalSubtitle"
+              >
+                保存
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
       :open="heroDetailOpen"
       @update:open="heroDetailOpen = $event"
       :ui="modalUi.detail"
@@ -1352,7 +1436,122 @@ onMounted(() => {
                 }}</span>
               </div>
               <div>描述：{{ heroDetailItem.description || '未填写描述' }}</div>
+              <div>标题：{{ heroDetailItem.title || '未填写' }}</div>
+              <div>副标题：{{ heroDetailItem.subtitle || '未填写' }}</div>
+              <div>拍摄时间：{{ heroDetailItem.shootAt || '未填写' }}</div>
+              <div>拍摄人：{{ heroDetailItem.photographer || '未填写' }}</div>
               <div>可访问：{{ heroDetailItem.available ? '是' : '否' }}</div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      :open="heroEditDialogOpen"
+      @update:open="heroEditDialogOpen = $event"
+      :ui="modalUi.form"
+    >
+      <template #content>
+        <div class="space-y-5 p-6">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white">
+              编辑背景图元信息
+            </h3>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="heroEditDialogOpen = false"
+              >关闭</UButton
+            >
+          </div>
+
+          <div v-if="heroEditItem" class="space-y-4">
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="space-y-1.5">
+                <p
+                  class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  标题
+                </p>
+                <UInput
+                  v-model="heroEditTitle"
+                  placeholder="例如：Hydroline HydCraft"
+                  :disabled="isMutating"
+                />
+              </div>
+              <div class="space-y-1.5">
+                <p
+                  class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  副标题
+                </p>
+                <UInput
+                  v-model="heroEditSubtitle"
+                  placeholder="例如：ALPHA 测试阶段"
+                  :disabled="isMutating"
+                />
+              </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>
+                <p
+                  class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  描述
+                </p>
+                <UTextarea
+                  v-model="heroEditDescription"
+                  :rows="3"
+                  placeholder="可选：用于前台展示的简介"
+                  :disabled="isMutating"
+                />
+              </div>
+              <div>
+                <p
+                  class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  拍摄时间
+                </p>
+                <UInput
+                  v-model="heroEditShootAt"
+                  type="datetime-local"
+                  :disabled="isMutating"
+                />
+              </div>
+              <div>
+                <p
+                  class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  拍摄人
+                </p>
+                <UInput
+                  v-model="heroEditPhotographer"
+                  placeholder="可选：如 AurLemon"
+                  :disabled="isMutating"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-1">
+              <UButton
+                type="button"
+                color="neutral"
+                variant="ghost"
+                :disabled="isMutating"
+                @click="resetHeroEditForm"
+              >
+                重置
+              </UButton>
+              <UButton
+                type="button"
+                color="primary"
+                :loading="isMutating"
+                @click="saveHeroEdit"
+              >
+                保存
+              </UButton>
             </div>
           </div>
         </div>

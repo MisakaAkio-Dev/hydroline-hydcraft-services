@@ -2,6 +2,10 @@ export interface PortalHomeBackgroundConfig {
   id: string;
   attachmentId: string;
   description?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  shootAt?: string | null;
+  photographer?: string | null;
 }
 
 export interface PortalNavigationConfigItem {

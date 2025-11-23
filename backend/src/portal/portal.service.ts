@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   ContactVerificationStatus,
   LifecycleEventType,
@@ -293,8 +298,19 @@ export class PortalService {
   async getHomePortal(userId?: string) {
     // Simplified home portal response as per new requirement:
     // Only return hero section. Keep minimal config loading; omit user/authme/mcsm/server aggregations.
-      // We still attempt to read portal home config to allow future extension without changing this method signature.
-      let hero: { subtitle: string; background: Array<{ imageUrl: string; description: string | null }> };
+    // We still attempt to read portal home config to allow future extension without changing this method signature.
+    let hero: {
+      subtitle: string;
+      background: Array<{
+        imageUrl: string;
+        description: string | null;
+        id: string;
+        title: string | null;
+        subtitle: string | null;
+        shootAt: string | null;
+        photographer: string | null;
+      }>;
+    };
     try {
       const resolved = await this.portalConfigService.getResolvedHomeContent();
       hero = resolved.hero;
@@ -307,44 +323,44 @@ export class PortalService {
     }
 
     // Return only hero plus empty placeholders to keep frontend shape stable.
-      return {
-        hero: {
-          subtitle: hero.subtitle,
-          background: hero.background,
-        },
-        navigation: [],
-        cards: [],
-      };
+    return {
+      hero: {
+        subtitle: hero.subtitle,
+        background: hero.background,
+      },
+      navigation: [],
+      cards: [],
+    };
   }
 
   async getPlayerPortalData(
     viewerId: string | null,
     targetUserId: string,
-    options: { period?: string; actionsPage?: number; actionsPageSize?: number } = {},
+    options: {
+      period?: string;
+      actionsPage?: number;
+      actionsPageSize?: number;
+    } = {},
   ) {
     const period = options.period ?? '30d';
     const actionsPage = Math.max(options.actionsPage ?? 1, 1);
-    const actionsPageSize = Math.min(Math.max(options.actionsPageSize ?? 10, 1), 50);
-    const [
-      summary,
-      loginMap,
-      assets,
-      region,
-      minecraft,
-      stats,
-      actions,
-    ] = await Promise.all([
-      this.getPlayerSummary(targetUserId),
-      this.getPlayerLoginMap(targetUserId, {}),
-      this.getPlayerAssets(targetUserId),
-      this.getPlayerRegion(targetUserId),
-      this.getPlayerMinecraftData(targetUserId),
-      this.getPlayerStats(targetUserId, period),
-      this.getPlayerActions(targetUserId, {
-        page: actionsPage,
-        pageSize: actionsPageSize,
-      }),
-    ]);
+    const actionsPageSize = Math.min(
+      Math.max(options.actionsPageSize ?? 10, 1),
+      50,
+    );
+    const [summary, loginMap, assets, region, minecraft, stats, actions] =
+      await Promise.all([
+        this.getPlayerSummary(targetUserId),
+        this.getPlayerLoginMap(targetUserId, {}),
+        this.getPlayerAssets(targetUserId),
+        this.getPlayerRegion(targetUserId),
+        this.getPlayerMinecraftData(targetUserId),
+        this.getPlayerStats(targetUserId, period),
+        this.getPlayerActions(targetUserId, {
+          page: actionsPage,
+          pageSize: actionsPageSize,
+        }),
+      ]);
     return {
       viewerId,
       targetId: targetUserId,
@@ -459,7 +475,7 @@ export class PortalService {
       } else if (snapshot.latency != null) {
         latencies.push(snapshot.latency);
       }
-      if (!busiest || (online > (busiest.onlinePlayers ?? 0))) {
+      if (!busiest || online > (busiest.onlinePlayers ?? 0)) {
         busiest = snapshot;
       }
     }
@@ -545,16 +561,14 @@ export class PortalService {
   }
 
   private computeProfileCompleteness(
-    profile:
-      | {
-          displayName?: string | null;
-          piic?: string | null;
-          timezone?: string | null;
-          locale?: string | null;
-          primaryMinecraftProfileId?: string | null;
-          primaryAuthmeBindingId?: string | null;
-        }
-      | null,
+    profile: {
+      displayName?: string | null;
+      piic?: string | null;
+      timezone?: string | null;
+      locale?: string | null;
+      primaryMinecraftProfileId?: string | null;
+      primaryAuthmeBindingId?: string | null;
+    } | null,
   ) {
     const fields = [
       Boolean(profile?.displayName),
@@ -601,9 +615,9 @@ export class PortalService {
     return null;
   }
 
-  private normalizeRegionKey(location: Awaited<
-    ReturnType<IpLocationService['lookup']>
-  >) {
+  private normalizeRegionKey(
+    location: Awaited<ReturnType<IpLocationService['lookup']>>,
+  ) {
     if (!location) {
       return null;
     }
@@ -673,9 +687,10 @@ export class PortalService {
       ORDER BY "value" DESC, ${userColumn} ASC
       LIMIT ${options.take} OFFSET ${options.skip}
     `;
-    const rows = await this.prisma.$queryRaw<
-      Array<{ userId: string; value: bigint }>
-    >(query);
+    const rows =
+      await this.prisma.$queryRaw<Array<{ userId: string; value: bigint }>>(
+        query,
+      );
     const totalQuery = Prisma.sql`
       SELECT COUNT(*)::bigint AS "total"
       FROM (
@@ -685,9 +700,8 @@ export class PortalService {
         GROUP BY ${userColumn}
       ) AS counted
     `;
-    const totalRows = await this.prisma.$queryRaw<
-      Array<{ total: bigint }>
-    >(totalQuery);
+    const totalRows =
+      await this.prisma.$queryRaw<Array<{ total: bigint }>>(totalQuery);
     const total = Number(totalRows[0]?.total ?? 0);
     return {
       total,
@@ -735,15 +749,22 @@ export class PortalService {
       FROM (${baseQuery}) AS ranked
       WHERE "value" > ${value} OR ("value" = ${value} AND "uid" < ${userId})
     `;
-    const rows = await this.prisma.$queryRaw<Array<{ ahead: bigint }>>(
-      aheadQuery,
-    );
+    const rows =
+      await this.prisma.$queryRaw<Array<{ ahead: bigint }>>(aheadQuery);
     return Number(rows[0]?.ahead ?? 0);
   }
 
   private async fetchLeaderboardUsers(userIds: string[]) {
     if (!userIds.length) {
-      return new Map<string, { id: string; displayName: string | null; email: string | null; minecraftName: string | null }>();
+      return new Map<
+        string,
+        {
+          id: string;
+          displayName: string | null;
+          email: string | null;
+          minecraftName: string | null;
+        }
+      >();
     }
     const users = await this.prisma.user.findMany({
       where: { id: { in: userIds } },
@@ -763,7 +784,12 @@ export class PortalService {
     });
     const map = new Map<
       string,
-      { id: string; displayName: string | null; email: string | null; minecraftName: string | null }
+      {
+        id: string;
+        displayName: string | null;
+        email: string | null;
+        minecraftName: string | null;
+      }
     >();
     for (const user of users) {
       map.set(user.id, {
@@ -771,8 +797,7 @@ export class PortalService {
         displayName:
           user.profile?.displayName ?? user.name ?? user.email ?? null,
         email: user.email,
-        minecraftName:
-          user.profile?.primaryMinecraftProfile?.nickname ?? null,
+        minecraftName: user.profile?.primaryMinecraftProfile?.nickname ?? null,
       });
     }
     return map;
@@ -967,7 +992,10 @@ export class PortalService {
             const mcsmStatus = await this.minecraftServers.getMcsmStatus(
               server.id,
             );
-            if (mcsmStatus?.detail && typeof mcsmStatus.detail.status === 'number') {
+            if (
+              mcsmStatus?.detail &&
+              typeof mcsmStatus.detail.status === 'number'
+            ) {
               mcsm = { status: mcsmStatus.detail.status };
             } else {
               mcsm = { status: undefined };
@@ -1133,10 +1161,7 @@ export class PortalService {
     };
   }
 
-  async getPlayerLoginMap(
-    userId: string,
-    params: { from?: Date; to?: Date },
-  ) {
+  async getPlayerLoginMap(userId: string, params: { from?: Date; to?: Date }) {
     const to = params.to ?? new Date();
     const from =
       params.from ??
@@ -1158,10 +1183,7 @@ export class PortalService {
       },
     });
 
-    const buckets = new Map<
-      string,
-      { count: number; lastSeen: Date }
-    >();
+    const buckets = new Map<string, { count: number; lastSeen: Date }>();
     for (const session of sessions) {
       const ip = this.toNullableString(session.ipAddress);
       if (!ip) continue;
@@ -1573,14 +1595,11 @@ export class PortalService {
     const page = Math.max(params.page ?? 1, 1);
     const pageSize = Math.min(Math.max(params.pageSize ?? 20, 1), 50);
     const skip = (page - 1) * pageSize;
-    const { total, items } = await this.aggregateRankSource(
-      category.source,
-      {
-        since,
-        skip,
-        take: pageSize,
-      },
-    );
+    const { total, items } = await this.aggregateRankSource(category.source, {
+      since,
+      skip,
+      take: pageSize,
+    });
     const userMap = await this.fetchLeaderboardUsers(
       items.map((item) => item.userId),
     );
