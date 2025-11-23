@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { preview } from 'vite'
 
 type ThemeMode = 'light' | 'dark' | 'system'
 
