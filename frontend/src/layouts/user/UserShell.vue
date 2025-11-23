@@ -386,7 +386,7 @@ const routerPush = (path: string) => {
         }"
       >
         <div
-          class="w-fit flex justify-center mb-10 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 hover:bg-accented/50 transition"
+          class="w-fit flex justify-center mb-10 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 hover:bg-accented/50 transition select-none"
         >
           <HoverLinkPreview
             url="https://aurlemon.top"
@@ -398,9 +398,9 @@ const routerPush = (path: string) => {
               class="flex items-center text-xs text-slate-500 dark:text-slate-500"
             >
               <span class="mr-2">Developed by</span>
-              <span class="flex gap-1 items-center">
+              <span class="flex gap-1.5 items-center">
                 <img
-                  class="block h-4 rounded-full select-none"
+                  class="block h-5 rounded-full border border-slate-200 dark:border-slate-700"
                   src="@/assets/resources/aurlemon_logo.jpg"
                   alt="AurLemon Logo"
                 />
