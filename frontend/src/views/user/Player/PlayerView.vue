@@ -250,17 +250,6 @@ function formatMetricValue(value: number, unit: string) {
 
 <template>
   <section class="mx-auto w-full max-w-6xl px-4 pb-16 pt-8">
-    <header class="flex justify-end">
-      <RouterLink
-        v-if="isViewingSelf"
-        to="/profile"
-        class="inline-flex items-center gap-2 rounded-full border border-primary-200 px-4 py-1.5 text-sm font-medium text-primary-600 transition hover:border-primary-300 hover:text-primary-500 dark:border-primary-500/40 dark:text-primary-200"
-      >
-        <UIcon name="i-lucide-id-card" class="h-4 w-4" />
-        管理用户信息
-      </RouterLink>
-    </header>
-
     <PlayerLoginPrompt :can-view-profile="canViewProfile" />
 
     <PlayerProfileContent
