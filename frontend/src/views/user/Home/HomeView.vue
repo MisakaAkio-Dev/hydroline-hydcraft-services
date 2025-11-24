@@ -3,10 +3,11 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePortalStore } from '@/stores/portal'
 import { useUiStore } from '@/stores/ui'
-import HydrolineTextBold from '@/assets/resources/hydroline_text_bold.svg'
-import fallbackHeroImage from '@/assets/images/image_home_background_240730.webp'
 import { Motion } from 'motion-v'
 import dayjs from 'dayjs'
+import HydrolineTextBold from '@/assets/resources/hydroline_text_bold.svg'
+import fallbackHeroImage from '@/assets/images/image_home_background_240730.webp'
+import ContentCards from './components/ContentCards.vue'
 
 const portalStore = usePortalStore()
 const uiStore = useUiStore()
@@ -537,7 +538,9 @@ function handleHeroImageErrored() {
       v-show="!uiStore.previewMode"
       class="relative z-10 -mt-12 px-4 opacity-100"
     >
-      <div class="mx-auto flex w-full max-w-6xl flex-col gap-6"></div>
+      <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        
+      </div>
     </section>
   </div>
 </template>
