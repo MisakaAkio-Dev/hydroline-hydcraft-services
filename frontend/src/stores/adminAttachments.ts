@@ -8,7 +8,7 @@ import type {
 
 interface FetchAttachmentsOptions {
   includeDeleted?: boolean
-  folderId?: string
+  folderId?: string | null
   tagKeys?: string[]
   page?: number
   pageSize?: number
@@ -20,7 +20,7 @@ export const useAdminAttachmentsStore = defineStore('admin-attachments', {
     loading: false,
     filters: {
       includeDeleted: false,
-      folderId: '' as string | null,
+      folderId: null as string | null,
       tagKeys: [] as string[],
     },
     pagination: {
@@ -39,7 +39,13 @@ export const useAdminAttachmentsStore = defineStore('admin-attachments', {
 
       const includeDeleted =
         options.includeDeleted ?? this.filters.includeDeleted
-      const folderId = options.folderId ?? this.filters.folderId ?? undefined
+      const folderSpecified =
+        Object.prototype.hasOwnProperty.call(options, 'folderId') &&
+        options.folderId !== undefined
+      const folderIdValue = folderSpecified
+        ? options.folderId ?? null
+        : this.filters.folderId ?? null
+      const folderId = folderIdValue ?? undefined
       const tagKeys = options.tagKeys ?? this.filters.tagKeys ?? []
       const page = options.page ?? this.pagination.page
       const pageSize = options.pageSize ?? this.pagination.pageSize
@@ -68,7 +74,7 @@ export const useAdminAttachmentsStore = defineStore('admin-attachments', {
         this.pagination = data.pagination
         this.filters = {
           includeDeleted,
-          folderId: folderId ?? null,
+          folderId: folderIdValue,
           tagKeys,
         }
         return data

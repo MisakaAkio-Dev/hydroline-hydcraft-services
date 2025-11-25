@@ -475,9 +475,13 @@ export class AttachmentsService implements OnModuleInit {
       folderContext,
     );
 
+    const normalizedOriginalName =
+      this.normalizeAttachmentName(file.originalname) ||
+      file.originalname ||
+      'attachment';
     const buffer = file.buffer;
     const hash = createHash('sha256').update(buffer).digest('hex');
-    const ext = extname(file.originalname) || '';
+    const ext = extname(normalizedOriginalName) || '';
     const randomName = `${Date.now()}-${randomUUID()}${ext}`;
     const storageKey = folder
       ? join(folder.path, randomName)
@@ -493,8 +497,11 @@ export class AttachmentsService implements OnModuleInit {
         ownerId: userId,
         uploaderNameSnapshot: uploader.name ?? null,
         uploaderEmailSnapshot: uploader.email ?? null,
-        name: dto.name ?? file.originalname.replace(ext, ''),
-        originalName: file.originalname,
+        name:
+          (dto.name && dto.name.trim().length > 0
+            ? dto.name.trim()
+            : normalizedOriginalName.replace(ext, '')) || normalizedOriginalName,
+        originalName: normalizedOriginalName,
         fileName: randomName,
         mimeType: file.mimetype,
         size: file.size,
@@ -996,8 +1003,8 @@ export class AttachmentsService implements OnModuleInit {
 
     return {
       id: attachment.id,
-      name: attachment.name,
-      originalName: attachment.originalName,
+      name: this.normalizeAttachmentName(attachment.name),
+      originalName: this.normalizeAttachmentName(attachment.originalName),
       mimeType: attachment.mimeType,
       size: attachment.size,
       isPublic: visibilityState.isPublic,
@@ -1034,6 +1041,21 @@ export class AttachmentsService implements OnModuleInit {
         ? `/attachments/public/${attachment.id}`
         : null,
     };
+  }
+
+  private normalizeAttachmentName(input: string | null | undefined): string {
+    if (!input) {
+      return '';
+    }
+    try {
+      const candidate = Buffer.from(input, 'latin1').toString('utf8');
+      if (candidate.includes('�')) {
+        return input;
+      }
+      return candidate;
+    } catch {
+      return input;
+    }
   }
 
   private async ensureUniqueFolder(

@@ -15,6 +15,7 @@ import type {
   AttachmentTagEntry,
   VisibilityModeOption,
 } from '@/views/admin/Attachments/types'
+import { formatFolderDisplay } from '@/views/admin/Attachments/folderDisplay'
 
 const uiStore = useUiStore()
 const authStore = useAuthStore()
@@ -51,7 +52,7 @@ const ROOT_FOLDER_VALUE = '__ROOT__'
 const folderOptions = computed(() => [
   { label: '根目录 /', value: ROOT_FOLDER_VALUE },
   ...folders.value.map((folder) => ({
-    label: folder.path || folder.name,
+    label: formatFolderDisplay(folder),
     value: folder.id,
   })),
 ])
@@ -143,8 +144,10 @@ function formatSize(bytes: number) {
 function folderLabel(id: string | null) {
   if (!id) return '根目录'
   const folder = folders.value.find((item) => item.id === id)
-  return folder?.path || folder?.name || '未知目录'
+  return folder ? formatFolderDisplay(folder) : '未知目录'
 }
+
+const folderDisplay = formatFolderDisplay
 
 function visibilitySourceLabel(
   resolved: AdminAttachmentSummary['resolvedVisibility'],
@@ -164,7 +167,7 @@ async function refresh(targetPage?: number) {
     await attachmentsStore.fetch({
       includeDeleted: includeDeleted.value,
       page: targetPage ?? pagination.value.page,
-      folderId: selectedFolderId.value ?? undefined,
+      folderId: selectedFolderId.value ?? null,
     })
     selectedFolderId.value = attachmentsStore.filters.folderId
   } finally {
@@ -398,7 +401,7 @@ onMounted(async () => {
               </div>
             </td>
             <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-              {{ item.folder?.path ?? '根目录' }}
+              {{ folderDisplay(item.folder ?? undefined) }}
             </td>
             <td class="px-4 py-3">
               <div class="flex flex-wrap gap-2">

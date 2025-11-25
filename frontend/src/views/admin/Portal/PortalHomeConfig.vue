@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { apiFetch, ApiError } from '@/utils/api'
+import { formatFolderPathDisplay } from '@/views/admin/Attachments/folderDisplay'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
@@ -245,7 +246,9 @@ function buildAttachmentOption(
   const label = item.name?.trim() || item.originalName || item.id
   const segments = [`ID: ${item.id}`, formatFileSize(item.size)]
   if (item.folder?.path) {
-    segments.push(item.folder.path)
+    segments.push(
+      formatFolderPathDisplay(item.folder.path) ?? item.folder.path,
+    )
   }
   segments.push(item.isPublic ? '公开' : '需设为公开')
   return {
