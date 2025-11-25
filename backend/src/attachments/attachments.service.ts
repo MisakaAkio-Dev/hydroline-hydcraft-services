@@ -903,6 +903,10 @@ export class AttachmentsService implements OnModuleInit {
     return folder;
   }
 
+  async resolveUserAvatarFolder(userId: string): Promise<AttachmentFolder | null> {
+    return this.resolveFolderByPath(userId, ['userAvatar']);
+  }
+
   private buildMetadata(dto: CreateAttachmentDto | UpdateAttachmentDto) {
     const metadata = dto.metadata ?? {};
     if ('description' in dto && dto.description) {

@@ -569,6 +569,12 @@ export async function updateCurrentUser(
     userUpdate.image = normalizedImage ?? null;
   }
 
+  if ((dto as any).avatarAttachmentId !== undefined) {
+    const value = (dto as any).avatarAttachmentId;
+    userUpdate.avatarAttachmentId =
+      typeof value === 'string' && value.length > 0 ? value : null;
+  }
+
   if (dto.email !== undefined) {
     const normalizedEmail = normalizeOptionalString(dto.email);
     if (normalizedEmail !== undefined && normalizedEmail !== current?.email) {

@@ -1,5 +1,3 @@
-// Prisma schema for hydroline-hydcraft-services backend
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,6 +5,642 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id                      String                 @id @default(uuid())
+  name                    String?
+  email                   String                 @unique
+  password                String?
+  image                   String?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  emailVerified           Boolean                @default(false)
+  nameChangedAt           DateTime?
+  joinDate                DateTime?
+  lastLoginAt             DateTime?
+  lastLoginIp             String?
+  passwordNeedsReset      Boolean                @default(false)
+  passwordUpdatedAt       DateTime?
+  avatarAttachmentId      String?
+  accounts                Account[]
+  adminAuditLogs          AdminAuditLog[]        @relation("AdminAuditActor")
+  createdFolders          AttachmentFolder[]     @relation("AttachmentFolderCreator")
+  shareTokens             AttachmentShareToken[] @relation("AttachmentShareCreator")
+  tagAssignments          AttachmentTagging[]    @relation("AttachmentTaggingAssignee")
+  createdTags             AttachmentTag[]        @relation("AttachmentTagCreator")
+  uploadedAttachments     Attachment[]           @relation("AttachmentUploader")
+  authmeBindingHistoryOps AuthmeBindingHistory[] @relation("AuthmeBindingHistoryOperator")
+  authmeBindingHistory    AuthmeBindingHistory[] @relation("AuthmeBindingHistoryUser")
+  updatedConfigEntries    ConfigEntry[]          @relation("ConfigEntryUpdater")
+  createdMinecraftServers MinecraftServer[]      @relation("MinecraftServerCreatedBy")
+  updatedMinecraftServers MinecraftServer[]      @relation("MinecraftServerUpdatedBy")
+  oauthLogs               OAuthLog[]
+  sessions                Session[]
+  authmeBindingOperations UserAuthmeBinding[]    @relation("AuthmeBindingOperator")
+  authmeBindings          UserAuthmeBinding[]
+  contacts                UserContact[]
+  lifecycle               UserLifecycleEvent[]
+  minecraftIds            UserMinecraftProfile[]
+  permissionLabelOps      UserPermissionLabel[]  @relation("PermissionLabelOperator")
+  permissionLabels        UserPermissionLabel[]
+  piicHistory             UserPiicHistory[]
+  profile                 UserProfile?
+  roles                   UserRole[]
+  statusEvents            UserStatusEvent[]
+  statusSnapshot          UserStatusSnapshot?
+
+  @@map("users")
+}
+
+model Account {
+  id                    String     @id @default(uuid())
+  userId                String
+  type                  String
+  provider              String
+  providerAccountId     String
+  scope                 String?
+  accountId             String     @unique
+  createdAt             DateTime   @default(now())
+  password              String?
+  providerId            String
+  updatedAt             DateTime   @updatedAt
+  accessToken           String?
+  accessTokenExpiresAt  DateTime?
+  idToken               String?
+  refreshToken          String?
+  refreshTokenExpiresAt DateTime?
+  profile               Json?
+  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthLogs             OAuthLog[]
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  ipAddress String?
+  token     String   @unique
+  updatedAt DateTime @updatedAt
+  userAgent String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, value])
+  @@map("verifications")
+}
+
+model UserProfile {
+  id                        String                @id @default(uuid())
+  userId                    String                @unique
+  primaryMinecraftProfileId String?
+  piic                      String?               @unique
+  piicAssignedAt            DateTime?
+  displayName               String?
+  birthday                  DateTime?
+  gender                    GenderType?           @default(UNSPECIFIED)
+  motto                     String?
+  timezone                  String?
+  locale                    String?
+  extra                     Json?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  primaryAuthmeBindingId    String?
+  primaryAuthmeBinding      UserAuthmeBinding?    @relation("PrimaryAuthmeBinding", fields: [primaryAuthmeBindingId], references: [id])
+  primaryMinecraftProfile   UserMinecraftProfile? @relation("PrimaryMinecraftProfile", fields: [primaryMinecraftProfileId], references: [id])
+  user                      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model UserPiicHistory {
+  id            String     @id @default(uuid())
+  userId        String
+  piic          String
+  status        PIICStatus @default(ACTIVE)
+  reason        String?
+  metadata      Json?
+  generatedAt   DateTime   @default(now())
+  revokedAt     DateTime?
+  generatedById String?
+  revokedById   String?
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([piic], map: "idx_user_piic_history_piic")
+  @@index([userId, generatedAt], map: "idx_user_piic_history_user")
+  @@map("user_piic_history")
+}
+
+model UserMinecraftProfile {
+  id                String                 @id @default(uuid())
+  userId            String
+  nickname          String?
+  isPrimary         Boolean                @default(false)
+  source            MinecraftProfileSource @default(MANUAL)
+  verifiedAt        DateTime?
+  verificationNote  String?
+  metadata          Json?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  authmeBindingId   String?
+  authmeUuid        String?
+  authmeBinding     UserAuthmeBinding?     @relation(fields: [authmeBindingId], references: [id])
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primaryProfileFor UserProfile[]          @relation("PrimaryMinecraftProfile")
+
+  @@index([userId, isPrimary], map: "idx_user_minecraft_primary")
+  @@index([authmeBindingId], map: "idx_user_minecraft_binding")
+  @@index([authmeUuid], map: "idx_user_minecraft_authme_uuid")
+  @@map("user_minecraft_profiles")
+}
+
+model UserStatusEvent {
+  id           String              @id @default(uuid())
+  userId       String
+  status       PlayerStatus
+  reasonCode   String?
+  reasonDetail String?
+  source       StatusSource        @default(SYSTEM)
+  metadata     Json?
+  createdAt    DateTime            @default(now())
+  createdById  String?
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshot     UserStatusSnapshot? @relation("StatusSnapshotEvent")
+
+  @@index([userId, createdAt], map: "idx_user_status_user_time")
+  @@map("user_status_events")
+}
+
+model UserStatusSnapshot {
+  userId        String          @id
+  statusEventId String          @unique
+  status        PlayerStatus
+  updatedAt     DateTime        @updatedAt
+  event         UserStatusEvent @relation("StatusSnapshotEvent", fields: [statusEventId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_status_snapshot")
+}
+
+model UserLifecycleEvent {
+  id          String             @id @default(uuid())
+  userId      String
+  eventType   LifecycleEventType
+  occurredAt  DateTime
+  source      String?
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+  createdById String?
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, eventType], map: "idx_user_lifecycle_type")
+  @@map("user_lifecycle_events")
+}
+
+model ContactChannel {
+  id              String        @id @default(uuid())
+  key             String        @unique
+  displayName     String
+  description     String?
+  validationRegex String?
+  isRequired      Boolean       @default(false)
+  allowMultiple   Boolean       @default(true)
+  isVerifiable    Boolean       @default(false)
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  contacts        UserContact[]
+
+  @@map("contact_channels")
+}
+
+model UserContact {
+  id               String                    @id @default(uuid())
+  userId           String
+  channelId        String
+  value            String
+  isPrimary        Boolean                   @default(false)
+  verification     ContactVerificationStatus @default(UNVERIFIED)
+  verifiedAt       DateTime?
+  verificationCode String?
+  metadata         Json?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  channel          ContactChannel            @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user             User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId, value], map: "uq_user_contact_value")
+  @@map("user_contacts")
+}
+
+model Role {
+  id              String           @id @default(uuid())
+  key             String           @unique
+  name            String
+  description     String?
+  isSystem        Boolean          @default(false)
+  metadata        Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id               String                      @id @default(uuid())
+  key              String                      @unique
+  description      String?
+  metadata         Json?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  labelPermissions PermissionLabelPermission[]
+  rolePermissions  RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId], map: "uq_role_permission")
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id           String   @id @default(uuid())
+  userId       String
+  roleId       String
+  assignedById String?
+  assignedAt   DateTime @default(now())
+  metadata     Json?
+  role         Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId], map: "uq_user_role")
+  @@index([roleId], map: "idx_user_roles_role")
+  @@map("user_roles")
+}
+
+model PermissionLabel {
+  id          String                      @id @default(uuid())
+  key         String                      @unique
+  name        String
+  description String?
+  color       String?
+  metadata    Json?
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  permissions PermissionLabelPermission[]
+  assignments UserPermissionLabel[]
+
+  @@map("permission_labels")
+}
+
+model PermissionLabelPermission {
+  id           String          @id @default(uuid())
+  labelId      String
+  permissionId String
+  label        PermissionLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  permission   Permission      @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([labelId, permissionId], map: "uq_label_permission")
+  @@map("permission_label_permissions")
+}
+
+model UserPermissionLabel {
+  id           String          @id @default(uuid())
+  userId       String
+  labelId      String
+  assignedById String?
+  assignedAt   DateTime        @default(now())
+  assignedBy   User?           @relation("PermissionLabelOperator", fields: [assignedById], references: [id])
+  label        PermissionLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, labelId], map: "uq_user_permission_label")
+  @@map("user_permission_labels")
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation("AdminAuditActor", fields: [actorId], references: [id])
+
+  @@index([targetType, targetId], map: "idx_admin_audit_target")
+  @@map("admin_audit_log")
+}
+
+model OAuthProvider {
+  id          String     @id @default(uuid())
+  key         String     @unique
+  name        String
+  type        String
+  description String?
+  enabled     Boolean    @default(true)
+  settings    Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  logs        OAuthLog[]
+
+  @@map("oauth_providers")
+}
+
+model OAuthLog {
+  id           String         @id @default(uuid())
+  providerId   String?
+  providerKey  String
+  providerType String
+  action       OAuthLogAction
+  status       OAuthLogStatus
+  userId       String?
+  accountId    String?
+  ip           String?
+  userAgent    String?
+  message      String?
+  metadata     Json?
+  createdAt    DateTime       @default(now())
+  account      Account?       @relation(fields: [accountId], references: [id])
+  provider     OAuthProvider? @relation(fields: [providerId], references: [id])
+  user         User?          @relation(fields: [userId], references: [id])
+
+  @@index([providerKey, createdAt], map: "idx_oauth_log_provider_key")
+  @@index([userId, createdAt], map: "idx_oauth_log_user")
+  @@map("oauth_logs")
+}
+
+model OAuthState {
+  id         String    @id @default(uuid())
+  state      String    @unique
+  payload    Json
+  result     Json?
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([expiresAt], map: "idx_oauth_state_expiry")
+  @@map("oauth_states")
+}
+
+model UserAuthmeBinding {
+  authmeRealname      String?
+  authmeUsername      String
+  authmeUsernameLower String                 @unique
+  boundAt             DateTime               @default(now())
+  boundByIp           String?
+  boundByUserId       String?
+  updatedAt           DateTime               @updatedAt
+  userId              String
+  id                  String                 @id @default(uuid())
+  authmeUuid          String?                @unique
+  lastSyncedAt        DateTime?
+  metadata            Json?
+  notes               String?
+  status              AuthmeBindingStatus    @default(ACTIVE)
+  historyEntries      AuthmeBindingHistory[]
+  boundBy             User?                  @relation("AuthmeBindingOperator", fields: [boundByUserId], references: [id])
+  user                User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  minecraftProfiles   UserMinecraftProfile[]
+  primaryProfileFor   UserProfile[]          @relation("PrimaryAuthmeBinding")
+
+  @@index([authmeUsernameLower], map: "idx_authme_binding_username_lower")
+  @@map("user_authme_binding")
+}
+
+model AuthmeBindingHistory {
+  id                  String              @id @default(uuid())
+  bindingId           String?
+  authmeUsername      String
+  authmeUsernameLower String
+  authmeRealname      String?
+  authmeUuid          String?
+  userId              String?
+  operatorId          String?
+  action              AuthmeBindingAction
+  reason              String?
+  payload             Json?
+  createdAt           DateTime            @default(now())
+  binding             UserAuthmeBinding?  @relation(fields: [bindingId], references: [id])
+  operator            User?               @relation("AuthmeBindingHistoryOperator", fields: [operatorId], references: [id])
+  user                User?               @relation("AuthmeBindingHistoryUser", fields: [userId], references: [id])
+
+  @@index([authmeUsernameLower], map: "idx_authme_history_username_lower")
+  @@index([authmeUuid], map: "idx_authme_history_uuid")
+  @@index([userId], map: "idx_authme_history_user")
+  @@index([bindingId], map: "idx_authme_history_binding")
+  @@map("authme_binding_history")
+}
+
+model MinecraftServer {
+  id                     String                      @id @default(uuid())
+  displayName            String
+  internalCodeCn         String                      @unique(map: "uq_minecraft_server_cn")
+  internalCodeEn         String                      @unique
+  host                   String
+  port                   Int                         @default(25565)
+  edition                MinecraftServerEdition      @default(JAVA)
+  description            String?
+  isActive               Boolean                     @default(true)
+  displayOrder           Int                         @default(0)
+  metadata               Json?
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  createdById            String?
+  updatedById            String?
+  mcsmApiKey             String?
+  mcsmDaemonId           String?
+  mcsmInstanceUuid       String?
+  mcsmPanelUrl           String?
+  mcsmRequestTimeoutMs   Int?
+  beaconEnabled          Boolean?                    @default(false)
+  beaconEndpoint         String?
+  beaconKey              String?
+  beaconMaxRetry         Int?
+  beaconRequestTimeoutMs Int?
+  pingRecords            MinecraftServerPingRecord[]
+  createdBy              User?                       @relation("MinecraftServerCreatedBy", fields: [createdById], references: [id])
+  updatedBy              User?                       @relation("MinecraftServerUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([displayOrder], map: "idx_minecraft_server_order")
+  @@map("minecraft_servers")
+}
+
+model MinecraftServerPingRecord {
+  id            String                 @id @default(uuid())
+  serverId      String
+  edition       MinecraftServerEdition
+  latency       Int?
+  onlinePlayers Int?
+  maxPlayers    Int?
+  motd          String?
+  raw           Json?
+  createdAt     DateTime               @default(now())
+  server        MinecraftServer        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId], map: "idx_minecraft_ping_server")
+  @@index([createdAt], map: "idx_minecraft_ping_created")
+  @@map("minecraft_server_ping_records")
+}
+
+model MinecraftPingSettings {
+  id              String   @id @default(uuid())
+  intervalMinutes Int      @default(5)
+  retentionDays   Int      @default(30)
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@map("minecraft_ping_settings")
+}
+
+model AttachmentFolder {
+  id               String                   @id @default(uuid())
+  name             String
+  slug             String
+  description      String?
+  parentId         String?
+  path             String
+  createdById      String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  visibilityLabels String[]                 @default([])
+  visibilityMode   AttachmentVisibilityMode @default(PUBLIC)
+  visibilityRoles  String[]                 @default([])
+  createdBy        User?                    @relation("AttachmentFolderCreator", fields: [createdById], references: [id])
+  parent           AttachmentFolder?        @relation("AttachmentFolderHierarchy", fields: [parentId], references: [id])
+  children         AttachmentFolder[]       @relation("AttachmentFolderHierarchy")
+  attachments      Attachment[]
+
+  @@unique([parentId, name], map: "uq_attachment_folder_parent_name")
+  @@map("attachment_folders")
+}
+
+model Attachment {
+  id                    String                   @id @default(uuid())
+  folderId              String?
+  ownerId               String?
+  name                  String
+  originalName          String
+  fileName              String
+  mimeType              String?
+  size                  Int
+  storageKey            String
+  hash                  String?
+  isPublic              Boolean                  @default(true)
+  externalUrl           String?
+  metadata              Json?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  deletedAt             DateTime?
+  uploaderNameSnapshot  String?
+  uploaderEmailSnapshot String?
+  visibilityLabels      String[]                 @default([])
+  visibilityMode        AttachmentVisibilityMode @default(INHERIT)
+  visibilityRoles       String[]                 @default([])
+  shareTokens           AttachmentShareToken[]
+  tags                  AttachmentTagging[]
+  folder                AttachmentFolder?        @relation(fields: [folderId], references: [id])
+  owner                 User?                    @relation("AttachmentUploader", fields: [ownerId], references: [id])
+
+  @@index([folderId], map: "idx_attachments_folder")
+  @@index([ownerId], map: "idx_attachments_owner")
+  @@map("attachments")
+}
+
+model AttachmentTag {
+  id          String              @id @default(uuid())
+  key         String              @unique
+  name        String
+  description String?
+  createdById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  taggings    AttachmentTagging[]
+  createdBy   User?               @relation("AttachmentTagCreator", fields: [createdById], references: [id])
+
+  @@map("attachment_tags")
+}
+
+model AttachmentTagging {
+  attachmentId String
+  tagId        String
+  assignedById String?
+  assignedAt   DateTime      @default(now())
+  assignedBy   User?         @relation("AttachmentTaggingAssignee", fields: [assignedById], references: [id])
+  attachment   Attachment    @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  tag          AttachmentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([attachmentId, tagId])
+  @@map("attachment_tagging")
+}
+
+model AttachmentShareToken {
+  id           String     @id @default(uuid())
+  attachmentId String
+  token        String     @unique
+  expiresAt    DateTime
+  createdById  String?
+  createdAt    DateTime   @default(now())
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  createdBy    User?      @relation("AttachmentShareCreator", fields: [createdById], references: [id])
+
+  @@index([attachmentId], map: "idx_attachment_share_tokens_attachment")
+  @@map("attachment_share_tokens")
+}
+
+model ConfigNamespace {
+  id          String        @id @default(uuid())
+  key         String        @unique
+  name        String
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  entries     ConfigEntry[]
+
+  @@map("config_namespaces")
+}
+
+model ConfigEntry {
+  id          String          @id @default(uuid())
+  namespaceId String
+  key         String
+  value       Json
+  description String?
+  version     Int             @default(1)
+  updatedById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  namespace   ConfigNamespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade)
+  updatedBy   User?           @relation("ConfigEntryUpdater", fields: [updatedById], references: [id])
+
+  @@unique([namespaceId, key], map: "uq_config_entry_namespace_key")
+  @@index([namespaceId], map: "idx_config_entries_namespace")
+  @@map("config_entries")
 }
 
 enum PlayerStatus {
@@ -104,671 +738,4 @@ enum OAuthLogAction {
 enum OAuthLogStatus {
   SUCCESS
   FAILURE
-}
-
-model User {
-  id            String    @id @default(uuid())
-  name          String?
-  nameChangedAt DateTime?
-  email         String    @unique
-  password      String?
-  passwordNeedsReset Boolean   @default(false)
-  passwordUpdatedAt DateTime?
-  emailVerified Boolean   @default(false)
-  image         String?
-  joinDate      DateTime?
-  lastLoginAt   DateTime?
-  lastLoginIp   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  accounts                Account[]
-  sessions                Session[]
-  profile                 UserProfile?
-  minecraftIds            UserMinecraftProfile[]
-  statusEvents            UserStatusEvent[]
-  statusSnapshot          UserStatusSnapshot?
-  lifecycle               UserLifecycleEvent[]
-  contacts                UserContact[]
-  piicHistory             UserPiicHistory[]
-  roles                   UserRole[]
-  uploadedAttachments     Attachment[]           @relation("AttachmentUploader")
-  createdFolders          AttachmentFolder[]     @relation("AttachmentFolderCreator")
-  createdTags             AttachmentTag[]        @relation("AttachmentTagCreator")
-  tagAssignments          AttachmentTagging[]    @relation("AttachmentTaggingAssignee")
-  shareTokens             AttachmentShareToken[] @relation("AttachmentShareCreator")
-  updatedConfigEntries    ConfigEntry[]          @relation("ConfigEntryUpdater")
-  authmeBindings          UserAuthmeBinding[]
-  authmeBindingOperations UserAuthmeBinding[]    @relation("AuthmeBindingOperator")
-  authmeBindingHistory    AuthmeBindingHistory[] @relation("AuthmeBindingHistoryUser")
-  authmeBindingHistoryOps AuthmeBindingHistory[] @relation("AuthmeBindingHistoryOperator")
-  createdMinecraftServers MinecraftServer[]      @relation("MinecraftServerCreatedBy")
-  updatedMinecraftServers MinecraftServer[]      @relation("MinecraftServerUpdatedBy")
-  permissionLabels        UserPermissionLabel[]
-  permissionLabelOps      UserPermissionLabel[]  @relation("PermissionLabelOperator")
-  adminAuditLogs          AdminAuditLog[]        @relation("AdminAuditActor")
-  oauthLogs               OAuthLog[]
-
-  @@map("users")
-}
-
-model Account {
-  id                    String    @id @default(uuid())
-  accountId             String    @unique
-  userId                String
-  providerId            String
-  provider              String
-  providerAccountId     String
-  type                  String
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
-  scope                 String?
-  password              String?
-  profile               Json?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  oauthLogs OAuthLog[]
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
-}
-
-model Session {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  userId    String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model Verification {
-  id         String   @id @default(uuid())
-  identifier String
-  value      String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@unique([identifier, value])
-  @@map("verifications")
-}
-
-model UserProfile {
-  id                        String      @id @default(uuid())
-  userId                    String      @unique
-  primaryMinecraftProfileId String?
-  primaryAuthmeBindingId    String?
-  piic                      String?     @unique
-  piicAssignedAt            DateTime?
-  displayName               String?
-  birthday                  DateTime?
-  gender                    GenderType? @default(UNSPECIFIED)
-  motto                     String?
-  timezone                  String?
-  locale                    String?
-  extra                     Json?
-  createdAt                 DateTime    @default(now())
-  updatedAt                 DateTime    @updatedAt
-
-  user                    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  primaryMinecraftProfile UserMinecraftProfile? @relation("PrimaryMinecraftProfile", fields: [primaryMinecraftProfileId], references: [id])
-  primaryAuthmeBinding    UserAuthmeBinding?    @relation("PrimaryAuthmeBinding", fields: [primaryAuthmeBindingId], references: [id], onDelete: SetNull)
-
-  @@map("user_profiles")
-}
-
-model UserPiicHistory {
-  id            String     @id @default(uuid())
-  userId        String
-  piic          String
-  status        PIICStatus @default(ACTIVE)
-  reason        String?
-  metadata      Json?
-  generatedAt   DateTime   @default(now())
-  revokedAt     DateTime?
-  generatedById String?
-  revokedById   String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([piic], map: "idx_user_piic_history_piic")
-  @@index([userId, generatedAt], map: "idx_user_piic_history_user")
-  @@map("user_piic_history")
-}
-
-model UserMinecraftProfile {
-  id               String                 @id @default(uuid())
-  userId           String
-  authmeBindingId  String?
-  authmeUuid       String?
-  nickname         String?
-  isPrimary        Boolean                @default(false)
-  source           MinecraftProfileSource @default(MANUAL)
-  verifiedAt       DateTime?
-  verificationNote String?
-  metadata         Json?
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  authmeBinding     UserAuthmeBinding? @relation(fields: [authmeBindingId], references: [id], onDelete: SetNull)
-  primaryProfileFor UserProfile[]      @relation("PrimaryMinecraftProfile")
-
-  @@index([userId, isPrimary], map: "idx_user_minecraft_primary")
-  @@index([authmeBindingId], map: "idx_user_minecraft_binding")
-  @@index([authmeUuid], map: "idx_user_minecraft_authme_uuid")
-  @@map("user_minecraft_profiles")
-}
-
-model UserStatusEvent {
-  id           String       @id @default(uuid())
-  userId       String
-  status       PlayerStatus
-  reasonCode   String?
-  reasonDetail String?
-  source       StatusSource @default(SYSTEM)
-  metadata     Json?
-  createdAt    DateTime     @default(now())
-  createdById  String?
-
-  user     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  snapshot UserStatusSnapshot? @relation("StatusSnapshotEvent")
-
-  @@index([userId, createdAt], map: "idx_user_status_user_time")
-  @@map("user_status_events")
-}
-
-model UserStatusSnapshot {
-  userId        String       @id
-  statusEventId String       @unique
-  status        PlayerStatus
-  updatedAt     DateTime     @updatedAt
-
-  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  event UserStatusEvent @relation("StatusSnapshotEvent", fields: [statusEventId], references: [id], onDelete: Cascade)
-
-  @@map("user_status_snapshot")
-}
-
-model UserLifecycleEvent {
-  id          String             @id @default(uuid())
-  userId      String
-  eventType   LifecycleEventType
-  occurredAt  DateTime
-  source      String?
-  notes       String?
-  metadata    Json?
-  createdAt   DateTime           @default(now())
-  createdById String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, eventType], map: "idx_user_lifecycle_type")
-  @@map("user_lifecycle_events")
-}
-
-model ContactChannel {
-  id              String   @id @default(uuid())
-  key             String   @unique
-  displayName     String
-  description     String?
-  validationRegex String?
-  isRequired      Boolean  @default(false)
-  allowMultiple   Boolean  @default(true)
-  isVerifiable    Boolean  @default(false)
-  metadata        Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  contacts UserContact[]
-
-  @@map("contact_channels")
-}
-
-model UserContact {
-  id               String                    @id @default(uuid())
-  userId           String
-  channelId        String
-  value            String
-  isPrimary        Boolean                   @default(false)
-  verification     ContactVerificationStatus @default(UNVERIFIED)
-  verifiedAt       DateTime?
-  verificationCode String?
-  metadata         Json?
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
-
-  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  channel ContactChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, channelId, value], map: "uq_user_contact_value")
-  @@map("user_contacts")
-}
-
-model Role {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  name        String
-  description String?
-  isSystem    Boolean  @default(false)
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  userRoles       UserRole[]
-  rolePermissions RolePermission[]
-
-  @@map("roles")
-}
-
-model Permission {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  description String?
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  rolePermissions     RolePermission[]
-  labelPermissions    PermissionLabelPermission[]
-
-  @@map("permissions")
-}
-
-model RolePermission {
-  id           String @id @default(uuid())
-  roleId       String
-  permissionId String
-
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, permissionId], map: "uq_role_permission")
-  @@map("role_permissions")
-}
-
-model UserRole {
-  id           String   @id @default(uuid())
-  userId       String
-  roleId       String
-  assignedById String?
-  assignedAt   DateTime @default(now())
-  metadata     Json?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, roleId], map: "uq_user_role")
-  @@index([roleId], map: "idx_user_roles_role")
-  @@map("user_roles")
-}
-
-model PermissionLabel {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  name        String
-  description String?
-  color       String?
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  permissions PermissionLabelPermission[]
-  assignments UserPermissionLabel[]
-
-  @@map("permission_labels")
-}
-
-model PermissionLabelPermission {
-  id           String @id @default(uuid())
-  labelId      String
-  permissionId String
-
-  label      PermissionLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
-  permission Permission      @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([labelId, permissionId], map: "uq_label_permission")
-  @@map("permission_label_permissions")
-}
-
-model UserPermissionLabel {
-  id           String   @id @default(uuid())
-  userId       String
-  labelId      String
-  assignedById String?
-  assignedAt   DateTime @default(now())
-
-  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label      PermissionLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
-  assignedBy User?           @relation("PermissionLabelOperator", fields: [assignedById], references: [id], onDelete: SetNull)
-
-  @@unique([userId, labelId], map: "uq_user_permission_label")
-  @@map("user_permission_labels")
-}
-
-model AdminAuditLog {
-  id         String   @id @default(uuid())
-  actorId    String?
-  action     String
-  targetType String
-  targetId   String?
-  payload    Json?
-  createdAt  DateTime @default(now())
-
-  actor User? @relation("AdminAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
-
-  @@index([targetType, targetId], map: "idx_admin_audit_target")
-  @@map("admin_audit_log")
-}
-
-model OAuthProvider {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  name        String
-  type        String
-  description String?
-  enabled     Boolean  @default(true)
-  settings    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  logs OAuthLog[]
-
-  @@map("oauth_providers")
-}
-
-model OAuthLog {
-  id            String        @id @default(uuid())
-  providerId    String?
-  providerKey   String
-  providerType  String
-  action        OAuthLogAction
-  status        OAuthLogStatus
-  userId        String?
-  accountId     String?
-  ip            String?
-  userAgent     String?
-  message       String?
-  metadata      Json?
-  createdAt     DateTime      @default(now())
-
-  provider OAuthProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
-  user     User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  account  Account?       @relation(fields: [accountId], references: [id], onDelete: SetNull)
-
-  @@index([providerKey, createdAt], map: "idx_oauth_log_provider_key")
-  @@index([userId, createdAt], map: "idx_oauth_log_user")
-  @@map("oauth_logs")
-}
-
-model OAuthState {
-  id         String   @id @default(uuid())
-  state      String   @unique
-  payload    Json
-  result     Json?
-  consumedAt DateTime?
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([expiresAt], map: "idx_oauth_state_expiry")
-  @@map("oauth_states")
-}
-
-model UserAuthmeBinding {
-  id                  String   @id @default(uuid())
-  userId              String
-  authmeUsername      String
-  authmeUsernameLower String   @unique
-  authmeRealname      String?
-  authmeUuid          String?  @unique
-  boundAt             DateTime @default(now())
-  boundByUserId       String?
-  boundByIp           String?
-  status              AuthmeBindingStatus @default(ACTIVE)
-  notes               String?
-  metadata            Json?
-  lastSyncedAt        DateTime?
-  updatedAt           DateTime @updatedAt
-
-  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  boundBy           User?                  @relation("AuthmeBindingOperator", fields: [boundByUserId], references: [id], onDelete: SetNull)
-  minecraftProfiles UserMinecraftProfile[]
-  primaryProfileFor UserProfile[]          @relation("PrimaryAuthmeBinding")
-  historyEntries    AuthmeBindingHistory[]
-
-  @@index([authmeUsernameLower], map: "idx_authme_binding_username_lower")
-  @@map("user_authme_binding")
-}
-
-model AuthmeBindingHistory {
-  id                  String               @id @default(uuid())
-  bindingId           String?
-  authmeUsername      String
-  authmeUsernameLower String
-  authmeRealname      String?
-  authmeUuid          String?
-  userId              String?
-  operatorId          String?
-  action              AuthmeBindingAction
-  reason              String?
-  payload             Json?
-  createdAt           DateTime             @default(now())
-
-  binding  UserAuthmeBinding? @relation(fields: [bindingId], references: [id], onDelete: SetNull)
-  user     User?              @relation("AuthmeBindingHistoryUser", fields: [userId], references: [id], onDelete: SetNull)
-  operator User?              @relation("AuthmeBindingHistoryOperator", fields: [operatorId], references: [id], onDelete: SetNull)
-
-  @@index([authmeUsernameLower], map: "idx_authme_history_username_lower")
-  @@index([authmeUuid], map: "idx_authme_history_uuid")
-  @@index([userId], map: "idx_authme_history_user")
-  @@index([bindingId], map: "idx_authme_history_binding")
-  @@map("authme_binding_history")
-}
-
-model MinecraftServer {
-  id             String                 @id @default(uuid())
-  displayName    String
-  internalCodeCn String
-  internalCodeEn String                 @unique
-  host           String
-  port           Int                    @default(25565)
-  edition        MinecraftServerEdition @default(JAVA)
-  description    String?
-  isActive       Boolean                @default(true)
-  displayOrder   Int                    @default(0)
-  metadata       Json?
-  mcsmPanelUrl   String?
-  mcsmDaemonId   String?
-  mcsmInstanceUuid String?
-  mcsmApiKey     String?
-  mcsmRequestTimeoutMs Int?
-  // Hydroline Beacon integration
-  beaconEndpoint        String?
-  beaconKey             String?
-  beaconEnabled         Boolean? @default(false)
-  beaconRequestTimeoutMs Int?
-  beaconMaxRetry         Int?
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  createdById    String?
-  updatedById    String?
-  pingRecords    MinecraftServerPingRecord[]
-
-  createdBy User? @relation("MinecraftServerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy User? @relation("MinecraftServerUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-
-  @@unique([internalCodeCn], map: "uq_minecraft_server_cn")
-  @@index([displayOrder], map: "idx_minecraft_server_order")
-  @@map("minecraft_servers")
-}
-
-model MinecraftServerPingRecord {
-  id            String                 @id @default(uuid())
-  serverId      String
-  edition       MinecraftServerEdition
-  latency       Int?
-  onlinePlayers Int?
-  maxPlayers    Int?
-  motd          String?
-  raw           Json?
-  createdAt     DateTime               @default(now())
-  server        MinecraftServer        @relation(fields: [serverId], references: [id], onDelete: Cascade)
-
-  @@index([serverId], map: "idx_minecraft_ping_server")
-  @@index([createdAt], map: "idx_minecraft_ping_created")
-  @@map("minecraft_server_ping_records")
-}
-
-model MinecraftPingSettings {
-  id             String   @id @default(uuid())
-  intervalMinutes Int     @default(5)   // 自动 Ping 周期（分钟）
-  retentionDays   Int     @default(30)  // 历史保留天数
-  updatedAt       DateTime @updatedAt
-  createdAt       DateTime @default(now())
-
-  @@map("minecraft_ping_settings")
-}
-
-model AttachmentFolder {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String
-  description String?
-  parentId    String?
-  path        String
-  createdById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  visibilityMode AttachmentVisibilityMode @default(PUBLIC)
-  visibilityRoles String[] @default([])
-  visibilityLabels String[] @default([])
-
-  parent      AttachmentFolder?  @relation("AttachmentFolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    AttachmentFolder[] @relation("AttachmentFolderHierarchy")
-  attachments Attachment[]
-  createdBy   User?              @relation("AttachmentFolderCreator", fields: [createdById], references: [id], onDelete: SetNull)
-
-  @@unique([parentId, name], map: "uq_attachment_folder_parent_name")
-  @@map("attachment_folders")
-}
-
-model Attachment {
-  id                    String    @id @default(uuid())
-  folderId              String?
-  ownerId               String?
-  uploaderNameSnapshot  String?
-  uploaderEmailSnapshot String?
-  name                  String
-  originalName          String
-  fileName              String
-  mimeType              String?
-  size                  Int
-  storageKey            String
-  hash                  String?
-  isPublic              Boolean   @default(true)
-  externalUrl           String?
-  metadata              Json?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  deletedAt             DateTime?
-  visibilityMode        AttachmentVisibilityMode @default(INHERIT)
-  visibilityRoles       String[] @default([])
-  visibilityLabels      String[] @default([])
-
-  folder      AttachmentFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  owner       User?                  @relation("AttachmentUploader", fields: [ownerId], references: [id], onDelete: SetNull)
-  tags        AttachmentTagging[]
-  shareTokens AttachmentShareToken[]
-
-  @@index([folderId], map: "idx_attachments_folder")
-  @@index([ownerId], map: "idx_attachments_owner")
-  @@map("attachments")
-}
-
-model AttachmentTag {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  name        String
-  description String?
-  createdById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  createdBy User?               @relation("AttachmentTagCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  taggings  AttachmentTagging[]
-
-  @@map("attachment_tags")
-}
-
-model AttachmentTagging {
-  attachmentId String
-  tagId        String
-  assignedById String?
-  assignedAt   DateTime @default(now())
-
-  attachment Attachment    @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
-  tag        AttachmentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  assignedBy User?         @relation("AttachmentTaggingAssignee", fields: [assignedById], references: [id], onDelete: SetNull)
-
-  @@id([attachmentId, tagId])
-  @@map("attachment_tagging")
-}
-
-model AttachmentShareToken {
-  id           String   @id @default(uuid())
-  attachmentId String
-  token        String   @unique
-  expiresAt    DateTime
-  createdById  String?
-  createdAt    DateTime @default(now())
-
-  attachment Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
-  createdBy  User?      @relation("AttachmentShareCreator", fields: [createdById], references: [id], onDelete: SetNull)
-
-  @@index([attachmentId], map: "idx_attachment_share_tokens_attachment")
-  @@map("attachment_share_tokens")
-}
-
-model ConfigNamespace {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  entries ConfigEntry[]
-
-  @@map("config_namespaces")
-}
-
-model ConfigEntry {
-  id          String   @id @default(uuid())
-  namespaceId String
-  key         String
-  value       Json
-  description String?
-  version     Int      @default(1)
-  updatedById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  namespace ConfigNamespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade)
-  updatedBy User?           @relation("ConfigEntryUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
-
-  @@unique([namespaceId, key], map: "uq_config_entry_namespace_key")
-  @@index([namespaceId], map: "idx_config_entries_namespace")
-  @@map("config_entries")
 }

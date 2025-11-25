@@ -7,6 +7,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { ConfigService } from '../config/config.service';
 import { AttachmentsService } from '../attachments/attachments.service';
+import { buildPublicUrl } from '../lib/shared/url';
 import {
   DEFAULT_PORTAL_HOME_CONFIG,
   PORTAL_CARD_REGISTRY,
@@ -30,16 +31,11 @@ interface SaveOptions {
 @Injectable()
 export class PortalConfigService {
   private readonly logger = new Logger(PortalConfigService.name);
-  private readonly baseUrl: string;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly attachmentsService: AttachmentsService,
   ) {
-    this.baseUrl =
-      process.env.APP_PUBLIC_BASE_URL ||
-      process.env.BETTER_AUTH_URL ||
-      'http://localhost:3000';
   }
 
   getCardRegistry(): PortalCardRegistryEntry[] {
@@ -419,7 +415,7 @@ export class PortalConfigService {
       }
       return {
         id: item.id,
-        imageUrl: this.toPublicUrl(`/attachments/public/${attachment.id}`),
+        imageUrl: buildPublicUrl(`/attachments/public/${attachment.id}`),
         description: item.description ?? null,
           title: item.title ?? null,
           subtitle: item.subtitle ?? null,
@@ -573,7 +569,4 @@ export class PortalConfigService {
     }
   }
 
-  private toPublicUrl(pathname: string) {
-    return new URL(pathname, this.baseUrl).toString();
-  }
 }

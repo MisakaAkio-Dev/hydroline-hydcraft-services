@@ -22,6 +22,7 @@ import { AdminAuditService } from './services/admin-audit.service';
 import { ConfigModule } from '../config/config.module';
 import { OAuthModule } from '../oauth/oauth.module';
 import { VerificationAdminController } from './controllers/verification-admin.controller';
+import { AttachmentsModule } from '../attachments/attachments.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { VerificationAdminController } from './controllers/verification-admin.co
     MailModule,
     forwardRef(() => ConfigModule),
     forwardRef(() => OAuthModule),
+    forwardRef(() => AttachmentsModule),
   ],
   controllers: [
     AuthController,

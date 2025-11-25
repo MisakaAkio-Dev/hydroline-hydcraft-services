@@ -10,8 +10,17 @@ import {
   Res,
   UnauthorizedException,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { UsersService } from '../services/users/users.service';
@@ -22,6 +31,10 @@ import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthGuard } from '../auth.guard';
 import { buildRequestContext } from '../helpers/request-context.helper';
 import { IpLocationService } from '../../lib/ip2region/ip-location.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { AttachmentsService } from '../../attachments/attachments.service';
+import { buildPublicUrl } from '../../lib/shared/url';
+import { UpdateAvatarResponseDto } from '../dto/update-avatar.dto';
 import { ChangePasswordWithCodeDto } from '../dto/change-password-with-code.dto';
 import {
   AddPhoneContactDto,
@@ -88,6 +101,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
     private readonly ipLocationService: IpLocationService,
+    private readonly attachmentsService: AttachmentsService,
   ) {}
 
   @Post('signup')
@@ -433,11 +447,13 @@ export class AuthController {
         };
       }),
     );
+    const withBindings = {
+      ...user,
+      authmeBindings: enrichedBindings,
+    };
+    const enrichedUser = await this.enrichUserAvatar(withBindings);
     return {
-      user: {
-        ...user,
-        authmeBindings: enrichedBindings,
-      },
+      user: enrichedUser,
     };
   }
 
@@ -454,15 +470,11 @@ export class AuthController {
     const enrichedBindings = await this.enrichAuthmeBindings(
       (user as Record<string, unknown>)?.['authmeBindings'],
     );
-    if (enrichedBindings) {
-      return {
-        user: {
-          ...user,
-          authmeBindings: enrichedBindings,
-        },
-      };
-    }
-    return { user };
+    const withBindings = enrichedBindings
+      ? { ...(user as any), authmeBindings: enrichedBindings }
+      : (user as any);
+    const enrichedUser = await this.enrichUserAvatar(withBindings);
+    return { user: enrichedUser };
   }
 
   // split: basic profile only
@@ -482,6 +494,8 @@ export class AuthController {
       id: usr.id ?? null,
       name: usr.name ?? null,
       email: usr.email ?? null,
+      avatarAttachmentId: usr.avatarAttachmentId ?? null,
+      avatarUrl: usr.avatarUrl ?? null,
       profile: usr.profile ?? null,
       createdAt: usr.createdAt ?? null,
       updatedAt: usr.updatedAt ?? null,
@@ -673,6 +687,85 @@ export class AuthController {
     return { user };
   }
 
+  @Patch('me/avatar')
+  @UseGuards(AuthGuard)
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      limits: { fileSize: 8 * 1024 * 1024 },
+    }),
+  )
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        avatar: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+      required: ['avatar'],
+    },
+  })
+  @ApiOperation({ summary: '更新当前用户头像（上传附件）' })
+  async updateCurrentUserAvatar(
+    @Req() req: Request,
+    @UploadedFile() file: any,
+  ): Promise<{ user: any }> {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedException('Invalid session');
+    }
+    if (!file) {
+      throw new BadRequestException('Missing avatar file');
+    }
+
+    const existingUser = await this.usersService.getSessionUser(userId);
+    const previousAvatarAttachmentId =
+      (existingUser as any)?.avatarAttachmentId ?? null;
+
+    const avatarFolder = await this.attachmentsService.resolveUserAvatarFolder(
+      userId,
+    );
+
+    const attachment = await this.attachmentsService.uploadAttachment(
+      userId,
+      file as any,
+      {
+        name: file.originalname,
+        folderId: avatarFolder?.id ?? null,
+        description: 'User avatar',
+        isPublic: true,
+        tagKeys: [],
+        visibilityMode: 'public',
+        visibilityRoles: [],
+        visibilityLabels: [],
+        metadata: {},
+      } as any,
+    );
+
+    const updated = (await this.usersService.updateCurrentUser(userId, {
+      avatarAttachmentId: attachment.id,
+    } as any)) as any;
+
+    if (
+      previousAvatarAttachmentId &&
+      previousAvatarAttachmentId !== attachment.id
+    ) {
+      try {
+        await this.attachmentsService.deleteAttachment(
+          previousAvatarAttachmentId,
+        );
+      } catch {
+        // ignore avatar cleanup errors
+      }
+    }
+
+    const enrichedUser = await this.enrichUserAvatar(updated, attachment);
+    return { user: enrichedUser };
+  }
+
   private attachCookies(res: Response, cookies: string[]) {
     if (!cookies || cookies.length === 0) {
       return;
@@ -718,5 +811,55 @@ export class AuthController {
         };
       }),
     );
+  }
+
+  private async enrichUserAvatar(
+    user: any,
+    latestAttachment?: { id: string; isPublic: boolean },
+  ) {
+    const currentAttachmentId =
+      (user?.avatarAttachmentId as string | null | undefined) ?? null;
+    const effectiveAttachmentId =
+      latestAttachment?.id ?? currentAttachmentId ?? null;
+
+    if (!effectiveAttachmentId) {
+      const profile = user?.profile
+        ? { ...(user.profile as any), avatarUrl: null }
+        : { avatarUrl: null };
+      return {
+        ...user,
+        avatarAttachmentId: null,
+        avatarUrl: null,
+        profile,
+      };
+    }
+
+    let isPublic = latestAttachment?.isPublic ?? false;
+    if (latestAttachment === undefined) {
+      try {
+        const attachment = await this.attachmentsService.getAttachmentOrThrow(
+          effectiveAttachmentId,
+        );
+        isPublic = attachment.isPublic;
+      } catch {
+        isPublic = false;
+      }
+    }
+
+    const avatarUrl =
+      isPublic && effectiveAttachmentId
+        ? buildPublicUrl(`/attachments/public/${effectiveAttachmentId}`)
+        : null;
+
+    const profile = user?.profile
+      ? { ...(user.profile as any), avatarUrl }
+      : { avatarUrl };
+
+    return {
+      ...user,
+      avatarAttachmentId: effectiveAttachmentId,
+      avatarUrl,
+      profile,
+    };
   }
 }

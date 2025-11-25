@@ -685,6 +685,20 @@ export const useAuthStore = defineStore('auth', {
       this.setUser(result.user)
       return result.user
     },
+    async uploadAvatar(file: File) {
+      if (!this.token) {
+        throw new ApiError(401, '未登录')
+      }
+      const formData = new FormData()
+      formData.append('avatar', file)
+      const result = await apiFetch<{ user: RawUser }>('/auth/me/avatar', {
+        method: 'PATCH',
+        token: this.token,
+        body: formData,
+      })
+      this.setUser(result.user)
+      return result.user
+    },
     async updateCurrentUser(payload: UpdateCurrentUserPayload) {
       if (!this.token) {
         throw new ApiError(401, '未登录')

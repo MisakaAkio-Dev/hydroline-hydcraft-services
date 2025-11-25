@@ -464,6 +464,71 @@ const lastLoginIpDisplay = computed(() => {
   return location ? `${ip}（${location}）` : ip
 })
 
+const avatarUrl = computed(() => {
+  const user = auth.user as Record<string, any> | null
+  const url = (user as any)?.avatarUrl as string | null | undefined
+  if (typeof url === 'string' && url.trim().length > 0) {
+    return url.trim()
+  }
+  return null
+})
+const avatarUploading = ref(false)
+const avatarUploadProgress = ref(0)
+const avatarFileInput = ref<HTMLInputElement | null>(null)
+let avatarProgressTimer: number | null = null
+
+function triggerAvatarSelect() {
+  if (!isAuthenticated.value) {
+    ui.openLoginDialog()
+    return
+  }
+  avatarFileInput.value?.click()
+}
+
+async function handleAvatarFileChange(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  const file = target?.files?.[0]
+  if (!file) return
+  if (!auth.token) {
+    ui.openLoginDialog()
+    return
+  }
+  avatarUploading.value = true
+  avatarUploadProgress.value = 0
+
+  if (avatarProgressTimer !== null) {
+    window.clearInterval(avatarProgressTimer)
+  }
+  avatarProgressTimer = window.setInterval(() => {
+    if (avatarUploadProgress.value < 90) {
+      avatarUploadProgress.value += 5
+    }
+  }, 200)
+
+  ui.startLoading()
+  try {
+    await auth.uploadAvatar(file)
+    avatarUploadProgress.value = 100
+    toast.add({
+      title: '头像已更新',
+      description: '您的头像已成功上传并更新。',
+      color: 'success',
+    })
+  } catch (error) {
+    handleError(error, '上传头像失败')
+  } finally {
+    if (avatarProgressTimer !== null) {
+      window.clearInterval(avatarProgressTimer)
+      avatarProgressTimer = null
+    }
+    avatarUploading.value = false
+    ui.stopLoading()
+    if (target) {
+      target.value = ''
+    }
+  }
+}
+
 watch(
   () => auth.isAuthenticated,
   (value) => {
@@ -480,6 +545,14 @@ watch(
     :class="{ 'pointer-events-none opacity-60': loading && !saving }"
     @submit.prevent="handleSave"
   >
+    <input
+      ref="avatarFileInput"
+      type="file"
+      accept="image/*"
+      class="hidden"
+      @change="handleAvatarFileChange"
+    >
+
     <BasicSection
       ref="basicSectionRef"
       :model-value="{
@@ -503,6 +576,10 @@ watch(
         addressLine1: form.addressLine1,
         postalCode: form.postalCode,
       }"
+      :avatar-url="avatarUrl"
+      :avatar-uploading="avatarUploading"
+      :avatar-upload-progress="avatarUploadProgress"
+      :on-avatar-click="triggerAvatarSelect"
       :gender-options="genderOptions"
       :timezone-options="timezoneOptions"
       :language-options="languageOptions"
