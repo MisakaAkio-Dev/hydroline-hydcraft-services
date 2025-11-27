@@ -7,6 +7,7 @@ import { AttachmentsModule } from './attachments/attachments.module';
 import { ConfigModule } from './config/config.module';
 import { PortalConfigModule } from './portal-config/portal-config.module';
 import { PortalModule } from './portal/portal.module';
+import { PortalGatewayModule } from './portal-gateway/portal-gateway.module';
 import { PlayerModule } from './player/player.module';
 import { AuthmeModule } from './authme/authme.module';
 import { Ip2RegionModule } from './lib/ip2region/ip2region.module';
@@ -24,6 +25,7 @@ import { RedisModule } from './lib/redis/redis.module';
     ConfigModule,
     PortalConfigModule,
     PortalModule,
+    PortalGatewayModule,
     PlayerModule,
     AuthmeModule,
     Ip2RegionModule,

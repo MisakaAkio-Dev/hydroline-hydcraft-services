@@ -19,7 +19,7 @@ import {
 } from 'class-validator';
 import { OptionalAuthGuard } from '../auth/optional-auth.guard';
 import { AuthGuard } from '../auth/auth.guard';
-import { PortalService } from '../portal/portal.service';
+import { PlayerService } from './player.service';
 
 class PlayerReasonDto {
   @IsOptional()
@@ -52,7 +52,7 @@ class RestartRequestDto {
 @ApiTags('玩家档案接口')
 @Controller('player')
 export class PlayerController {
-  constructor(private readonly portalService: PortalService) {}
+  constructor(private readonly playerService: PlayerService) {}
 
   private resolveTargetUserId(req: Request, id?: string | null) {
     const trimmed = id?.trim();
@@ -76,7 +76,7 @@ export class PlayerController {
   ) {
     const targetId = this.resolveTargetUserId(req, id);
     const pageNumber = actionsPage ? Number(actionsPage) : undefined;
-    return this.portalService.getPlayerPortalData(
+    return this.playerService.getPlayerPortalData(
       req.user?.id ?? null,
       targetId,
       {
@@ -91,7 +91,7 @@ export class PlayerController {
   @ApiOperation({ summary: '获取玩家档案概要' })
   async playerSummary(@Req() req: Request, @Query('id') id?: string) {
     const targetId = this.resolveTargetUserId(req, id);
-    return this.portalService.getPlayerSummary(targetId);
+    return this.playerService.getPlayerSummary(targetId);
   }
 
   @Get('login-map')
@@ -106,7 +106,7 @@ export class PlayerController {
     const fromDate = from ? new Date(from) : undefined;
     const toDate = to ? new Date(to) : undefined;
     const targetId = this.resolveTargetUserId(req, id);
-    return this.portalService.getPlayerLoginMap(targetId, {
+    return this.playerService.getPlayerLoginMap(targetId, {
       from:
         fromDate && !Number.isNaN(fromDate.getTime()) ? fromDate : undefined,
       to: toDate && !Number.isNaN(toDate.getTime()) ? toDate : undefined,
@@ -123,7 +123,7 @@ export class PlayerController {
     @Query('id') id?: string,
   ) {
     const targetId = this.resolveTargetUserId(req, id);
-    return this.portalService.getPlayerActions(targetId, {
+    return this.playerService.getPlayerActions(targetId, {
       page: page ? Number(page) : undefined,
       pageSize: pageSize ? Number(pageSize) : undefined,
     });
@@ -134,7 +134,7 @@ export class PlayerController {
   @ApiOperation({ summary: '玩家名下资产概览' })
   async playerAssets(@Req() req: Request, @Query('id') id?: string) {
     const targetId = this.resolveTargetUserId(req, id);
-    return this.portalService.getPlayerAssets(targetId);
+    return this.playerService.getPlayerAssets(targetId);
   }
 
   @Get('region')
@@ -142,7 +142,7 @@ export class PlayerController {
   @ApiOperation({ summary: '玩家行政区信息' })
   async playerRegion(@Req() req: Request, @Query('id') id?: string) {
     const targetId = this.resolveTargetUserId(req, id);
-    return this.portalService.getPlayerRegion(targetId);
+    return this.playerService.getPlayerRegion(targetId);
   }
 
   @Get('minecraft')
@@ -150,7 +150,7 @@ export class PlayerController {
   @ApiOperation({ summary: '玩家服务器账户与权限' })
   async playerMinecraft(@Req() req: Request, @Query('id') id?: string) {
     const targetId = this.resolveTargetUserId(req, id);
-    return this.portalService.getPlayerMinecraftData(targetId);
+    return this.playerService.getPlayerMinecraftData(targetId);
   }
 
   @Get('stats')
@@ -162,7 +162,7 @@ export class PlayerController {
     @Query('id') id?: string,
   ) {
     const targetId = this.resolveTargetUserId(req, id);
-    return this.portalService.getPlayerStats(targetId, period);
+    return this.playerService.getPlayerStats(targetId, period);
   }
 
   @Post('authme/reset-password')
@@ -170,7 +170,7 @@ export class PlayerController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '提交 AuthMe 密码重置申请' })
   async authmeReset(@Req() req: Request, @Body() body: PlayerReasonDto) {
-    return this.portalService.submitAuthmeResetRequest(
+    return this.playerService.submitAuthmeResetRequest(
       req.user!.id,
       body.reason,
     );
@@ -181,7 +181,7 @@ export class PlayerController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '提交强制登陆申请' })
   async authmeForceLogin(@Req() req: Request, @Body() body: PlayerReasonDto) {
-    return this.portalService.submitAuthmeForceLogin(req.user!.id, body.reason);
+    return this.playerService.submitAuthmeForceLogin(req.user!.id, body.reason);
   }
 
   @Post('permissions/request-change')
@@ -192,7 +192,7 @@ export class PlayerController {
     @Req() req: Request,
     @Body() body: PermissionChangeDto,
   ) {
-    return this.portalService.submitPermissionChangeRequest(req.user!.id, body);
+    return this.playerService.submitPermissionChangeRequest(req.user!.id, body);
   }
 
   @Post('server/restart-request')
@@ -200,6 +200,6 @@ export class PlayerController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '申请服务器强制重启' })
   async restartRequest(@Req() req: Request, @Body() body: RestartRequestDto) {
-    return this.portalService.submitServerRestartRequest(req.user!.id, body);
+    return this.playerService.submitServerRestartRequest(req.user!.id, body);
   }
 }

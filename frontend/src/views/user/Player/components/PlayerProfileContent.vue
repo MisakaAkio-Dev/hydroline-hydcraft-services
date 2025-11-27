@@ -7,14 +7,12 @@ import type {
   PlayerMinecraftResponse,
   PlayerStatsResponse,
   PlayerSummary,
-  PortalOwnershipOverview,
 } from '@/types/portal'
 
 const props = defineProps<{
   isViewingSelf: boolean
   summary: PlayerSummary | null
   actions: PlayerActionsResponse | null
-  ownership: PortalOwnershipOverview | null
   minecraft: PlayerMinecraftResponse | null
   stats: PlayerStatsResponse | null
   statsPeriod: string
@@ -225,6 +223,74 @@ onMounted(() => {
         </div>
       </div>
 
+      <div
+        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800"
+      >
+        <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
+          权限信息
+        </p>
+        <div class="space-y-4 text-sm text-slate-700 dark:text-slate-200">
+          <div>
+            <p class="text-xs text-slate-500 dark:text-slate-500 mb-2">
+              权限组
+            </p>
+            <div
+              v-if="props.minecraft?.permissionRoles?.length"
+              class="flex flex-wrap gap-2"
+            >
+              <UBadge
+                v-for="role in props.minecraft?.permissionRoles"
+                :key="role.id"
+                color="neutral"
+                variant="soft"
+              >
+                {{ role.name || role.key }}
+              </UBadge>
+            </div>
+            <p
+              v-else
+              class="text-xs text-slate-500 dark:text-slate-500 italic"
+            >
+              暂无权限组
+            </p>
+          </div>
+
+          <div>
+            <p class="text-xs text-slate-500 dark:text-slate-500 mb-2">
+              RBAC 标签
+            </p>
+            <div
+              v-if="props.summary?.rbacLabels?.length"
+              class="flex flex-wrap gap-2"
+            >
+              <UBadge
+                v-for="label in props.summary?.rbacLabels"
+                :key="label.id"
+                color="neutral"
+                variant="soft"
+                :style="
+                  label.color
+                    ? {
+                        backgroundColor: label.color,
+                        color: '#ffffff',
+                        borderColor: 'transparent',
+                      }
+                    : undefined
+                "
+              >
+                {{ label.name || label.key }}
+              </UBadge>
+            </div>
+            <p
+              v-else
+              class="text-xs text-slate-500 dark:text-slate-500 italic"
+            >
+              暂无 RBAC 标签
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div>
         <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
           操作记录
@@ -277,54 +343,17 @@ onMounted(() => {
         <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
           名下资产
         </p>
-        <div v-if="props.ownership" class="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p class="text-xs text-slate-500 dark:text-slate-500">
-              AuthMe 绑定
-            </p>
-            <p class="text-2xl font-semibold text-slate-900 dark:text-white">
-              {{ props.ownership.authmeBindings }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-500 dark:text-slate-500">
-              权限组
-            </p>
-            <p class="text-2xl font-semibold text-slate-900 dark:text-white">
-              {{ props.ownership.permissionGroups }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-500 dark:text-slate-500">
-              RBAC 标签
-            </p>
-            <p class="text-2xl font-semibold text-slate-900 dark:text-white">
-              {{ props.ownership.rbacLabels }}
-            </p>
-          </div>
-        </div>
-        <USkeleton v-else class="h-28 w-full" />
-      </div>
-
-      <div
-        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800"
-      >
-        <div class="flex items-center justify-between">
-          <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
-            服务器账户
-          </p>
-          <UBadge color="primary" variant="soft">
-            {{ props.minecraft?.permissionRoles.length ?? 0 }} 权限组
-          </UBadge>
-        </div>
-        <div v-if="props.minecraft" class="space-y-4">
+        <div v-if="props.summary" class="space-y-3 text-sm">
           <div
-            v-for="binding in props.minecraft.bindings"
+            v-for="binding in props.summary.authmeBindings"
             :key="binding.id"
             class="rounded-xl border border-slate-200/70 p-3 dark:border-slate-800/70"
           >
-            <p class="font-semibold text-slate-900 dark:text-white">
+            <p class="text-base font-semibold text-slate-900 dark:text-white">
               {{ binding.username }}
+            </p>
+            <p class="text-xs text-slate-500 dark:text-slate-500">
+              角色名：{{ binding.realname || '未设置' }}
             </p>
             <p class="text-xs text-slate-500 dark:text-slate-500">
               绑定时间：{{ props.formatDateTime(binding.boundAt) }}
@@ -348,16 +377,49 @@ onMounted(() => {
               </span>
             </p>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <UBadge
-              v-for="role in props.minecraft.permissionRoles"
-              :key="role.id"
-              color="neutral"
-              variant="soft"
+          <p
+            v-if="props.summary.authmeBindings.length === 0"
+            class="text-xs text-slate-500 dark:text-slate-500"
+          >
+            暂无 AuthMe 绑定
+          </p>
+        </div>
+        <USkeleton v-else class="h-28 w-full" />
+      </div>
+
+      <div
+        class="rounded-lg p-4 bg-white/85 backdrop-blur dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800"
+      >
+        <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
+          服务器账户
+        </p>
+        <div v-if="props.minecraft" class="space-y-4">
+          <div
+            v-for="profile in props.minecraft.minecraftProfiles"
+            :key="profile.id"
+            class="rounded-xl border border-slate-200/70 p-3 dark:border-slate-800/70"
+          >
+            <p class="font-semibold text-slate-900 dark:text-white">
+              {{ profile.nickname || '未设置' }}
+            </p>
+            <p
+              class="text-xs text-slate-500 dark:text-slate-400"
             >
-              {{ role.name || role.key }}
-            </UBadge>
+              {{ profile.isPrimary ? '主档案' : '辅助档案' }}
+            </p>
+            <p
+              v-if="profile.source"
+              class="text-xs text-slate-500 dark:text-slate-400"
+            >
+              来源：{{ profile.source }}
+            </p>
           </div>
+          <p
+            v-if="props.minecraft.minecraftProfiles.length === 0"
+            class="text-xs text-slate-500 dark:text-slate-500"
+          >
+            暂无 Minecraft 档案
+          </p>
         </div>
         <USkeleton v-else class="h-32 w-full" />
       </div>

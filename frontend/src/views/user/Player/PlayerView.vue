@@ -48,7 +48,6 @@ const isViewingSelf = computed(() => {
 })
 
 const summary = computed(() => playerStore.summary)
-const ownership = computed(() => summary.value?.ownership ?? null)
 
 const assets = computed(() => playerStore.assets)
 const region = computed(() => playerStore.region)
@@ -222,7 +221,6 @@ function formatMetricValue(value: number, unit: string) {
       :is-viewing-self="isViewingSelf"
       :summary="summary"
       :actions="actions"
-      :ownership="ownership"
       :minecraft="minecraft"
       :stats="stats"
       :stats-period="statsPeriod"

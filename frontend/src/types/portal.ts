@@ -121,6 +121,12 @@ export interface PlayerSummary {
     regIpLocation: string | null
   }>
   ownership: PortalOwnershipOverview
+  rbacLabels: Array<{
+    id: string
+    key: string
+    name: string
+    color: string | null
+  }>
 }
 
 export interface PlayerLoginCluster {
