@@ -51,7 +51,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
       try {
         const query = params.toString()
         const response = await apiFetch<PlayerPortalProfileResponse>(
-          `/portal/player/profile${query ? `?${query}` : ''}`,
+          `/player/profile${query ? `?${query}` : ''}`,
           { token: this.authToken() ?? undefined },
         )
         this.summary = response.summary
@@ -74,7 +74,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         params.set('id', effectiveId)
       }
       this.actions = await apiFetch<PlayerActionsResponse>(
-        `/portal/player/actions?${params.toString()}`,
+        `/player/actions?${params.toString()}`,
         { token: this.authToken() ?? undefined },
       )
       return this.actions
@@ -86,7 +86,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         params.set('id', effectiveId)
       }
       this.stats = await apiFetch<PlayerStatsResponse>(
-        `/portal/player/stats?${params.toString()}`,
+        `/player/stats?${params.toString()}`,
         { token: this.authToken() ?? undefined },
       )
       return this.stats
@@ -94,7 +94,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     async requestAuthmeReset(reason?: string) {
       this.submitting = true
       try {
-        await apiFetch('/portal/player/authme/reset-password', {
+        await apiFetch('/player/authme/reset-password', {
           method: 'POST',
           body: { reason },
           token: this.authToken() ?? undefined,
@@ -106,7 +106,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     async requestForceLogin(reason?: string) {
       this.submitting = true
       try {
-        await apiFetch('/portal/player/authme/force-login', {
+        await apiFetch('/player/authme/force-login', {
           method: 'POST',
           body: { reason },
           token: this.authToken() ?? undefined,
@@ -118,7 +118,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     async requestPermissionChange(targetGroup: string, reason: string) {
       this.submitting = true
       try {
-        await apiFetch('/portal/player/permissions/request-change', {
+        await apiFetch('/player/permissions/request-change', {
           method: 'POST',
           body: { targetGroup, reason },
           token: this.authToken() ?? undefined,
@@ -130,7 +130,7 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     async requestServerRestart(serverId: string, reason: string) {
       this.submitting = true
       try {
-        await apiFetch('/portal/player/server/restart-request', {
+        await apiFetch('/player/server/restart-request', {
           method: 'POST',
           body: { serverId, reason },
           token: this.authToken() ?? undefined,
