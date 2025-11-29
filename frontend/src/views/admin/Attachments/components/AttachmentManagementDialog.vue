@@ -87,6 +87,7 @@ const managementForm = reactive({
 
 const managementSaving = ref(false)
 const managementDeleting = ref(false)
+const deleteConfirmModalOpen = ref(false)
 
 const visibleAttachment = computed(() => props.attachment)
 const folderSelectValue = computed(() => {
@@ -176,11 +177,16 @@ async function saveDetails() {
   }
 }
 
-async function deleteAttachment() {
+function openDeleteConfirm() {
+  deleteConfirmModalOpen.value = true
+}
+
+function closeDeleteConfirm() {
+  deleteConfirmModalOpen.value = false
+}
+
+async function confirmDeleteAttachment() {
   if (!props.attachment) return
-  if (!window.confirm('确定删除该附件吗？操作不可恢复。')) {
-    return
-  }
   const token = props.ensureToken()
   managementDeleting.value = true
   try {
@@ -189,6 +195,7 @@ async function deleteAttachment() {
       token,
     })
     toast.add({ title: '附件已删除', color: 'warning' })
+    closeDeleteConfirm()
     closeDialog()
     await props.refresh()
   } catch (error) {
@@ -228,7 +235,7 @@ async function deleteAttachment() {
               color="error"
               variant="link"
               :loading="managementDeleting"
-              @click="deleteAttachment"
+              @click="openDeleteConfirm"
               >删除附件</UButton
             >
             <UButton
@@ -459,6 +466,42 @@ async function deleteAttachment() {
 
         <div v-else class="py-10 text-center text-sm text-slate-500">
           未找到附件记录
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <UModal
+    :open="deleteConfirmModalOpen"
+    @update:open="closeDeleteConfirm"
+    :ui="{ content: 'w-full max-w-md z-[1101]', overlay: 'z-[1100]' }"
+  >
+    <template #content>
+      <div class="space-y-4 p-6 text-sm">
+        <div class="space-y-1">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            确认删除附件
+          </h3>
+        </div>
+        <div
+          class="rounded-lg bg-slate-50/70 px-4 py-3 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+        >
+          {{
+            visibleAttachment?.originalName ?? visibleAttachment?.id ?? '该附件'
+          }}
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400">此操作不可恢复</p>
+        <div class="flex justify-end gap-2">
+          <UButton color="neutral" variant="ghost" @click="closeDeleteConfirm">
+            取消
+          </UButton>
+          <UButton
+            color="error"
+            :loading="managementDeleting"
+            @click="confirmDeleteAttachment"
+          >
+            确认删除
+          </UButton>
         </div>
       </div>
     </template>

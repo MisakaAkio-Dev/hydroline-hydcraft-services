@@ -30,6 +30,8 @@ const editTagSubmitting = ref(false)
 const tagDeletingId = ref<string | null>(null)
 const createTagDialogOpen = ref(false)
 const editTagDialogOpen = ref(false)
+const deleteTagConfirmOpen = ref(false)
+const pendingDeleteTag = ref<AttachmentTagEntry | null>(null)
 
 function resetTagForm() {
   tagForm.key = ''
@@ -125,9 +127,18 @@ async function submitEditTag() {
 }
 
 async function removeTag(tag: AttachmentTagEntry) {
-  if (!window.confirm(`确定删除标签「${tag.name}」吗？`)) {
-    return
-  }
+  pendingDeleteTag.value = tag
+  deleteTagConfirmOpen.value = true
+}
+
+function closeDeleteTagConfirm() {
+  deleteTagConfirmOpen.value = false
+  pendingDeleteTag.value = null
+}
+
+async function confirmDeleteTag() {
+  if (!pendingDeleteTag.value) return
+  const tag = pendingDeleteTag.value
   const token = props.ensureToken()
   tagDeletingId.value = tag.id
   try {
@@ -140,6 +151,7 @@ async function removeTag(tag: AttachmentTagEntry) {
       editTagDialogOpen.value = false
       editingTagId.value = null
     }
+    closeDeleteTagConfirm()
     await props.fetchTags()
   } catch (error) {
     props.notifyError(error, '删除标签失败')
@@ -403,6 +415,43 @@ watch(
           </div>
         </template>
       </UModal>
+    </template>
+  </UModal>
+
+  <UModal
+    :open="deleteTagConfirmOpen"
+    @update:open="closeDeleteTagConfirm"
+    :ui="{ content: 'w-full max-w-md z-[1101]', overlay: 'z-[1100]' }"
+  >
+    <template #content>
+      <div class="space-y-4 p-6 text-sm">
+        <div class="space-y-1">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            确认删除标签
+          </h3>
+        </div>
+        <div
+          class="rounded-lg bg-slate-50/70 px-4 py-3 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+        >
+          {{ pendingDeleteTag?.name ?? '该标签' }}
+        </div>
+        <div class="flex justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            @click="closeDeleteTagConfirm"
+          >
+            取消
+          </UButton>
+          <UButton
+            color="error"
+            :loading="tagDeletingId === pendingDeleteTag?.id"
+            @click="confirmDeleteTag"
+          >
+            确认删除
+          </UButton>
+        </div>
+      </div>
     </template>
   </UModal>
 </template>

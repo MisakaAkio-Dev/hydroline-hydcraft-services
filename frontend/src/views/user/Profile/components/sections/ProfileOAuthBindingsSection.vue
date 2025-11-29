@@ -116,7 +116,20 @@ function accountAvatar(account: BoundAccount | null) {
   return account?.profile?.avatarDataUri ?? null
 }
 
+function getPendingAccountLabel() {
+  const account = linkedAccount(pendingUnbindProvider.value ?? '')
+  if (!account) return '该账号'
+  return (
+    account.profile?.displayName ??
+    account.profile?.email ??
+    account.providerAccountId ??
+    '该账号'
+  )
+}
+
 const loadingProvider = ref<string | null>(null)
+const isConfirmModalOpen = ref(false)
+const pendingUnbindProvider = ref<string | null>(null)
 
 async function bindProvider(providerKey: string) {
   if (!auth.token) {
@@ -147,13 +160,25 @@ async function bindProvider(providerKey: string) {
   }
 }
 
-async function unbindProvider(providerKey: string) {
-  if (!auth.token) return
+function openUnbindConfirm(providerKey: string) {
+  pendingUnbindProvider.value = providerKey
+  isConfirmModalOpen.value = true
+}
+
+function closeUnbindConfirm() {
+  isConfirmModalOpen.value = false
+  pendingUnbindProvider.value = null
+}
+
+async function confirmUnbind() {
+  if (!auth.token || !pendingUnbindProvider.value) return
+  const providerKey = pendingUnbindProvider.value
   loadingProvider.value = providerKey
   try {
     await oauthStore.unbind(providerKey)
     await auth.fetchCurrentUser()
     toast.add({ title: '已解除绑定', color: 'success' })
+    closeUnbindConfirm()
   } catch (error) {
     toast.add({
       title: '操作失败',
@@ -218,7 +243,7 @@ async function unbindProvider(providerKey: string) {
               size="sm"
               variant="ghost"
               :loading="loadingProvider === provider.key"
-              @click="unbindProvider(provider.key)"
+              @click="openUnbindConfirm(provider.key)"
             >
               解除绑定
             </UButton>
@@ -301,4 +326,37 @@ async function unbindProvider(providerKey: string) {
       </div>
     </div>
   </section>
+
+  <UModal
+    :open="isConfirmModalOpen"
+    @update:open="closeUnbindConfirm"
+    :ui="{ content: 'w-full max-w-md z-[1101]', overlay: 'z-[1100]' }"
+  >
+    <template #content>
+      <div class="space-y-4 p-6 text-sm">
+        <div class="space-y-1">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            确认解除绑定
+          </h3>
+        </div>
+        <div
+          class="rounded-lg bg-slate-50/70 px-4 py-3 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+        >
+          {{ getPendingAccountLabel() }}
+        </div>
+        <div class="flex justify-end gap-2">
+          <UButton color="neutral" variant="ghost" @click="closeUnbindConfirm">
+            取消
+          </UButton>
+          <UButton
+            color="error"
+            :loading="loadingProvider === pendingUnbindProvider"
+            @click="confirmUnbind"
+          >
+            确认解除绑定
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
 </template>

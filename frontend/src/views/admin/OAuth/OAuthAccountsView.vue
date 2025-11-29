@@ -25,6 +25,8 @@ const pagination = ref({
   pageCount: 1,
 })
 const errorMessage = ref('')
+const removeConfirmModalOpen = ref(false)
+const pendingRemoveAccountId = ref<string | null>(null)
 const filters = reactive({
   providerKey: '',
   email: '',
@@ -58,9 +60,25 @@ onMounted(() => {
 })
 
 async function handleRemove(accountId: string) {
-  if (!window.confirm('确定要解除该绑定吗？')) return
-  await oauthStore.removeAccount(accountId)
-  records.value = records.value.filter((item) => item.id !== accountId)
+  pendingRemoveAccountId.value = accountId
+  removeConfirmModalOpen.value = true
+}
+
+function closeRemoveConfirm() {
+  removeConfirmModalOpen.value = false
+  pendingRemoveAccountId.value = null
+}
+
+async function confirmRemove() {
+  if (!pendingRemoveAccountId.value) return
+  const accountId = pendingRemoveAccountId.value
+  try {
+    await oauthStore.removeAccount(accountId)
+    records.value = records.value.filter((item) => item.id !== accountId)
+    closeRemoveConfirm()
+  } catch (error) {
+    console.error('Failed to remove account:', error)
+  }
 }
 
 function goTo(page: number) {
@@ -225,4 +243,39 @@ function goTo(page: number) {
       </div>
     </div>
   </div>
+
+  <UModal
+    :open="removeConfirmModalOpen"
+    @update:open="closeRemoveConfirm"
+    :ui="{ content: 'w-full max-w-md z-[1101]', overlay: 'z-[1100]' }"
+  >
+    <template #content>
+      <div class="space-y-4 p-6 text-sm">
+        <div class="space-y-1">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            确认解除绑定
+          </h3>
+        </div>
+        <div
+          class="rounded-lg bg-slate-50/70 px-4 py-3 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+        >
+          {{
+            records.find((item) => item.id === pendingRemoveAccountId)?.user
+              ?.name ??
+            records.find((item) => item.id === pendingRemoveAccountId)?.user
+              ?.email ??
+            records.find((item) => item.id === pendingRemoveAccountId)
+              ?.providerAccountId ??
+            '该账号'
+          }}
+        </div>
+        <div class="flex justify-end gap-2">
+          <UButton color="neutral" variant="ghost" @click="closeRemoveConfirm">
+            取消
+          </UButton>
+          <UButton color="error" @click="confirmRemove"> 确认解除绑定 </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
 </template>

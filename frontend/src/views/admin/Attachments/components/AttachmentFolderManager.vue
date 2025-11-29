@@ -61,6 +61,8 @@ const toast = useToast()
 const editingFolderId = ref<string | null>(null)
 const folderSubmitting = ref(false)
 const deletingFolderId = ref<string | null>(null)
+const deleteFolderConfirmOpen = ref(false)
+const pendingDeleteFolder = ref<AttachmentFolderEntry | null>(null)
 
 const folderForm = reactive({
   name: '',
@@ -72,7 +74,7 @@ const folderForm = reactive({
 })
 
 const filteredFolderOptions = computed(() =>
-  folderOptions.filter((option) => option.value !== editingFolderId.value),
+  props.folderOptions.filter((option) => option.value !== editingFolderId.value),
 )
 
 function resetFolderForm() {
@@ -173,7 +175,18 @@ async function submitFolder() {
 }
 
 async function deleteFolder(folder: AttachmentFolderEntry) {
-  if (!window.confirm(`确定删除文件夹「${folder.path}」吗？`)) return
+  pendingDeleteFolder.value = folder
+  deleteFolderConfirmOpen.value = true
+}
+
+function closeFolderDeleteConfirm() {
+  deleteFolderConfirmOpen.value = false
+  pendingDeleteFolder.value = null
+}
+
+async function confirmDeleteFolder() {
+  if (!pendingDeleteFolder.value) return
+  const folder = pendingDeleteFolder.value
   const token = props.ensureToken()
   deletingFolderId.value = folder.id
   try {
@@ -182,6 +195,7 @@ async function deleteFolder(folder: AttachmentFolderEntry) {
       token,
     })
     toast.add({ title: '文件夹已删除', color: 'success' })
+    closeFolderDeleteConfirm()
     await props.fetchFolders()
     await props.refresh()
   } catch (error) {
@@ -431,6 +445,45 @@ watch(
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <UModal
+    :open="deleteFolderConfirmOpen"
+    @update:open="closeFolderDeleteConfirm"
+    :ui="{ content: 'w-full max-w-md z-[1101]', overlay: 'z-[1100]' }"
+  >
+    <template #content>
+      <div class="space-y-4 p-6 text-sm">
+        <div class="space-y-1">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            确认删除文件夹
+          </h3>
+        </div>
+        <div
+          class="rounded-lg bg-slate-50/70 px-4 py-3 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+        >
+          {{
+            pendingDeleteFolder?.path ?? pendingDeleteFolder?.name ?? '该文件夹'
+          }}
+        </div>
+        <div class="flex justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            @click="closeFolderDeleteConfirm"
+          >
+            取消
+          </UButton>
+          <UButton
+            color="error"
+            :loading="deletingFolderId === pendingDeleteFolder?.id"
+            @click="confirmDeleteFolder"
+          >
+            确认删除
+          </UButton>
         </div>
       </div>
     </template>

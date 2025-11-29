@@ -246,9 +246,7 @@ function buildAttachmentOption(
   const label = item.name?.trim() || item.originalName || item.id
   const segments = [`ID: ${item.id}`, formatFileSize(item.size)]
   if (item.folder?.path) {
-    segments.push(
-      formatFolderPathDisplay(item.folder.path) ?? item.folder.path,
-    )
+    segments.push(formatFolderPathDisplay(item.folder.path) ?? item.folder.path)
   }
   segments.push(item.isPublic ? '公开' : '需设为公开')
   return {
@@ -1416,8 +1414,8 @@ onMounted(() => {
               color="neutral"
               variant="ghost"
               @click="heroDetailOpen = false"
-              >关闭</UButton
-            >
+              icon="i-lucide-x"
+            />
           </div>
           <div v-if="heroDetailItem" class="space-y-4">
             <div
@@ -1465,8 +1463,8 @@ onMounted(() => {
               color="neutral"
               variant="ghost"
               @click="heroEditDialogOpen = false"
-              >关闭</UButton
-            >
+              icon="i-lucide-x"
+            />
           </div>
 
           <div v-if="heroEditItem" class="space-y-4">
@@ -1478,11 +1476,13 @@ onMounted(() => {
                   标题
                 </p>
                 <UInput
+                  class="w-full"
                   v-model="heroEditTitle"
                   placeholder="例如：Hydroline HydCraft"
                   :disabled="isMutating"
                 />
               </div>
+
               <div class="space-y-1.5">
                 <p
                   class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
@@ -1490,27 +1490,13 @@ onMounted(() => {
                   副标题
                 </p>
                 <UInput
+                  class="w-full"
                   v-model="heroEditSubtitle"
                   placeholder="例如：ALPHA 测试阶段"
                   :disabled="isMutating"
                 />
               </div>
-            </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-              <div>
-                <p
-                  class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
-                >
-                  描述
-                </p>
-                <UTextarea
-                  v-model="heroEditDescription"
-                  :rows="3"
-                  placeholder="可选：用于前台展示的简介"
-                  :disabled="isMutating"
-                />
-              </div>
               <div>
                 <p
                   class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
@@ -1518,11 +1504,13 @@ onMounted(() => {
                   拍摄时间
                 </p>
                 <UInput
+                  class="w-full"
                   v-model="heroEditShootAt"
                   type="datetime-local"
                   :disabled="isMutating"
                 />
               </div>
+
               <div>
                 <p
                   class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
@@ -1530,8 +1518,24 @@ onMounted(() => {
                   拍摄人
                 </p>
                 <UInput
+                  class="w-full"
                   v-model="heroEditPhotographer"
                   placeholder="可选：如 AurLemon"
+                  :disabled="isMutating"
+                />
+              </div>
+
+              <div class="md:col-span-2">
+                <p
+                  class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  描述
+                </p>
+                <UTextarea
+                  class="w-full"
+                  v-model="heroEditDescription"
+                  :rows="5"
+                  placeholder="可选：用于前台展示的简介"
                   :disabled="isMutating"
                 />
               </div>
