@@ -40,6 +40,30 @@ const emit = defineEmits<{
   (e: 'open-restart-dialog'): void
 }>()
 
+function resolveBindingIdentifier(
+  binding: {
+    username: string
+    realname?: string | null
+  } | null | undefined,
+) {
+  if (!binding) return null
+  const trimmedRealname = binding.realname?.trim()
+  if (trimmedRealname) return trimmedRealname
+  const trimmedUsername = binding.username?.trim()
+  return trimmedUsername || null
+}
+
+const primaryAuthmeIdentifier = computed(() =>
+  resolveBindingIdentifier(props.summary?.authmeBindings?.[0]),
+)
+const primaryAvatarUrl = computed(() => {
+  const identifier = primaryAuthmeIdentifier.value
+  if (!identifier) return null
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(
+    identifier,
+  )}/64`
+})
+
 const statsPeriodModel = computed({
   get: () => props.statsPeriod,
   set: (value: string) => emit('update:statsPeriod', value),
@@ -58,9 +82,9 @@ async function ensureSkinview() {
   return skinviewModule
 }
 
-async function updateSkinViewer(bindingId: string, username: string) {
+async function updateSkinViewer(bindingId: string, playerIdentifier: string) {
   if (typeof window === 'undefined') return
-  if (!username) return
+  if (!playerIdentifier) return
   const canvas = skinCanvasRefs.value[bindingId]
   if (!canvas) return
 
@@ -77,7 +101,9 @@ async function updateSkinViewer(bindingId: string, username: string) {
         canvas,
         width,
         height,
-        skin: `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(username)}`,
+          skin: `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(
+            playerIdentifier,
+          )}`,
       })
       instance.autoRotate = true
       instance.zoom = 0.95
@@ -94,7 +120,9 @@ async function updateSkinViewer(bindingId: string, username: string) {
         viewer.width = width
         viewer.height = height
         viewer.loadSkin(
-          `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(username)}`,
+          `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(
+            playerIdentifier,
+          )}`,
         )
       }
     }
@@ -126,9 +154,9 @@ watch(
     }
     await nextTick()
     bindings.forEach((binding) => {
-      const username = binding.username
-      if (username) {
-        void updateSkinViewer(binding.id, username)
+      const identifier = resolveBindingIdentifier(binding)
+      if (identifier) {
+        void updateSkinViewer(binding.id, identifier)
       }
     })
   },
@@ -298,11 +326,13 @@ onMounted(() => {
               />
 
               <img
-                v-if="props.summary.authmeBindings[0]"
-                :src="`https://mc-heads.hydcraft.cn/avatar/${
-                  props.summary.authmeBindings[0]?.username
-                }/64`"
-                :alt="props.summary.authmeBindings[0]?.username ?? 'MC Avatar'"
+                v-if="primaryAvatarUrl"
+                :src="primaryAvatarUrl"
+                :alt="
+                  primaryAuthmeIdentifier ??
+                  props.summary?.authmeBindings?.[0]?.username ??
+                  'MC Avatar'
+                "
                 class="h-18 w-18 rounded-xl border border-slate-200 object-cover dark:border-slate-700 shadow"
               />
 

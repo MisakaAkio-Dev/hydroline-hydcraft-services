@@ -121,6 +121,26 @@ function bindingUser(entry: (typeof rows.value)[number]['binding']) {
   return entry.user.profile?.displayName ?? entry.user.email ?? entry.user.id
 }
 
+function resolvePlayerAvatarIdentifier(entry: AdminPlayerEntry | null | undefined) {
+  if (!entry) return null
+  const authmeRealname = entry.authme?.realname?.trim()
+  if (authmeRealname) return authmeRealname
+  const bindingRealname = entry.binding?.authmeRealname?.trim()
+  if (bindingRealname) return bindingRealname
+  const authmeUsername = entry.authme?.username?.trim()
+  if (authmeUsername) return authmeUsername
+  const bindingUsername = entry.binding?.authmeUsername?.trim()
+  if (bindingUsername) return bindingUsername
+  return null
+}
+
+function playerAvatarUrl(entry: AdminPlayerEntry | null | undefined) {
+  const identifier = resolvePlayerAvatarIdentifier(entry) ?? 'Steve'
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(
+    identifier,
+  )}/64`
+}
+
 // ==== 行内操作：查看时间线、补录历史、绑定到用户 ====
 const timelineOpen = ref(false)
 import type { AdminBindingHistoryEntry } from '@/types/admin'
@@ -413,13 +433,8 @@ function openBeaconForPlayer(
                   class="flex items-center gap-2 font-medium text-slate-900 dark:text-white"
                 >
                   <img
-                    :src="
-                      'https://mc-heads.hydcraft.cn/avatar/' +
-                      (player.authme?.username ??
-                        player.binding?.authmeUsername ??
-                        '') +
-                      '/64'
-                    "
+                    :src="playerAvatarUrl(player)"
+                    :alt="resolvePlayerAvatarIdentifier(player) ?? 'MC Avatar'"
                     class="h-6 w-6 rounded-md border border-slate-200 object-cover dark:border-slate-700"
                   />
                   {{

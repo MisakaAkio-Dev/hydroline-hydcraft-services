@@ -42,6 +42,26 @@ function resolveGroupLabel(
   }
   return displayName || name || ''
 }
+
+function bindingIdentifier(binding: {
+  username: string
+  realname?: string | null
+}) {
+  const realname = binding.realname?.trim()
+  if (realname) return realname
+  const username = binding.username?.trim()
+  return username || ''
+}
+
+function bindingAvatarUrl(binding: {
+  username: string
+  realname?: string | null
+}) {
+  const identifier = bindingIdentifier(binding) || 'Steve'
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(
+    identifier,
+  )}`
+}
 </script>
 
 <template>
@@ -96,7 +116,7 @@ function resolveGroupLabel(
 
       <div
         v-for="b in props.bindings"
-        :key="b.username"
+        :key="bindingIdentifier(b)"
         class="rounded-xl border border-slate-200/60 bg-white p-4 dark:border-slate-800/60 dark:bg-slate-700/60"
       >
         <div class="flex flex-col">
@@ -106,18 +126,18 @@ function resolveGroupLabel(
             <div class="flex-1 flex items-center gap-2">
               <span class="relative">
                 <USkeleton
-                  v-show="!imageLoadStates[b.username]"
+                  v-show="!imageLoadStates[bindingIdentifier(b)]"
                   class="h-6 w-6 rounded"
                   animated
                 />
                 <img
-                  :src="'https://mc-heads.hydcraft.cn/avatar/' + b.username"
+                  :src="bindingAvatarUrl(b)"
                   class="h-6 w-6 rounded-md border border-slate-200 object-cover dark:border-slate-700"
                   :class="{
-                    'opacity-0 absolute': !imageLoadStates[b.username],
+                    'opacity-0 absolute': !imageLoadStates[bindingIdentifier(b)],
                   }"
-                  @load="imageLoadStates[b.username] = true"
-                  @error="imageLoadStates[b.username] = true"
+                  @load="imageLoadStates[bindingIdentifier(b)] = true"
+                  @error="imageLoadStates[bindingIdentifier(b)] = true"
                 />
               </span>
               <span class="leading-none">

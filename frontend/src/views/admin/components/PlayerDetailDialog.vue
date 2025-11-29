@@ -38,11 +38,36 @@ watch(
   },
 )
 
-function resolvedUsername(entry: AdminPlayerEntry | null): string | null {
+function resolvePreferredPlayerIdentifier(entry: AdminPlayerEntry | null): string | null {
   if (!entry) return null
-  if (entry.authme?.username) return entry.authme.username
-  if (entry.binding?.authmeUsername) return entry.binding.authmeUsername
+  const realname = entry.authme?.realname?.trim()
+  if (realname) return realname
+  const boundRealname = entry.binding?.authmeRealname?.trim()
+  if (boundRealname) return boundRealname
+  const username = entry.authme?.username?.trim()
+  if (username) return username
+  const boundUsername = entry.binding?.authmeUsername?.trim()
+  if (boundUsername) return boundUsername
   return null
+}
+
+function matchesPlayerIdentifier(
+  entry: AdminPlayerEntry | null,
+  candidate?: string | null,
+) {
+  if (!candidate) return false
+  const normalized = candidate.trim().toLowerCase()
+  if (!normalized) return false
+  return [
+    entry?.authme?.realname,
+    entry?.binding?.authmeRealname,
+    entry?.authme?.username,
+    entry?.binding?.authmeUsername,
+  ].some((value) => {
+    const trimmed = value?.trim()
+    if (!trimmed) return false
+    return trimmed.toLowerCase() === normalized
+  })
 }
 
 async function loadPlayer(username: string) {
@@ -66,10 +91,9 @@ async function loadPlayer(username: string) {
       { token: auth.token },
     )
     const found =
-      response.items.find((item) => {
-        const candidate = resolvedUsername(item)
-        return candidate?.toLowerCase() === normalized.toLowerCase()
-      }) ??
+      response.items.find((item) =>
+        matchesPlayerIdentifier(item, normalized),
+      ) ??
       response.items[0] ??
       null
     player.value = found
@@ -98,8 +122,8 @@ async function ensureSkinview() {
 async function updateViewer() {
   if (!props.open) return
   if (typeof window === 'undefined') return
-  const username = resolvedUsername(player.value)
-  if (!username) return
+  const identifier = resolvePreferredPlayerIdentifier(player.value)
+  if (!identifier) return
   const canvas = canvasRef.value
   if (!canvas) return
   const skinview = await ensureSkinview()
@@ -113,7 +137,9 @@ async function updateViewer() {
       canvas,
       width,
       height,
-      skin: `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(username)}`,
+        skin: `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(
+          identifier,
+        )}`,
     })
     instance.autoRotate = true
     instance.zoom = 0.95
@@ -127,7 +153,9 @@ async function updateViewer() {
   } else {
     viewer.width = width
     viewer.height = height
-    viewer.loadSkin(`https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(username)}`)
+    viewer.loadSkin(
+      `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(identifier)}`,
+    )
   }
 }
 
@@ -148,10 +176,10 @@ watch(
       loading.value = false
       return
     }
-    const current = resolvedUsername(player.value)
-    const target = props.username ?? current
+    const target =
+      props.username ?? resolvePreferredPlayerIdentifier(player.value)
     if (target) {
-      if (!current || current.toLowerCase() !== target.toLowerCase()) {
+      if (!matchesPlayerIdentifier(player.value, target)) {
         await loadPlayer(target)
       }
     } else if (!player.value) {
@@ -167,8 +195,7 @@ watch(
   () => props.username,
   async (next, prev) => {
     if (!props.open || !next || next === prev) return
-    const current = resolvedUsername(player.value)
-    if (!current || current.toLowerCase() !== next.toLowerCase()) {
+    if (!matchesPlayerIdentifier(player.value, next)) {
       await loadPlayer(next)
     }
     await nextTick()
@@ -197,7 +224,10 @@ function fmtIso(value?: string | null) {
 }
 
 const usernameDisplay = computed(
-  () => resolvedUsername(player.value) ?? props.username ?? '—',
+  () =>
+    resolvePreferredPlayerIdentifier(player.value) ??
+    props.username ??
+    '—',
 )
 const realnameDisplay = computed(
   () =>

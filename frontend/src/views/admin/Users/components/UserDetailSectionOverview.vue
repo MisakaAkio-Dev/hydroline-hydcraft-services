@@ -105,6 +105,23 @@ const primaryMinecraft = computed(() => {
   }
 })
 
+const primaryMinecraftAvatarIdentifier = computed(() => {
+  const profile = primaryMinecraft.value
+  if (!profile) return null
+  const trimmedRealname = profile.realname?.trim()
+  if (trimmedRealname) return trimmedRealname
+  const trimmedUsername = profile.username?.trim()
+  if (trimmedUsername) return trimmedUsername
+  return null
+})
+
+const primaryMinecraftAvatarUrl = computed(() => {
+  const identifier = primaryMinecraftAvatarIdentifier.value ?? 'Steve'
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(
+    identifier,
+  )}`
+})
+
 type EmailContactDisplay = {
   id: string
   value: string
@@ -631,9 +648,8 @@ const statusSnapshotSummary = computed(() => {
           <template v-else-if="primaryMinecraft">
             <span class="flex items-center gap-1">
               <img
-                :src="
-                  'https://mc-heads.hydcraft.cn/avatar/' + primaryMinecraft.username
-                "
+                :src="primaryMinecraftAvatarUrl"
+                :alt="primaryMinecraftAvatarIdentifier ?? 'MC Avatar'"
                 class="block h-4 w-4 rounded-xs"
               />
               {{ primaryMinecraft.realname || '—' }}

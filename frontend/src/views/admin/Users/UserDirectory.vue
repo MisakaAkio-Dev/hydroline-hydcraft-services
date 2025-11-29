@@ -387,12 +387,25 @@ function closeAvatarPreview() {
   avatarPreviewUser.value = null
 }
 
-function mcAvatarUrl(username: string | null | undefined) {
-  const u =
-    typeof username === 'string' && username.trim().length > 0
-      ? username.trim()
+function resolveMinecraftBindingIdentifier(binding: {
+  username?: string | null
+  realname?: string | null
+}) {
+  const realname = binding.realname?.trim()
+  if (realname) return realname
+  const username = binding.username?.trim()
+  if (username) return username
+  return null
+}
+
+function mcAvatarUrl(identifier: string | null | undefined) {
+  const normalized =
+    typeof identifier === 'string' && identifier.trim().length > 0
+      ? identifier.trim()
       : 'Steve'
-  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(u)}`
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(
+    normalized,
+  )}`
 }
 
 function onAvatarError(ev: Event) {
@@ -667,13 +680,13 @@ function extraEmails(user: AdminUserListItem) {
                         openPlayerDialog(bind.username ?? bind.realname)
                       "
                     >
-                      <img
-                        :src="mcAvatarUrl(bind.username)"
-                        :alt="bind.username || 'minecraft avatar'"
-                        class="h-6 w-6 rounded-md border border-slate-200 dark:border-slate-700"
-                        loading="lazy"
-                        @error="onAvatarError"
-                      />
+                    <img
+                      :src="mcAvatarUrl(resolveMinecraftBindingIdentifier(bind))"
+                      :alt="resolveMinecraftBindingIdentifier(bind) || 'minecraft avatar'"
+                      class="h-6 w-6 rounded-md border border-slate-200 dark:border-slate-700"
+                      loading="lazy"
+                      @error="onAvatarError"
+                    />
                       <span
                         v-if="bind.isPrimary"
                         class="absolute -bottom-1 -right-1 rounded bg-primary-500 px-[3px] text-[9px] leading-3 text-white"
@@ -881,8 +894,8 @@ function extraEmails(user: AdminUserListItem) {
               >
                 <div class="flex flex-col items-center gap-1 w-16">
                   <img
-                    :src="mcAvatarUrl(bind.username)"
-                    :alt="bind.username || 'minecraft avatar'"
+                    :src="mcAvatarUrl(resolveMinecraftBindingIdentifier(bind))"
+                    :alt="resolveMinecraftBindingIdentifier(bind) || 'minecraft avatar'"
                     class="h-12 w-12 rounded border border-slate-200 dark:border-slate-700 shadow"
                     loading="lazy"
                     @error="onAvatarError"
