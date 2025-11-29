@@ -77,7 +77,7 @@ async function updateSkinViewer(bindingId: string, username: string) {
         canvas,
         width,
         height,
-        skin: `https://mc-heads.net/skin/${encodeURIComponent(username)}`,
+        skin: `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(username)}`,
       })
       instance.autoRotate = true
       instance.zoom = 0.95
@@ -94,7 +94,7 @@ async function updateSkinViewer(bindingId: string, username: string) {
         viewer.width = width
         viewer.height = height
         viewer.loadSkin(
-          `https://mc-heads.net/skin/${encodeURIComponent(username)}`,
+          `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(username)}`,
         )
       }
     }
@@ -299,7 +299,7 @@ onMounted(() => {
 
               <img
                 v-if="props.summary.authmeBindings[0]"
-                :src="`https://mc-heads.net/avatar/${
+                :src="`https://mc-heads.hydcraft.cn/avatar/${
                   props.summary.authmeBindings[0]?.username
                 }/64`"
                 :alt="props.summary.authmeBindings[0]?.username ?? 'MC Avatar'"

@@ -113,7 +113,7 @@ async function updateViewer() {
       canvas,
       width,
       height,
-      skin: `https://mc-heads.net/skin/${encodeURIComponent(username)}`,
+      skin: `https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(username)}`,
     })
     instance.autoRotate = true
     instance.zoom = 0.95
@@ -127,7 +127,7 @@ async function updateViewer() {
   } else {
     viewer.width = width
     viewer.height = height
-    viewer.loadSkin(`https://mc-heads.net/skin/${encodeURIComponent(username)}`)
+    viewer.loadSkin(`https://mc-heads.hydcraft.cn/skin/${encodeURIComponent(username)}`)
   }
 }
 
@@ -219,11 +219,11 @@ const uuidDisplay = computed(() => {
 })
 const headUrl = computed(() => {
   if (!usernameDisplay.value || usernameDisplay.value === '—') return ''
-  return `https://mc-heads.net/avatar/${encodeURIComponent(usernameDisplay.value)}/128`
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(usernameDisplay.value)}/128`
 })
 const bodyUrl = computed(() => {
   if (!usernameDisplay.value || usernameDisplay.value === '—') return ''
-  return `https://mc-heads.net/body/${encodeURIComponent(usernameDisplay.value)}/160`
+  return `https://mc-heads.hydcraft.cn/body/${encodeURIComponent(usernameDisplay.value)}/160`
 })
 const bindingInfo = computed(() => player.value?.binding ?? null)
 const bindingStatus = computed(() => {

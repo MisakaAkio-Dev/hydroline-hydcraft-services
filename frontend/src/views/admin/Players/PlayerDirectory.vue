@@ -414,7 +414,7 @@ function openBeaconForPlayer(
                 >
                   <img
                     :src="
-                      'https://mc-heads.net/avatar/' +
+                      'https://mc-heads.hydcraft.cn/avatar/' +
                       (player.authme?.username ??
                         player.binding?.authmeUsername ??
                         '') +

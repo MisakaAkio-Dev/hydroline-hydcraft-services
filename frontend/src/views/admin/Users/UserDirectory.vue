@@ -392,7 +392,7 @@ function mcAvatarUrl(username: string | null | undefined) {
     typeof username === 'string' && username.trim().length > 0
       ? username.trim()
       : 'Steve'
-  return `https://mc-heads.net/avatar/${encodeURIComponent(u)}`
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(u)}`
 }
 
 function onAvatarError(ev: Event) {

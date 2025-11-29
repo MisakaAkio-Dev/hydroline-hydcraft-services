@@ -632,7 +632,7 @@ const statusSnapshotSummary = computed(() => {
             <span class="flex items-center gap-1">
               <img
                 :src="
-                  'https://mc-heads.net/avatar/' + primaryMinecraft.username
+                  'https://mc-heads.hydcraft.cn/avatar/' + primaryMinecraft.username
                 "
                 class="block h-4 w-4 rounded-xs"
               />
