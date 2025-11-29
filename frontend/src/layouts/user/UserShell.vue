@@ -222,10 +222,10 @@ const routerPush = (path: string) => {
       <header
         class="sticky top-0 z-40 grid h-16 grid-cols-[1fr_auto_1fr] items-center px-4 border-b transition-all duration-300"
         :class="{
-          'backdrop-blur-xl bg-white/60 dark:bg-slate-950/70 border-slate-200/60 dark:border-slate-800/60':
+          'backdrop-blur-xl bg-white/60 dark:bg-slate-950/70 border-slate-200 dark:border-slate-800':
             !isMainPage || isScrolled,
           'border-transparent backdrop-blur-none': isMainPage && !isScrolled,
-          'backdrop-blur-xl! bg-white/60! dark:bg-slate-950/70! border-slate-200/60! dark:border-slate-800/60!':
+          'backdrop-blur-xl! bg-white/60! dark:bg-slate-950/70! border-slate-200! dark:border-slate-800!':
             isMainPage && !isSidebarCollapsed,
         }"
       >
