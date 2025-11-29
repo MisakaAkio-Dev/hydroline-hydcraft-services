@@ -45,6 +45,13 @@ export class PlayersController {
     });
   }
 
+  @Get(':username')
+  @ApiOperation({ summary: '查看单个 AuthMe 玩家详情（精确匹配）' })
+  @RequirePermissions(PERMISSIONS.AUTH_VIEW_PLAYERS)
+  async detail(@Param('username') username: string) {
+    return this.playersService.getPlayerDetail(username);
+  }
+
   @Get(':username/history')
   @ApiOperation({ summary: '查看玩家绑定流转记录' })
   @RequirePermissions(PERMISSIONS.AUTH_VIEW_PLAYERS)

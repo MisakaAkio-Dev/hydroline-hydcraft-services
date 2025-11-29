@@ -53,6 +53,94 @@ export class PlayersService {
     private readonly ipLocationService: IpLocationService,
   ) {}
 
+  async getPlayerDetail(username: string) {
+    const normalized = username.trim();
+    if (!normalized) {
+      return {
+        player: null,
+        sourceStatus: 'ok' as const,
+      };
+    }
+
+    try {
+      const authme = await this.authmeService.getAccount(normalized);
+      if (!authme) {
+        return {
+          player: null,
+          sourceStatus: 'ok' as const,
+        };
+      }
+      const enriched = await this.enrichWithLocations([authme]);
+      const payload = await this.buildPlayersPayload(enriched, {
+        total: 1,
+        page: 1,
+        pageSize: 1,
+      });
+      return {
+        player: payload.items[0] ?? null,
+        sourceStatus: payload.sourceStatus,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `AuthMe player detail degraded for "${normalized}": ${String(error)}`,
+      );
+      const usernameLower = normalized.toLowerCase();
+      const binding = await this.prisma.userAuthmeBinding.findUnique({
+        where: { authmeUsernameLower: usernameLower },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              profile: { select: { displayName: true } },
+            },
+          },
+        },
+      });
+      if (!binding) {
+        return {
+          player: null,
+          sourceStatus: 'degraded' as const,
+        };
+      }
+      const histories = await this.prisma.authmeBindingHistory.findMany({
+        where: {
+          OR: [
+            { authmeUsernameLower: usernameLower },
+            { bindingId: binding.id },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          operator: {
+            select: {
+              id: true,
+              email: true,
+              profile: { select: { displayName: true } },
+            },
+          },
+          binding: {
+            select: {
+              id: true,
+              authmeUsername: true,
+              authmeRealname: true,
+              authmeUuid: true,
+            },
+          },
+        },
+      });
+      return {
+        player: {
+          authme: null,
+          binding,
+          history: histories.slice(0, 10),
+        },
+        sourceStatus: 'degraded' as const,
+      };
+    }
+  }
+
   async listPlayers(params: ListPlayersParams) {
     const page = Math.max(params.page ?? 1, 1);
     const pageSize = Math.min(Math.max(params.pageSize ?? 20, 1), 100);

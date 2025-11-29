@@ -82,20 +82,13 @@ async function loadPlayer(username: string) {
   loading.value = true
   error.value = null
   try {
-    const params = new URLSearchParams({
-      keyword: normalized,
-      pageSize: '1',
+    const response = await apiFetch<{
+      player: AdminPlayerEntry | null
+      sourceStatus: 'ok' | 'degraded'
+    }>(`/auth/players/${encodeURIComponent(normalized)}`, {
+      token: auth.token,
     })
-    const response = await apiFetch<{ items: AdminPlayerEntry[] }>(
-      `/auth/players?${params.toString()}`,
-      { token: auth.token },
-    )
-    const found =
-      response.items.find((item) =>
-        matchesPlayerIdentifier(item, normalized),
-      ) ??
-      response.items[0] ??
-      null
+    const found = response.player ?? null
     player.value = found
     if (!found) {
       error.value = '未找到匹配的玩家'
