@@ -237,7 +237,7 @@ const isStatsLoading = computed(() => !props.stats)
       <div v-if="showStatsGrid" class="space-y-3">
         <div class="grid gap-2 md:grid-cols-4">
           <div
-            class="col-span-4 row-span-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white backdrop-blur dark:bg-slate-800 overflow-hidden min-h-64"
+            class="col-span-1 md:col-span-4 row-span-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white backdrop-blur dark:bg-slate-800 overflow-hidden min-h-64"
           >
             <iframe
               src="https://map.nitrogen.hydcraft.cn/"
@@ -426,9 +426,9 @@ const isStatsLoading = computed(() => !props.stats)
       <div v-else class="space-y-3">
         <div class="grid gap-2 md:grid-cols-4">
           <div
-            class="col-span-2 row-span-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white backdrop-blur dark:bg-slate-800 overflow-hidden"
+            class="col-span-1 md:col-span-4 row-span-1 min-h-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-white backdrop-blur dark:bg-slate-800 overflow-hidden"
           >
-            <USkeleton class="h-44" />
+            <USkeleton class="h-64" />
           </div>
           <div
             v-for="index in 10"

@@ -768,17 +768,11 @@ async function handleStatsRefresh() {
               </template>
               <template v-else>
                 <div
-                  class="col-span-2 row-span-2 rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800"
-                >
-                  <USkeleton class="h-28" />
-                </div>
-                <div
-                  v-for="index in 9"
+                  v-for="index in 4"
                   :key="`stat-placeholder-${index}`"
                   class="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800"
                 >
-                  <USkeleton class="h-4 w-24" />
-                  <USkeleton class="h-8 w-full mt-2" />
+                  <USkeleton class="h-17" />
                 </div>
               </template>
             </div>
@@ -926,7 +920,7 @@ async function handleStatsRefresh() {
                 暂无 AuthMe 绑定
               </div>
             </div>
-            <USkeleton v-else class="h-28 w-full" />
+            <USkeleton v-else class="h-20 w-full" />
           </div>
         </div>
       </div>
