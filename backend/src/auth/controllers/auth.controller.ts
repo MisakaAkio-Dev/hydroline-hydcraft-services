@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -417,6 +418,23 @@ export class AuthController {
     if (!userId) throw new UnauthorizedException('Invalid session');
     await this.usersService.removeContact(userId, contactId);
     return { success: true };
+  }
+
+  @Get('me/bindings/history')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '查看自己的绑定流转记录' })
+  async listMyBindingHistory(
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const userId = req.user?.id;
+    if (!userId) throw new UnauthorizedException('Invalid session');
+    return this.usersService.listAuthmeBindingHistoryByUser(userId, {
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
   }
 
   @Get('session')
