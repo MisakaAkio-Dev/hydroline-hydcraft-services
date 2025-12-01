@@ -42,6 +42,8 @@ const STATIC_TRANSLATIONS: Record<string, string> = {
   'Verification code has expired': '验证码已过期',
   'Code not found': '验证码未找到',
   'Bad Request': '请求参数错误',
+  'Player ID is required': '玩家 ID 是必需的',
+  'Please select a game account to query': '请选择要查询的游戏账户',
   // Phone/dial code validation errors
   'Invalid dial code format': '区号格式无效',
   'Unsupported dial code region': '不支持的区号',
@@ -73,6 +75,10 @@ const STATIC_TRANSLATIONS: Record<string, string> = {
   'Cannot send verification code, please bind email first':
     '无法发送验证码，请先绑定邮箱',
   'Cannot like yourself': '无法为自己点赞',
+  'Not allowed to update biography': '不允许修改该自述',
+  'Not allowed to delete message': '不允许删除该留言',
+  'Message not found': '留言不存在',
+  'Biography not found after write': '保存后未找到自述',
   // AuthMe binding errors
   'AuthMe binding is not enabled in current environment':
     '当前环境未启用 AuthMe 绑定',

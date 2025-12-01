@@ -1,9 +1,15 @@
 import type { LuckpermsGroupMembership } from '../luckperms/luckperms.interfaces';
+import type { PlayerMessageReactionType } from '@prisma/client';
 
 export type PortalOwnershipOverview = {
   authmeBindings: number;
   permissionGroups: number;
   rbacLabels: number;
+};
+
+export type PlayerSessionUser = {
+  id: string;
+  roles?: Array<{ role: { key: string } }>;
 };
 
 export type PlayerLoginCluster = {
@@ -46,4 +52,29 @@ export type PlayerLikeDetail = {
     primaryAuthmeUsername: string | null;
     primaryAuthmeRealname: string | null;
   };
+};
+
+export type PlayerBiographyPayload = {
+  markdown: string;
+  updatedAt: string;
+  updatedBy: {
+    id: string;
+    displayName: string | null;
+  } | null;
+};
+
+export type PlayerMessageBoardEntry = {
+  id: string;
+  author: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+  };
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  positiveCount: number;
+  negativeCount: number;
+  viewerReaction: PlayerMessageReactionType | null;
+  viewerCanDelete: boolean;
 };

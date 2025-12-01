@@ -1,10 +1,15 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { LifecycleEventType, Prisma } from '@prisma/client';
+import {
+  LifecycleEventType,
+  Prisma,
+  PlayerMessageReactionType,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { IpLocationService } from '../lib/ip2region/ip-location.service';
 import { AttachmentsService } from '../attachments/attachments.service';
@@ -20,10 +25,14 @@ import type {
   PlayerLuckpermsSnapshot,
   PlayerLikeSummary,
   PlayerLikeDetail,
+  PlayerBiographyPayload,
+  PlayerMessageBoardEntry,
+  PlayerSessionUser,
 } from './player.types';
 import { PlayerAutomationService } from './player-automation.service';
 import { MinecraftServerService } from '../minecraft/minecraft-server.service';
 import { RedisService } from '../lib/redis/redis.service';
+import { DEFAULT_ROLES } from '../auth/services/roles.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOGIN_MAP_RANGE_DAYS = 30;
@@ -97,6 +106,11 @@ type PlayerGameStatsPayload = {
   servers: PlayerGameServerStat[];
 };
 
+function hasAdminRole(user?: PlayerSessionUser | null) {
+  if (!user?.roles) return false;
+  return user.roles.some((link) => link.role.key === DEFAULT_ROLES.ADMIN);
+}
+
 @Injectable()
 export class PlayerService {
   private readonly logger = new Logger(PlayerService.name);
@@ -112,7 +126,11 @@ export class PlayerService {
     private readonly redis: RedisService,
   ) {}
 
-  async getPlayerPortalData(viewerId: string | null, targetUserId: string) {
+  async getPlayerPortalData(
+    viewer: PlayerSessionUser | null,
+    targetUserId: string,
+  ) {
+    const viewerId = viewer?.id ?? null;
     const [
       summary,
       rawAssets,
@@ -121,6 +139,8 @@ export class PlayerService {
       stats,
       statusSnapshot,
       likes,
+      biography,
+      messages,
     ] = await Promise.all([
       this.getPlayerSummary(targetUserId),
       this.getPlayerAssets(targetUserId),
@@ -129,6 +149,8 @@ export class PlayerService {
       this.getPlayerStats(targetUserId),
       this.getPlayerStatusSnapshot(targetUserId),
       this.getPlayerLikeSummary(viewerId, targetUserId),
+      this.getPlayerBiography(targetUserId),
+      this.getPlayerMessages(targetUserId, viewer),
     ]);
     const assets = {
       companies: rawAssets.companies ?? [],
@@ -144,6 +166,8 @@ export class PlayerService {
       stats,
       statusSnapshot,
       likes,
+      biography,
+      messages,
     };
   }
 
@@ -801,6 +825,184 @@ export class PlayerService {
           entry.liker.authmeBindings?.[0]?.authmeRealname ?? null,
       },
     }));
+  }
+
+  async getPlayerBiography(
+    targetUserId: string,
+  ): Promise<PlayerBiographyPayload | null> {
+    const biography = await this.prisma.playerBiography.findUnique({
+      where: { userId: targetUserId },
+      include: {
+        updatedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profile: { select: { displayName: true } },
+          },
+        },
+      },
+    });
+    if (!biography) return null;
+    return {
+      markdown: biography.markdown,
+      updatedAt: biography.updatedAt.toISOString(),
+      updatedBy: biography.updatedBy
+        ? {
+            id: biography.updatedBy.id,
+            displayName:
+              biography.updatedBy.profile?.displayName ??
+              biography.updatedBy.name ??
+              biography.updatedBy.email ??
+              null,
+          }
+        : null,
+    };
+  }
+
+  async upsertPlayerBiography(
+    targetUserId: string,
+    actor: PlayerSessionUser,
+    markdown: string,
+  ): Promise<PlayerBiographyPayload> {
+    if (actor.id !== targetUserId && !hasAdminRole(actor)) {
+      throw new ForbiddenException('Not allowed to update biography');
+    }
+    await this.prisma.playerBiography.upsert({
+      where: { userId: targetUserId },
+      create: {
+        userId: targetUserId,
+        markdown,
+        updatedById: actor.id,
+      },
+      update: {
+        markdown,
+        updatedById: actor.id,
+      },
+    });
+    const result = await this.getPlayerBiography(targetUserId);
+    if (!result) {
+      throw new NotFoundException('Biography not found after write');
+    }
+    return result;
+  }
+
+  async getPlayerMessages(
+    targetUserId: string,
+    viewer: PlayerSessionUser | null,
+    limit = 5,
+  ): Promise<PlayerMessageBoardEntry[]> {
+    const entries = await this.prisma.playerMessage.findMany({
+      where: { targetUserId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profile: { select: { displayName: true } },
+          },
+        },
+        reactions: {
+          select: {
+            userId: true,
+            reaction: true,
+          },
+        },
+      },
+    });
+    const viewerId = viewer?.id ?? null;
+    const viewerIsAdmin = hasAdminRole(viewer);
+    return entries.map((entry) =>
+      buildMessageEntry(entry, viewerId, viewerIsAdmin, targetUserId),
+    );
+  }
+
+  async createPlayerMessage(
+    targetUserId: string,
+    author: PlayerSessionUser,
+    content: string,
+  ): Promise<PlayerMessageBoardEntry> {
+    const message = await this.prisma.playerMessage.create({
+      data: {
+        targetUserId,
+        authorId: author.id,
+        content,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profile: { select: { displayName: true } },
+          },
+        },
+        reactions: {
+          select: {
+            userId: true,
+            reaction: true,
+          },
+        },
+      },
+    });
+    const viewerIsAdmin = hasAdminRole(author);
+    return buildMessageEntry(message, author.id, viewerIsAdmin, targetUserId);
+  }
+
+  async deletePlayerMessage(messageId: string, actor: PlayerSessionUser) {
+    const message = await this.prisma.playerMessage.findUnique({
+      where: { id: messageId },
+      select: { targetUserId: true },
+    });
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+    if (message.targetUserId !== actor.id && !hasAdminRole(actor)) {
+      throw new ForbiddenException('Not allowed to delete message');
+    }
+    await this.prisma.playerMessage.delete({ where: { id: messageId } });
+  }
+
+  async setPlayerMessageReaction(
+    messageId: string,
+    actor: PlayerSessionUser,
+    reaction: PlayerMessageReactionType,
+  ) {
+    const message = await this.prisma.playerMessage.findUnique({
+      where: { id: messageId },
+      select: { id: true },
+    });
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+    await this.prisma.playerMessageReaction.upsert({
+      where: {
+        uq_player_message_reaction_user: {
+          messageId,
+          userId: actor.id,
+        },
+      },
+      create: {
+        messageId,
+        userId: actor.id,
+        reaction,
+      },
+      update: {
+        reaction,
+      },
+    });
+  }
+
+  async clearPlayerMessageReaction(
+    messageId: string,
+    actor: PlayerSessionUser,
+  ) {
+    await this.prisma.playerMessageReaction.deleteMany({
+      where: { messageId, userId: actor.id },
+    });
   }
 
   private async computePlayerStatsPayload(params: {
@@ -1572,4 +1774,62 @@ export class PlayerService {
       this.toNullableString(location.country)
     );
   }
+}
+
+type PlayerMessageWithRelations = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  targetUserId: string;
+  author: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    profile?: { displayName: string | null } | null;
+  };
+  reactions: Array<{
+    userId: string;
+    reaction: PlayerMessageReactionType;
+  }>;
+};
+
+function resolveDisplayName(source: {
+  name: string | null;
+  email: string | null;
+  profile?: { displayName: string | null } | null;
+}) {
+  return source.profile?.displayName ?? source.name ?? source.email ?? null;
+}
+
+function buildMessageEntry(
+  entry: PlayerMessageWithRelations,
+  viewerId: string | null,
+  viewerIsAdmin: boolean,
+  targetUserId: string,
+): PlayerMessageBoardEntry {
+  const positiveCount = entry.reactions.filter(
+    (reaction) => reaction.reaction === PlayerMessageReactionType.UP,
+  ).length;
+  const negativeCount = entry.reactions.filter(
+    (reaction) => reaction.reaction === PlayerMessageReactionType.DOWN,
+  ).length;
+  const viewerReaction =
+    entry.reactions.find((reaction) => reaction.userId === viewerId)
+      ?.reaction ?? null;
+  return {
+    id: entry.id,
+    author: {
+      id: entry.author.id,
+      displayName: resolveDisplayName(entry.author),
+      email: entry.author.email,
+    },
+    content: entry.content,
+    createdAt: entry.createdAt.toISOString(),
+    updatedAt: entry.updatedAt.toISOString(),
+    positiveCount,
+    negativeCount,
+    viewerReaction,
+    viewerCanDelete: viewerIsAdmin || viewerId === targetUserId,
+  };
 }

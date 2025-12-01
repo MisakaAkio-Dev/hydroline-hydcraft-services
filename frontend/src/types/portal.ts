@@ -215,6 +215,33 @@ export interface PlayerLikeSummary {
   viewerLiked: boolean
 }
 
+export type PlayerMessageReactionType = 'UP' | 'DOWN'
+
+export interface PlayerBiography {
+  markdown: string
+  updatedAt: string
+  updatedBy: {
+    id: string
+    displayName: string | null
+  } | null
+}
+
+export interface PlayerMessageBoardEntry {
+  id: string
+  author: {
+    id: string
+    displayName: string | null
+    email: string | null
+  }
+  content: string
+  createdAt: string
+  updatedAt: string
+  positiveCount: number
+  negativeCount: number
+  viewerReaction: PlayerMessageReactionType | null
+  viewerCanDelete: boolean
+}
+
 export interface PlayerGameStatsResponse {
   identity: { uuid: string | null; name: string | null }
   identityMissing: boolean
@@ -286,6 +313,8 @@ export interface PlayerPortalProfileResponse {
   stats: PlayerStatsResponse
   likes: PlayerLikeSummary | null
   statusSnapshot: PlayerStatusSnapshot | null
+  biography: PlayerBiography | null
+  messages: PlayerMessageBoardEntry[]
 }
 
 export interface PlayerIsLoggedResponse {

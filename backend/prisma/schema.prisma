@@ -46,7 +46,12 @@ model User {
   permissionLabels        UserPermissionLabel[]
   piicHistory             UserPiicHistory[]
   profile                 UserProfile?
+  biography               PlayerBiography?       @relation("PlayerBiographyOwner")
+  biographyUpdates        PlayerBiography[]      @relation("PlayerBiographyUpdater")
   roles                   UserRole[]
+  messagesSent            PlayerMessage[]        @relation("PlayerMessagesAuthor")
+  messagesReceived        PlayerMessage[]        @relation("PlayerMessagesReceived")
+  messageReactions        PlayerMessageReaction[]
   statusEvents            UserStatusEvent[]
   statusSnapshot          UserStatusSnapshot?
   likesGiven              PlayerLike[]           @relation("PlayerLikesGiven")
@@ -127,6 +132,47 @@ model UserProfile {
   user                      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_profiles")
+}
+
+model PlayerBiography {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  markdown    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  user        User     @relation("PlayerBiographyOwner", fields: [userId], references: [id], onDelete: Cascade)
+  updatedBy   User?    @relation("PlayerBiographyUpdater", fields: [updatedById], references: [id])
+
+  @@map("player_biographies")
+}
+
+model PlayerMessage {
+  id           String                      @id @default(uuid())
+  targetUserId String
+  authorId     String
+  content      String
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
+  targetUser   User                        @relation("PlayerMessagesReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
+  author       User                        @relation("PlayerMessagesAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  reactions    PlayerMessageReaction[]
+
+  @@map("player_messages")
+}
+
+model PlayerMessageReaction {
+  id        String                        @id @default(uuid())
+  messageId String
+  userId    String
+  reaction  PlayerMessageReactionType
+  createdAt DateTime                      @default(now())
+  updatedAt DateTime                      @updatedAt
+  message   PlayerMessage                 @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId], name: "uq_player_message_reaction_user")
+  @@map("player_message_reactions")
 }
 
 model UserPiicHistory {
@@ -731,6 +777,11 @@ enum GenderType {
 enum PIICStatus {
   ACTIVE
   REVOKED
+}
+
+enum PlayerMessageReactionType {
+  UP
+  DOWN
 }
 
 enum AttachmentVisibilityMode {

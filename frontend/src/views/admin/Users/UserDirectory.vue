@@ -6,6 +6,8 @@ import { useUiStore } from '@/stores/ui'
 import type { AdminUserListItem } from '@/types/admin'
 import UserDetailDialog from '@/views/admin/components/UserDetailDialog.vue'
 import PlayerDetailDialog from '@/views/admin/components/PlayerDetailDialog.vue'
+import UserBiographyDialog from './components/UserBiographyDialog.vue'
+import UserMessageBoardDialog from './components/UserMessageBoardDialog.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 
 type SortOrder = 'asc' | 'desc'
@@ -57,6 +59,10 @@ const detailDialogSummary = ref<{
 const detailDialogEmailToken = ref(0)
 const playerDialogOpen = ref(false)
 const playerDialogUsername = ref<string | null>(null)
+const biographyDialogOpen = ref(false)
+const biographyDialogUserId = ref<string | null>(null)
+const messageDialogOpen = ref(false)
+const messageDialogUserId = ref<string | null>(null)
 type PlayerUserSummary = {
   id: string
   email?: string | null
@@ -218,9 +224,33 @@ function openPlayerDialog(username: string | null | undefined) {
   playerDialogOpen.value = true
 }
 
+function openBiographyDialog(userId: string | null | undefined) {
+  if (!userId) return
+  biographyDialogUserId.value = userId
+  biographyDialogOpen.value = true
+}
+
+function openMessageDialog(userId: string | null | undefined) {
+  if (!userId) return
+  messageDialogUserId.value = userId
+  messageDialogOpen.value = true
+}
+
 watch(playerDialogOpen, (value) => {
   if (!value) {
     playerDialogUsername.value = null
+  }
+})
+
+watch(biographyDialogOpen, (value) => {
+  if (!value) {
+    biographyDialogUserId.value = null
+  }
+})
+
+watch(messageDialogOpen, (value) => {
+  if (!value) {
+    messageDialogUserId.value = null
   }
 })
 
@@ -724,6 +754,22 @@ function extraEmails(user: AdminUserListItem) {
             <td class="px-4 py-4 text-right">
               <div class="flex justify-end gap-2">
                 <UButton
+                  size="xs"
+                  variant="ghost"
+                  color="primary"
+                  @click="openBiographyDialog(item.id)"
+                >
+                  自述卡片
+                </UButton>
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  color="primary"
+                  @click="openMessageDialog(item.id)"
+                >
+                  留言区
+                </UButton>
+                <UButton
                   color="primary"
                   size="xs"
                   variant="soft"
@@ -961,6 +1007,17 @@ function extraEmails(user: AdminUserListItem) {
         }
       "
       @open-user="openUserDetailFromPlayer"
+    />
+
+    <UserBiographyDialog
+      :open="biographyDialogOpen"
+      :user-id="biographyDialogUserId"
+      @update:open="(value) => (biographyDialogOpen = value)"
+    />
+    <UserMessageBoardDialog
+      :open="messageDialogOpen"
+      :user-id="messageDialogUserId"
+      @update:open="(value) => (messageDialogOpen = value)"
     />
   </div>
 </template>

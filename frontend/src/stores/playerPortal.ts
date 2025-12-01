@@ -3,8 +3,11 @@ import { apiFetch } from '@/utils/api'
 import { useAuthStore } from '@/stores/auth'
 import type {
   PlayerAssetsResponse,
+  PlayerBiography,
   PlayerGameStatsResponse,
   PlayerLikeSummary,
+  PlayerMessageBoardEntry,
+  PlayerMessageReactionType,
   PlayerMinecraftResponse,
   PlayerPortalProfileResponse,
   PlayerRegionResponse,
@@ -27,9 +30,11 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     minecraft: null as PlayerMinecraftResponse | null,
     stats: null as PlayerStatsResponse | null,
     likes: null as PlayerLikeSummary | null,
+    biography: null as PlayerBiography | null,
     statusSnapshot: null as PlayerStatusSnapshot | null,
     viewerId: null as string | null,
     targetUserId: null as string | null,
+    messages: [] as PlayerMessageBoardEntry[],
     logged: null as boolean | null,
     loading: false,
     submitting: false,
@@ -64,6 +69,8 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         this.stats = response.stats
         this.likes = response.likes ?? null
         this.statusSnapshot = response.statusSnapshot
+        this.biography = response.biography
+        this.messages = response.messages ?? []
         this.viewerId = response.viewerId
         this.targetUserId = response.targetId
         return response
@@ -276,6 +283,78 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         { token: this.authToken() ?? undefined },
       )
     },
+    async fetchMessages(options: { id?: string } = {}) {
+      const effectiveId = options.id ?? this.targetUserId
+      if (!effectiveId) {
+        this.messages = []
+        return this.messages
+      }
+      const params = new URLSearchParams({ id: effectiveId })
+      this.messages = await apiFetch<PlayerMessageBoardEntry[]>(
+        `/player/messages?${params.toString()}`,
+        { token: this.authToken() ?? undefined },
+      )
+      return this.messages
+    },
+    async postMessage(content: string, options: { id?: string } = {}) {
+      const params = new URLSearchParams()
+      if (options.id) params.set('id', options.id)
+      const query = params.toString()
+      const response = await apiFetch<PlayerMessageBoardEntry>(
+        `/player/messages${query ? `?${query}` : ''}`,
+        {
+          method: 'POST',
+          body: { content },
+          token: this.authToken() ?? undefined,
+        },
+      )
+      await this.fetchMessages({ id: options.id })
+      return response
+    },
+    async deleteMessage(messageId: string, options: { id?: string } = {}) {
+      await apiFetch(`/player/messages/${messageId}`, {
+        method: 'DELETE',
+        token: this.authToken() ?? undefined,
+      })
+      await this.fetchMessages({ id: options.id })
+    },
+    async setMessageReaction(
+      messageId: string,
+      reaction: PlayerMessageReactionType,
+      options: { id?: string } = {},
+    ) {
+      await apiFetch(`/player/messages/${messageId}/reactions`, {
+        method: 'POST',
+        body: { reaction },
+        token: this.authToken() ?? undefined,
+      })
+      await this.fetchMessages({ id: options.id })
+    },
+    async clearMessageReaction(
+      messageId: string,
+      options: { id?: string } = {},
+    ) {
+      await apiFetch(`/player/messages/${messageId}/reactions`, {
+        method: 'DELETE',
+        token: this.authToken() ?? undefined,
+      })
+      await this.fetchMessages({ id: options.id })
+    },
+    async updateBiography(payload: { markdown: string; id?: string }) {
+      const params = new URLSearchParams()
+      if (payload.id) params.set('id', payload.id)
+      const query = params.toString()
+      const response = await apiFetch<PlayerBiography>(
+        `/player/bio${query ? `?${query}` : ''}`,
+        {
+          method: 'POST',
+          body: { markdown: payload.markdown },
+          token: this.authToken() ?? undefined,
+        },
+      )
+      this.biography = response
+      return response
+    },
     reset() {
       this.summary = null
       this.assets = null
@@ -286,6 +365,8 @@ export const usePlayerPortalStore = defineStore('player-portal', {
       this.viewerId = null
       this.targetUserId = null
       this.logged = null
+      this.biography = null
+      this.messages = []
       this.rankContext = null
       this.leaderboard = null
       this.lifecycleEvents = []

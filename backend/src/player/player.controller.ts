@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Param,
   Post,
   Query,
   Req,
@@ -12,6 +13,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import {
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -22,6 +24,8 @@ import {
 import { OptionalAuthGuard } from '../auth/optional-auth.guard';
 import { AuthGuard } from '../auth/auth.guard';
 import { PlayerService } from './player.service';
+import { PlayerMessageReactionType } from '@prisma/client';
+import type { PlayerSessionUser } from './player.types';
 
 class PlayerReasonDto {
   @IsOptional()
@@ -96,6 +100,24 @@ class PlayerGameStatsQueryDto {
   id?: string;
 }
 
+class UpdatePlayerBiographyDto {
+  @IsString()
+  @MaxLength(5000)
+  markdown!: string;
+}
+
+class CreatePlayerMessageDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  content!: string;
+}
+
+class PlayerMessageReactionDto {
+  @IsEnum(PlayerMessageReactionType)
+  reaction!: PlayerMessageReactionType;
+}
+
 @ApiTags('玩家档案接口')
 @Controller('player')
 export class PlayerController {
@@ -117,10 +139,8 @@ export class PlayerController {
   @ApiOperation({ summary: '整合获取玩家档案（可通过 id 查询）' })
   async playerProfile(@Req() req: Request, @Query('id') id?: string) {
     const targetId = this.resolveTargetUserId(req, id);
-    return this.playerService.getPlayerPortalData(
-      req.user?.id ?? null,
-      targetId,
-    );
+    const viewer = (req.user as PlayerSessionUser) ?? null;
+    return this.playerService.getPlayerPortalData(viewer, targetId);
   }
 
   @Get('summary')
@@ -129,6 +149,31 @@ export class PlayerController {
   async playerSummary(@Req() req: Request, @Query('id') id?: string) {
     const targetId = this.resolveTargetUserId(req, id);
     return this.playerService.getPlayerSummary(targetId);
+  }
+
+  @Get('bio')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: '获取玩家自述卡片' })
+  async playerBiography(@Req() req: Request, @Query('id') id?: string) {
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.playerService.getPlayerBiography(targetId);
+  }
+
+  @Post('bio')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新玩家自述卡片' })
+  async updatePlayerBiography(
+    @Req() req: Request,
+    @Body() body: UpdatePlayerBiographyDto,
+    @Query('id') id?: string,
+  ) {
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.playerService.upsertPlayerBiography(
+      targetId,
+      req.user as PlayerSessionUser,
+      body.markdown,
+    );
   }
 
   @Get('login-map')
@@ -234,6 +279,79 @@ export class PlayerController {
         serverId: query.serverId,
       },
     );
+  }
+
+  @Get('messages')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: '获取玩家留言板' })
+  async playerMessages(@Req() req: Request, @Query('id') id?: string) {
+    const targetId = this.resolveTargetUserId(req, id);
+    const viewer = (req.user as PlayerSessionUser) ?? null;
+    return this.playerService.getPlayerMessages(targetId, viewer);
+  }
+
+  @Post('messages')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '发表留言' })
+  async postPlayerMessage(
+    @Req() req: Request,
+    @Body() body: CreatePlayerMessageDto,
+    @Query('id') id?: string,
+  ) {
+    const targetId = this.resolveTargetUserId(req, id);
+    return this.playerService.createPlayerMessage(
+      targetId,
+      req.user as PlayerSessionUser,
+      body.content,
+    );
+  }
+
+  @Delete('messages/:messageId')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '删除留言' })
+  async deletePlayerMessage(
+    @Req() req: Request,
+    @Param('messageId') messageId: string,
+  ) {
+    await this.playerService.deletePlayerMessage(
+      messageId,
+      req.user as PlayerSessionUser,
+    );
+    return { success: true };
+  }
+
+  @Post('messages/:messageId/reactions')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '对留言表态' })
+  async reactToPlayerMessage(
+    @Req() req: Request,
+    @Param('messageId') messageId: string,
+    @Body() body: PlayerMessageReactionDto,
+  ) {
+    await this.playerService.setPlayerMessageReaction(
+      messageId,
+      req.user as PlayerSessionUser,
+      body.reaction,
+    );
+    return { success: true };
+  }
+
+  @Delete('messages/:messageId/reactions')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '取消留言表态' })
+  async clearPlayerMessageReaction(
+    @Req() req: Request,
+    @Param('messageId') messageId: string,
+  ) {
+    await this.playerService.clearPlayerMessageReaction(
+      messageId,
+      req.user as PlayerSessionUser,
+    );
+    return { success: true };
   }
 
   @Get('likes')
