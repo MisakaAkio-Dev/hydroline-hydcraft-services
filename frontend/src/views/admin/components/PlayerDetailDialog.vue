@@ -336,15 +336,6 @@ const formatTicksToHours = (value: number | null | undefined) => {
   return `${decimalFormatter.format(safeValue / 72000)} 小时`
 }
 
-const formatTicksToDays = (value: number | null | undefined) => {
-  const safeValue = value ?? 0
-  const days = safeValue / 1728000
-  if (Number.isFinite(days) && days >= 1) {
-    return `${decimalFormatter.format(days)} 天`
-  }
-  return formatTicksToHours(safeValue)
-}
-
 const formatServerUpdatedAt = (value: string | null) => {
   if (!value) return '更新时间未知'
   return dayjs(value).format('YYYY/MM/DD HH:mm:ss')
@@ -353,6 +344,11 @@ const formatServerUpdatedAt = (value: string | null) => {
 const formatTimes = (value: number | null | undefined, unit = '次') => {
   const safeValue = value ?? 0
   return `${numberFormatter.format(safeValue)} ${unit}`
+}
+
+const formatAchievementsCount = (value: number | null | undefined) => {
+  if (value == null) return '—'
+  return numberFormatter.format(value)
 }
 
 function closeDialog() {
@@ -872,13 +868,13 @@ watch(selectedServerId, (serverId, previous) => {
                   class="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white/80 dark:bg-slate-900/40"
                 >
                   <p class="text-xs text-slate-500 dark:text-slate-500">
-                    在游戏里待了多久
+                    已达成成就
                   </p>
                   <p
                     class="text-xl font-semibold text-slate-900 dark:text-white"
                   >
                     {{
-                      formatTicksToDays(selectedServerMetrics?.totalWorldTime)
+                      formatAchievementsCount(selectedServer?.achievementsTotal)
                     }}
                   </p>
                 </div>
@@ -900,7 +896,7 @@ watch(selectedServerId, (serverId, previous) => {
                   class="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white/80 dark:bg-slate-900/40"
                 >
                   <p class="text-xs text-slate-500 dark:text-slate-500">
-                    死亡多少次
+                    总共死了几次
                   </p>
                   <p
                     class="text-xl font-semibold text-slate-900 dark:text-white"
@@ -965,7 +961,7 @@ watch(selectedServerId, (serverId, previous) => {
                   class="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white/80 dark:bg-slate-900/40 md:col-span-2"
                 >
                   <p class="text-xs text-slate-500 dark:text-slate-500">
-                    最近一次 MTR 操作
+                    最近 MTR 操作
                   </p>
                   <p
                     class="text-xl font-semibold text-slate-900 dark:text-white"

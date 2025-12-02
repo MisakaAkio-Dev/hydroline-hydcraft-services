@@ -51,6 +51,8 @@ const PLAYER_GAME_METRIC_KEYS = {
   leaveGame: 'minecraft:custom:minecraft:leave_game',
 } as const;
 const PLAYER_GAME_METRIC_KEY_LIST = Object.values(PLAYER_GAME_METRIC_KEYS);
+const PLAYER_ADVANCEMENT_PAGE_SIZE = 1000;
+const PLAYER_ADVANCEMENT_MAX_PAGES = 10;
 
 type PlayerBeaconIdentity = {
   uuid: string | null;
@@ -101,6 +103,7 @@ type PlayerGameServerStat = PlayerGameServerDescriptor & {
   errorMessage: string | null;
   mtrError: string | null;
   mtrErrorMessage: string | null;
+  achievementsTotal: number | null;
 };
 
 type PlayerGameStatsPayload = {
@@ -1159,6 +1162,7 @@ export class PlayerService {
           errorMessage: '未找到玩家的 AuthMe 绑定，无法查询 Beacon 数据',
           mtrError: null,
           mtrErrorMessage: null,
+          achievementsTotal: null,
         })),
       };
     }
@@ -1181,6 +1185,7 @@ export class PlayerService {
               : String(error ?? '未知错误'),
           mtrError: null,
           mtrErrorMessage: null,
+          achievementsTotal: null,
         })),
       ),
     );
@@ -1206,6 +1211,7 @@ export class PlayerService {
         errorMessage: '服务器未启用 Beacon，无法查询数据',
         mtrError: null,
         mtrErrorMessage: null,
+        achievementsTotal: null,
       };
     }
     if (!server.beaconConfigured) {
@@ -1222,6 +1228,7 @@ export class PlayerService {
         errorMessage: 'Beacon 配置不完整，无法查询数据',
         mtrError: null,
         mtrErrorMessage: null,
+        achievementsTotal: null,
       };
     }
 
@@ -1244,6 +1251,20 @@ export class PlayerService {
     } catch (err) {
       error = 'BEACON_STATS_FAILED';
       errorMessage = err instanceof Error ? err.message : String(err);
+    }
+
+    let achievementsTotal: number | null = null;
+    try {
+      achievementsTotal = await this.countPlayerCompletedAdvancements(
+        server.serverId,
+        identity,
+      );
+    } catch (err) {
+      const fallbackMessage =
+        err instanceof Error ? err.message : String(err ?? '未知错误');
+      this.logger.warn(
+        `Failed to fetch player advancements for server ${server.serverName} (${server.serverId}): ${fallbackMessage}`,
+      );
     }
 
     let lastMtrLog: PlayerMtrLogSummary | null = null;
@@ -1315,6 +1336,7 @@ export class PlayerService {
       errorMessage,
       mtrError,
       mtrErrorMessage,
+      achievementsTotal,
     };
   }
 
@@ -1378,6 +1400,90 @@ export class PlayerService {
       dimensionContext: record?.dimension_context ?? null,
       description: descriptorParts.length ? descriptorParts.join(' · ') : null,
     };
+  }
+
+  private async countPlayerCompletedAdvancements(
+    serverId: string,
+    identity: PlayerBeaconIdentity,
+  ): Promise<number> {
+    const query: { playerUuid?: string; playerName?: string } = {};
+    if (identity.uuid) {
+      query.playerUuid = identity.uuid;
+    }
+    if (identity.name) {
+      query.playerName = identity.name;
+    }
+    if (!query.playerUuid && !query.playerName) {
+      return 0;
+    }
+
+    let processedEntries = 0;
+    let completedCount = 0;
+    let totalEntries: number | null = null;
+    for (let page = 1; page <= PLAYER_ADVANCEMENT_MAX_PAGES; page += 1) {
+      const response =
+        await this.minecraftServerService.getBeaconPlayerAdvancements(
+          serverId,
+          {
+            ...query,
+            page,
+            pageSize: PLAYER_ADVANCEMENT_PAGE_SIZE,
+          },
+        );
+      const result = response.result;
+      if (!result || result.success === false) {
+        throw new Error(
+          result?.error ??
+            'Beacon 未返回玩家成就信息 (get_player_advancements)',
+        );
+      }
+      const entries = Object.values(result.advancements ?? {});
+      for (const raw of entries) {
+        if (typeof raw !== 'string') continue;
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed?.done === true) {
+            completedCount += 1;
+          }
+        } catch {
+          continue;
+        }
+      }
+      const fetched = entries.length;
+      processedEntries += fetched;
+      const declaredTotal = this.parseBeaconTotal(result.total);
+      if (declaredTotal !== null) {
+        totalEntries = declaredTotal;
+      }
+      if (
+        fetched === 0 ||
+        (totalEntries !== null && processedEntries >= totalEntries) ||
+        fetched < PLAYER_ADVANCEMENT_PAGE_SIZE
+      ) {
+        return completedCount;
+      }
+    }
+    if (totalEntries !== null && processedEntries < totalEntries) {
+      this.logger.warn(
+        `Reached advancement pagination limit for server ${serverId}: ${
+          totalEntries - processedEntries
+        } entries may be unprocessed`,
+      );
+    }
+    return completedCount;
+  }
+
+  private parseBeaconTotal(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+    return null;
   }
 
   private parseMtrTimestamp(raw: string | null | undefined) {

@@ -951,7 +951,7 @@ async function submitMtrBalanceChange() {
             {{ mtrForm.playerName }}
           </div>
           <div class="space-y-1 text-sm text-slate-600 dark:text-slate-300">
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               当前余额
             </span>
             <div class="text-lg font-semibold text-slate-900 dark:text-white">
@@ -973,7 +973,7 @@ async function submitMtrBalanceChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               选择服务器
             </span>
             <USelectMenu
@@ -988,7 +988,7 @@ async function submitMtrBalanceChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               操作类型
             </span>
             <USelectMenu
@@ -1001,7 +1001,7 @@ async function submitMtrBalanceChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               金额
             </span>
             <UInput
@@ -1009,9 +1009,6 @@ async function submitMtrBalanceChange() {
               type="number"
               placeholder="输入要设置或调整的数量"
             />
-            <span class="text-[11px] text-slate-500 dark:text-slate-400">
-              设置操作会直接将余额写入；增减操作在当前基础上 +amount（支持负数）
-            </span>
           </label>
           <div class="flex justify-end gap-2 pt-2">
             <UButton

@@ -247,6 +247,18 @@ const balanceDialog = reactive({
   operation: 'set' as 'set' | 'add',
 })
 const balanceSubmitting = ref(false)
+const balanceLoading = ref(false)
+const balanceError = ref<string | null>(null)
+const balanceValue = ref<number | null>(null)
+const balanceFormatter = new Intl.NumberFormat('zh-CN', {
+  maximumFractionDigits: 0,
+})
+const formattedBalance = computed(() => {
+  if (balanceValue.value == null) {
+    return '—'
+  }
+  return balanceFormatter.format(balanceValue.value)
+})
 const balanceOperationOptions = [
   { value: 'set', label: '直接设置余额' },
   { value: 'add', label: '按增减余额（可负）' },
@@ -337,6 +349,16 @@ watch(
       balanceDialog.serverId =
         balanceDialog.serverId || resolveDefaultServerId()
       balanceDialog.amount = ''
+      void loadPlayerBalance()
+    }
+  },
+)
+
+watch(
+  () => balanceDialog.serverId,
+  (serverId) => {
+    if (balanceDialog.open && serverId) {
+      void loadPlayerBalance()
     }
   },
 )
@@ -515,7 +537,7 @@ async function submitBalanceChange() {
     toast.add({ title: '请选择服务器', color: 'warning' })
     return
   }
-  const raw = balanceDialog.amount?.trim() ?? ''
+  const raw = String(balanceDialog.amount ?? '').trim()
   if (!raw.length) {
     toast.add({ title: '请输入金额', color: 'warning' })
     return
@@ -539,8 +561,8 @@ async function submitBalanceChange() {
       await playerPortalStore.requestSetPlayerMtrBalance(payload)
       toast.add({ title: '余额设置命令已发送', color: 'primary' })
     }
-    balanceDialog.open = false
     balanceDialog.amount = ''
+    await loadPlayerBalance()
     await playerPortalStore.refreshStats()
   } catch (error) {
     toast.add({
@@ -581,6 +603,29 @@ async function loadPermissionOptions() {
     })
   } finally {
     permissionDialog.loading = false
+  }
+}
+
+async function loadPlayerBalance() {
+  if (!bindingId.value || !balanceDialog.serverId) {
+    balanceValue.value = null
+    balanceError.value = null
+    return
+  }
+  balanceLoading.value = true
+  balanceError.value = null
+  try {
+    const response = await playerPortalStore.fetchPlayerMtrBalance({
+      serverId: balanceDialog.serverId,
+      bindingId: bindingId.value ?? undefined,
+    })
+    balanceValue.value = response.balance
+  } catch (error) {
+    balanceValue.value = null
+    balanceError.value =
+      error instanceof Error ? error.message : '无法获取 MTR 余额'
+  } finally {
+    balanceLoading.value = false
   }
 }
 
@@ -657,7 +702,7 @@ async function submitPermissionChange() {
               :disabled="!props.binding || !serverOptions.length"
               @click="balanceDialog.open = true"
             >
-              调整MTR余额
+              调整 MTR 余额
             </UButton>
             <UButton
               size="xs"
@@ -820,7 +865,7 @@ async function submitPermissionChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               选择服务器
             </span>
             <USelectMenu
@@ -835,7 +880,7 @@ async function submitPermissionChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               新密码
             </span>
             <UInput
@@ -882,7 +927,7 @@ async function submitPermissionChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               选择服务器
             </span>
             <USelectMenu
@@ -931,7 +976,7 @@ async function submitPermissionChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               选择服务器
             </span>
             <USelectMenu
@@ -946,7 +991,7 @@ async function submitPermissionChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               目标权限组
             </span>
             <USelectMenu
@@ -1005,7 +1050,7 @@ async function submitPermissionChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               选择服务器
             </span>
             <USelectMenu
@@ -1017,10 +1062,30 @@ async function submitPermissionChange() {
               :disabled="serverOptions.length === 0"
             />
           </label>
+          <div class="space-y-1 text-sm text-slate-600 dark:text-slate-300">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
+              当前余额
+            </span>
+            <div class="text-lg font-semibold text-slate-900 dark:text-white">
+              <template v-if="balanceLoading">
+                <UIcon
+                  name="i-lucide-loader-2"
+                  class="inline-block h-4 w-4 animate-spin"
+                />
+              </template>
+              <template v-else>{{ formattedBalance }}</template>
+            </div>
+            <p
+              v-if="balanceError"
+              class="text-[11px] text-amber-500 dark:text-amber-300"
+            >
+              {{ balanceError }}
+            </p>
+          </div>
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               操作类型
             </span>
             <USelectMenu
@@ -1033,7 +1098,7 @@ async function submitPermissionChange() {
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
           >
-            <span class="font-medium text-slate-700 dark:text-slate-200">
+            <span class="text-xs text-slate-500 dark:text-slate-500">
               金额
             </span>
             <UInput
@@ -1041,10 +1106,6 @@ async function submitPermissionChange() {
               type="number"
               placeholder="输入要设置或调整的数量"
             />
-            <span class="text-[11px] text-slate-500 dark:text-slate-400">
-              设置操作会直接将余额写入；增减操作会在当前基础上
-              +amount（支持负数）
-            </span>
           </label>
           <div class="flex justify-end gap-2 pt-2">
             <UButton

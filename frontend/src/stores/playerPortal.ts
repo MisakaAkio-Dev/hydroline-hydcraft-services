@@ -231,6 +231,22 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         this.submitting = false
       }
     },
+    async fetchPlayerMtrBalance(payload: {
+      serverId: string
+      bindingId?: string
+    }) {
+      const params = new URLSearchParams()
+      params.set('serverId', payload.serverId)
+      if (payload.bindingId) {
+        params.set('bindingId', payload.bindingId)
+      }
+      return apiFetch<PlayerMtrBalanceResponse>(
+        `/player/mtr/balance?${params.toString()}`,
+        {
+          token: this.authToken() ?? undefined,
+        },
+      )
+    },
     async requestPermissionChange(payload: {
       serverId: string
       targetGroup: string

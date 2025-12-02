@@ -265,6 +265,7 @@ export interface PlayerGameServerStat {
   errorMessage: string | null
   mtrError: string | null
   mtrErrorMessage: string | null
+  achievementsTotal: number | null
 }
 
 export interface PlayerGameServerMetrics {

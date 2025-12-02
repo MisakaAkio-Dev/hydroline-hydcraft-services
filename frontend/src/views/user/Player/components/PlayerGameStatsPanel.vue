@@ -138,14 +138,10 @@ const formatTicksToHours = (value: number | null | undefined) => {
   return `${decimalFormatter.format(hours)} 小时`
 }
 
-const formatTicksToDays = (value: number | null | undefined) => {
+const formatAchievementsCount = (value: number | null | undefined) => {
   if (!hasMetrics.value) return '—'
-  const safeValue = value ?? 0
-  const days = safeValue / 1728000
-  if (Number.isFinite(days) && days >= 1) {
-    return `${decimalFormatter.format(days)} 天`
-  }
-  return formatTicksToHours(safeValue)
+  if (value == null) return '—'
+  return numberFormatter.format(value)
 }
 
 const formattedMtrTimestamp = computed(() => {
@@ -158,6 +154,13 @@ const formattedMtrTimestamp = computed(() => {
     return log.rawTimestamp
   }
   return '—'
+})
+
+const formattedMtrDaysAgo = computed(() => {
+  const log = selectedServer.value?.lastMtrLog
+  if (!log || !log.timestamp) return '—'
+  const days = dayjs().diff(dayjs(log.timestamp), 'day')
+  return `${days}天前`
 })
 
 const formattedMtrDescription = computed(() => {
@@ -254,12 +257,12 @@ watch(
       >
         <div class="flex gap-0.5 px-1">
           <span class="text-lg text-slate-600 dark:text-slate-300">
-            游戏统计信息
+            游戏数据
           </span>
 
           <UTooltip
             v-if="props.isViewingSelf"
-            text="刷新游戏统计"
+            text="刷新数据"
             :popper="{ placement: 'top' }"
           >
             <UButton
@@ -418,15 +421,13 @@ watch(
           <div
             class="flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800"
           >
-            <p class="text-xs text-slate-500 dark:text-slate-500">
-              在游戏里待了多久
-            </p>
+            <p class="text-xs text-slate-500 dark:text-slate-500">已达成成就</p>
             <p class="text-xl font-semibold text-slate-900 dark:text-white">
               <template v-if="isStatsLoading">
                 <USkeleton class="h-6 w-32" />
               </template>
               <template v-else>
-                {{ formatTicksToDays(selectedMetrics?.totalWorldTime) }}
+                {{ formatAchievementsCount(selectedServer?.achievementsTotal) }}
               </template>
             </p>
           </div>
@@ -450,7 +451,9 @@ watch(
           <div
             class="flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800"
           >
-            <p class="text-xs text-slate-500 dark:text-slate-500">死亡多少次</p>
+            <p class="text-xs text-slate-500 dark:text-slate-500">
+              总共死了几次
+            </p>
             <p class="text-xl font-semibold text-slate-900 dark:text-white">
               <template v-if="isStatsLoading">
                 <USkeleton class="h-6 w-28" />
@@ -544,18 +547,19 @@ watch(
           <div
             class="flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800 md:col-span-1"
           >
-            <p class="text-xs text-slate-500 dark:text-slate-500">
-              最近一次 MTR 操作
+            <p
+              class="flex gap-1 items-center text-xs text-slate-500 dark:text-slate-500"
+            >
+              <span> 最近 MTR 操作 </span>
 
-              <span
-                v-if="formattedMtrDescription"
-                class="font-semibold text-xs text-slate-500 dark:text-slate-500"
-              >
-                {{ formattedMtrDescription }}
-              </span>
+              <UTooltip :text="formattedMtrTimestamp">
+                <UBadge variant="soft" size="xs">
+                  {{ formattedMtrDaysAgo }}
+                </UBadge>
+              </UTooltip>
             </p>
             <p class="text-xl font-semibold text-slate-900 dark:text-white">
-              {{ formattedMtrTimestamp }}
+              {{ formattedMtrDescription }}
             </p>
           </div>
         </div>
