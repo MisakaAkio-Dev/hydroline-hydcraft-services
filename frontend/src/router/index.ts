@@ -14,6 +14,16 @@ export const userRoutes: RouteRecordRaw[] = [
         meta: { layout: 'user', title: '仪表盘', icon: 'i-lucide-home' },
       },
       {
+        path: 'player/name/:playerName',
+        name: 'player.name',
+        component: () => import('@/views/user/Player/PlayerView.vue'),
+        meta: {
+          layout: 'user',
+          title: '玩家档案',
+          icon: 'i-lucide-user-round',
+        },
+      },
+      {
         path: 'player/:playerId?',
         name: 'player',
         component: () => import('@/views/user/Player/PlayerView.vue'),
@@ -85,16 +95,6 @@ export const userRoutes: RouteRecordRaw[] = [
             },
           },
         ],
-      },
-      {
-        path: '/preferences',
-        name: 'preferences',
-        component: () => import('@/views/user/Preferences/PreferencesView.vue'),
-        meta: {
-          layout: 'user',
-          title: '偏好设置',
-          icon: 'i-lucide-sliders-horizontal',
-        },
       },
       {
         path: 'error/404',

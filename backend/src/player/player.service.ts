@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { IpLocationService } from '../lib/ip2region/ip-location.service';
 import { AttachmentsService } from '../attachments/attachments.service';
 import { AuthmeService } from '../authme/authme.service';
+import type { AuthmeUser } from '../authme/authme.interfaces';
 import { LuckpermsService } from '../luckperms/luckperms.service';
 import { buildPublicUrl } from '../lib/shared/url';
 import { buildPagination } from '../lib/shared/pagination';
@@ -53,6 +54,17 @@ const PLAYER_GAME_METRIC_KEYS = {
 const PLAYER_GAME_METRIC_KEY_LIST = Object.values(PLAYER_GAME_METRIC_KEYS);
 const PLAYER_ADVANCEMENT_PAGE_SIZE = 1000;
 const PLAYER_ADVANCEMENT_MAX_PAGES = 10;
+const RECOMMENDED_PLAYER_LIMIT = 100;
+const RECOMMENDED_PAGE_SIZE_DEFAULT = 10;
+const RECOMMENDED_PAGE_SIZE_MAX = 12;
+
+type PlayerRecommendationItem = {
+  id: string;
+  targetId: string;
+  type: 'user' | 'authme';
+  displayName: string;
+  avatarUrl: string | null;
+};
 
 type PlayerBeaconIdentity = {
   uuid: string | null;
@@ -175,6 +187,217 @@ export class PlayerService {
       likes,
       biography,
       messages,
+    };
+  }
+
+  async getPlayerPortalDataByAuthmeUsername(
+    viewer: PlayerSessionUser | null,
+    username: string,
+  ) {
+    const normalized = username.trim().toLowerCase();
+    if (!normalized) {
+      throw new BadRequestException('Player name is required');
+    }
+    const binding = await this.prisma.userAuthmeBinding.findFirst({
+      where: {
+        OR: [
+          { authmeUsernameLower: normalized },
+          { authmeUsername: { equals: username.trim() } },
+        ],
+      },
+      select: { userId: true },
+    });
+    if (!binding) {
+      throw new NotFoundException('Player not found');
+    }
+    return this.getPlayerPortalData(viewer, binding.userId);
+  }
+
+  async listRecommendedPlayers(
+    options: { page?: number; pageSize?: number } = {},
+  ) {
+    const page = Math.max(options.page ?? 1, 1);
+    const pageSize = this.normalizeRecommendationPageSize(options.pageSize);
+    const users = await this.prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: RECOMMENDED_PLAYER_LIMIT,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        avatarAttachmentId: true,
+        profile: {
+          select: {
+            displayName: true,
+          },
+        },
+      },
+    });
+    const userEntries = await Promise.all(
+      users.map((user) => this.buildRecommendationEntryForUser(user)),
+    );
+    const slots = Math.max(RECOMMENDED_PLAYER_LIMIT - userEntries.length, 0);
+    const authmeEntries =
+      slots > 0 ? await this.fetchAuthmeRecommendationEntries(slots) : [];
+    const combined = [...userEntries, ...authmeEntries].slice(
+      0,
+      RECOMMENDED_PLAYER_LIMIT,
+    );
+    const start = (page - 1) * pageSize;
+    const items = combined.slice(start, start + pageSize);
+    return {
+      items,
+      total: combined.length,
+      page,
+      pageSize,
+    };
+  }
+
+  async getAuthmePlayerProfile(username: string) {
+    const normalized = username?.trim();
+    if (!normalized) {
+      throw new BadRequestException('Username is required');
+    }
+    if (!this.authmeService.isEnabled()) {
+      throw new BadRequestException('AuthMe integration is unavailable');
+    }
+    let account: AuthmeUser | null;
+    try {
+      account = await this.authmeService.getAccount(normalized);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load AuthMe account ${normalized}: ${String(error)}`,
+      );
+      throw new BadRequestException('Unable to load AuthMe account');
+    }
+    if (!account) {
+      throw new NotFoundException('Player not found');
+    }
+
+    const bindingKey = normalized.toLowerCase();
+    const binding = await this.prisma.userAuthmeBinding.findUnique({
+      where: { authmeUsernameLower: bindingKey },
+      select: {
+        authmeUuid: true,
+        authmeRealname: true,
+        status: true,
+        boundAt: true,
+        boundByIp: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            avatarAttachmentId: true,
+            profile: { select: { displayName: true } },
+          },
+        },
+      },
+    });
+
+    const locationCache = new Map<
+      string,
+      Awaited<ReturnType<IpLocationService['lookup']>> | null
+    >();
+    const lastLoginIp = normalizeIpAddress(account.ip ?? null);
+    const regIp = normalizeIpAddress(account.regip ?? null);
+    const boundIp = binding?.boundByIp
+      ? normalizeIpAddress(binding.boundByIp)
+      : null;
+    const [lastLoginLocation, regIpLocation, boundLocation] = await Promise.all(
+      [
+        this.lookupLocationWithCache(lastLoginIp, locationCache),
+        this.lookupLocationWithCache(regIp, locationCache),
+        boundIp ? this.lookupLocationWithCache(boundIp, locationCache) : null,
+      ],
+    );
+
+    const luckperms = await this.buildLuckpermsSnapshots([
+      {
+        authmeUsername: account.username,
+        authmeRealname:
+          binding?.authmeRealname?.trim() || account.realname?.trim() || null,
+        authmeUuid: binding?.authmeUuid ?? null,
+      },
+    ]);
+
+    let linkedUser: {
+      id: string;
+      displayName: string | null;
+      avatarUrl: string | null;
+    } | null = null;
+    if (binding?.user) {
+      linkedUser = {
+        id: binding.user.id,
+        displayName:
+          binding.user.profile?.displayName?.trim() ||
+          binding.user.name?.trim() ||
+          binding.user.email ||
+          null,
+        avatarUrl: await this.resolveUserAvatarUrl(
+          binding.user.avatarAttachmentId,
+          binding.user.image ?? null,
+        ),
+      };
+    }
+
+    const servers = await this.prisma.minecraftServer.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        displayName: true,
+        beaconEnabled: true,
+        beaconEndpoint: true,
+        beaconKey: true,
+      },
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const stats = {
+      period: '30d',
+      generatedAt: new Date().toISOString(),
+      metrics: [
+        { id: 'playtime', label: '上线时长', value: 0, unit: 'seconds' },
+        { id: 'login-count', label: '上线次数', value: 0, unit: 'times' },
+        {
+          id: 'attachment-uploads',
+          label: '附件上传',
+          value: 0,
+          unit: 'files',
+        },
+        { id: 'active-days', label: '活跃天数', value: 0, unit: 'days' },
+      ],
+      gameStats: await this.buildPlayerGameStats(
+        {
+          uuid: null,
+          name: account.username,
+        },
+        servers,
+      ),
+    };
+
+    return {
+      username: account.username,
+      realname:
+        binding?.authmeRealname?.trim() || account.realname?.trim() || null,
+      uuid: binding?.authmeUuid ?? null,
+      lastlogin: account.lastlogin ?? null,
+      regdate: account.regdate ?? null,
+      ip: account.ip ?? null,
+      ipLocation: lastLoginLocation?.raw ?? null,
+      ipLocationDisplay: lastLoginLocation?.display ?? null,
+      regIp: account.regip ?? null,
+      regIpLocation: regIpLocation?.raw ?? null,
+      regIpLocationDisplay: regIpLocation?.display ?? null,
+      lastKnownLocation: boundLocation?.raw ?? null,
+      lastKnownLocationDisplay: boundLocation?.display ?? null,
+      status: binding?.status ?? null,
+      boundAt: binding?.boundAt?.toISOString() ?? null,
+      luckperms,
+      linkedUser,
+      stats,
     };
   }
 
@@ -1787,6 +2010,95 @@ export class PlayerService {
     const location = await this.ipLocationService.lookup(normalized);
     cache.set(normalized, location);
     return location;
+  }
+
+  private normalizeRecommendationPageSize(size?: number) {
+    if (!Number.isFinite(size ?? NaN)) {
+      return RECOMMENDED_PAGE_SIZE_DEFAULT;
+    }
+    const normalized = Math.max(Math.floor(size ?? 0), 1);
+    return Math.min(normalized, RECOMMENDED_PAGE_SIZE_MAX);
+  }
+
+  private async buildRecommendationEntryForUser(user: {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+    avatarAttachmentId: string | null;
+    profile: { displayName: string | null } | null;
+  }) {
+    const displayName =
+      user.profile?.displayName?.trim() ||
+      user.name?.trim() ||
+      user.email ||
+      'Player';
+    const avatarUrl = await this.resolveUserAvatarUrl(
+      user.avatarAttachmentId,
+      user.image ?? null,
+    );
+    return {
+      id: `user-${user.id}`,
+      targetId: user.id,
+      type: 'user' as const,
+      displayName,
+      avatarUrl,
+    };
+  }
+
+  private async resolveUserAvatarUrl(
+    attachmentId?: string | null,
+    fallback?: string | null,
+  ) {
+    if (attachmentId) {
+      try {
+        const attachment =
+          await this.attachmentsService.getAttachmentOrThrow(attachmentId);
+        if (attachment.isPublic) {
+          return buildPublicUrl(`/attachments/public/${attachmentId}`);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return fallback ?? null;
+  }
+
+  private async fetchAuthmeRecommendationEntries(limit: number) {
+    if (limit <= 0 || !this.authmeService.isEnabled()) {
+      return [];
+    }
+    try {
+      const response = await this.authmeService.listPlayers({
+        page: 1,
+        pageSize: limit,
+        sortField: 'lastlogin',
+        sortOrder: 'desc',
+      });
+      return response.items.map((account: AuthmeUser) => ({
+        id: `authme-${account.username}`,
+        targetId: account.username,
+        type: 'authme' as const,
+        displayName: this.resolveAuthmeDisplayName(account),
+        avatarUrl: null,
+      }));
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load AuthMe recommendations: ${String(error)}`,
+      );
+      return [];
+    }
+  }
+
+  private resolveAuthmeDisplayName(account: {
+    username: string;
+    realname?: string | null;
+  }) {
+    const realname = account.realname?.trim();
+    if (realname) {
+      return realname;
+    }
+    return account.username;
   }
 
   private async buildAuthmeBindingPayloads(

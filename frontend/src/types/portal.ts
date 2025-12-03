@@ -328,6 +328,46 @@ export interface PlayerPortalProfileResponse {
   messages: PlayerMessageBoardEntry[]
 }
 
+export interface PlayerLoginRecommendation {
+  id: string
+  type: 'user' | 'authme'
+  targetId: string
+  displayName: string
+  avatarUrl: string | null
+}
+
+export interface PlayerLoginRecommendationsResponse {
+  items: PlayerLoginRecommendation[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface PlayerAuthmeProfileResponse {
+  username: string
+  realname: string | null
+  uuid: string | null
+  lastlogin: number | null
+  regdate: number | null
+  ip: string | null
+  ipLocation: string | null
+  ipLocationDisplay: string | null
+  regIp: string | null
+  regIpLocation: string | null
+  regIpLocationDisplay: string | null
+  lastKnownLocation: string | null
+  lastKnownLocationDisplay: string | null
+  status: string | null
+  boundAt: string | null
+  luckperms: PlayerLuckpermsSnapshot[]
+  linkedUser: {
+    id: string
+    displayName: string | null
+    avatarUrl: string | null
+  } | null
+  stats: PlayerStatsResponse
+}
+
 export interface PlayerIsLoggedResponse {
   logged: boolean
 }

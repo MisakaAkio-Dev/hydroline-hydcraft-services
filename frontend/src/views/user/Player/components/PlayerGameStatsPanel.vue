@@ -146,14 +146,14 @@ const formatAchievementsCount = (value: number | null | undefined) => {
 
 const formattedMtrTimestamp = computed(() => {
   const log = selectedServer.value?.lastMtrLog
-  if (!log) return '—'
+  if (!log) return null
   if (log.timestamp) {
     return dayjs(log.timestamp).format('YYYY/MM/DD HH:mm:ss')
   }
   if (log.rawTimestamp) {
     return log.rawTimestamp
   }
-  return '—'
+  return null
 })
 
 const formattedMtrDaysAgo = computed(() => {
@@ -536,12 +536,6 @@ watch(
                 {{ formattedMtrBalance }}
               </template>
             </p>
-            <p
-              v-if="!isStatsLoading && mtrBalanceErrorMessage"
-              class="text-[11px] text-amber-500"
-            >
-              {{ mtrBalanceErrorMessage }}
-            </p>
           </div>
 
           <div
@@ -552,14 +546,17 @@ watch(
             >
               <span> 最近 MTR 操作 </span>
 
-              <UTooltip :text="formattedMtrTimestamp">
+              <UTooltip
+                :text="formattedMtrTimestamp"
+                v-if="formattedMtrTimestamp"
+              >
                 <UBadge variant="soft" size="xs">
                   {{ formattedMtrDaysAgo }}
                 </UBadge>
               </UTooltip>
             </p>
             <p class="text-xl font-semibold text-slate-900 dark:text-white">
-              {{ formattedMtrDescription }}
+              {{ formattedMtrDescription ?? '—' }}
             </p>
           </div>
         </div>

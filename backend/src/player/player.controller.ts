@@ -137,9 +137,19 @@ export class PlayerController {
   @Get('profile')
   @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '整合获取玩家档案（可通过 id 查询）' })
-  async playerProfile(@Req() req: Request, @Query('id') id?: string) {
-    const targetId = this.resolveTargetUserId(req, id);
+  async playerProfile(
+    @Req() req: Request,
+    @Query('id') id?: string,
+    @Query('player_name') playerName?: string,
+  ) {
     const viewer = (req.user as PlayerSessionUser) ?? null;
+    if (playerName) {
+      return this.playerService.getPlayerPortalDataByAuthmeUsername(
+        viewer,
+        playerName,
+      );
+    }
+    const targetId = this.resolveTargetUserId(req, id);
     return this.playerService.getPlayerPortalData(viewer, targetId);
   }
 
@@ -396,6 +406,26 @@ export class PlayerController {
     const targetId = this.resolveTargetUserId(req, id);
     const logged = await this.playerService.getPlayerLoggedStatus(targetId);
     return { logged };
+  }
+
+  @Get('authme/recommendations')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: 'List recommended players' })
+  async authmeRecommendations(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.playerService.listRecommendedPlayers({
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Get('authme/:username')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: 'Get AuthMe player overview' })
+  async authmeProfile(@Param('username') username: string) {
+    return this.playerService.getAuthmePlayerProfile(username);
   }
 
   @Post('authme/reset-password')

@@ -3,6 +3,7 @@ import { apiFetch } from '@/utils/api'
 import { useAuthStore } from '@/stores/auth'
 import type {
   PlayerAssetsResponse,
+  PlayerAuthmeProfileResponse,
   PlayerBiography,
   PlayerGameStatsResponse,
   PlayerLikeSummary,
@@ -35,6 +36,8 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     statusSnapshot: null as PlayerStatusSnapshot | null,
     viewerId: null as string | null,
     targetUserId: null as string | null,
+    authmeProfile: null as PlayerAuthmeProfileResponse | null,
+    targetAuthmeUsername: null as string | null,
     messages: [] as PlayerMessageBoardEntry[],
     logged: null as boolean | null,
     loading: false,
@@ -52,10 +55,15 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     async fetchProfile(
       options: {
         id?: string
+        playerName?: string
       } = {},
     ) {
       const params = new URLSearchParams()
-      if (options.id) params.set('id', options.id)
+      if (options.playerName) {
+        params.set('player_name', options.playerName)
+      } else if (options.id) {
+        params.set('id', options.id)
+      }
       this.loading = true
       try {
         const query = params.toString()
@@ -74,6 +82,36 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         this.messages = response.messages ?? []
         this.viewerId = response.viewerId
         this.targetUserId = response.targetId
+        this.authmeProfile = null
+        this.targetAuthmeUsername = null
+        return response
+      } finally {
+        this.loading = false
+      }
+    },
+    async fetchAuthmeProfile(username: string) {
+      if (!username) {
+        throw new Error('Username is required')
+      }
+      this.loading = true
+      try {
+        const response = await apiFetch<PlayerAuthmeProfileResponse>(
+          `/player/authme/${encodeURIComponent(username)}`,
+          { token: this.authToken() ?? undefined },
+        )
+        this.authmeProfile = response
+        this.summary = null
+        this.assets = null
+        this.region = null
+        this.minecraft = null
+        this.stats = response.stats
+        this.statusSnapshot = null
+        this.likes = null
+        this.biography = null
+        this.messages = []
+        this.viewerId = null
+        this.targetUserId = null
+        this.targetAuthmeUsername = username
         return response
       } finally {
         this.loading = false
@@ -413,6 +451,8 @@ export const usePlayerPortalStore = defineStore('player-portal', {
       this.statusSnapshot = null
       this.viewerId = null
       this.targetUserId = null
+      this.authmeProfile = null
+      this.targetAuthmeUsername = null
       this.logged = null
       this.biography = null
       this.messages = []

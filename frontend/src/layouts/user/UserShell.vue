@@ -137,11 +137,6 @@ const userDropdownItems = computed(() => [
       icon: 'i-lucide-id-card',
       click: () => routerPush('/profile'),
     },
-    {
-      label: '用户偏好设置',
-      icon: 'i-lucide-sliders-horizontal',
-      click: () => routerPush('/preferences'),
-    },
   ],
   [
     {

@@ -4,15 +4,41 @@ import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { useAuthStore } from '@/stores/auth'
 import { usePlayerPortalStore } from '@/stores/playerPortal'
-import { apiFetch } from '@/utils/api'
+import { ApiError, apiFetch } from '@/utils/api'
+import { translateAuthErrorMessage } from '@/utils/auth-errors'
 import PlayerLoginPrompt from './components/PlayerLoginPrompt.vue'
 import PlayerProfileContent from './components/PlayerProfileContent.vue'
+import PlayerAuthmeProfileContent from './components/PlayerAuthmeProfileContent.vue'
 
 const auth = useAuthStore()
 const playerStore = usePlayerPortalStore()
 let loggedPoller: ReturnType<typeof setInterval> | null = null
 const route = useRoute()
+function normalizeRouteParam(param: string | string[] | undefined | null) {
+  if (!param) {
+    return null
+  }
+  if (Array.isArray(param)) {
+    return param[0] ?? null
+  }
+  const trimmed = param.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function isLikelyUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value,
+  )
+}
+
 const serverOptions = ref<Array<{ id: string; displayName: string }>>([])
+const routePlayerIdParam = computed(() =>
+  normalizeRouteParam(route.params.playerId),
+)
+const routePlayerNameParam = computed(() =>
+  normalizeRouteParam(route.params.playerName),
+)
+const isPlayerNameRoute = computed(() => route.name === 'player.name')
 const lifecycleSources = [
   'portal.player.authme-reset',
   'portal.player.force-login',
@@ -26,19 +52,18 @@ const restartDialog = reactive({
 const toast = useToast()
 
 const targetPlayerParam = computed(() => {
-  const param = route.params.playerId
-  if (Array.isArray(param)) {
-    return param[0] ?? null
-  }
-  return (param as string | undefined) ?? null
+  return routePlayerNameParam.value ?? routePlayerIdParam.value ?? null
 })
 
-const resolvedTargetPlayerId = computed(
-  () => targetPlayerParam.value ?? auth.user?.id ?? undefined,
+const canViewProfile = computed(
+  () =>
+    Boolean(routePlayerNameParam.value) ||
+    Boolean(routePlayerIdParam.value) ||
+    auth.isAuthenticated,
 )
 
-const canViewProfile = computed(
-  () => Boolean(targetPlayerParam.value) || auth.isAuthenticated,
+const shouldTreatAsPlayerName = computed(
+  () => isPlayerNameRoute.value || Boolean(routePlayerNameParam.value),
 )
 
 const isViewingSelf = computed(() => {
@@ -53,6 +78,29 @@ const region = computed(() => playerStore.region)
 const minecraft = computed(() => playerStore.minecraft)
 const stats = computed(() => playerStore.stats)
 const statusSnapshot = computed(() => playerStore.statusSnapshot)
+const authmeProfile = computed(() => playerStore.authmeProfile)
+const authmeBindings = computed(() => {
+  if (!authmeProfile.value) {
+    return []
+  }
+  return [
+    {
+      id: `authme-${authmeProfile.value.username}`,
+      username: authmeProfile.value.username,
+      realname: authmeProfile.value.realname,
+      uuid: authmeProfile.value.uuid,
+      boundAt: authmeProfile.value.boundAt ?? new Date().toISOString(),
+      status: authmeProfile.value.status ?? 'ACTIVE',
+      notes: null,
+      boundByIp: null,
+      lastlogin: authmeProfile.value.lastlogin,
+      regdate: authmeProfile.value.regdate,
+      lastKnownLocation: authmeProfile.value.lastKnownLocation,
+      lastLoginLocation: authmeProfile.value.ipLocation,
+      regIpLocation: authmeProfile.value.regIpLocation,
+    },
+  ]
+})
 
 async function loadServerOptions() {
   const publicServers = await apiFetch<{
@@ -66,21 +114,69 @@ async function loadProfile() {
     playerStore.reset()
     return
   }
-  await playerStore.fetchProfile({
-    id: resolvedTargetPlayerId.value ?? undefined,
-  })
-  await loadLifecycleEvents()
+  const routeIdentifier = targetPlayerParam.value
+  const fallbackId = auth.user?.id ?? undefined
+  const resolvedIdentifier = routeIdentifier ?? fallbackId
+  if (!resolvedIdentifier) {
+    playerStore.reset()
+    return
+  }
+  const playerNameValue =
+    routePlayerNameParam.value ?? routePlayerIdParam.value ?? undefined
+  if (shouldTreatAsPlayerName.value) {
+    if (!playerNameValue) {
+      playerStore.reset()
+      return
+    }
+    try {
+      await playerStore.fetchAuthmeProfile(playerNameValue)
+    } catch (error) {
+      toast.add({
+        title: '加载玩家数据失败',
+        description:
+          error instanceof Error
+            ? translateAuthErrorMessage(error.message)
+            : 'Failed to load player info',
+        color: 'error',
+      })
+    }
+    return
+  }
+
+  try {
+    await playerStore.fetchProfile({ id: resolvedIdentifier })
+    await loadLifecycleEvents()
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      try {
+        await playerStore.fetchAuthmeProfile(
+          playerNameValue ?? resolvedIdentifier,
+        )
+      } catch (nested) {
+        toast.add({
+          title: '加载玩家数据失败',
+          description:
+            nested instanceof Error
+              ? translateAuthErrorMessage(nested.message)
+              : 'Failed to load player info',
+          color: 'error',
+        })
+      }
+      return
+    }
+    console.warn('加载玩家失败', error)
+  }
 }
 
 async function loadLifecycleEvents() {
-  if (!auth.isAuthenticated) {
+  if (!auth.isAuthenticated || !playerStore.targetUserId) {
     playerStore.lifecycleEvents = []
     return
   }
   try {
     await playerStore.fetchLifecycleEvents({
       sources: lifecycleSources,
-      id: resolvedTargetPlayerId.value ?? undefined,
+      id: playerStore.targetUserId,
     })
   } catch (error) {
     console.warn('加载任务状态失败', error)
@@ -95,13 +191,12 @@ function stopLoggedPolling() {
 }
 
 async function refreshLoggedStatus() {
-  if (!canViewProfile.value) {
+  if (!canViewProfile.value || !playerStore.targetUserId) {
     playerStore.logged = null
     return
   }
-  const targetId = resolvedTargetPlayerId.value ?? undefined
   try {
-    await playerStore.fetchLoggedStatus({ id: targetId })
+    await playerStore.fetchLoggedStatus({ id: playerStore.targetUserId })
   } catch {
     // ignore polling errors
   }
@@ -109,7 +204,7 @@ async function refreshLoggedStatus() {
 
 function startLoggedPolling() {
   stopLoggedPolling()
-  if (!canViewProfile.value) {
+  if (!canViewProfile.value || !playerStore.targetUserId) {
     playerStore.logged = null
     return
   }
@@ -158,21 +253,6 @@ watch(
     }
     stopLoggedPolling()
     playerStore.logged = null
-  },
-)
-
-watch(
-  () => resolvedTargetPlayerId.value,
-  (value, previous) => {
-    if (!value || value === previous) {
-      return
-    }
-    if (!canViewProfile.value) {
-      return
-    }
-    void loadProfile()
-    void loadLifecycleEvents()
-    startLoggedPolling()
   },
 )
 
@@ -251,10 +331,20 @@ function formatIpLocation(location: string | null | undefined) {
   </Transition>
 
   <section class="relative z-0 mx-auto w-full max-w-6xl px-8 pb-16 pt-8">
-    <PlayerLoginPrompt :can-view-profile="canViewProfile" />
+    <PlayerLoginPrompt
+      v-if="!canViewProfile"
+      :can-view-profile="canViewProfile"
+    />
+
+    <PlayerAuthmeProfileContent
+      v-else-if="canViewProfile && authmeProfile"
+      :profile="authmeProfile"
+      :stats="stats"
+      :bindings="authmeBindings"
+    />
 
     <PlayerProfileContent
-      v-if="canViewProfile"
+      v-else
       :is-viewing-self="isViewingSelf"
       :summary="summary"
       :region="region"

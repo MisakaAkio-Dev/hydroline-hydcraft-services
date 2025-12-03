@@ -963,12 +963,6 @@ async function submitMtrBalanceChange() {
               </template>
               <template v-else>{{ formattedBalance }}</template>
             </div>
-            <p
-              v-if="balanceError"
-              class="text-[11px] text-amber-500 dark:text-amber-300"
-            >
-              {{ balanceError }}
-            </p>
           </div>
           <label
             class="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300"
