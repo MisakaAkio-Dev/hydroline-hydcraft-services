@@ -187,7 +187,10 @@ function handleEditBiography() {
   <div>
     <div class="flex flex-col mb-2">
       <div class="flex justify-center">
-        <canvas ref="barcodeCanvas" class="h-11 w-full" />
+        <canvas
+          ref="barcodeCanvas"
+          class="h-11 w-full dark:filter-[invert(1)]"
+        />
       </div>
       <UTooltip text="玩家身份标识码（PIIC）">
         <div

@@ -5,19 +5,15 @@ import PlayerGameStatsPanel from './PlayerGameStatsPanel.vue'
 import type {
   PlayerAuthmeProfileResponse,
   PlayerStatsResponse,
-  PlayerSummary,
 } from '@/types/portal'
 
 const props = defineProps<{
   profile: PlayerAuthmeProfileResponse | null
   stats: PlayerStatsResponse | null
-  bindings: PlayerSummary['authmeBindings']
 }>()
 
 const profile = computed(() => props.profile)
 const panelStats = computed(() => props.stats)
-const bindingEntries = computed(() => props.bindings)
-
 const displayName = computed(() => {
   if (!profile.value) return '玩家'
   return profile.value.realname || profile.value.username
@@ -148,7 +144,7 @@ const noop = () => {
     <div class="space-y-4">
       <PlayerGameStatsPanel
         :stats="panelStats"
-        :bindings="bindingEntries"
+        :bindings="[]"
         :is-viewing-self="false"
         :refreshing="false"
         @refresh="noop"

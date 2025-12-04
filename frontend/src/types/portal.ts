@@ -266,6 +266,10 @@ export interface PlayerGameServerStat {
   mtrError: string | null
   mtrErrorMessage: string | null
   achievementsTotal: number | null
+  nbtPosition: PlayerGameNbtPosition | null
+  nbtPositionFetchedAt: string | null
+  nbtPositionError: string | null
+  nbtPositionErrorMessage: string | null
 }
 
 export interface PlayerGameServerMetrics {
@@ -291,6 +295,12 @@ export interface PlayerGameMtrLog {
   className: string | null
   dimensionContext: string | null
   description: string | null
+}
+
+export interface PlayerGameNbtPosition {
+  x: number
+  y: number
+  z: number
 }
 
 export interface PlayerMtrBalanceResponse {

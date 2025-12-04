@@ -103,6 +103,12 @@ type PlayerMtrLogSummary = {
   description: string | null;
 };
 
+type PlayerNbtPosition = {
+  x: number;
+  y: number;
+  z: number;
+};
+
 type PlayerGameServerStat = PlayerGameServerDescriptor & {
   metrics: PlayerGameServerMetrics | null;
   lastMtrLog: PlayerMtrLogSummary | null;
@@ -116,6 +122,10 @@ type PlayerGameServerStat = PlayerGameServerDescriptor & {
   mtrError: string | null;
   mtrErrorMessage: string | null;
   achievementsTotal: number | null;
+  nbtPosition: PlayerNbtPosition | null;
+  nbtPositionFetchedAt: string | null;
+  nbtPositionError: string | null;
+  nbtPositionErrorMessage: string | null;
 };
 
 type PlayerGameStatsPayload = {
@@ -279,6 +289,7 @@ export class PlayerService {
     const binding = await this.prisma.userAuthmeBinding.findUnique({
       where: { authmeUsernameLower: bindingKey },
       select: {
+        authmeUsername: true,
         authmeUuid: true,
         authmeRealname: true,
         status: true,
@@ -322,6 +333,21 @@ export class PlayerService {
         authmeUuid: binding?.authmeUuid ?? null,
       },
     ]);
+    const resolvedBindingName = binding
+      ? this.resolveLookupName(binding)
+      : null;
+    const resolvedIdentityName =
+      resolvedBindingName ?? this.normalizeLookupKey(account.username);
+    const firstLuckpermsUuid = this.normalizeLookupKey(
+      luckperms[0]?.uuid ?? null,
+    );
+    const identityUuid = this.normalizeLookupKey(
+      binding?.authmeUuid ?? firstLuckpermsUuid ?? null,
+    );
+    const identity: PlayerBeaconIdentity = {
+      uuid: identityUuid,
+      name: resolvedIdentityName,
+    };
 
     let linkedUser: {
       id: string;
@@ -369,13 +395,7 @@ export class PlayerService {
         },
         { id: 'active-days', label: '活跃天数', value: 0, unit: 'days' },
       ],
-      gameStats: await this.buildPlayerGameStats(
-        {
-          uuid: null,
-          name: account.username,
-        },
-        servers,
-      ),
+      gameStats: await this.buildPlayerGameStats(identity, servers),
     };
 
     return {
@@ -1386,6 +1406,10 @@ export class PlayerService {
           mtrError: null,
           mtrErrorMessage: null,
           achievementsTotal: null,
+          nbtPosition: null,
+          nbtPositionFetchedAt: null,
+          nbtPositionError: null,
+          nbtPositionErrorMessage: null,
         })),
       };
     }
@@ -1409,6 +1433,10 @@ export class PlayerService {
           mtrError: null,
           mtrErrorMessage: null,
           achievementsTotal: null,
+          nbtPosition: null,
+          nbtPositionFetchedAt: null,
+          nbtPositionError: null,
+          nbtPositionErrorMessage: null,
         })),
       ),
     );
@@ -1435,6 +1463,10 @@ export class PlayerService {
         mtrError: null,
         mtrErrorMessage: null,
         achievementsTotal: null,
+        nbtPosition: null,
+        nbtPositionFetchedAt: null,
+        nbtPositionError: null,
+        nbtPositionErrorMessage: null,
       };
     }
     if (!server.beaconConfigured) {
@@ -1452,6 +1484,10 @@ export class PlayerService {
         mtrError: null,
         mtrErrorMessage: null,
         achievementsTotal: null,
+        nbtPosition: null,
+        nbtPositionFetchedAt: null,
+        nbtPositionError: null,
+        nbtPositionErrorMessage: null,
       };
     }
 
@@ -1546,6 +1582,27 @@ export class PlayerService {
         err instanceof Error ? err.message : String(err ?? 'Unknown error');
     }
 
+    let nbtPosition: PlayerNbtPosition | null = null;
+    let nbtPositionFetchedAt: string | null = null;
+    let nbtPositionError: string | null = null;
+    let nbtPositionErrorMessage: string | null = null;
+    try {
+      const nbtResponse = await this.minecraftServerService.getBeaconPlayerNbt(
+        server.serverId,
+        {
+          playerUuid: identity.uuid ?? undefined,
+          playerName: identity.name ?? undefined,
+        },
+      );
+      nbtPositionFetchedAt = new Date().toISOString();
+      nbtPosition = this.extractNbtPosition(nbtResponse.result);
+    } catch (err) {
+      nbtPositionFetchedAt = new Date().toISOString();
+      nbtPositionError = 'BEACON_NBT_FAILED';
+      nbtPositionErrorMessage =
+        err instanceof Error ? err.message : String(err ?? 'Unknown error');
+    }
+
     return {
       ...server,
       metrics,
@@ -1560,6 +1617,10 @@ export class PlayerService {
       mtrError,
       mtrErrorMessage,
       achievementsTotal,
+      nbtPosition,
+      nbtPositionFetchedAt,
+      nbtPositionError,
+      nbtPositionErrorMessage,
     };
   }
 
@@ -1588,6 +1649,31 @@ export class PlayerService {
       useWand: readNumber(PLAYER_GAME_METRIC_KEYS.useWand) ?? 0,
       leaveGame: readNumber(PLAYER_GAME_METRIC_KEYS.leaveGame) ?? 0,
     };
+  }
+
+  private extractNbtPosition(result: any): PlayerNbtPosition | null {
+    if (!result) {
+      throw new Error('Beacon 未返回玩家 NBT (get_player_nbt)');
+    }
+    if (result.success === false) {
+      throw new Error(
+        result?.error ?? 'Beacon 未返回玩家 NBT (get_player_nbt)',
+      );
+    }
+    const nbt = result.nbt ?? null;
+    if (!nbt) return null;
+    const raw = nbt.Pos ?? nbt.pos ?? null;
+    if (!Array.isArray(raw) || raw.length < 3) {
+      return null;
+    }
+    const [xRaw, yRaw, zRaw] = raw;
+    const x = Number(xRaw);
+    const y = Number(yRaw);
+    const z = Number(zRaw);
+    if (![x, y, z].every((value) => Number.isFinite(value))) {
+      return null;
+    }
+    return { x, y, z };
   }
 
   private extractLatestMtrLog(result: any): PlayerMtrLogSummary | null {

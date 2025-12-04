@@ -91,6 +91,13 @@ async function handleStatsRefresh() {
     isRefreshingStats.value = false
   }
 }
+
+// 每个板块的加载/准备状态
+const accountsReady = computed(() => Boolean(props.summary))
+const messageBoardReady = computed(() => !playerPortalStore.loading)
+const statsReady = computed(() => Boolean(props.stats))
+const panelMaxHeight = (ready: boolean, collapsedHeight = 180) =>
+  ready ? '2000px' : `${collapsedHeight}px`
 </script>
 
 <template>
@@ -114,19 +121,39 @@ async function handleStatsRefresh() {
     </div>
 
     <div class="flex flex-col gap-4">
-      <PlayerProfileAccountsSection
-        :summary="props.summary"
-        :format-date-time="props.formatDateTime"
-        :format-ip-location="props.formatIpLocation"
-        :is-player-logged="Boolean(playerPortalStore.logged)"
-        @bindingSelected="openBindingDetail"
-      />
-
-      <div class="flex flex-col">
-        <div class="flex items-center justify-between mb-1">
-          <span class="text-lg text-slate-600 dark:text-slate-300 px-1"
-            >用户自述</span
+      <section>
+        <div
+          class="flex items-center justify-between px-1 text-lg text-slate-600 dark:text-slate-300 mb-1"
+        >
+          <span>游戏账户</span>
+        </div>
+        <div
+          class="transition-[max-height] duration-300 ease-in-out"
+          :style="{ maxHeight: panelMaxHeight(accountsReady, 220) }"
+        >
+          <div v-if="accountsReady" class="px-0 pb-1">
+            <PlayerProfileAccountsSection
+              :summary="props.summary"
+              :format-date-time="props.formatDateTime"
+              :format-ip-location="props.formatIpLocation"
+              :is-player-logged="Boolean(playerPortalStore.logged)"
+              @bindingSelected="openBindingDetail"
+            />
+          </div>
+          <div
+            v-else
+            class="flex min-h-[120px] items-center justify-center px-1 pb-1 text-slate-500 dark:text-slate-400"
           >
+            <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div
+          class="flex items-center justify-between px-1 text-lg text-slate-600 dark:text-slate-300 mb-1"
+        >
+          <span>用户自述</span>
 
           <div class="flex items-center gap-2">
             <UButton
@@ -164,20 +191,32 @@ async function handleStatsRefresh() {
             </UButton>
           </div>
         </div>
-        <div class="flex flex-col gap-2">
-          <PlayerProfileMessageBoardSection
-            :messages="playerPortalStore.messages"
-            @badge-click="handleBadgeClick"
-          />
 
-          <PlayerProfileBioSection
-            v-if="hasBiography"
-            :biography="playerPortalStore.biography"
-            :open="biographyEditorOpen"
-            @update:open="(value) => (biographyEditorOpen = value)"
-          />
+        <div
+          class="transition-[max-height] duration-300 ease-in-out"
+          :style="{ maxHeight: panelMaxHeight(messageBoardReady, 180) }"
+        >
+          <div v-if="messageBoardReady" class="flex flex-col gap-2 px-1 pb-2">
+            <PlayerProfileMessageBoardSection
+              :messages="playerPortalStore.messages"
+              @badge-click="handleBadgeClick"
+            />
+
+            <PlayerProfileBioSection
+              v-if="hasBiography"
+              :biography="playerPortalStore.biography"
+              :open="biographyEditorOpen"
+              @update:open="(value) => (biographyEditorOpen = value)"
+            />
+          </div>
+          <div
+            v-else
+            class="flex min-h-[120px] items-center justify-center px-1 pb-2 text-slate-500 dark:text-slate-400"
+          >
+            <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
+          </div>
         </div>
-      </div>
+      </section>
 
       <div class="flex flex-col gap-4">
         <PlayerGameStatsPanel
@@ -189,45 +228,41 @@ async function handleStatsRefresh() {
         />
       </div>
 
-      <div class="flex flex-col gap-4">
-        <div>
-          <div
-            class="flex items-center justify-between px-1 text-lg text-slate-600 dark:text-slate-300 mb-1"
-          >
-            <span>站内统计信息</span>
-          </div>
+      <section>
+        <div
+          class="flex items-center justify-between px-1 text-lg text-slate-600 dark:text-slate-300 mb-1"
+        >
+          <span>站内统计信息</span>
+        </div>
 
-          <div>
+        <div
+          class="transition-[max-height] duration-300 ease-in-out"
+          :style="{ maxHeight: panelMaxHeight(statsReady, 170) }"
+        >
+          <div v-if="statsReady" class="px-1 pb-1">
             <div class="grid gap-2 md:grid-cols-4">
-              <template v-if="props.stats">
-                <div
-                  v-for="metric in props.stats.metrics"
-                  :key="metric.id"
-                  class="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800"
-                >
-                  <p class="text-xs text-slate-500 dark:text-slate-500">
-                    {{ metric.label }}
-                  </p>
-                  <p
-                    class="text-xl font-semibold text-slate-900 dark:text-white"
-                  >
-                    {{ props.formatMetricValue(metric.value, metric.unit) }}
-                  </p>
-                </div>
-              </template>
-              <template v-else>
-                <div
-                  v-for="index in 4"
-                  :key="'stat-placeholder-' + index"
-                  class="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800"
-                >
-                  <USkeleton class="h-17" />
-                </div>
-              </template>
+              <div
+                v-for="metric in props.stats?.metrics ?? []"
+                :key="metric.id"
+                class="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800"
+              >
+                <p class="text-xs text-slate-500 dark:text-slate-500">
+                  {{ metric.label }}
+                </p>
+                <p class="text-xl font-semibold text-slate-900 dark:text-white">
+                  {{ props.formatMetricValue(metric.value, metric.unit) }}
+                </p>
+              </div>
             </div>
           </div>
+          <div
+            v-else
+            class="flex min-h-[120px] items-center justify-center px-1 pb-1 text-slate-500 dark:text-slate-400"
+          >
+            <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
+          </div>
         </div>
-      </div>
+      </section>
     </div>
 
     <PlayerBindingDetailDialog
