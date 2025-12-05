@@ -215,10 +215,6 @@ const formattedMtrBalance = computed(() => {
   return numberFormatter.format(balance)
 })
 
-const mtrBalanceErrorMessage = computed(() => {
-  return selectedServer.value?.mtrBalanceErrorMessage ?? null
-})
-
 const selectedServerMessage = computed(() => {
   if (!selectedServer.value) return null
   if (selectedServer.value.errorMessage) {
@@ -232,7 +228,7 @@ const selectedServerMessage = computed(() => {
 
 const hasServers = computed(() => servers.value.length > 0)
 const statsReady = computed(() => Boolean(props.stats))
-// 地图区域：仅在有服务器且stats存在时显示（外层已控制整体显示）
+
 const showStatsGrid = computed(() => Boolean(props.stats && hasServers.value))
 const showNoServersMessage = computed(() =>
   Boolean(props.stats && !hasServers.value),

@@ -350,143 +350,157 @@ onUnmounted(() => {
       {{ error }}
     </div>
 
-    <div
-      v-if="!loading && !servers.length"
-      class="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700/60"
-    >
-      暂无可用的服务器数据。
-    </div>
-
-    <div v-if="servers.length" class="flex flex-col gap-8">
-      <Motion
-        v-for="server in servers"
-        :key="server.id"
-        as="div"
-        :initial="{ opacity: 0, filter: 'blur(10px)', y: 12 }"
-        :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
-        :transition="{ duration: 0.35, ease: 'easeOut' }"
+    <Transition name="fade-expand" mode="out-in">
+      <div
+        v-if="!loading && !servers.length"
+        class="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700/60"
       >
-        <div class="space-y-2">
-          <div class="space-y-1">
-            <div class="text-lg font-semibold text-slate-900 dark:text-white">
-              {{ server.displayName }}
+        暂无可用的服务器数据。
+      </div>
+    </Transition>
+
+    <Transition name="fade-expand" mode="out-in">
+      <div v-if="servers.length" class="flex flex-col gap-8">
+        <Motion
+          v-for="server in servers"
+          :key="server.id"
+          as="div"
+          :initial="{ opacity: 0, filter: 'blur(10px)', y: 12 }"
+          :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
+          :transition="{ duration: 0.35, ease: 'easeOut' }"
+        >
+          <div class="space-y-2">
+            <div class="space-y-1">
+              <div class="text-lg font-semibold text-slate-900 dark:text-white">
+                {{ server.displayName }}
+              </div>
+              <p
+                class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
+              >
+                {{ server.code }}
+                <span class="select-none mx-1">·</span>
+                {{ editionLabels[server.edition] }}
+              </p>
             </div>
             <p
-              class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
+              v-if="server.description"
+              class="text-xs text-slate-600 dark:text-slate-300"
             >
-              {{ server.code }}
-              <span class="select-none mx-1">·</span>
-              {{ editionLabels[server.edition] }}
+              {{ server.description }}
             </p>
-          </div>
-          <p
-            v-if="server.description"
-            class="text-xs text-slate-600 dark:text-slate-300"
-          >
-            {{ server.description }}
-          </p>
-        </div>
-
-        <div
-          class="mt-2 bg-white dark:bg-slate-700 p-3 border border-slate-200 dark:border-slate-600 rounded-lg"
-        >
-          <div class="grid gap-3 text-sm text-slate-700 dark:text-slate-200">
-            <div class="grid grid-cols-2 gap-2">
-              <div
-                class="rounded-lg border border-slate-200 bg-white/60 p-3 text-slate-500 dark:border-slate-800 dark:bg-slate-950/60"
-              >
-                <p
-                  class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
-                >
-                  延迟
-                </p>
-                <p class="text-lg font-semibold text-slate-900 dark:text-white">
-                  {{ latencyLabel(server) }}
-                </p>
-                <p class="text-xs text-slate-500 dark:text-slate-300">
-                  {{ formatLatestTime(server) || '暂无数据' }}
-                </p>
-              </div>
-              <div
-                class="rounded-lg border border-slate-200 bg-white/60 p-3 text-slate-500 dark:border-slate-800 dark:bg-slate-950/60"
-              >
-                <p
-                  class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
-                >
-                  在线人数
-                </p>
-                <p class="text-lg font-semibold text-slate-900 dark:text-white">
-                  {{ playersLabel(server) }}
-                </p>
-                <p class="text-xs text-slate-500 dark:text-slate-300">
-                  {{
-                    server.ping.latest?.maxPlayers
-                      ? `最大：${server.ping.latest.maxPlayers}`
-                      : '最大人数未知'
-                  }}
-                </p>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2">
-              <div
-                class="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-slate-800 dark:bg-slate-950/60"
-              >
-                <p
-                  class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
-                >
-                  游戏版本
-                </p>
-                <p class="text-sm font-semibold text-slate-900 dark:text-white">
-                  {{ versionLabel(server) }}
-                </p>
-              </div>
-              <div
-                class="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-slate-800 dark:bg-slate-950/60"
-              >
-                <p
-                  class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
-                >
-                  状态
-                </p>
-                <p class="text-sm font-semibold text-slate-900 dark:text-white">
-                  {{ mcsmStatusLabel(server.mcsm) }}
-                </p>
-              </div>
-              <div
-                class="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-slate-800 dark:bg-slate-950/60"
-              >
-                <p
-                  class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
-                >
-                  Beacon 连接
-                </p>
-                <p class="text-sm font-semibold text-slate-900 dark:text-white">
-                  {{ beaconStatusLabel(server.beacon) }}
-                </p>
-              </div>
-            </div>
           </div>
 
           <div
-            class="relative mt-5 h-40 rounded-2xl border border-slate-200 dark:border-slate-800 py-3 px-1"
+            class="mt-2 bg-white dark:bg-slate-700 p-3 border border-slate-200 dark:border-slate-600 rounded-lg"
           >
-            <VChart
-              :key="isDark ? 'chart-dark' : 'chart-light'"
-              :option="createChartOption(server, isDark)"
-              autoresize
-              class="h-full w-full rounded-2xl bg-transparent"
-            />
+            <div class="grid gap-3 text-sm text-slate-700 dark:text-slate-200">
+              <div class="grid grid-cols-2 gap-2">
+                <div
+                  class="rounded-lg border border-slate-200 bg-white/60 p-3 text-slate-500 dark:border-slate-800 dark:bg-slate-950/60"
+                >
+                  <p
+                    class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
+                  >
+                    延迟
+                  </p>
+                  <p
+                    class="text-lg font-semibold text-slate-900 dark:text-white"
+                  >
+                    {{ latencyLabel(server) }}
+                  </p>
+                  <p class="text-xs text-slate-500 dark:text-slate-300">
+                    {{ formatLatestTime(server) || '暂无数据' }}
+                  </p>
+                </div>
+                <div
+                  class="rounded-lg border border-slate-200 bg-white/60 p-3 text-slate-500 dark:border-slate-800 dark:bg-slate-950/60"
+                >
+                  <p
+                    class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
+                  >
+                    在线人数
+                  </p>
+                  <p
+                    class="text-lg font-semibold text-slate-900 dark:text-white"
+                  >
+                    {{ playersLabel(server) }}
+                  </p>
+                  <p class="text-xs text-slate-500 dark:text-slate-300">
+                    {{
+                      server.ping.latest?.maxPlayers
+                        ? `最大：${server.ping.latest.maxPlayers}`
+                        : '最大人数未知'
+                    }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2">
+                <div
+                  class="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-slate-800 dark:bg-slate-950/60"
+                >
+                  <p
+                    class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
+                  >
+                    游戏版本
+                  </p>
+                  <p
+                    class="text-sm font-semibold text-slate-900 dark:text-white"
+                  >
+                    {{ versionLabel(server) }}
+                  </p>
+                </div>
+                <div
+                  class="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-slate-800 dark:bg-slate-950/60"
+                >
+                  <p
+                    class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
+                  >
+                    状态
+                  </p>
+                  <p
+                    class="text-sm font-semibold text-slate-900 dark:text-white"
+                  >
+                    {{ mcsmStatusLabel(server.mcsm) }}
+                  </p>
+                </div>
+                <div
+                  class="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-slate-800 dark:bg-slate-950/60"
+                >
+                  <p
+                    class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
+                  >
+                    Beacon 连接
+                  </p>
+                  <p
+                    class="text-sm font-semibold text-slate-900 dark:text-white"
+                  >
+                    {{ beaconStatusLabel(server.beacon) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div
-              v-if="!hasHistory(server)"
-              class="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/60 text-sm font-medium text-slate-500 dark:bg-slate-950/60 dark:text-slate-300"
+              class="relative mt-5 h-40 rounded-lg border border-slate-200 dark:border-slate-800 py-3 px-1"
             >
-              暂无 Ping 历史
+              <VChart
+                :key="isDark ? 'chart-dark' : 'chart-light'"
+                :option="createChartOption(server, isDark)"
+                autoresize
+                class="h-full w-full rounded-lg bg-transparent"
+              />
+              <div
+                v-if="!hasHistory(server)"
+                class="absolute inset-0 flex items-center justify-center rounded-lg bg-white/60 text-sm font-medium text-slate-500 dark:bg-slate-950/60 dark:text-slate-300"
+              >
+                暂无 Ping 历史
+              </div>
             </div>
           </div>
-        </div>
-      </Motion>
-    </div>
+        </Motion>
+      </div>
+    </Transition>
 
     <div
       class="mt-12 w-full text-center text-xs text-slate-500 dark:text-slate-400"
@@ -506,3 +520,31 @@ onUnmounted(() => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.fade-expand-enter-active,
+.fade-expand-leave-active {
+  transition:
+    max-height 220ms ease,
+    opacity 180ms ease,
+    transform 200ms ease,
+    margin 220ms ease;
+  overflow: hidden;
+}
+
+.fade-expand-enter-from,
+.fade-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.fade-expand-enter-to,
+.fade-expand-leave-from {
+  max-height: 999px; /* large enough to cover content height */
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>
