@@ -63,6 +63,23 @@ export interface RankResponse {
   items: RankPlayerItem[]
 }
 
+export interface RankLeaderEntry {
+  rank: number
+  playerUuid: string | null
+  playerName: string | null
+  displayName: string | null
+  bindingId: string | null
+  value: number | string | null
+}
+
+export type RankLeaderboards = Record<RankSortField, RankLeaderEntry[]>
+
+export interface RankLeadersResponse {
+  servers: RankServerItem[]
+  selectedServer: RankSelectedServer
+  leaders: RankLeaderboards
+}
+
 export type RankSyncStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED'
 
 export interface RankSyncJobStatus {

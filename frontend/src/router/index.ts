@@ -44,6 +44,16 @@ export const userRoutes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'rank/top',
+        name: 'rank.top',
+        component: () => import('@/views/user/Rank/RankTopView.vue'),
+        meta: {
+          layout: 'user',
+          title: '指标榜单',
+          icon: 'i-lucide-line-chart',
+        },
+      },
+      {
         path: 'server',
         name: 'server',
         component: () => import('@/views/user/Server/ServerStatusView.vue'),

@@ -685,7 +685,7 @@ onBeforeUnmount(() => {
                 class="flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800"
               >
                 <p class="text-xs text-slate-500 dark:text-slate-500">
-                  用了几次建筑手杖
+                  用建筑手杖放了多少方块
                 </p>
                 <p class="text-xl font-semibold text-slate-900 dark:text-white">
                   {{ formatTimes(selectedMetrics?.useWand) }}

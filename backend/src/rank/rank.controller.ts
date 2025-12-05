@@ -15,8 +15,9 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { PERMISSIONS } from '../auth/services/roles.service';
 import { RankSyncService, RankSyncJobStatus } from './rank-sync.service';
-import { RankService, RankResponse } from './rank.service';
+import { RankService, RankResponse, RankLeadersResponse } from './rank.service';
 import { RankQueryDto } from './dto/rank-query.dto';
+import { RankLeadersQueryDto } from './dto/rank-leaders-query.dto';
 import { RankSyncRequestDto } from './dto/rank-sync.dto';
 
 @ApiTags('排行数据')
@@ -31,6 +32,14 @@ export class RankController {
   @ApiOperation({ summary: '获取服务端排行数据' })
   async list(@Query() query: RankQueryDto): Promise<RankResponse> {
     return this.rankService.list(query);
+  }
+
+  @Get('leaders')
+  @ApiOperation({ summary: '获取各指标前十排行榜' })
+  async leaders(
+    @Query() query: RankLeadersQueryDto,
+  ): Promise<RankLeadersResponse> {
+    return this.rankService.leaders(query);
   }
 
   @Post('sync')

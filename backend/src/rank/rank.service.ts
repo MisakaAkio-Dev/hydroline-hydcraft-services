@@ -12,6 +12,7 @@ import {
   RANK_SORT_FIELDS,
 } from './constants';
 import type { RankQueryDto, RankSortOrder } from './dto/rank-query.dto';
+import type { RankLeadersQueryDto } from './dto/rank-leaders-query.dto';
 import type { RankPlayerSnapshot, Prisma } from '@prisma/client';
 
 type RankSortField = (typeof RANK_SORT_FIELDS)[number];
@@ -72,6 +73,27 @@ export interface RankResponse {
   items: RankListItem[];
 }
 
+export interface RankLeaderItem {
+  rank: number;
+  playerUuid: string | null;
+  playerName: string | null;
+  displayName: string | null;
+  bindingId: string | null;
+  value: number | string | null;
+}
+
+export type RankLeaderboards = Record<RankSortField, RankLeaderItem[]>;
+
+export interface RankLeadersResponse {
+  servers: Array<RankServerOption>;
+  selectedServer: {
+    id: string;
+    displayName: string;
+    lastSyncedAt: string | null;
+  };
+  leaders: RankLeaderboards;
+}
+
 @Injectable()
 export class RankService {
   constructor(private readonly prisma: PrismaService) {}
@@ -130,6 +152,35 @@ export class RankService {
       sortField,
       sortOrder,
       items,
+    };
+  }
+
+  async leaders(query: RankLeadersQueryDto): Promise<RankLeadersResponse> {
+    const servers = await this.loadServers();
+    if (!servers.length) {
+      throw new NotFoundException('No beacon server is configured for ranking');
+    }
+    const selectedServer = this.resolveServer(
+      query.serverId ?? servers[0].id,
+      servers,
+    );
+
+    const latestSnapshot = await this.prisma.rankPlayerSnapshot.findFirst({
+      where: { serverId: selectedServer.id },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true },
+    });
+
+    const leaders = await this.buildLeaders(selectedServer.id);
+
+    return {
+      servers,
+      selectedServer: {
+        id: selectedServer.id,
+        displayName: selectedServer.displayName,
+        lastSyncedAt: latestSnapshot?.updatedAt?.toISOString() ?? null,
+      },
+      leaders,
     };
   }
 
@@ -232,5 +283,77 @@ export class RankService {
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });
     return servers;
+  }
+
+  private async buildLeaders(serverId: string): Promise<RankLeaderboards> {
+    const leaderboardTuples = await Promise.all(
+      RANK_SORT_FIELDS.map(async (field) => {
+        const snapshots = await this.prisma.rankPlayerSnapshot.findMany({
+          where: { serverId },
+          orderBy: this.buildOrderBy(field, 'desc'),
+          take: 10,
+        });
+        const items = snapshots.map((snapshot, index) =>
+          this.mapSnapshotToLeader(snapshot, index + 1, field),
+        );
+        return [field, items] as const;
+      }),
+    );
+
+    return leaderboardTuples.reduce<RankLeaderboards>((acc, [field, items]) => {
+      acc[field] = items;
+      return acc;
+    }, {} as RankLeaderboards);
+  }
+
+  private mapSnapshotToLeader(
+    snapshot: RankPlayerSnapshot,
+    rank: number,
+    field: RankSortField,
+  ): RankLeaderItem {
+    return {
+      rank,
+      playerUuid: snapshot.playerUuid,
+      playerName: snapshot.playerName,
+      displayName: snapshot.displayName,
+      bindingId: snapshot.bindingId,
+      value: this.extractFieldValue(snapshot, field),
+    };
+  }
+
+  private extractFieldValue(
+    snapshot: RankPlayerSnapshot,
+    field: RankSortField,
+  ): number | string | null {
+    switch (field) {
+      case 'lastLogin':
+        return snapshot.lastLoginAt?.toISOString() ?? null;
+      case 'registered':
+        return snapshot.registeredAt?.toISOString() ?? null;
+      case 'walkDistance':
+        return snapshot.walkDistanceKm ?? null;
+      case 'flyDistance':
+        return snapshot.flyDistanceKm ?? null;
+      case 'swimDistance':
+        return snapshot.swimDistanceKm ?? null;
+      case 'achievements':
+        return snapshot.achievements ?? null;
+      case 'deaths':
+        return snapshot.deaths ?? null;
+      case 'playerKilledBy':
+        return snapshot.playerKilledByCount ?? null;
+      case 'jumpCount':
+        return snapshot.jumpCount ?? null;
+      case 'playTime':
+        return snapshot.playTimeHours ?? null;
+      case 'wandUses':
+        return snapshot.useWandCount ?? null;
+      case 'logoutCount':
+        return snapshot.logoutCount ?? null;
+      case 'mtrBalance':
+        return snapshot.mtrBalance ?? null;
+      default:
+        return null;
+    }
   }
 }
