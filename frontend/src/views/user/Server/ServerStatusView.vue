@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import dayjs from 'dayjs'
+import { Motion } from 'motion-v'
 import VChart from 'vue-echarts'
 import { apiFetch } from '@/utils/api'
 
@@ -55,10 +56,16 @@ type PublicServerStatusBeacon = {
   } | null
 }
 
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000
+
 const servers = ref<PublicServerStatusItem[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 const isDark = ref(false)
+const refreshTimer = ref<number | null>(null)
+const countdownTimer = ref<number | null>(null)
+const nextRefreshAt = ref<dayjs.Dayjs | null>(null)
+const countdownText = ref('05:00')
 
 const editionLabels = {
   JAVA: 'Java 版',
@@ -131,9 +138,6 @@ const createChartOption = (item: PublicServerStatusItem, dark: boolean) => {
   )
 
   // 根据当前主题设置 ECharts 文本颜色，避免日间过浅或夜间过灰
-  const isDark =
-    typeof document !== 'undefined' &&
-    document.documentElement.classList.contains('dark')
   const palette = dark
     ? {
         text: '#f8fafc', // brighter
@@ -228,6 +232,28 @@ const createChartOption = (item: PublicServerStatusItem, dark: boolean) => {
   }
 }
 
+const updateCountdown = () => {
+  if (!nextRefreshAt.value) {
+    countdownText.value = '—'
+    return
+  }
+  const diffSeconds = Math.max(
+    Math.round(nextRefreshAt.value.diff(dayjs(), 'second')),
+    0,
+  )
+  const minutes = Math.floor(diffSeconds / 60)
+  const seconds = diffSeconds % 60
+  countdownText.value = `${String(minutes).padStart(2, '0')}:${String(
+    seconds,
+  ).padStart(2, '0')}`
+}
+
+const startCountdown = () => {
+  updateCountdown()
+  if (countdownTimer.value !== null) return
+  countdownTimer.value = window.setInterval(updateCountdown, 1000)
+}
+
 const syncTheme = () => {
   if (typeof document === 'undefined') return
   isDark.value = document.documentElement.classList.contains('dark')
@@ -246,6 +272,24 @@ const loadServers = async () => {
   }
 }
 
+const scheduleAutoRefresh = () => {
+  if (refreshTimer.value !== null) {
+    window.clearTimeout(refreshTimer.value)
+  }
+  nextRefreshAt.value = dayjs().add(REFRESH_INTERVAL_MS, 'millisecond')
+  updateCountdown()
+  startCountdown()
+  refreshTimer.value = window.setTimeout(async () => {
+    await loadServers()
+    scheduleAutoRefresh()
+  }, REFRESH_INTERVAL_MS)
+}
+
+const handleManualRefresh = async () => {
+  await loadServers()
+  scheduleAutoRefresh()
+}
+
 onMounted(() => {
   syncTheme()
   const observer = new MutationObserver(syncTheme)
@@ -260,14 +304,25 @@ onMounted(() => {
     media.removeEventListener('change', syncTheme)
   })
 
-  void loadServers()
+  void loadServers().then(() => {
+    scheduleAutoRefresh()
+  })
+})
+
+onUnmounted(() => {
+  if (refreshTimer.value !== null) {
+    window.clearTimeout(refreshTimer.value)
+    refreshTimer.value = null
+  }
+  if (countdownTimer.value !== null) {
+    window.clearInterval(countdownTimer.value)
+    countdownTimer.value = null
+  }
 })
 </script>
 
 <template>
-  <section
-    class="server-status-view z-0 mx-auto w-full max-w-4xl px-8 pb-16 pt-8"
-  >
+  <section class="server-status-view z-0 mx-auto w-full max-w-4xl p-8">
     <div class="relative flex flex-wrap items-center justify-center gap-3 mb-8">
       <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
         服务器状态
@@ -278,7 +333,7 @@ onMounted(() => {
         variant="ghost"
         color="primary"
         :loading="loading"
-        @click="loadServers"
+        @click="handleManualRefresh"
         class="absolute top-0 right-0 bottom-0"
       >
         刷新
@@ -300,7 +355,14 @@ onMounted(() => {
     </div>
 
     <div v-if="servers.length" class="flex flex-col gap-8">
-      <div v-for="server in servers" :key="server.id">
+      <Motion
+        v-for="server in servers"
+        :key="server.id"
+        as="div"
+        :initial="{ opacity: 0, filter: 'blur(10px)', y: 12 }"
+        :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
+        :transition="{ duration: 0.35, ease: 'easeOut' }"
+      >
         <div class="space-y-2">
           <div class="space-y-1">
             <div class="text-lg font-semibold text-slate-900 dark:text-white">
@@ -382,7 +444,7 @@ onMounted(() => {
                 <p
                   class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
                 >
-                  MCSM 状态
+                  状态
                 </p>
                 <p class="text-sm font-semibold text-slate-900 dark:text-white">
                   {{ mcsmStatusLabel(server.mcsm) }}
@@ -420,6 +482,23 @@ onMounted(() => {
             </div>
           </div>
         </div>
+      </Motion>
+    </div>
+
+    <div
+      class="mt-12 w-full text-center text-xs text-slate-500 dark:text-slate-400"
+    >
+      <div>将在 {{ countdownText }} 后自动刷新</div>
+      <div class="mt-1">
+        更细致的监测数据可在
+        <a
+          href="https://monitor.hydcraft.cn"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="font-semibold hover:underline"
+          >HydCraft Monitor</a
+        >
+        上查看
       </div>
     </div>
   </section>
