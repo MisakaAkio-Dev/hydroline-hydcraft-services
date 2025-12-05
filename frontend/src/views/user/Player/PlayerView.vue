@@ -362,7 +362,7 @@ function formatIpLocation(location: string | null | undefined) {
 <style scoped>
 .opacity-motion-enter-active,
 .opacity-motion-leave-active {
-  transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .opacity-motion-enter-from,

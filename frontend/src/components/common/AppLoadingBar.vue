@@ -46,7 +46,7 @@ const { isLoading } = storeToRefs(uiStore)
 
 .loading-bar-enter-active,
 .loading-bar-leave-active {
-  transition: opacity 0.25s ease;
+  transition: opacity 250ms ease;
 }
 
 .loading-bar-enter-from,

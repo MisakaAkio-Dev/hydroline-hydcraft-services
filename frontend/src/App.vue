@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import { AnimatePresence, Motion } from 'motion-v'
 import { useAuthStore } from '@/stores/auth'
 import { zh_cn } from '@nuxt/ui/locale'
 import { useRoute } from 'vue-router'
@@ -30,9 +31,19 @@ const layoutKey = computed(
 <template>
   <UApp :locale="zh_cn" :tooltip="appTooltipConfig" :toaster="appToasterConfig">
     <RouterView v-slot="{ Component }">
-      <Transition mode="out-in" appear name="layout-fade">
-        <component :is="Component" :key="layoutKey" />
-      </Transition>
+      <AnimatePresence mode="wait">
+        <Motion
+          v-if="Component"
+          :key="layoutKey"
+          as="div"
+          :initial="{ opacity: 0, filter: 'blur(12px)' }"
+          :animate="{ opacity: 1, filter: 'blur(0px)' }"
+          :exit="{ opacity: 0, filter: 'blur(12px)' }"
+          :transition="{ duration: 0.35, ease: 'easeInOut' }"
+        >
+          <component :is="Component" />
+        </Motion>
+      </AnimatePresence>
     </RouterView>
     <Transition
       appear
@@ -63,14 +74,4 @@ const layoutKey = computed(
   </UApp>
 </template>
 
-<style scoped>
-.layout-fade-enter-active,
-.layout-fade-leave-active {
-  transition: opacity 250ms ease;
-}
-
-.layout-fade-enter-from,
-.layout-fade-leave-to {
-  opacity: 0;
-}
-</style>
+<style scoped></style>

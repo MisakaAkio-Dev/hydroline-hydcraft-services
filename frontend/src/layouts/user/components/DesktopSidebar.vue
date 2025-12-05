@@ -197,7 +197,7 @@ const handleToggle = () => {
 <style scoped>
 .sidebar-link-move {
   transition:
-    transform 0.25s ease,
-    opacity 0.25s ease;
+    transform 250ms ease,
+    opacity 250ms ease;
 }
 </style>

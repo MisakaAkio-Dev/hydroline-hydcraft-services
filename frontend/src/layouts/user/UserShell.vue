@@ -377,7 +377,13 @@ const routerPush = (path: string) => {
       />
 
       <main class="pt-4 mb-8">
-        <RouterView />
+        <RouterView v-slot="{ Component, route }">
+          <Transition name="page-fade" mode="out-in">
+            <div v-if="Component" :key="route.fullPath">
+              <component :is="Component" />
+            </div>
+          </Transition>
+        </RouterView>
       </main>
 
       <footer
@@ -481,9 +487,19 @@ const routerPush = (path: string) => {
 </template>
 
 <style scoped>
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 250ms ease;
+}
+
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
+}
+
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: all 0.25s ease;
+  transition: all 250ms ease;
 }
 
 .fade-slide-enter-from,
@@ -495,8 +511,8 @@ const routerPush = (path: string) => {
 .slide-fade-enter-active,
 .slide-fade-leave-active {
   transition:
-    transform 0.25s ease,
-    opacity 0.25s ease;
+    transform 250ms ease,
+    opacity 250ms ease;
 }
 
 .slide-fade-enter-from,

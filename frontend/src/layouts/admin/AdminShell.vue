@@ -425,18 +425,34 @@ onMounted(() => {
       <main
         class="flex-1 bg-white/70 px-4 pb-12 pt-6 backdrop-blur-sm dark:bg-slate-950/80"
       >
-        <RouterView />
+        <RouterView v-slot="{ Component, route }">
+          <Transition name="page-fade" mode="out-in">
+            <div v-if="Component" :key="route.fullPath">
+              <component :is="Component" />
+            </div>
+          </Transition>
+        </RouterView>
       </main>
     </div>
   </div>
 </template>
 
 <style scoped>
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 250ms ease;
+}
+
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
+}
+
 .slide-fade-enter-active,
 .slide-fade-leave-active {
   transition:
-    transform 0.2s ease,
-    opacity 0.2s ease;
+    transform 200ms ease,
+    opacity 200ms ease;
 }
 
 .slide-fade-enter-from,
