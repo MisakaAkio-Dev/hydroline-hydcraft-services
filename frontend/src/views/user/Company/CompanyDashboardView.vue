@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/companies'
 import CompanyStatusBadge from '@/components/company/CompanyStatusBadge.vue'
 import CompanyApplicationForm from '@/components/company/CompanyApplicationForm.vue'
@@ -11,15 +12,32 @@ import type {
 } from '@/types/company'
 
 const companyStore = useCompanyStore()
+const authStore = useAuthStore()
 const toast = useToast()
 const selectedCompanyId = ref<string | null>(null)
+const canManage = computed(() => authStore.isAuthenticated)
 
-onMounted(async () => {
-  await Promise.all([companyStore.fetchMeta(), companyStore.fetchDashboard()])
-  if (companyStore.dashboard.length > 0) {
+const refreshDashboard = async () => {
+  if (!authStore.isAuthenticated) return
+  await companyStore.fetchDashboard()
+  if (!selectedCompanyId.value && companyStore.dashboard.length > 0) {
     selectedCompanyId.value = companyStore.dashboard[0]?.id ?? null
   }
+}
+
+onMounted(async () => {
+  await companyStore.fetchMeta()
+  await refreshDashboard()
 })
+
+watch(
+  () => authStore.isAuthenticated,
+  (isAuth) => {
+    if (isAuth) {
+      void refreshDashboard()
+    }
+  },
+)
 
 watch(
   () => companyStore.dashboard.length,
@@ -45,6 +63,10 @@ const industries = computed(() => companyStore.meta?.industries ?? [])
 const types = computed(() => companyStore.meta?.types ?? [])
 
 const handleApply = async (payload: CreateCompanyApplicationPayload) => {
+  if (!authStore.isAuthenticated) {
+    toast.add({ title: '请先登录', color: 'warning' })
+    return
+  }
   try {
     const company = await companyStore.apply(payload)
     selectedCompanyId.value = company.id
@@ -73,27 +95,11 @@ const handleUpdate = async (payload: UpdateCompanyPayload) => {
 
 <template>
   <section class="space-y-6 mx-auto w-full max-w-6xl p-6">
-    <div
-      class="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white/70 p-6 dark:border-slate-800 dark:bg-slate-900/70 mt-2"
-    >
-      <div
-        class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between"
-      >
-        <div>
-          <p class="text-sm font-medium text-primary-500">公司工作台</p>
-          <h1 class="text-2xl font-bold text-slate-900 dark:text-white">
-            管理我的公司与制度
-          </h1>
-          <p class="text-sm text-slate-500">
-            只有公司法人/持有者可以编辑，管理员可在后台管理所有主体。
-          </p>
-        </div>
-        <div class="flex gap-2">
-          <UButton color="neutral" variant="ghost" to="/company">
-            返回概览
-          </UButton>
-        </div>
-      </div>
+    <div class="flex">
+      <UButton color="primary" variant="ghost" to="/company">
+        <UIcon name="i-lucide-arrow-left" />
+        返回概览
+      </UButton>
     </div>
 
     <div class="grid gap-6 lg:grid-cols-3">
@@ -113,7 +119,8 @@ const handleUpdate = async (payload: UpdateCompanyPayload) => {
               variant="ghost"
               icon="i-lucide-refresh-cw"
               :loading="companyStore.dashboardLoading"
-              @click="companyStore.fetchDashboard()"
+              :disabled="!canManage"
+              @click="refreshDashboard()"
             />
           </div>
         </template>

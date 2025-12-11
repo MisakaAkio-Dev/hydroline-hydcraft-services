@@ -369,6 +369,38 @@ export const adminRoutes: RouteRecordRaw[] = [
           layout: 'admin',
         },
       },
+      {
+        path: 'company/applications',
+        name: 'admin.company.applications',
+        component: () =>
+          import('@/views/admin/Company/CompanyApplicationsView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['company.admin.applications'],
+          layout: 'admin',
+        },
+      },
+      {
+        path: 'company/industries',
+        name: 'admin.company.industries',
+        component: () =>
+          import('@/views/admin/Company/CompanyIndustriesView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['company.admin.config'],
+          layout: 'admin',
+        },
+      },
+      {
+        path: 'company/types',
+        name: 'admin.company.types',
+        component: () => import('@/views/admin/Company/CompanyTypesView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['company.admin.config'],
+          layout: 'admin',
+        },
+      },
     ],
   },
 ]

@@ -31,6 +31,11 @@ import {
   DEFAULT_COMPANY_WORKFLOW_CODE,
   DEFAULT_COMPANY_WORKFLOW_DEFINITION,
 } from './company.constants';
+import {
+  CompanyApplicationListQueryDto,
+  UpsertCompanyIndustryDto,
+  UpsertCompanyTypeDto,
+} from './dto/admin-config.dto';
 import type {
   WorkflowDefinitionWithConfig,
   WorkflowTransitionResult,
@@ -168,6 +173,59 @@ export class CompanyService {
       lastActiveAt: company.lastActiveAt,
       approvedAt: company.approvedAt,
     }));
+  }
+
+  async listIndustries() {
+    return this.prisma.companyIndustry.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async upsertIndustry(dto: UpsertCompanyIndustryDto) {
+    const payload = {
+      name: dto.name,
+      code: dto.code?.trim() || this.slugify(dto.name),
+      description: dto.description,
+      icon: dto.icon,
+      color: dto.color,
+      parentId: dto.parentId,
+      metadata: dto.metadata ? this.toJsonValue(dto.metadata) : Prisma.JsonNull,
+    };
+    if (dto.id) {
+      return this.prisma.companyIndustry.update({
+        where: { id: dto.id },
+        data: payload,
+      });
+    }
+    return this.prisma.companyIndustry.create({
+      data: payload,
+    });
+  }
+
+  async listTypes() {
+    return this.prisma.companyType.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async upsertType(dto: UpsertCompanyTypeDto) {
+    const payload = {
+      name: dto.name,
+      code: dto.code?.trim() || this.slugify(dto.name),
+      description: dto.description,
+      category: dto.category,
+      requiredDocuments: dto.requiredDocuments ?? undefined,
+      config: dto.config ? this.toJsonValue(dto.config) : Prisma.JsonNull,
+    };
+    if (dto.id) {
+      return this.prisma.companyType.update({
+        where: { id: dto.id },
+        data: payload,
+      });
+    }
+    return this.prisma.companyType.create({
+      data: payload,
+    });
   }
 
   async listMine(userId: string) {
@@ -412,6 +470,76 @@ export class CompanyService {
   async adminGet(companyId: string) {
     const company = await this.findCompanyOrThrow(companyId);
     return this.serializeCompany(company);
+  }
+
+  async listApplications(query: CompanyApplicationListQueryDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const where: Prisma.CompanyApplicationWhereInput = {};
+    if (query.status) {
+      where.status = query.status;
+    }
+    if (query.search) {
+      const keyword = query.search.trim();
+      where.OR = [
+        {
+          notes: { contains: keyword, mode: 'insensitive' },
+        },
+        {
+          company: {
+            name: { contains: keyword, mode: 'insensitive' },
+          },
+        },
+        {
+          applicant: {
+            name: { contains: keyword, mode: 'insensitive' },
+          },
+        },
+      ];
+    }
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.companyApplication.count({ where }),
+      this.prisma.companyApplication.findMany({
+        where,
+        orderBy: { submittedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          company: {
+            include: {
+              type: true,
+              industry: true,
+            },
+          },
+          applicant: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              profile: {
+                select: {
+                  displayName: true,
+                },
+              },
+            },
+          },
+          workflowInstance: {
+            include: {
+              definition: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      page,
+      pageSize,
+      pageCount: Math.max(Math.ceil(total / pageSize), 1),
+      items,
+    };
   }
 
   async adminExecuteAction(

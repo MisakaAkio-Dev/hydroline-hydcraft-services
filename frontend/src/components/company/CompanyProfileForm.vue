@@ -65,16 +65,22 @@ const handleSubmit = () => {
 </script>
 
 <template>
-  <UForm :state="formState" class="space-y-4" @submit.prevent="handleSubmit">
+  <form class="space-y-4" @submit.prevent="handleSubmit">
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <UFormGroup label="公司概要" name="summary">
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >公司概要</label
+        >
         <UInput
           v-model="formState.summary"
           placeholder="一句话说明公司定位"
           :disabled="isDisabled"
         />
-      </UFormGroup>
-      <UFormGroup label="行业分类" name="industryId">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >行业分类</label
+        >
         <USelectMenu
           v-model="formState.industryId"
           :options="industryOptions"
@@ -82,46 +88,59 @@ const handleSubmit = () => {
           placeholder="选择行业"
           :disabled="isDisabled"
         />
-      </UFormGroup>
+      </div>
     </div>
-    <UFormGroup label="详细介绍" name="description">
+    <div class="space-y-2">
+      <label class="block text-xs font-semibold text-slate-500">详细介绍</label>
       <UTextarea
         v-model="formState.description"
         :rows="4"
         placeholder="记录公司制度、简介、业务范围"
         :disabled="isDisabled"
       />
-    </UFormGroup>
+    </div>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <UFormGroup label="联系邮箱" name="contactEmail">
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >联系邮箱</label
+        >
         <UInput
           v-model="formState.contactEmail"
           type="email"
           placeholder="例如: hello@hydcraft.cn"
           :disabled="isDisabled"
         />
-      </UFormGroup>
-      <UFormGroup label="联系电话" name="contactPhone">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >联系电话</label
+        >
         <UInput
           v-model="formState.contactPhone"
           placeholder="可留空"
           :disabled="isDisabled"
         />
-      </UFormGroup>
-      <UFormGroup label="联系地址" name="contactAddress">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >联系地址</label
+        >
         <UInput
           v-model="formState.contactAddress"
           placeholder="可输入省市区 + 详细地址"
           :disabled="isDisabled"
         />
-      </UFormGroup>
-      <UFormGroup label="官网链接" name="homepageUrl">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >官网链接</label
+        >
         <UInput
           v-model="formState.homepageUrl"
           placeholder="https://example.com"
           :disabled="isDisabled"
         />
-      </UFormGroup>
+      </div>
     </div>
     <div class="flex justify-end">
       <UButton
@@ -133,5 +152,5 @@ const handleSubmit = () => {
         保存资料
       </UButton>
     </div>
-  </UForm>
+  </form>
 </template>

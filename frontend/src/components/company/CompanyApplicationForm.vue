@@ -45,56 +45,77 @@ const handleSubmit = () => {
 </script>
 
 <template>
-  <UForm :state="formState" class="space-y-4" @submit.prevent="handleSubmit">
+  <form class="space-y-4" @submit.prevent="handleSubmit">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <UFormGroup label="公司名称" name="name" required>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >公司名称</label
+        >
         <UInput v-model="formState.name" placeholder="例如：Hydroline 科技" />
-      </UFormGroup>
-      <UFormGroup label="类型" name="typeId">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500">类型</label>
         <USelectMenu
           v-model="formState.typeId"
           :options="typeOptions"
           searchable
           placeholder="选择公司类型"
         />
-      </UFormGroup>
-      <UFormGroup label="行业" name="industryId">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500">行业</label>
         <USelectMenu
           v-model="formState.industryId"
           :options="industryOptions"
           searchable
           placeholder="选择所属行业"
         />
-      </UFormGroup>
-      <UFormGroup label="一句话简介" name="summary">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >一句话简介</label
+        >
         <UInput v-model="formState.summary" placeholder="概括业务/定位" />
-      </UFormGroup>
+      </div>
     </div>
-    <UFormGroup label="详细介绍" name="description">
+    <div class="space-y-2">
+      <label class="block text-xs font-semibold text-slate-500">详细介绍</label>
       <UTextarea
         v-model="formState.description"
         :rows="4"
         placeholder="填写背景、制度设计、主要业务等"
       />
-    </UFormGroup>
+    </div>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <UFormGroup label="法人姓名" name="legalRepresentativeName">
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >法人姓名</label
+        >
         <UInput v-model="formState.legalRepresentativeName" />
-      </UFormGroup>
-      <UFormGroup label="法人证件编号" name="legalRepresentativeCode">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >法人证件编号</label
+        >
         <UInput v-model="formState.legalRepresentativeCode" />
-      </UFormGroup>
-      <UFormGroup label="联系邮箱" name="contactEmail">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >联系邮箱</label
+        >
         <UInput v-model="formState.contactEmail" type="email" />
-      </UFormGroup>
-      <UFormGroup label="联系电话" name="contactPhone">
+      </div>
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-500"
+          >联系电话</label
+        >
         <UInput v-model="formState.contactPhone" />
-      </UFormGroup>
+      </div>
     </div>
     <div class="flex justify-end">
       <UButton type="submit" color="primary" :loading="submitting">
         提交注册申请
       </UButton>
     </div>
-  </UForm>
+  </form>
 </template>

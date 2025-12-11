@@ -144,6 +144,21 @@ const menuGroups = computed<MenuGroup[]>(() => [
         to: '/admin/company/registry',
         icon: 'i-lucide-building-2',
       },
+      {
+        label: '申请审批',
+        to: '/admin/company/applications',
+        icon: 'i-lucide-clipboard-list',
+      },
+      {
+        label: '行业配置',
+        to: '/admin/company/industries',
+        icon: 'i-lucide-layers-3',
+      },
+      {
+        label: '类型配置',
+        to: '/admin/company/types',
+        icon: 'i-lucide-shapes',
+      },
     ],
   },
   {

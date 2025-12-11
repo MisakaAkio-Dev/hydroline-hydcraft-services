@@ -1,7 +1,6 @@
-# 前端待办（2025-12-12）
-
-- [x] 在 `usershell` 左侧导航与路由配置中添加 `/company` 与 `/company/dashboard` 入口，确保风格与现有页面一致。
-- [x] `/company` 页面面向所有用户（登录与否），展示最近注册与最近活跃公司推荐列表，每条记录显示名称、行业、类型、法人、状态与流程进度，并支持跳转到详情或专属路由。
-- [x] 在 `/company/dashboard` 中展示授权玩家名下公司列表（含流程状态、行业、制度概要），并提供编辑入口；编辑权限仅对法人/持有者/相关身份可用。
-- [x] 后台管理页提供管理员集中查看所有公司申请、流程节点与审核记录的能力，并能调用后端接口执行通过/驳回/补件等动作；包括筛选、搜索、流程视图与备注/附件提交表单。
-- [x] 所有前端组件需显示所属行业标签、公司类型标签、制度配置入口，并与流程状态/节点联动（如补件提示、审批意见列表）。
+# 前端 TODO
+- [x] 确保 `/company/dashboard` 仅在登录＋持有者/法人身份时调用 API，所有请求继承 `apiFetch` 的 token 与自动刷新机制。
+- [x] 重新设计 `/admin/company/registry` 表格、分页与动作面板，移除 `UFormGroup` 依赖并与 `/admin/company/applications` 联动。
+- [x] 为工商配置补充 `/admin/company/industries`、`/admin/company/types` 与 `/admin/company/applications` 视图与对应的 Pinia store。
+- [x] 补全行业/类型/申请视图的表格、表单与通知提示，保持 Nuxt UI + slate/primary 风格。
+- [ ] 若需进一步引入 ECharts 或 motion 组件，可在下个迭代中沿用相同视觉基调。

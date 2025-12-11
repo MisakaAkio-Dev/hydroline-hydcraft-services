@@ -89,6 +89,52 @@ export interface CompanyApplication {
   resolvedAt?: string | null
 }
 
+export type CompanyApplicationStatus =
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'NEEDS_CHANGES'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'ARCHIVED'
+
+export interface ApplicationWorkflowDefinitionRef {
+  id: string
+  code: string
+  name?: string | null
+}
+
+export interface CompanyWorkflowInstanceRef {
+  id: string
+  definition?: ApplicationWorkflowDefinitionRef | null
+}
+
+export interface AdminCompanyApplicationEntry {
+  id: string
+  status: CompanyApplicationStatus
+  submittedAt: string
+  resolvedAt?: string | null
+  notes?: string | null
+  rejectReason?: string | null
+  company?: {
+    id: string
+    name: string
+    slug: string
+    type?: CompanyType | null
+    industry?: CompanyIndustry | null
+    status?: CompanyStatus | null
+    workflowState?: string | null
+  } | null
+  applicant: {
+    id: string
+    name?: string | null
+    email?: string | null
+    profile?: {
+      displayName?: string | null
+    } | null
+  }
+  workflowInstance?: CompanyWorkflowInstanceRef | null
+}
+
 export interface CompanyPermissions {
   canEdit: boolean
   canManageMembers: boolean

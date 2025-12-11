@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAdminCompanyStore } from '@/stores/adminCompanies'
 import { useCompanyStore } from '@/stores/companies'
 import type {
@@ -13,6 +14,8 @@ import CompanyTimeline from '@/components/company/CompanyTimeline.vue'
 const adminStore = useAdminCompanyStore()
 const companyStore = useCompanyStore()
 const toast = useToast()
+const route = useRoute()
+const router = useRouter()
 
 const filters = reactive({
   status: undefined as CompanyStatus | undefined,
@@ -31,6 +34,7 @@ const adminForm = reactive({
 const adminSaving = ref(false)
 const actionComment = ref('')
 const actionLoading = ref<string | null>(null)
+const pageInput = ref(adminStore.page)
 
 const statusOptions: { label: string; value: CompanyStatus }[] = [
   { label: '草稿', value: 'DRAFT' },
@@ -51,6 +55,17 @@ const visibilityOptions: { label: string; value: CompanyVisibility }[] = [
 
 const industries = computed(() => companyStore.meta?.industries ?? [])
 const types = computed(() => companyStore.meta?.types ?? [])
+const pageCount = computed(() =>
+  Math.max(Math.ceil(adminStore.total / adminStore.pageSize), 1),
+)
+const safePageCount = computed(() => Math.max(pageCount.value, 1))
+const routeCompanyId = computed<string | null>(() => {
+  const candidate = route.query.companyId
+  if (!candidate) {
+    return null
+  }
+  return Array.isArray(candidate) ? candidate[0] : candidate
+})
 
 const selectedCompany = computed<CompanyModel | null>(() => {
   if (selectedCompanyId.value) {
@@ -63,13 +78,91 @@ const selectedCompany = computed<CompanyModel | null>(() => {
   return adminStore.selected ?? adminStore.items[0] ?? null
 })
 
-async function bootstrap() {
-  await companyStore.fetchMeta()
-  const list = await adminStore.fetchList()
-  if (list.items.length > 0) {
-    selectedCompanyId.value = list.items[0].id
-    await adminStore.fetchDetail(list.items[0].id)
+const fetchCompanies = async (page = 1) => {
+  await adminStore.fetchList({
+    status: filters.status,
+    typeId: filters.typeId,
+    industryId: filters.industryId,
+    search: filters.search,
+    page,
+  })
+  pageInput.value = adminStore.page
+}
+
+const loadCompanyDetail = async (companyId: string) => {
+  if (
+    selectedCompanyId.value === companyId &&
+    adminStore.selected?.id === companyId
+  ) {
+    return
   }
+  selectedCompanyId.value = companyId
+  await adminStore.fetchDetail(companyId)
+}
+
+const ensureSelectionAfterFetch = async () => {
+  if (adminStore.items.length === 0) {
+    selectedCompanyId.value = null
+    return
+  }
+  const targetId = routeCompanyId.value
+  if (targetId) {
+    const match = adminStore.items.find((item) => item.id === targetId)
+    if (match) {
+      await loadCompanyDetail(targetId)
+      return
+    }
+  }
+  if (selectedCompanyId.value) {
+    const stillPresent = adminStore.items.some(
+      (item) => item.id === selectedCompanyId.value,
+    )
+    if (stillPresent) {
+      await loadCompanyDetail(selectedCompanyId.value)
+      return
+    }
+  }
+  const first = adminStore.items[0]
+  if (first) {
+    await loadCompanyDetail(first.id)
+  }
+}
+
+const applyFilters = async () => {
+  pageInput.value = 1
+  await fetchCompanies(1)
+  await ensureSelectionAfterFetch()
+}
+
+const goToPage = async (target: number) => {
+  const normalized = Math.max(1, Math.min(target, safePageCount.value))
+  if (normalized === adminStore.page) {
+    pageInput.value = normalized
+    return
+  }
+  await fetchCompanies(normalized)
+  await ensureSelectionAfterFetch()
+}
+
+const handlePageInput = async () => {
+  if (!pageInput.value) return
+  await goToPage(pageInput.value)
+}
+
+const handleRowClick = async (company: CompanyModel) => {
+  await loadCompanyDetail(company.id)
+  void router.replace({
+    query: {
+      ...route.query,
+      companyId: company.id,
+    },
+  })
+}
+
+const bootstrap = async () => {
+  await companyStore.fetchMeta()
+  await fetchCompanies(1)
+  await ensureSelectionAfterFetch()
 }
 
 onMounted(() => {
@@ -88,23 +181,26 @@ watch(
   { immediate: true },
 )
 
-const applyFilters = async () => {
-  await adminStore.fetchList({
-    status: filters.status,
-    typeId: filters.typeId,
-    industryId: filters.industryId,
-    search: filters.search,
-  })
-  if (adminStore.items.length > 0) {
-    selectedCompanyId.value = adminStore.items[0].id
-    await adminStore.fetchDetail(adminStore.items[0].id)
-  }
-}
+watch(
+  () => routeCompanyId.value,
+  async (companyId) => {
+    if (!companyId) return
+    if (adminStore.items.length === 0) return
+    if (companyId === selectedCompanyId.value) return
+    const exists = adminStore.items.find((item) => item.id === companyId)
+    if (exists) {
+      await loadCompanyDetail(companyId)
+    }
+  },
+)
 
-const handleRowClick = async (company: CompanyModel) => {
-  selectedCompanyId.value = company.id
-  await adminStore.fetchDetail(company.id)
-}
+watch(
+  () => adminStore.page,
+  (page) => {
+    pageInput.value = page
+  },
+  { immediate: true },
+)
 
 const handleAdminSave = async () => {
   if (!selectedCompany.value) return
@@ -143,9 +239,13 @@ const handleAction = async (actionKey: string) => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <UCard>
-      <template #header>
+  <section class="space-y-8">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div class="w-full flex flex-wrap justify-between items-center">
+        <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
+          公司管理
+        </h1>
+
         <div class="flex flex-wrap items-center gap-3">
           <USelectMenu
             v-model="filters.status"
@@ -179,96 +279,207 @@ const handleAction = async (actionKey: string) => {
           />
           <UButton color="primary" @click="applyFilters"> 查询 </UButton>
         </div>
-      </template>
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
-          <thead>
-            <tr
-              class="text-left text-xs uppercase tracking-wide text-slate-500"
-            >
-              <th class="px-4 py-2">名称</th>
-              <th class="px-4 py-2">状态</th>
-              <th class="px-4 py-2">类型</th>
-              <th class="px-4 py-2">行业</th>
-              <th class="px-4 py-2">评分</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr
-              v-for="company in adminStore.items"
-              :key="company.id"
-              class="cursor-pointer transition-colors hover:bg-slate-50"
-              :class="
-                company.id === selectedCompanyId ? 'bg-primary-50/60' : ''
-              "
-              @click="handleRowClick(company)"
-            >
-              <td class="px-4 py-3">
-                <div class="font-medium text-slate-900 dark:text-white">
-                  {{ company.name }}
-                </div>
-                <p class="text-xs text-slate-500">
-                  {{ company.summary || '暂无简介' }}
-                </p>
-              </td>
-              <td class="px-4 py-3">
-                <CompanyStatusBadge :status="company.status" />
-              </td>
-              <td class="px-4 py-3 text-slate-500">
-                {{ company.type?.name || '—' }}
-              </td>
-              <td class="px-4 py-3 text-slate-500">
-                {{ company.industry?.name || '—' }}
-              </td>
-              <td class="px-4 py-3 text-slate-500">
-                {{ company.recommendationScore ?? 0 }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </div>
-    </UCard>
+    </div>
 
-    <div v-if="selectedCompany" class="grid gap-6 lg:grid-cols-2">
-      <UCard>
-        <template #header>
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-                {{ selectedCompany.name }}
-              </h3>
-              <p class="text-sm text-slate-500">后台编辑字段</p>
+    <div class="space-y-3">
+      <div
+        class="overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 dark:border-slate-800/60 dark:bg-slate-900/70"
+      >
+        <div class="overflow-x-auto">
+          <table
+            class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800"
+          >
+            <thead class="bg-slate-50/60 dark:bg-slate-900/60">
+              <tr
+                class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                <th class="px-4 py-3">名称</th>
+                <th class="px-4 py-3">状态</th>
+                <th class="px-4 py-3">类型</th>
+                <th class="px-4 py-3">行业</th>
+                <th class="px-4 py-3">法人</th>
+                <th class="px-4 py-3">流程</th>
+                <th class="px-4 py-3 text-right">评分</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/70">
+              <tr
+                v-for="company in adminStore.items"
+                :key="company.id"
+                class="transition hover:bg-slate-50/80 dark:hover:bg-slate-900/60"
+                :class="
+                  company.id === selectedCompanyId ? 'bg-primary-50/60' : ''
+                "
+                @click="handleRowClick(company)"
+              >
+                <td class="px-4 py-3">
+                  <div class="font-medium text-slate-900 dark:text-white">
+                    {{ company.name }}
+                  </div>
+                  <p class="text-xs text-slate-500">
+                    {{ company.summary || '暂无简介' }}
+                  </p>
+                </td>
+                <td class="px-4 py-3">
+                  <CompanyStatusBadge :status="company.status" />
+                </td>
+                <td class="px-4 py-3 text-slate-500">
+                  {{ company.type?.name || '—' }}
+                </td>
+                <td class="px-4 py-3 text-slate-500">
+                  {{ company.industry?.name || '—' }}
+                </td>
+                <td class="px-4 py-3 text-slate-500">
+                  {{
+                    company.legalPerson?.user?.profile?.displayName ||
+                    company.legalPerson?.user?.name ||
+                    '—'
+                  }}
+                </td>
+                <td class="px-4 py-3 text-slate-500">
+                  <div class="font-medium text-slate-900 dark:text-white">
+                    {{ company.workflow?.definitionName || '未绑定流程' }}
+                  </div>
+                  <p class="text-xs text-slate-500">
+                    {{ company.workflow?.state || '—' }}
+                  </p>
+                </td>
+                <td class="px-4 py-3 text-right text-slate-500">
+                  {{ company.recommendationScore ?? 0 }}
+                </td>
+              </tr>
+              <tr v-if="adminStore.items.length === 0">
+                <td
+                  colspan="7"
+                  class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
+                >
+                  暂无公司数据
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
+        >
+          <span>
+            第 {{ adminStore.page }} / {{ safePageCount }} 页，共
+            {{ adminStore.total }} 条
+          </span>
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :disabled="(adminStore.page ?? 1) <= 1 || adminStore.loading"
+              @click="goToPage(1)"
+            >
+              首页
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :disabled="(adminStore.page ?? 1) <= 1 || adminStore.loading"
+              @click="goToPage((adminStore.page ?? 1) - 1)"
+            >
+              上一页
+            </UButton>
+            <div class="flex items-center gap-1">
+              <UInput
+                v-model.number="pageInput"
+                type="number"
+                size="xs"
+                class="w-16 text-center"
+                :disabled="adminStore.loading"
+                min="1"
+                :max="safePageCount"
+                @keydown.enter.prevent="handlePageInput"
+              />
+              <span class="text-xs text-slate-500 dark:text-slate-400">
+                / {{ safePageCount }}
+              </span>
             </div>
-            <CompanyStatusBadge :status="selectedCompany.status" />
+            <UButton
+              color="neutral"
+              variant="soft"
+              size="xs"
+              :disabled="adminStore.loading"
+              @click="handlePageInput"
+            >
+              跳转
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :disabled="adminStore.loading"
+              @click="goToPage(safePageCount)"
+            >
+              末页
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :disabled="adminStore.loading || adminStore.page >= safePageCount"
+              @click="goToPage((adminStore.page ?? 1) + 1)"
+            >
+              下一页
+            </UButton>
           </div>
-        </template>
-        <form class="space-y-4" @submit.prevent="handleAdminSave">
-          <div class="grid gap-4 md:grid-cols-2">
-            <UFormGroup label="状态">
+        </div>
+      </div>
+    </div>
+    <div v-if="selectedCompany" class="grid gap-6 lg:grid-cols-2">
+      <div
+        class="rounded-3xl border border-slate-200/70 bg-white/80 dark:border-slate-800/60 dark:bg-slate-900/70"
+      >
+        <div
+          class="flex items-center justify-between border-b border-slate-100 px-6 py-5 dark:border-slate-800/50"
+        >
+          <div>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ selectedCompany.name }}
+            </h3>
+            <p class="text-sm text-slate-500">后台编辑字段</p>
+          </div>
+          <CompanyStatusBadge :status="selectedCompany.status" />
+        </div>
+        <form class="space-y-5 px-6 py-6" @submit.prevent="handleAdminSave">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-3">
+              <label class="text-xs font-semibold text-slate-500">状态</label>
               <USelectMenu
                 v-model="adminForm.status"
                 :options="statusOptions"
                 placeholder="选择状态"
               />
-            </UFormGroup>
-            <UFormGroup label="可见性">
+            </div>
+            <div class="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-3">
+              <label class="text-xs font-semibold text-slate-500">可见性</label>
               <USelectMenu
                 v-model="adminForm.visibility"
                 :options="visibilityOptions"
                 placeholder="选择可见性"
               />
-            </UFormGroup>
-            <UFormGroup label="推荐分">
+            </div>
+            <div class="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-3">
+              <label class="text-xs font-semibold text-slate-500">推荐分</label>
               <UInput
                 v-model.number="adminForm.recommendationScore"
                 type="number"
                 min="0"
                 max="100"
               />
-            </UFormGroup>
-            <UFormGroup label="推荐显示">
+            </div>
+            <div class="flex items-center justify-end">
+              <label class="text-xs font-semibold text-slate-500 mr-2">
+                推荐显示
+              </label>
               <USwitch v-model="adminForm.highlighted" />
-            </UFormGroup>
+            </div>
           </div>
           <div class="flex justify-end">
             <UButton type="submit" color="primary" :loading="adminSaving">
@@ -276,8 +487,9 @@ const handleAction = async (actionKey: string) => {
             </UButton>
           </div>
         </form>
-        <hr class="my-4 border-dashed border-slate-200" />
-        <div class="space-y-3">
+        <div
+          class="border-t border-dashed border-slate-200 px-6 py-5 dark:border-slate-800/60"
+        >
           <div class="flex items-center justify-between">
             <h4 class="text-base font-semibold text-slate-900 dark:text-white">
               流程动作
@@ -319,10 +531,14 @@ const handleAction = async (actionKey: string) => {
             </p>
           </div>
         </div>
-      </UCard>
-      <UCard>
-        <CompanyTimeline :company="selectedCompany" />
-      </UCard>
+      </div>
+      <div
+        class="rounded-3xl border border-slate-200/70 bg-white/80 dark:border-slate-800/60 dark:bg-slate-900/70"
+      >
+        <div class="px-6 py-5">
+          <CompanyTimeline :company="selectedCompany" />
+        </div>
+      </div>
     </div>
-  </div>
+  </section>
 </template>

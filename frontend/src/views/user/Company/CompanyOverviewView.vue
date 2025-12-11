@@ -36,37 +36,33 @@ const handleDashboard = () => {
     <div
       class="relative overflow-hidden rounded-3xl border border-slate-200 bg-linear-to-br from-slate-50 via-white to-primary-50 p-8 dark:border-slate-800 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 mt-4"
     >
-      <div class="space-y-4">
+      <div class="space-y-4 relative z-1">
         <p
           class="text-sm font-semibold uppercase tracking-widest text-primary-500"
         >
           Hydroline 工商系统
         </p>
         <h1
-          class="text-3xl font-bold leading-tight text-slate-900 dark:text-white"
+          class="text-3xl font-semibold leading-tight text-slate-800 dark:text-white"
         >
-          注册公司 · 自定义制度 · 一站式流程审核
+          仿真工商系统 · 全服统一信息 · 先批后审
         </h1>
         <p class="text-base text-slate-600 dark:text-slate-300">
-          所有玩家都可以在这里创建公司或个体工商户，平台会驱动流程、制度、角色权限和行业标签，管理员审核通过后即可正式对外展示。
+          MTR 铁路想要运营主体？信息只登记在玩家名下不够带派？氢气工艺使用
+          Hydroline 工商系统为所有玩家提供仿真式的公司注册与管理服务！
         </p>
         <div class="flex flex-wrap gap-3">
           <UButton color="primary" size="lg" @click="handleDashboard">
-            {{ canManage ? '进入我的公司' : '登录后申请' }}
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            @click="router.push('/about')"
-          >
-            了解 Hydroline 治理体系
+            {{ canManage ? '工商仪表盘' : '立刻登录' }}
           </UButton>
         </div>
       </div>
       <div
-        class="pointer-events-none absolute inset-y-0 right-0 hidden w-1/2 select-none items-center justify-center lg:flex"
+        class="pointer-events-none absolute z-0 inset-y-0 right-0 hidden w-1/2 select-none items-center justify-center lg:flex"
       >
-        <div class="h-48 w-48 rounded-full bg-primary-100/80 blur-3xl" />
+        <div
+          class="h-48 w-48 rounded-full bg-primary-100/80 dark:bg-primary-900/80 blur-3xl"
+        />
       </div>
     </div>
 
@@ -78,7 +74,6 @@ const handleDashboard = () => {
               <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
                 最近入库公司
               </h2>
-              <p class="text-sm text-slate-500">最新审核通过的工商主体</p>
             </div>
             <UButton
               variant="ghost"
@@ -111,7 +106,6 @@ const handleDashboard = () => {
               <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
                 最近活跃公司
               </h2>
-              <p class="text-sm text-slate-500">运营更新频繁，制度完善</p>
             </div>
             <UButton
               variant="ghost"
@@ -145,12 +139,9 @@ const handleDashboard = () => {
             <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
               行业体系
             </h3>
-            <p class="text-sm text-slate-500">
-              选择行业后，流程模板会根据分类预置节点。
-            </p>
           </div>
         </template>
-        <div class="grid gap-3 md:grid-cols-2">
+        <div class="grid gap-3 md:grid-cols-2" v-if="industries.length > 0">
           <div
             v-for="industry in industries"
             :key="industry.id"
@@ -163,12 +154,12 @@ const handleDashboard = () => {
               {{ industry.description || '行业描述待完善。' }}
             </p>
           </div>
-          <div
-            v-if="industries.length === 0"
-            class="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500"
-          >
-            尚未配置行业，请稍后查看。
-          </div>
+        </div>
+        <div
+          v-else
+          class="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500"
+        >
+          尚未配置行业，请稍后查看。
         </div>
       </UCard>
 
@@ -178,9 +169,6 @@ const handleDashboard = () => {
             <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
               公司类型
             </h3>
-            <p class="text-sm text-slate-500">
-              类型决定默认流程、制度模板以及成员角色。
-            </p>
           </div>
         </template>
         <div class="space-y-3">
