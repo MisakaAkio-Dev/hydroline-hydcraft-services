@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
@@ -11,9 +11,15 @@ import {
   HydrolineBeaconPoolService,
   BeaconLibService,
 } from '../lib/hydroline-beacon';
+import { TransportationModule } from '../transportation/transportation.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, ScheduleModule.forRoot()],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    ScheduleModule.forRoot(),
+    forwardRef(() => TransportationModule),
+  ],
   controllers: [MinecraftController, MinecraftServerController],
   providers: [
     MinecraftService,

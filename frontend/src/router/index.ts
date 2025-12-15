@@ -131,11 +131,14 @@ export const userRoutes: RouteRecordRaw[] = [
       },
       {
         path: 'profile',
-        name: 'profile',
         component: () => import('@/views/user/Profile/ProfileInfoShell.vue'),
         meta: { layout: 'user' },
         children: [
-          { path: '', redirect: { name: 'profile.basic' } },
+          {
+            path: '',
+            name: 'profile',
+            redirect: { name: 'profile.basic' },
+          },
           {
             path: 'basic',
             name: 'profile.basic',

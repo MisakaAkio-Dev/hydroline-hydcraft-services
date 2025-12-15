@@ -70,6 +70,7 @@ model User {
   workflowInstancesCreated WorkflowInstance[]    @relation("WorkflowInstanceCreator")
   transportationRailwayBannersCreated TransportationRailwayBanner[] @relation("TransportationRailwayBannerCreatedBy")
   transportationRailwayBannersUpdated TransportationRailwayBanner[] @relation("TransportationRailwayBannerUpdatedBy")
+  transportationRailwaySyncJobs TransportationRailwaySyncJob[] @relation("TransportationRailwaySyncInitiator")
 
   @@map("users")
 }
@@ -209,6 +210,58 @@ model TransportationRailwayBanner {
 
   @@index([isPublished, displayOrder], map: "idx_transportation_railway_banners_published")
   @@map("transportation_railway_banners")
+}
+
+model TransportationRailwayEntity {
+  id                  String                                  @id @default(uuid())
+  serverId            String
+  category            TransportationRailwayEntityCategory
+  entityId            String
+  dimensionContext    String?
+  transportMode       String?
+  name                String?
+  color               Int?
+  filePath            String?
+  payload             Json
+  lastBeaconUpdatedAt DateTime?
+  syncedAt            DateTime
+  createdAt           DateTime                                @default(now())
+  updatedAt           DateTime                                @updatedAt
+
+  @@unique([serverId, category, entityId], map: "uq_transportation_railway_entity")
+  @@index([serverId, category, dimensionContext], map: "idx_transportation_railway_entity_scope")
+  @@map("transportation_railway_entities")
+}
+
+model TransportationRailwayDimension {
+  id               String   @id @default(uuid())
+  serverId         String
+  dimensionContext String
+  namespace        String?
+  dimension        String?
+  lastUpdated      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([serverId, dimensionContext], map: "uq_transportation_railway_dimension")
+  @@map("transportation_railway_dimensions")
+}
+
+model TransportationRailwaySyncJob {
+  id            String                             @id @default(uuid())
+  serverId      String
+  status        TransportationRailwaySyncStatus    @default(PENDING)
+  message       String?
+  initiatedById String?
+  createdAt     DateTime                           @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  server    MinecraftServer @relation("TransportationRailwaySyncServer", fields: [serverId], references: [id], onDelete: Cascade)
+  initiator User?           @relation("TransportationRailwaySyncInitiator", fields: [initiatedById], references: [id])
+
+  @@index([serverId, status], map: "idx_transportation_railway_sync_jobs")
+  @@map("transportation_railway_sync_jobs")
 }
 
 model UserPiicHistory {
@@ -640,6 +693,7 @@ model MinecraftServer {
   updatedBy              User?                       @relation("MinecraftServerUpdatedBy", fields: [updatedById], references: [id])
   rankPlayerSnapshots    RankPlayerSnapshot[]        @relation("RankSnapshotsPerServer")
   rankSyncJobs           RankSyncJob[]               @relation("RankSyncJobsPerServer")
+  transportationRailwaySyncJobs TransportationRailwaySyncJob[] @relation("TransportationRailwaySyncServer")
 
   @@index([displayOrder], map: "idx_minecraft_server_order")
   @@map("minecraft_servers")
@@ -1213,4 +1267,20 @@ enum OAuthLogAction {
 enum OAuthLogStatus {
   SUCCESS
   FAILURE
+}
+
+enum TransportationRailwayEntityCategory {
+  DEPOT
+  PLATFORM
+  RAIL
+  ROUTE
+  SIGNAL_BLOCK
+  STATION
+}
+
+enum TransportationRailwaySyncStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
 }

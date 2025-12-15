@@ -87,7 +87,7 @@ export interface RailwayRouteDetail {
   >
   depots: RailwayEntity[]
   geometry: {
-    source: 'platform-centers' | 'station-bounds'
+    source: 'rails' | 'platform-centers' | 'station-bounds'
     points: RailwayGeometryPoint[]
   }
 }

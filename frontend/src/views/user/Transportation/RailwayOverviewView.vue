@@ -3,10 +3,9 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { createHydcraftDynmapMap, DynmapMapController } from '@/utils/map'
-import { useTransportationRailwayStore } from '@/stores/transportationRailway'
+import { RailwayMap } from '@/transportation/railway/map'
+import { useTransportationRailwayStore } from '@/transportation/railway/store'
 import { useAuthStore } from '@/stores/auth'
 import type {
   RailwayBanner,
@@ -58,6 +57,7 @@ const canManageBanners = computed(() =>
 )
 
 const settingsModalOpen = ref(false)
+const bannerFormDialogOpen = ref(false)
 const editingBannerId = ref<string | null>(null)
 const bannerForm = reactive({
   attachmentId: '',
@@ -83,8 +83,7 @@ const activeRecommendation = computed<RailwayRoute | null>(
 const recommendationDetail = ref<RailwayRouteDetail | null>(null)
 
 const mapContainerRef = ref<HTMLElement | null>(null)
-const dynmapController = ref<DynmapMapController | null>(null)
-const activePolyline = ref<L.Polyline | null>(null)
+const railwayMap = ref<RailwayMap | null>(null)
 const mapReady = ref(false)
 
 function resetBannerForm(banner?: RailwayBanner | null) {
@@ -101,17 +100,31 @@ function resetBannerForm(banner?: RailwayBanner | null) {
 function openCreateBanner() {
   editingBannerId.value = null
   resetBannerForm(null)
+  bannerFormDialogOpen.value = true
 }
 
 function openEditBanner(banner: RailwayBanner) {
   editingBannerId.value = banner.id
   resetBannerForm(banner)
+  bannerFormDialogOpen.value = true
 }
 
-function colorToHex(color: number | null) {
-  if (color == null || Number.isNaN(color)) return '#0f172a'
-  const normalized = color >>> 0
-  return `#${normalized.toString(16).padStart(6, '0')}`
+function closeBannerFormDialog() {
+  bannerFormDialogOpen.value = false
+  editingBannerId.value = null
+  resetBannerForm(null)
+}
+
+function resetBannerFormFields() {
+  editingBannerId.value = null
+  resetBannerForm(null)
+}
+
+function handleBannerFormDialogToggle(value: boolean) {
+  bannerFormDialogOpen.value = value
+  if (!value) {
+    resetBannerFormFields()
+  }
 }
 
 function formatLastUpdated(timestamp: number | null) {
@@ -161,6 +174,7 @@ function buildRouteDetailLink(item: RailwayRoute) {
 async function refreshRecommendationDetail(routeItem: RailwayRoute | null) {
   if (!routeItem) {
     recommendationDetail.value = null
+    clearRouteGeometry()
     return
   }
   try {
@@ -182,23 +196,21 @@ async function refreshRecommendationDetail(routeItem: RailwayRoute | null) {
 }
 
 function teardownMap() {
-  activePolyline.value?.remove()
-  activePolyline.value = null
-  dynmapController.value?.destroy()
-  dynmapController.value = null
+  railwayMap.value?.destroy()
+  railwayMap.value = null
   mapReady.value = false
 }
 
 async function initMap() {
-  if (!mapContainerRef.value || dynmapController.value) return
+  if (!mapContainerRef.value || railwayMap.value) return
   try {
-    const controller = createHydcraftDynmapMap()
-    controller.mount({
+    const map = new RailwayMap()
+    map.mount({
       container: mapContainerRef.value,
       zoom: 2,
       showZoomControl: true,
     })
-    dynmapController.value = controller
+    railwayMap.value = map
     mapReady.value = true
     if (recommendationDetail.value) {
       drawRouteGeometry(recommendationDetail.value)
@@ -210,23 +222,17 @@ async function initMap() {
 }
 
 function drawRouteGeometry(detail: RailwayRouteDetail | null) {
-  if (!detail || !dynmapController.value) return
-  activePolyline.value?.remove()
-  const points = detail.geometry.points
-  if (!points.length) return
-  const latlngs = points
-    .map((point) =>
-      dynmapController.value?.toLatLng({ x: point.x, z: point.z }),
-    )
-    .filter((point): point is L.LatLngExpression => Boolean(point))
-  if (!latlngs.length) return
-  const polyline = L.polyline(latlngs, {
-    color: colorToHex(detail.route.color ?? null),
+  if (!detail || !railwayMap.value) return
+  railwayMap.value.drawGeometry(detail.geometry.points, {
+    color: detail.route.color ?? null,
     weight: 4,
     opacity: 0.85,
-  }).addTo(dynmapController.value.getLeafletInstance()!)
-  activePolyline.value = polyline
-  dynmapController.value.flyToBlock(points[0], 4)
+  })
+}
+
+function clearRouteGeometry() {
+  if (!railwayMap.value) return
+  railwayMap.value.drawGeometry([])
 }
 
 async function handleSubmitBanner() {
@@ -246,8 +252,7 @@ async function handleSubmitBanner() {
       })
       toast.add({ title: 'Banner 已创建', color: 'success' })
     }
-    resetBannerForm(null)
-    editingBannerId.value = null
+    closeBannerFormDialog()
     await transportationStore.fetchAdminBanners()
   } catch (error) {
     console.error(error)
@@ -298,8 +303,7 @@ watch(
       void refreshRecommendationDetail(items[0])
     } else {
       recommendationDetail.value = null
-      activePolyline.value?.remove()
-      activePolyline.value = null
+      clearRouteGeometry()
     }
   },
 )
@@ -309,9 +313,10 @@ watch(
   (open) => {
     if (open) {
       void transportationStore.fetchAdminBanners()
-      openCreateBanner()
+      resetBannerFormFields()
     } else {
       transportationStore.clearBannerCache()
+      closeBannerFormDialog()
     }
   },
 )
@@ -595,132 +600,134 @@ onBeforeUnmount(() => {
         仅管理员可编辑，背景图需先在附件库上传并设置为公开访问。
       </template>
       <template #body>
-        <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
-          <div class="space-y-4">
-            <div
-              class="rounded-2xl border border-slate-200/70 bg-white/90 p-4 dark:border-slate-800 dark:bg-slate-900"
-            >
-              <div class="flex items-center justify-between">
-                <h4
-                  class="text-sm font-semibold text-slate-900 dark:text-white"
-                >
-                  Banner 列表
-                </h4>
-                <UButton
-                  size="xs"
-                  color="primary"
-                  variant="soft"
-                  @click="openCreateBanner()"
-                >
-                  新增
-                </UButton>
-              </div>
-              <div class="mt-3 space-y-3">
-                <p v-if="adminBannersLoading" class="text-sm text-slate-500">
-                  加载中…
-                </p>
-                <p
-                  v-else-if="adminBanners.length === 0"
-                  class="text-sm text-slate-500"
-                >
-                  暂无数据，请先创建。
-                </p>
-                <div
-                  v-for="banner in adminBanners"
-                  :key="banner.id"
-                  class="rounded-xl border border-slate-100/80 p-3 text-sm dark:border-slate-800"
-                >
-                  <div class="flex items-center justify-between">
-                    <div>
-                      <p class="font-medium text-slate-900 dark:text-white">
-                        {{ banner.title || '未命名 Banner' }}
-                      </p>
-                      <p class="text-xs text-slate-500">
-                        附件：{{ banner.attachmentId || '未配置' }}
-                      </p>
-                    </div>
-                    <div class="flex gap-2">
-                      <UButton
-                        size="xs"
-                        variant="soft"
-                        @click="openEditBanner(banner)"
-                      >
-                        编辑
-                      </UButton>
-                      <UButton
-                        size="xs"
-                        color="neutral"
-                        variant="ghost"
-                        :loading="bannerSubmitting"
-                        @click="handleDeleteBanner(banner.id)"
-                      >
-                        删除
-                      </UButton>
-                    </div>
+        <div class="space-y-4">
+          <div
+            class="rounded-2xl border border-slate-200/70 bg-white/90 p-4 dark:border-slate-800 dark:bg-slate-900"
+          >
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold text-slate-900 dark:text-white">
+                Banner 列表
+              </h4>
+              <UButton
+                size="xs"
+                color="primary"
+                variant="soft"
+                @click="openCreateBanner()"
+              >
+                新增
+              </UButton>
+            </div>
+            <div class="mt-3 space-y-3">
+              <p v-if="adminBannersLoading" class="text-sm text-slate-500">
+                加载中…
+              </p>
+              <p
+                v-else-if="adminBanners.length === 0"
+                class="text-sm text-slate-500"
+              >
+                暂无数据，请先创建。
+              </p>
+              <div
+                v-for="banner in adminBanners"
+                :key="banner.id"
+                class="rounded-xl border border-slate-100/80 p-3 text-sm dark:border-slate-800"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="font-medium text-slate-900 dark:text-white">
+                      {{ banner.title || '未命名 Banner' }}
+                    </p>
+                    <p class="text-xs text-slate-500">
+                      附件：{{ banner.attachmentId || '未配置' }}
+                    </p>
+                  </div>
+                  <div class="flex gap-2">
+                    <UButton
+                      size="xs"
+                      variant="soft"
+                      @click="openEditBanner(banner)"
+                    >
+                      编辑
+                    </UButton>
+                    <UButton
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      :loading="bannerSubmitting"
+                      @click="handleDeleteBanner(banner.id)"
+                    >
+                      删除
+                    </UButton>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <div
-            class="rounded-2xl border border-slate-200/70 bg-white/90 p-4 dark:border-slate-800 dark:bg-slate-900"
-          >
-            <h4 class="text-sm font-semibold text-slate-900 dark:text-white">
-              {{ editingBannerId ? '编辑' : '创建' }} Banner
-            </h4>
-            <div class="mt-3 space-y-3">
-              <UFormGroup label="附件 ID" required>
-                <UInput
-                  v-model="bannerForm.attachmentId"
-                  placeholder="示例：att_xxx"
-                />
-              </UFormGroup>
-              <UFormGroup label="标题">
-                <UInput v-model="bannerForm.title" />
-              </UFormGroup>
-              <UFormGroup label="副标题">
-                <UInput v-model="bannerForm.subtitle" />
-              </UFormGroup>
-              <UFormGroup label="描述">
-                <UTextarea v-model="bannerForm.description" rows="3" />
-              </UFormGroup>
-              <div class="grid gap-3 md:grid-cols-2">
-                <UFormGroup label="按钮文本">
-                  <UInput v-model="bannerForm.ctaLabel" />
-                </UFormGroup>
-                <UFormGroup label="跳转链接">
-                  <UInput v-model="bannerForm.ctaLink" placeholder="https://" />
-                </UFormGroup>
-              </div>
-              <div class="grid gap-3 md:grid-cols-2">
-                <UFormGroup label="排序值">
-                  <UInput
-                    v-model.number="bannerForm.displayOrder"
-                    type="number"
-                    min="0"
-                  />
-                </UFormGroup>
-                <UFormGroup label="发布状态">
-                  <UToggle v-model="bannerForm.isPublished" />
-                </UFormGroup>
-              </div>
-              <div class="flex justify-end gap-2">
-                <UButton
-                  variant="ghost"
-                  :disabled="bannerSubmitting"
-                  @click="openCreateBanner()"
-                >
-                  重置
-                </UButton>
-                <UButton
-                  color="primary"
-                  :loading="bannerSubmitting"
-                  @click="handleSubmitBanner"
-                >
-                  {{ editingBannerId ? '保存修改' : '创建 Banner' }}
-                </UButton>
-              </div>
-            </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      :open="bannerFormDialogOpen"
+      @update:open="handleBannerFormDialogToggle"
+      :ui="{ width: 'w-full max-w-lg' }"
+    >
+      <template #title>{{ editingBannerId ? '编辑' : '创建' }} Banner</template>
+      <template #description>
+        仅管理员可编辑，背景图需先在附件库上传并设置为公开访问。
+      </template>
+      <template #body>
+        <div class="mt-3 space-y-3">
+          <UFormField label="附件 ID" required>
+            <UInput
+              v-model="bannerForm.attachmentId"
+              placeholder="示例：att_xxx"
+            />
+          </UFormField>
+          <UFormField label="标题">
+            <UInput v-model="bannerForm.title" />
+          </UFormField>
+          <UFormField label="副标题">
+            <UInput v-model="bannerForm.subtitle" />
+          </UFormField>
+          <UFormField label="描述">
+            <UTextarea v-model="bannerForm.description" :rows="3" />
+          </UFormField>
+          <div class="grid gap-3 md:grid-cols-2">
+            <UFormField label="按钮文本">
+              <UInput v-model="bannerForm.ctaLabel" />
+            </UFormField>
+            <UFormField label="跳转链接">
+              <UInput v-model="bannerForm.ctaLink" placeholder="https://" />
+            </UFormField>
+          </div>
+          <div class="grid gap-3 md:grid-cols-2">
+            <UFormField label="排序值">
+              <UInput
+                v-model.number="bannerForm.displayOrder"
+                type="number"
+                min="0"
+              />
+            </UFormField>
+            <UFormField label="发布状态">
+              <USwitch v-model="bannerForm.isPublished" />
+            </UFormField>
+          </div>
+          <div class="flex justify-end gap-2">
+            <UButton
+              variant="ghost"
+              :disabled="bannerSubmitting"
+              @click="resetBannerFormFields()"
+            >
+              重置
+            </UButton>
+            <UButton
+              color="primary"
+              :loading="bannerSubmitting"
+              @click="handleSubmitBanner"
+            >
+              {{ editingBannerId ? '保存修改' : '创建 Banner' }}
+            </UButton>
           </div>
         </div>
       </template>

@@ -78,6 +78,21 @@ export interface BeaconMtrLogsResponse {
   result: BeaconMtrLogsResult
 }
 
+export interface BeaconRailwaySnapshotResponse {
+  server: MinecraftServer
+  result: Record<string, unknown>
+}
+
+export interface RailwaySyncJob {
+  id: string
+  serverId: string
+  status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  message: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
 export interface BeaconPlayerAdvancementsResult {
   success?: boolean
   player_uuid?: string

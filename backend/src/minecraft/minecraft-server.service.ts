@@ -13,6 +13,7 @@ import {
   HydrolineBeaconPoolService,
   BeaconLibService,
 } from '../lib/hydroline-beacon';
+import { TransportationRailwaySyncService } from '../transportation/railway/railway-sync.service';
 
 @Injectable()
 export class MinecraftServerService {
@@ -22,6 +23,7 @@ export class MinecraftServerService {
     private readonly pingScheduler: MinecraftPingScheduler,
     private readonly beaconPool: HydrolineBeaconPoolService,
     private readonly beaconLib: BeaconLibService,
+    private readonly railwaySyncService: TransportationRailwaySyncService,
   ) {}
 
   // 递归移除字符串中的 \u0000，避免 Postgres 22P05（text/json 不允许零字节）
@@ -704,6 +706,26 @@ export class MinecraftServerService {
     if (player.playerName) payload.playerName = player.playerName;
     const result = await client.emit<any>('lookup_player_identity', payload);
     return { server: this.stripSecret(server), result };
+  }
+
+  async getBeaconRailwaySnapshot(id: string) {
+    const { server, client } = await this.prepareBeaconClient(id);
+    const result = await client.emit<any>('get_mtr_railway_snapshot', {});
+    return { server: this.stripSecret(server), result };
+  }
+
+  async syncRailwayEntities(id: string, initiatedById?: string) {
+    await this.getServerById(id);
+    return this.railwaySyncService.enqueueSyncJob(id, initiatedById ?? null);
+  }
+
+  async getRailwaySyncJob(jobId: string) {
+    return this.railwaySyncService.getSyncJob(jobId);
+  }
+
+  async getLatestRailwaySyncJob(serverId: string) {
+    await this.getServerById(serverId);
+    return this.railwaySyncService.getLatestActiveJob(serverId);
   }
 
   async triggerBeaconForceUpdate(id: string) {

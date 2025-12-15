@@ -281,4 +281,32 @@ export class MinecraftServerController {
   triggerBeaconForceUpdate(@Param('id') id: string) {
     return this.service.triggerBeaconForceUpdate(id);
   }
+
+  @Get(':id/beacon/railway-snapshot')
+  @ApiOperation({ summary: '获取 Beacon MTR 铁路快照' })
+  @RequirePermissions(PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE)
+  getBeaconRailwaySnapshot(@Param('id') id: string) {
+    return this.service.getBeaconRailwaySnapshot(id);
+  }
+
+  @Post(':id/beacon/railway-sync')
+  @ApiOperation({ summary: '手动触发 MTR 铁路数据同步' })
+  @RequirePermissions(PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE)
+  syncRailwayEntities(@Param('id') id: string, @Req() req: Request) {
+    return this.service.syncRailwayEntities(id, req.user?.id);
+  }
+
+  @Get(':id/beacon/railway-sync/:jobId')
+  @ApiOperation({ summary: '查询铁路同步任务状态' })
+  @RequirePermissions(PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE)
+  getRailwaySyncJob(@Param('jobId') jobId: string) {
+    return this.service.getRailwaySyncJob(jobId);
+  }
+
+  @Get(':id/beacon/railway-sync')
+  @ApiOperation({ summary: '获取当前铁路同步任务（若存在）' })
+  @RequirePermissions(PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE)
+  getLatestRailwaySyncJob(@Param('id') id: string) {
+    return this.service.getLatestRailwaySyncJob(id);
+  }
 }

@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMinecraftServerStore } from '@/stores/minecraftServers'
 import { useUiStore } from '@/stores/ui'
+import { useAuthStore } from '@/stores/auth'
 import { apiFetch } from '@/utils/api'
 import type {
   BeaconStatusResponse,
@@ -15,6 +16,7 @@ import type {
   MinecraftPingHistoryItem,
   MinecraftPingSettings,
   McsmInstanceDetail,
+  RailwaySyncJob,
 } from '@/types/minecraft'
 import VChart from 'vue-echarts'
 import dayjs from 'dayjs'
@@ -27,6 +29,7 @@ import MinecraftServerBeaconDialog from './components/MinecraftServerBeaconDialo
 
 const serverStore = useMinecraftServerStore()
 const uiStore = useUiStore()
+const authStore = useAuthStore()
 const toast = useToast()
 
 const { items: servers } = storeToRefs(serverStore)
@@ -182,6 +185,10 @@ const mcsmConfigReady = computed(() => {
   )
 })
 
+const canFetchRailwaySnapshot = computed(() =>
+  authStore.hasPermission('beacon.admin.force-update'),
+)
+
 const beaconStatus = ref<BeaconStatusResponse | null>(null)
 const beaconLoading = ref(false)
 let beaconTimer: ReturnType<typeof setInterval> | null = null
@@ -196,10 +203,130 @@ const beaconConnLoading = ref(false)
 const beaconStatusDetail = ref<BeaconStatusResponse | null>(null)
 const beaconStatusLoading = ref(false)
 const beaconCheckLoading = ref(false)
+const snapshotDialogOpen = ref(false)
+const snapshotServer = ref<MinecraftServer | null>(null)
+const snapshotLoading = ref(false)
+const snapshotResult = ref<string | null>(null)
+const snapshotError = ref<string | null>(null)
+const railwaySyncJob = ref<RailwaySyncJob | null>(null)
+const railwaySyncPolling = ref<ReturnType<typeof setInterval> | null>(null)
+const railwaySyncLoading = ref(false)
+async function fetchRailwaySyncJobRaw(serverId: string, jobId: string) {
+  const action = (serverStore as Record<string, unknown>).getRailwaySyncJob
+  if (typeof action === 'function') {
+    return await action.call(serverStore, serverId, jobId)
+  }
+  if (!authStore.token) {
+    throw new Error('未登录，无法获取铁路同步状态')
+  }
+  return await apiFetch<RailwaySyncJob>(
+    `/admin/minecraft/servers/${serverId}/beacon/railway-sync/${jobId}`,
+    { token: authStore.token },
+  )
+}
+
+async function fetchLatestRailwaySyncJobRaw(serverId: string) {
+  const action = (serverStore as Record<string, unknown>)
+    .getLatestRailwaySyncJob
+  if (typeof action === 'function') {
+    return await action.call(serverStore, serverId)
+  }
+  if (!authStore.token) {
+    throw new Error('未登录，无法获取铁路同步状态')
+  }
+  return await apiFetch<RailwaySyncJob | null>(
+    `/admin/minecraft/servers/${serverId}/beacon/railway-sync`,
+    { token: authStore.token },
+  )
+}
+
 async function openBeaconDialog(server: MinecraftServer) {
   beaconDialogServer.value = server
   beaconDialogOpen.value = true
+  railwaySyncJob.value = await fetchLatestRailwaySyncJobRaw(server.id)
+  if (railwaySyncJob.value) {
+    startRailwaySyncPolling()
+  }
   await Promise.all([refreshBeaconConn(), refreshBeaconStatus()])
+}
+async function fetchRailwaySnapshot(server: MinecraftServer) {
+  if (!canFetchRailwaySnapshot.value) {
+    return
+  }
+  snapshotServer.value = server
+  snapshotResult.value = null
+  snapshotError.value = null
+  snapshotDialogOpen.value = true
+  snapshotLoading.value = true
+  try {
+    const payload = await serverStore.getBeaconRailwaySnapshot(server.id)
+    snapshotResult.value = JSON.stringify(payload.result ?? payload, null, 2)
+  } catch (e) {
+    snapshotError.value = (e as Error).message
+  } finally {
+    snapshotLoading.value = false
+  }
+}
+
+function stopRailwaySyncPolling() {
+  if (railwaySyncPolling.value) {
+    clearInterval(railwaySyncPolling.value)
+    railwaySyncPolling.value = null
+  }
+}
+
+async function pollRailwaySyncJobOnce() {
+  const server = beaconDialogServer.value
+  if (!server || !railwaySyncJob.value) return
+  try {
+    const job = await fetchRailwaySyncJobRaw(server.id, railwaySyncJob.value.id)
+    railwaySyncJob.value = job
+    if (job.status === 'SUCCEEDED') {
+      stopRailwaySyncPolling()
+      toast.add({ title: '铁路数据同步完成', color: 'success' })
+    } else if (job.status === 'FAILED') {
+      stopRailwaySyncPolling()
+      toast.add({
+        title: '铁路数据同步失败',
+        description: job.message || '请检查 Beacon 状态后重试',
+        color: 'error',
+      })
+    }
+  } catch (error) {
+    stopRailwaySyncPolling()
+    toast.add({
+      title: '获取同步状态失败',
+      description: error instanceof Error ? error.message : '请稍后再试',
+      color: 'error',
+    })
+  }
+}
+
+function startRailwaySyncPolling() {
+  stopRailwaySyncPolling()
+  void pollRailwaySyncJobOnce()
+  railwaySyncPolling.value = setInterval(() => {
+    void pollRailwaySyncJobOnce()
+  }, 2000)
+}
+
+async function syncRailwayEntities() {
+  const id = beaconDialogServer.value?.id
+  if (!id) return
+  railwaySyncLoading.value = true
+  try {
+    railwaySyncJob.value = await serverStore.syncRailwayEntities(id)
+    toast.add({ title: '已触发 MTR 铁路数据同步', color: 'success' })
+    startRailwaySyncPolling()
+  } catch (error) {
+    toast.add({
+      title: '同步失败',
+      description: error instanceof Error ? error.message : '请稍后再试',
+      color: 'error',
+    })
+  } finally {
+    railwaySyncLoading.value = false
+  }
 }
 async function refreshBeaconConn() {
   const id = beaconDialogServer.value?.id
@@ -375,6 +502,8 @@ watch(beaconDialogOpen, (open) => {
     startBeaconDialogPolling()
   } else {
     stopBeaconDialogPolling()
+    stopRailwaySyncPolling()
+    railwaySyncJob.value = null
   }
 })
 
@@ -1197,6 +1326,19 @@ async function controlMcsm(
                 >
                   Beacon
                 </UButton>
+                <UButton
+                  v-if="
+                    canFetchRailwaySnapshot &&
+                    (row.beaconEnabled || (row as any).beaconConfigured)
+                  "
+                  size="xs"
+                  variant="ghost"
+                  color="primary"
+                  :loading="snapshotLoading && snapshotServer?.id === row.id"
+                  @click="fetchRailwaySnapshot(row)"
+                >
+                  MTR 快照
+                </UButton>
                 <UButton size="xs" variant="ghost" @click="openDetail(row)"
                   >查看</UButton
                 >
@@ -1304,6 +1446,58 @@ async function controlMcsm(
       @update:open="adhocDialog = $event"
       @submit="submitAdhoc"
     />
+    <UModal
+      :open="snapshotDialogOpen"
+      @update:open="snapshotDialogOpen = $event"
+      :ui="{
+        content: 'w-full max-w-4xl max-h-[90vh]',
+        wrapper: 'z-[140]',
+        overlay: 'z-[130]',
+      }"
+    >
+      <template #content>
+        <div class="space-y-4 p-6">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-lg font-semibold text-slate-900 dark:text-white">
+                {{ snapshotServer?.displayName || 'Beacon MTR 快照' }}
+              </p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                {{ snapshotServer?.host }}:{{ snapshotServer?.port }}
+              </p>
+            </div>
+            <UButton
+              size="xs"
+              variant="ghost"
+              icon="i-lucide-rotate-cw"
+              :loading="snapshotLoading"
+              @click="snapshotServer && fetchRailwaySnapshot(snapshotServer)"
+            >
+              重新获取
+            </UButton>
+          </div>
+          <div class="h-px bg-slate-100 dark:bg-slate-800"></div>
+          <div
+            v-if="snapshotLoading"
+            class="text-sm text-slate-500 dark:text-slate-400"
+          >
+            正在获取 Beacon MTR 快照……
+          </div>
+          <div v-else-if="snapshotError" class="text-sm text-rose-500">
+            {{ snapshotError }}
+          </div>
+          <pre
+            v-else-if="snapshotResult"
+            class="max-h-[60vh] overflow-auto rounded border border-slate-100 bg-slate-950/70 p-3 text-xs text-slate-50 dark:border-slate-800"
+          >
+            <code>{{ snapshotResult }}</code>
+          </pre>
+          <p v-else class="text-sm text-slate-500 dark:text-slate-400">
+            暂无快照数据
+          </p>
+        </div>
+      </template>
+    </UModal>
     <!-- 删除确认对话框 -->
     <UModal
       :open="deleteConfirmDialogOpen"
@@ -1347,6 +1541,8 @@ async function controlMcsm(
       :conn-loading="beaconConnLoading"
       :status-loading="beaconStatusLoading"
       :check-loading="beaconCheckLoading"
+      :railway-sync-loading="railwaySyncLoading"
+      :railway-sync-job="railwaySyncJob"
       @update:open="beaconDialogOpen = $event"
       @edit="
         beaconDialogServer
@@ -1358,6 +1554,9 @@ async function controlMcsm(
       @reconnect="reconnectBeacon"
       @check-connectivity="checkBeaconConnectivity"
       @refresh-conn="refreshBeaconConn"
+      @sync-railway="syncRailwayEntities"
     />
   </div>
 </template>
+watch( () => beaconDialogServer.value?.id, () => { stopRailwaySyncPolling()
+railwaySyncJob.value = null }, )

@@ -4,6 +4,7 @@ import type {
   BeaconConnectionStatusResponse,
   BeaconStatusResponse,
   MinecraftServer,
+  RailwaySyncJob,
 } from '@/types/minecraft'
 
 const props = defineProps<{
@@ -14,6 +15,8 @@ const props = defineProps<{
   connLoading: boolean
   statusLoading: boolean
   checkLoading: boolean
+  railwaySyncLoading: boolean
+  railwaySyncJob: RailwaySyncJob | null
 }>()
 
 const emit = defineEmits<{
@@ -24,6 +27,7 @@ const emit = defineEmits<{
   (e: 'reconnect'): void
   (e: 'check-connectivity'): void
   (e: 'refresh-conn'): void
+  (e: 'sync-railway'): void
 }>()
 </script>
 
@@ -121,7 +125,47 @@ const emit = defineEmits<{
                 @click="emit('refresh-conn')"
                 >刷新</UButton
               >
+              <UButton
+                class="col-span-3 flex justify-center items-center"
+                size="sm"
+                variant="soft"
+                color="primary"
+                icon="i-lucide-train-front"
+                :loading="props.railwaySyncLoading"
+                :disabled="!props.server?.id"
+                @click="emit('sync-railway')"
+                >同步 MTR 铁路数据</UButton
+              >
             </div>
+          </div>
+          <div
+            v-if="props.railwaySyncJob"
+            class="rounded-lg border border-slate-100 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300"
+          >
+            <span class="mr-2">铁路同步状态:</span>
+            <UBadge
+              size="xs"
+              :color="
+                props.railwaySyncJob.status === 'SUCCEEDED'
+                  ? 'success'
+                  : props.railwaySyncJob.status === 'FAILED'
+                    ? 'error'
+                    : 'primary'
+              "
+            >
+              {{
+                props.railwaySyncJob.status === 'PENDING'
+                  ? '排队中'
+                  : props.railwaySyncJob.status === 'RUNNING'
+                    ? '运行中'
+                    : props.railwaySyncJob.status === 'SUCCEEDED'
+                      ? '已完成'
+                      : '失败'
+              }}
+            </UBadge>
+            <span v-if="props.railwaySyncJob.message" class="ml-2">
+              {{ props.railwaySyncJob.message }}
+            </span>
           </div>
         </template>
         <div class="space-y-3 text-sm">

@@ -3,10 +3,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { createHydcraftDynmapMap, DynmapMapController } from '@/utils/map'
-import { useTransportationRailwayStore } from '@/stores/transportationRailway'
+import { RailwayMap } from '@/transportation/railway/map'
+import { useTransportationRailwayStore } from '@/transportation/railway/store'
 import type { RailwayRouteDetail } from '@/types/transportation'
 
 dayjs.extend(relativeTime)
@@ -21,8 +20,7 @@ const loading = ref(true)
 const errorMessage = ref<string | null>(null)
 
 const mapContainerRef = ref<HTMLElement | null>(null)
-const dynmapController = ref<DynmapMapController | null>(null)
-const polyline = ref<L.Polyline | null>(null)
+const railwayMap = ref<RailwayMap | null>(null)
 
 const params = computed(() => {
   const routeId = route.params.routeId as string | undefined
@@ -69,48 +67,35 @@ function getStationName(stationId: string | null | undefined) {
   return station?.name || `站点 ${stationId}`
 }
 
-function colorToHex(color: number | null | undefined) {
-  if (color == null) return '#0ea5e9'
-  return `#${(color >>> 0).toString(16).padStart(6, '0')}`
-}
-
 function teardownMap() {
-  polyline.value?.remove()
-  polyline.value = null
-  dynmapController.value?.destroy()
-  dynmapController.value = null
+  railwayMap.value?.destroy()
+  railwayMap.value = null
 }
 
 function drawGeometry() {
-  if (!detail.value || !dynmapController.value) return
-  polyline.value?.remove()
-  const points = detail.value.geometry.points
-  const latlngs = points
-    .map((point) =>
-      dynmapController.value?.toLatLng({ x: point.x, z: point.z }),
-    )
-    .filter((val): val is L.LatLngExpression => Boolean(val))
-  if (!latlngs.length) return
-  const map = dynmapController.value.getLeafletInstance()
-  if (!map) return
-  polyline.value = L.polyline(latlngs, {
-    color: colorToHex(detail.value.route.color),
+  if (!detail.value || !railwayMap.value) return
+  railwayMap.value.drawGeometry(detail.value.geometry.points, {
+    color: detail.value.route.color,
     weight: 4,
     opacity: 0.85,
-  }).addTo(map)
-  dynmapController.value.flyToBlock(points[0], 4)
+  })
+}
+
+function clearGeometry() {
+  if (!railwayMap.value) return
+  railwayMap.value.drawGeometry([])
 }
 
 async function initMap() {
   if (!mapContainerRef.value) return
-  if (!dynmapController.value) {
-    const controller = createHydcraftDynmapMap()
-    controller.mount({
+  if (!railwayMap.value) {
+    const map = new RailwayMap()
+    map.mount({
       container: mapContainerRef.value,
       zoom: 2,
       showZoomControl: true,
     })
-    dynmapController.value = controller
+    railwayMap.value = map
   }
   drawGeometry()
 }
@@ -119,6 +104,8 @@ async function fetchDetail() {
   const { routeId, serverId, dimension } = params.value
   if (!routeId || !serverId) {
     errorMessage.value = '缺少 routeId 或 serverId 参数'
+    detail.value = null
+    clearGeometry()
     loading.value = false
     return
   }
@@ -136,6 +123,8 @@ async function fetchDetail() {
     errorMessage.value =
       error instanceof Error ? error.message : '加载失败，请稍后再试'
     toast.add({ title: errorMessage.value, color: 'error' })
+    detail.value = null
+    clearGeometry()
   } finally {
     loading.value = false
   }

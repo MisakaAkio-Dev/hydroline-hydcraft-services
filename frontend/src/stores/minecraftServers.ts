@@ -2,12 +2,14 @@ import { defineStore } from 'pinia'
 import { apiFetch } from '@/utils/api'
 import { useAuthStore } from './auth'
 import type {
+  BeaconRailwaySnapshotResponse,
   MinecraftPingResult,
   MinecraftServer,
   MinecraftServerEdition,
   MinecraftPingHistoryItem,
   MinecraftPingSettings,
   McsmInstanceDetail,
+  RailwaySyncJob,
 } from '@/types/minecraft'
 
 type CreateServerPayload = {
@@ -215,6 +217,38 @@ export const useMinecraftServerStore = defineStore('minecraft-servers', {
       return await apiFetch(`/admin/minecraft/servers/${id}/beacon/status`, {
         token,
       })
+    },
+
+    async getBeaconRailwaySnapshot(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch<BeaconRailwaySnapshotResponse>(
+        `/admin/minecraft/servers/${id}/beacon/railway-snapshot`,
+        { token },
+      )
+    },
+
+    async syncRailwayEntities(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch<RailwaySyncJob>(
+        `/admin/minecraft/servers/${id}/beacon/railway-sync`,
+        { method: 'POST', token },
+      )
+    },
+
+    async getRailwaySyncJob(id: string, jobId: string) {
+      const token = this.authHeaders()
+      return await apiFetch<RailwaySyncJob>(
+        `/admin/minecraft/servers/${id}/beacon/railway-sync/${jobId}`,
+        { token },
+      )
+    },
+
+    async getLatestRailwaySyncJob(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch<RailwaySyncJob | null>(
+        `/admin/minecraft/servers/${id}/beacon/railway-sync`,
+        { token },
+      )
     },
 
     async getBeaconConnectionStatus(id: string) {

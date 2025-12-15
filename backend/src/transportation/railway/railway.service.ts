@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, TransportationRailwayEntityCategory } from '@prisma/client';
 import {
   HydrolineBeaconEvent,
   HydrolineBeaconPoolService,
@@ -16,9 +16,15 @@ import {
   RailwayRouteDetailQueryDto,
   UpdateRailwayBannerDto,
 } from '../dto/railway.dto';
+import {
+  BlockPosition,
+  decodeBlockPosition,
+  encodeBlockPosition,
+} from '../utils/block-pos.util';
 
 const BEACON_TIMEOUT_MS = 10000;
 const DEFAULT_RECOMMENDATION_COUNT = 4;
+const MAX_RAIL_SEARCH_VISITS = 20000;
 
 const bannerInclude =
   Prisma.validator<Prisma.TransportationRailwayBannerInclude>()({
@@ -42,6 +48,7 @@ type QueryMtrEntityRow = {
   file_path?: string | null;
   last_updated?: number | null;
   payload?: unknown;
+  node_pos?: unknown;
 };
 
 type QueryMtrEntitiesResponse = {
@@ -196,9 +203,24 @@ type RouteDetailResult = {
   >;
   depots: NormalizedEntity[];
   geometry: {
-    source: 'platform-centers' | 'station-bounds';
+    source: 'rails' | 'platform-centers' | 'station-bounds';
     points: Array<{ x: number; z: number }>;
   };
+};
+
+type RailGraphNode = {
+  id: string;
+  position: BlockPosition;
+};
+
+type PlatformNode = {
+  platformId: string | null;
+  nodes: RailGraphNode[];
+};
+
+type RailGraph = {
+  positions: Map<string, BlockPosition>;
+  adjacency: Map<string, Set<string>>;
 };
 
 @Injectable()
@@ -319,11 +341,6 @@ export class TransportationRailwayService {
         .includes(normalizedRouteId),
     );
 
-    const geometry = this.buildRouteGeometry(
-      selectedPlatforms,
-      selectedStations,
-    );
-
     const normalizedRouteMeta = this.normalizeRouteRow(routeMetaRow, server);
     const normalizedRoutePayload = this.toCleanPayload(routeMetaRow?.payload);
 
@@ -341,6 +358,18 @@ export class TransportationRailwayService {
         this.buildDimensionContextFromDimension(snapshot.dimension),
       platformCount: orderedPlatformIds.length,
     };
+
+    const dimensionContextForGeometry =
+      normalizedRoute.dimensionContext ??
+      this.buildDimensionContextFromDimension(normalizedRoute.dimension) ??
+      this.buildDimensionContextFromDimension(snapshot.dimension);
+
+    const geometry = await this.buildRouteGeometry(
+      server,
+      dimensionContextForGeometry,
+      selectedPlatforms,
+      selectedStations,
+    );
 
     const normalizedStations = selectedStations.map((station) =>
       this.normalizeStationRecord(station, server),
@@ -548,27 +577,46 @@ export class TransportationRailwayService {
   ) {
     const response = await this.fetchRailwaySnapshot(server);
     const normalizedId = routeId;
+    const candidateIds = this.buildIdCandidates(normalizedId);
     const snapshots = response.snapshots ?? [];
     if (dimension) {
       const entry = snapshots.find((snap) => snap.dimension === dimension);
       if (entry) {
-        const route = (entry.payload?.routes ?? []).find(
-          (item) => this.normalizeId(item.id) === normalizedId,
-        );
+        const route = this.findRouteInSnapshot(entry, candidateIds);
         if (route) {
           return { ...entry, route };
         }
       }
     }
     for (const entry of snapshots) {
-      const route = (entry.payload?.routes ?? []).find(
-        (item) => this.normalizeId(item.id) === normalizedId,
-      );
+      const route = this.findRouteInSnapshot(entry, candidateIds);
       if (route) {
         return { ...entry, route };
       }
     }
     return null;
+  }
+  private buildIdCandidates(routeId: string) {
+    const candidates = new Set<string>();
+    const trimmed = routeId?.trim();
+    if (trimmed) {
+      candidates.add(trimmed);
+      const truncated = this.normalizeId(this.toNumber(trimmed));
+      if (truncated && truncated !== trimmed) {
+        candidates.add(truncated);
+      }
+    }
+    return candidates;
+  }
+
+  private findRouteInSnapshot(
+    entry: RailwaySnapshotEntry,
+    candidateIds: Set<string>,
+  ) {
+    return (entry.payload?.routes ?? []).find((item) => {
+      const currentId = this.normalizeId(item.id);
+      return currentId ? candidateIds.has(currentId) : false;
+    });
   }
 
   private async fetchSingleRouteRow(
@@ -586,7 +634,79 @@ export class TransportationRailwayService {
     return response.rows?.[0] ?? null;
   }
 
-  private buildRouteGeometry(
+  private async buildRouteGeometry(
+    server: BeaconServerRecord,
+    dimensionContext: string | null,
+    platforms: RailwayPlatformRecord[],
+    stations: RailwayStationRecord[],
+  ) {
+    if (dimensionContext) {
+      try {
+        const geometry = await this.buildGeometryFromRails(
+          server,
+          dimensionContext,
+          platforms,
+        );
+        if (geometry) {
+          return geometry;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `Failed to build rail geometry for ${server.displayName} (${dimensionContext}): ${message}`,
+        );
+      }
+    }
+    return this.buildFallbackGeometry(platforms, stations);
+  }
+
+  private async buildGeometryFromRails(
+    server: BeaconServerRecord,
+    dimensionContext: string,
+    platforms: RailwayPlatformRecord[],
+  ) {
+    const platformNodes = this.extractPlatformNodes(platforms);
+    if (!platformNodes.length) {
+      return null;
+    }
+    const railRows = await this.prisma.transportationRailwayEntity.findMany({
+      where: {
+        serverId: server.id,
+        category: TransportationRailwayEntityCategory.RAIL,
+        dimensionContext,
+      },
+      select: {
+        entityId: true,
+        payload: true,
+      },
+    });
+    if (!railRows.length) {
+      return null;
+    }
+    let graph = this.buildRailGraph(railRows);
+    if (!graph?.positions.size) {
+      const fallbackRails = await this.fetchRailsFromBeacon(
+        server,
+        dimensionContext,
+      );
+      if (fallbackRails.length) {
+        graph = this.buildRailGraph(fallbackRails);
+      }
+    }
+    if (!graph) {
+      return null;
+    }
+    const path = this.findRailPath(platformNodes, graph);
+    if (!path?.length) {
+      return null;
+    }
+    return {
+      source: 'rails' as const,
+      points: path.map((position) => ({ x: position.x, z: position.z })),
+    };
+  }
+
+  private buildFallbackGeometry(
     platforms: RailwayPlatformRecord[],
     stations: RailwayStationRecord[],
   ) {
@@ -626,9 +746,215 @@ export class TransportationRailwayService {
     return { source, points };
   }
 
+  private extractPlatformNodes(
+    platforms: RailwayPlatformRecord[],
+  ): PlatformNode[] {
+    return platforms
+      .map((platform) => {
+        const nodes: RailGraphNode[] = [];
+        const pos1 = this.extractBlockPosition(platform.pos_1);
+        if (pos1) {
+          const id = encodeBlockPosition(pos1);
+          if (id) {
+            nodes.push({ id, position: pos1 });
+          }
+        }
+        const pos2 = this.extractBlockPosition(platform.pos_2);
+        if (pos2) {
+          const id = encodeBlockPosition(pos2);
+          if (id) {
+            const duplicate = nodes.find((node) =>
+              this.isSameBlockPos(node.position, pos2),
+            );
+            if (!duplicate) {
+              nodes.push({ id, position: pos2 });
+            }
+          }
+        }
+        return {
+          platformId: this.normalizeId(platform.id),
+          nodes,
+        };
+      })
+      .filter((item) => item.nodes.length > 0);
+  }
+
+  private buildRailGraph(
+    rows: Array<{ entityId: string; payload: Prisma.JsonValue }>,
+  ): RailGraph | null {
+    const graph: RailGraph = {
+      positions: new Map(),
+      adjacency: new Map(),
+    };
+    for (const row of rows) {
+      const payload = this.toJsonRecord(row.payload);
+      if (!payload) {
+        continue;
+      }
+      const normalizedPayload = this.normalizePayloadRecord(payload);
+      const nodePosition = this.extractRailNodePosition(
+        normalizedPayload ?? payload,
+      );
+      const nodeId = nodePosition ? encodeBlockPosition(nodePosition) : null;
+      if (!nodeId || !nodePosition) {
+        continue;
+      }
+      this.appendRailNode(graph, nodeId, nodePosition);
+      const connections = this.extractRailConnections(
+        normalizedPayload ?? payload,
+      );
+      for (const connection of connections) {
+        const connectionPosition = this.extractBlockPosition(
+          connection?.['node_pos'] ??
+            connection?.['nodePos'] ??
+            (connection?.['node'] as Record<string, unknown> | undefined),
+        );
+        if (!connectionPosition) {
+          continue;
+        }
+        const connectionId = encodeBlockPosition(connectionPosition);
+        if (!connectionId) {
+          continue;
+        }
+        this.appendRailEdge(
+          graph,
+          nodeId,
+          nodePosition,
+          connectionId,
+          connectionPosition,
+        );
+      }
+    }
+    return graph.positions.size ? graph : null;
+  }
+
+  private appendRailNode(
+    graph: RailGraph,
+    id: string,
+    position: BlockPosition,
+  ) {
+    if (!graph.positions.has(id)) {
+      graph.positions.set(id, position);
+    }
+    if (!graph.adjacency.has(id)) {
+      graph.adjacency.set(id, new Set());
+    }
+  }
+
+  private appendRailEdge(
+    graph: RailGraph,
+    fromId: string,
+    fromPosition: BlockPosition,
+    toId: string,
+    toPosition: BlockPosition,
+  ) {
+    this.appendRailNode(graph, fromId, fromPosition);
+    this.appendRailNode(graph, toId, toPosition);
+    graph.adjacency.get(fromId)!.add(toId);
+    graph.adjacency.get(toId)!.add(fromId);
+  }
+
+  private findRailPath(platformNodes: PlatformNode[], graph: RailGraph) {
+    if (!platformNodes.length) {
+      return null;
+    }
+    if (platformNodes.length === 1) {
+      return platformNodes[0].nodes.map((node) => node.position);
+    }
+    const collected: BlockPosition[] = [];
+    for (let index = 0; index < platformNodes.length - 1; index++) {
+      const current = platformNodes[index];
+      const next = platformNodes[index + 1];
+      const segment = this.findRailPathBetween(
+        current.nodes,
+        next.nodes,
+        graph,
+      );
+      if (!segment?.length) {
+        return null;
+      }
+      if (!collected.length) {
+        collected.push(...segment);
+        continue;
+      }
+      const lastPoint = collected[collected.length - 1];
+      segment.forEach((point, idx) => {
+        if (idx === 0 && lastPoint && this.isSameBlockPos(lastPoint, point)) {
+          return;
+        }
+        collected.push(point);
+      });
+    }
+    return collected.length ? collected : null;
+  }
+
+  private findRailPathBetween(
+    startNodes: RailGraphNode[],
+    targetNodes: RailGraphNode[],
+    graph: RailGraph,
+  ) {
+    const startIds = startNodes
+      .map((node) => node.id)
+      .filter((id): id is string => Boolean(id && graph.positions.has(id)));
+    const targetSet = new Set(
+      targetNodes
+        .map((node) => node.id)
+        .filter((id): id is string => Boolean(id && graph.positions.has(id))),
+    );
+    if (!startIds.length || !targetSet.size) {
+      return null;
+    }
+    const queue: string[] = [];
+    const previous = new Map<string, string | null>();
+    for (const id of startIds) {
+      queue.push(id);
+      previous.set(id, null);
+    }
+    let visits = 0;
+    while (queue.length) {
+      const current = queue.shift() as string;
+      visits += 1;
+      if (targetSet.has(current)) {
+        return this.reconstructRailPath(current, previous, graph);
+      }
+      if (visits > MAX_RAIL_SEARCH_VISITS) {
+        break;
+      }
+      const neighbors = graph.adjacency.get(current);
+      if (!neighbors?.size) {
+        continue;
+      }
+      for (const neighbor of neighbors) {
+        if (previous.has(neighbor)) {
+          continue;
+        }
+        previous.set(neighbor, current);
+        queue.push(neighbor);
+      }
+    }
+    return null;
+  }
+
+  private reconstructRailPath(
+    targetId: string,
+    previous: Map<string, string | null>,
+    graph: RailGraph,
+  ) {
+    const pathIds: string[] = [];
+    let cursor: string | null | undefined = targetId;
+    while (cursor) {
+      pathIds.push(cursor);
+      cursor = previous.get(cursor) ?? null;
+    }
+    pathIds.reverse();
+    return pathIds
+      .map((id) => graph.positions.get(id))
+      .filter((position): position is BlockPosition => Boolean(position));
+  }
+
   private computePlatformCenter(platform: RailwayPlatformRecord) {
-    const pos1 = this.decodeBlockPosition(platform.pos_1);
-    const pos2 = this.decodeBlockPosition(platform.pos_2);
+    const pos1 = decodeBlockPosition(platform.pos_1);
+    const pos2 = decodeBlockPosition(platform.pos_2);
     if (!pos1 || !pos2) return null;
     return {
       x: Math.round((pos1.x + pos2.x) / 2),
@@ -651,31 +977,117 @@ export class TransportationRailwayService {
     };
   }
 
-  private decodeBlockPosition(
-    value: unknown,
-  ): { x: number; y: number; z: number } | null {
-    if (value == null) return null;
-    try {
-      const parsed = this.toBigInt(value);
-      if (parsed == null) return null;
-      const x = Number(parsed >> 38n);
-      const y = Number((parsed << 52n) >> 52n);
-      const z = Number((parsed << 26n) >> 38n);
-      return { x, y, z };
-    } catch (error) {
-      return null;
-    }
+  private async fetchRailsFromBeacon(
+    server: BeaconServerRecord,
+    dimensionContext: string,
+  ) {
+    const rows: Array<{ entityId: string; payload: Prisma.JsonValue }> = [];
+    let offset = 0;
+    let truncated = false;
+    do {
+      const response = await this.queryMtrEntities(server, 'rails', {
+        limit: 200,
+        offset,
+        dimensionContext,
+      });
+      const batch =
+        response.rows?.map((row) => ({
+          entityId:
+            this.normalizeId(row.entity_id ?? row.node_pos) ??
+            `${dimensionContext}:${offset}`,
+          payload:
+            (row.payload as Prisma.JsonValue | null) ??
+            ({} as Prisma.JsonObject),
+        })) ?? [];
+      rows.push(...batch);
+      truncated = Boolean(response?.truncated);
+      offset += response.rows?.length ?? 0;
+    } while (truncated && offset < 2000);
+    return rows;
   }
 
-  private toBigInt(value: unknown): bigint | null {
-    if (typeof value === 'bigint') return value;
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return BigInt(Math.trunc(value));
+  private extractBlockPosition(value: unknown): BlockPosition | null {
+    if (!value) return null;
+    if (
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      'x' in (value as Record<string, unknown>) &&
+      'y' in (value as Record<string, unknown>) &&
+      'z' in (value as Record<string, unknown>)
+    ) {
+      const candidate = value as { x?: unknown; y?: unknown; z?: unknown };
+      const x = Number(candidate.x);
+      const y = Number(candidate.y);
+      const z = Number(candidate.z);
+      if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+        return { x: Math.trunc(x), y: Math.trunc(y), z: Math.trunc(z) };
+      }
     }
-    if (typeof value === 'string' && value.trim().length) {
-      return BigInt(value);
+    return decodeBlockPosition(value);
+  }
+
+  private isSameBlockPos(a: BlockPosition | null, b: BlockPosition | null) {
+    if (!a || !b) return false;
+    return a.x === b.x && a.y === b.y && a.z === b.z;
+  }
+
+  private extractRailNodePosition(record: Record<string, unknown>) {
+    const candidates = [
+      record['node_pos'],
+      record['nodePos'],
+      (record['node'] as Record<string, unknown> | undefined)?.['node_pos'],
+      (record['node'] as Record<string, unknown> | undefined)?.['nodePos'],
+      record['node'],
+    ];
+    for (const candidate of candidates) {
+      const position = this.extractBlockPosition(candidate);
+      if (position) {
+        return position;
+      }
     }
     return null;
+  }
+
+  private extractRailConnections(record: Record<string, unknown>) {
+    const candidates = [
+      record['rail_connections'],
+      record['railConnections'],
+      record['connections'],
+      record['connection_map'],
+      record['connectionMap'],
+    ];
+    for (const candidate of candidates) {
+      const normalized = this.normalizeConnectionEntries(candidate);
+      if (normalized.length) {
+        return normalized;
+      }
+    }
+    return [];
+  }
+
+  private normalizeConnectionEntries(value: unknown) {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.filter((item): item is Record<string, unknown> => {
+        return Boolean(item && typeof item === 'object');
+      }) as Array<Record<string, unknown>>;
+    }
+    if (typeof value === 'object') {
+      return Object.values(value as Record<string, unknown>).filter(
+        (entry): entry is Record<string, unknown> =>
+          Boolean(entry && typeof entry === 'object'),
+      );
+    }
+    return [];
+  }
+
+  private toJsonRecord(
+    value: Prisma.JsonValue | null,
+  ): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return value as Record<string, unknown>;
   }
 
   private buildStationsMap(records: RailwayStationRecord[]) {
@@ -752,8 +1164,8 @@ export class TransportationRailwayService {
       ...entity,
       stationId: this.normalizeId(record.station_id),
       dwellTime: record.dwell_time ?? null,
-      pos1: this.decodeBlockPosition(record.pos_1),
-      pos2: this.decodeBlockPosition(record.pos_2),
+      pos1: decodeBlockPosition(record.pos_1),
+      pos2: decodeBlockPosition(record.pos_2),
     };
   }
 
@@ -780,6 +1192,8 @@ export class TransportationRailwayService {
     route: RailwayRouteRecord,
     server: BeaconServerRecord,
   ): NormalizedRoute {
+    const sanitizedPayload =
+      this.toCleanPayload(route) ?? (route as Record<string, unknown>);
     const entity =
       this.normalizeEntity(
         {
@@ -787,7 +1201,7 @@ export class TransportationRailwayService {
           name: route.name,
           color: route.color,
           transport_mode: route.transport_mode,
-          payload: route as Record<string, unknown>,
+          payload: sanitizedPayload,
         },
         server,
       ) ??
@@ -802,7 +1216,7 @@ export class TransportationRailwayService {
     return {
       ...entity,
       platformCount: route.platform_ids?.length ?? null,
-      payload: route as Record<string, unknown>,
+      payload: sanitizedPayload,
     };
   }
 
@@ -870,16 +1284,62 @@ export class TransportationRailwayService {
     if (!value) return null;
     if (typeof value === 'string') {
       try {
-        const parsed = JSON.parse(value) as Record<string, unknown>;
-        return parsed;
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return this.normalizePayloadRecord(parsed as Record<string, unknown>);
+        }
+        return null;
       } catch (error) {
         return null;
       }
     }
-    if (typeof value === 'object') {
-      return value as Record<string, unknown>;
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      return this.normalizePayloadRecord(value as Record<string, unknown>);
     }
     return null;
+  }
+
+  private normalizePayloadRecord(
+    payload: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const normalized: Record<string, unknown> = { ...payload };
+    const idKeys = [
+      'id',
+      'entity_id',
+      'station_id',
+      'platform_id',
+      'route_id',
+      'depot_id',
+    ];
+    for (const key of idKeys) {
+      if (key in normalized) {
+        normalized[key] = this.ensureStringId(normalized[key]);
+      }
+    }
+    const arrayKeys = ['platform_ids', 'route_ids', 'station_ids', 'depot_ids'];
+    for (const key of arrayKeys) {
+      const value = normalized[key];
+      if (Array.isArray(value)) {
+        normalized[key] = value.map((entry) => this.ensureStringId(entry));
+      }
+    }
+    Object.keys(normalized).forEach((key) => {
+      if (this.isBlockPositionField(key)) {
+        normalized[key] = this.normalizeBlockPositionValue(normalized[key]);
+      }
+    });
+    return normalized;
+  }
+
+  private ensureStringId(value: unknown) {
+    const normalized = this.normalizeId(value);
+    if (normalized !== null) {
+      return normalized;
+    }
+    if (value == null) {
+      return value;
+    }
+    return String(value);
   }
 
   private normalizeId(value: unknown): string | null {
@@ -891,6 +1351,37 @@ export class TransportationRailwayService {
       return value.toString();
     }
     return null;
+  }
+
+  private normalizeBlockPositionValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((entry) => this.normalizeBlockPositionValue(entry));
+    }
+    if (value && typeof value === 'object') {
+      const maybe = value as { x?: unknown; z?: unknown };
+      if (typeof maybe.x === 'number' && typeof maybe.z === 'number') {
+        return value;
+      }
+    }
+    const decoded = decodeBlockPosition(value);
+    return decoded ?? value;
+  }
+
+  private isBlockPositionField(key: string) {
+    if (!key) return false;
+    const directMatches = [
+      'pos_1',
+      'pos_2',
+      'node_pos',
+      'nodePos',
+      'start_pos',
+      'end_pos',
+    ];
+    if (directMatches.includes(key)) {
+      return true;
+    }
+    const lower = key.toLowerCase();
+    return lower.endsWith('_pos') || lower.endsWith('position');
   }
 
   private normalizeIdList(values: unknown[]) {
@@ -1050,6 +1541,7 @@ export class TransportationRailwayService {
     category: string,
     options: {
       limit?: number;
+      offset?: number;
       filters?: Record<string, unknown>;
       dimensionContext?: string | null;
     },
@@ -1057,7 +1549,7 @@ export class TransportationRailwayService {
     const payload: Record<string, unknown> = {
       category,
       limit: options.limit ?? 20,
-      offset: 0,
+      offset: options.offset ?? 0,
       orderBy: 'last_updated',
       orderDir: 'DESC',
       includePayload: true,
