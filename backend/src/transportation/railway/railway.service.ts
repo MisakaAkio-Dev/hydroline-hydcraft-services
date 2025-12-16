@@ -216,6 +216,21 @@ type RouteDetailResult = {
     points: Array<{ x: number; z: number }>;
     segments?: RailGeometrySegment[];
   };
+  stops: Array<{
+    order: number;
+    platformId: string;
+    platformName: string | null;
+    stationId: string | null;
+    stationName: string | null;
+    dwellTime: number | null;
+    position: { x: number; z: number } | null;
+    bounds: {
+      xMin: number | null;
+      xMax: number | null;
+      zMin: number | null;
+      zMax: number | null;
+    } | null;
+  }>;
 };
 
 @Injectable()
@@ -321,15 +336,6 @@ export class TransportationRailwayService {
       .map((platformId) => platforms.get(platformId))
       .filter((item): item is RailwayPlatformRecord => Boolean(item));
 
-    const usedStationIds = new Set(
-      selectedPlatforms
-        .map((platform) => this.normalizeId(platform.station_id))
-        .filter((id): id is string => Boolean(id)),
-    );
-    const selectedStations = Array.from(usedStationIds)
-      .map((id) => stations.get(id))
-      .filter((station): station is RailwayStationRecord => Boolean(station));
-
     const depots = (snapshot.payload?.depots ?? []).filter((depot) =>
       (depot.route_ids ?? [])
         .map((id) => this.normalizeId(id))
@@ -363,10 +369,17 @@ export class TransportationRailwayService {
       server,
       dimensionContextForGeometry,
       selectedPlatforms,
-      selectedStations,
+      [],
     );
 
-    const normalizedStations = selectedStations.map((station) =>
+    const stationAssociations = await this.resolvePlatformStations(
+      server,
+      dimensionContextForGeometry,
+      stations,
+      selectedPlatforms,
+    );
+
+    const normalizedStations = stationAssociations.stations.map((station) =>
       this.normalizeStationRecord(station, server),
     );
     const normalizedPlatforms = selectedPlatforms.map((platform) =>
@@ -398,6 +411,11 @@ export class TransportationRailwayService {
       platforms: normalizedPlatforms,
       depots: normalizedDepots.filter(Boolean) as NormalizedEntity[],
       geometry,
+      stops: this.buildStopSequence(
+        orderedPlatformIds,
+        platforms,
+        stationAssociations.platformStations,
+      ),
     };
 
     return detail;
@@ -697,10 +715,14 @@ export class TransportationRailwayService {
     if (!path?.length) {
       return null;
     }
+    const segments = this.includePlatformSegments(
+      pathResult?.segments,
+      platforms,
+    );
     return {
       source: 'rails' as const,
       points: path.map((position) => ({ x: position.x, z: position.z })),
-      segments: pathResult?.segments ?? undefined,
+      segments: segments.length ? segments : undefined,
     };
   }
 
@@ -1070,6 +1092,254 @@ export class TransportationRailwayService {
       primary: reverseCurve(metadata.primary),
       secondary: reverseCurve(metadata.secondary),
       preferredCurve: metadata.preferredCurve,
+    };
+  }
+
+  private includePlatformSegments(
+    segments: RailGeometrySegment[] | undefined,
+    platforms: RailwayPlatformRecord[],
+  ) {
+    const registry = new Map<string, RailGeometrySegment>();
+    for (const segment of segments ?? []) {
+      if (!segment?.start || !segment?.end) continue;
+      registry.set(this.buildSegmentKey(segment.start, segment.end), segment);
+    }
+    for (const platform of platforms) {
+      const pos1 = this.extractBlockPosition(platform.pos_1);
+      const pos2 = this.extractBlockPosition(platform.pos_2);
+      if (!pos1 || !pos2) continue;
+      const key = this.buildSegmentKey(pos1, pos2);
+      if (registry.has(key)) {
+        continue;
+      }
+      const targetNodeId =
+        encodeBlockPosition(pos2) ??
+        encodeBlockPosition(pos1) ??
+        `${pos2.x},${pos2.y},${pos2.z}`;
+      registry.set(key, {
+        start: pos1,
+        end: pos2,
+        connection: {
+          targetNodeId,
+          railType: 'PLATFORM',
+          transportMode: platform.transport_mode ?? null,
+          modelKey: null,
+          isSecondaryDir: false,
+          yStart: pos1.y,
+          yEnd: pos2.y,
+          verticalCurveRadius: 0,
+          primary: {
+            h: 0,
+            k: 0,
+            r: 0,
+            tStart: 0,
+            tEnd: 0,
+            reverse: false,
+            isStraight: true,
+          },
+          secondary: null,
+          preferredCurve: 'primary',
+        },
+      });
+    }
+    return Array.from(registry.values());
+  }
+
+  private buildSegmentKey(start: BlockPosition, end: BlockPosition) {
+    return `${start.x},${start.y},${start.z}->${end.x},${end.y},${end.z}`;
+  }
+
+  private buildStopSequence(
+    orderedPlatformIds: string[],
+    platformMap: Map<string | null, RailwayPlatformRecord>,
+    platformStations: Map<string, RailwayStationRecord | null>,
+  ): RouteDetailResult['stops'] {
+    return orderedPlatformIds
+      .map((platformId, index) => {
+        const platform = platformMap.get(platformId);
+        if (!platform) return null;
+        const station = platformStations.get(platformId) ?? null;
+        const platformCenter = this.computePlatformCenter(platform);
+        const stationCenter = station
+          ? this.computeStationCenter(station)
+          : null;
+        const bounds = station
+          ? {
+              xMin: station.x_min ?? null,
+              xMax: station.x_max ?? null,
+              zMin: station.z_min ?? null,
+              zMax: station.z_max ?? null,
+            }
+          : null;
+        const stationId = this.normalizeId(station?.id);
+        return {
+          order: index,
+          platformId,
+          platformName: this.readString(platform.name) ?? platform.name ?? null,
+          stationId: stationId ?? null,
+          stationName: station?.name ?? null,
+          dwellTime: this.toNumber(platform.dwell_time),
+          position: platformCenter ?? stationCenter,
+          bounds,
+        };
+      })
+      .filter((stop): stop is RouteDetailResult['stops'][number] =>
+        Boolean(stop),
+      );
+  }
+
+  private async resolvePlatformStations(
+    server: BeaconServerRecord,
+    dimensionContext: string | null,
+    stationMap: Map<string | null, RailwayStationRecord>,
+    platforms: RailwayPlatformRecord[],
+  ): Promise<{
+    platformStations: Map<string, RailwayStationRecord | null>;
+    stations: RailwayStationRecord[];
+  }> {
+    const resolvedMap = new Map(stationMap);
+    if (dimensionContext) {
+      const storedStations = await this.fetchStationsFromStorage(
+        server,
+        dimensionContext,
+      );
+      for (const station of storedStations) {
+        const key = this.normalizeId(station.id);
+        if (key && !resolvedMap.has(key)) {
+          resolvedMap.set(key, station);
+        }
+      }
+    }
+    const stationList = Array.from(resolvedMap.values()).filter((station) =>
+      this.stationHasBounds(station),
+    );
+    const platformStations = new Map<string, RailwayStationRecord | null>();
+    for (const platform of platforms) {
+      const platformId = this.normalizeId(platform.id);
+      if (!platformId) continue;
+      const directId = this.normalizeId(platform.station_id);
+      const directStation =
+        directId != null ? (resolvedMap.get(directId) ?? null) : null;
+      let station =
+        directStation ?? this.matchStationByBounds(platform, stationList);
+      if (station) {
+        const key = this.normalizeId(station.id);
+        if (key) {
+          resolvedMap.set(key, station);
+        }
+      }
+      platformStations.set(platformId, station ?? null);
+    }
+    const uniqueStations = Array.from(
+      new Map(
+        Array.from(platformStations.values())
+          .filter((station): station is RailwayStationRecord =>
+            Boolean(station),
+          )
+          .map((station) => [this.normalizeId(station.id), station]),
+      ).values(),
+    );
+    return { platformStations, stations: uniqueStations };
+  }
+
+  private stationHasBounds(station: RailwayStationRecord | null | undefined) {
+    if (!station) return false;
+    return (
+      station.x_min != null &&
+      station.x_max != null &&
+      station.z_min != null &&
+      station.z_max != null
+    );
+  }
+
+  private matchStationByBounds(
+    platform: RailwayPlatformRecord,
+    stations: RailwayStationRecord[],
+  ) {
+    const points: Array<{ x: number; z: number }> = [];
+    const pos1 = this.extractBlockPosition(platform.pos_1);
+    if (pos1) points.push({ x: pos1.x, z: pos1.z });
+    const pos2 = this.extractBlockPosition(platform.pos_2);
+    if (pos2) points.push({ x: pos2.x, z: pos2.z });
+    const center = this.computePlatformCenter(platform);
+    if (center) points.push(center);
+    for (const station of stations) {
+      if (!this.stationHasBounds(station)) {
+        continue;
+      }
+      if (points.some((point) => this.isPointInsideStation(point, station))) {
+        return station;
+      }
+    }
+    return null;
+  }
+
+  private isPointInsideStation(
+    point: { x: number; z: number },
+    station: RailwayStationRecord,
+  ) {
+    if (!this.stationHasBounds(station)) {
+      return false;
+    }
+    const minX = Math.min(station.x_min!, station.x_max!);
+    const maxX = Math.max(station.x_min!, station.x_max!);
+    const minZ = Math.min(station.z_min!, station.z_max!);
+    const maxZ = Math.max(station.z_min!, station.z_max!);
+    return (
+      point.x >= minX && point.x <= maxX && point.z >= minZ && point.z <= maxZ
+    );
+  }
+
+  private async fetchStationsFromStorage(
+    server: BeaconServerRecord,
+    dimensionContext: string | null,
+  ) {
+    if (!dimensionContext) {
+      return [] as RailwayStationRecord[];
+    }
+    const rows = await this.prisma.transportationRailwayEntity.findMany({
+      where: {
+        serverId: server.id,
+        category: TransportationRailwayEntityCategory.STATION,
+        dimensionContext,
+      },
+      select: {
+        entityId: true,
+        payload: true,
+        name: true,
+        color: true,
+      },
+    });
+    const records: RailwayStationRecord[] = [];
+    for (const row of rows) {
+      const payload = this.toJsonRecord(row.payload);
+      if (!payload) continue;
+      const record = this.buildStationRecordFromEntity(row.entityId, payload);
+      if (record) {
+        records.push(record);
+      }
+    }
+    return records;
+  }
+
+  private buildStationRecordFromEntity(
+    entityId: string,
+    payload: Record<string, unknown>,
+  ): RailwayStationRecord | null {
+    const xMin = this.toNumber(payload['x_min']);
+    const xMax = this.toNumber(payload['x_max']);
+    const zMin = this.toNumber(payload['z_min']);
+    const zMax = this.toNumber(payload['z_max']);
+    return {
+      id: this.normalizeId(payload['id']) ?? entityId,
+      name: this.readString(payload['name']) ?? null,
+      color: this.toNumber(payload['color']),
+      transport_mode: this.readString(payload['transport_mode']),
+      x_min: xMin,
+      x_max: xMax,
+      z_min: zMin,
+      z_max: zMax,
+      zone: this.toNumber(payload['zone']),
     };
   }
 

@@ -73,6 +73,7 @@ function goBackToDetail() {
   <div class="relative h-screen w-screen overflow-hidden bg-slate-900">
     <RailwayMapPanel
       :geometry="geometry"
+      :stops="detail?.stops ?? []"
       :color="detail?.route.color ?? null"
       :loading="loading"
       height="100%"

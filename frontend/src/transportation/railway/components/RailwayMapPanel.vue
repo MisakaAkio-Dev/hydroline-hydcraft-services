@@ -13,6 +13,7 @@ import type {
 const props = withDefaults(
   defineProps<{
     geometry: RailwayRouteDetail['geometry'] | null
+    stops?: RailwayRouteDetail['stops'] | null
     color?: number | null
     zoom?: number
     showZoomControl?: boolean
@@ -24,6 +25,7 @@ const props = withDefaults(
     showZoomControl: true,
     height: '360px',
     loading: false,
+    stops: () => [] as RailwayRouteDetail['stops'],
   },
 )
 
@@ -86,6 +88,12 @@ function initMap() {
   })
   railwayMap.value = map
   drawGeometry()
+  syncStops()
+}
+
+function syncStops() {
+  if (!railwayMap.value) return
+  railwayMap.value.setStops(props.stops ?? [])
 }
 
 watch(
@@ -101,6 +109,14 @@ watch(
   () => {
     drawGeometry()
   },
+)
+
+watch(
+  () => props.stops,
+  () => {
+    syncStops()
+  },
+  { deep: true },
 )
 
 onMounted(() => {

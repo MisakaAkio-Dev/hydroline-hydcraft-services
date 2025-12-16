@@ -123,6 +123,21 @@ export interface RailwayRouteDetail {
     points: RailwayGeometryPoint[]
     segments?: RailwayGeometrySegment[]
   }
+  stops: Array<{
+    order: number
+    platformId: string
+    platformName: string | null
+    stationId: string | null
+    stationName: string | null
+    dwellTime: number | null
+    position: RailwayGeometryPoint | null
+    bounds: {
+      xMin: number | null
+      xMax: number | null
+      zMin: number | null
+      zMax: number | null
+    } | null
+  }>
 }
 
 export type RailwayBannerPayload = {

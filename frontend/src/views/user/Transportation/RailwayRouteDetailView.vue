@@ -27,6 +27,9 @@ const params = computed(() => {
 
 const metadataList = computed(() => {
   const payload = detail.value?.route.payload ?? {}
+  const lastDeployedOffset = detail.value?.metadata.lastDeployed ?? null
+  const lastUpdated = detail.value?.metadata.lastUpdated ?? null
+  const lastDeployed = formatLastDeployed(lastDeployedOffset, lastUpdated)
   return [
     { label: '运输模式', value: detail.value?.route.transportMode || '—' },
     { label: '线路类型', value: (payload.route_type as string) || '—' },
@@ -37,11 +40,12 @@ const metadataList = computed(() => {
     },
     {
       label: '最后部署',
-      value: formatTimestamp(detail.value?.metadata.lastDeployed),
+      value: lastDeployed.display,
+      tooltip: lastDeployed.tooltip,
     },
     {
       label: '数据更新',
-      value: formatTimestamp(detail.value?.metadata.lastUpdated),
+      value: formatTimestamp(lastUpdated),
     },
   ]
 })
@@ -55,6 +59,40 @@ function formatTimestamp(value: number | null | undefined) {
   const d = dayjs(value)
   if (!d.isValid()) return '—'
   return `${d.format('YYYY-MM-DD HH:mm')} (${d.fromNow()})`
+}
+
+function formatLastDeployed(
+  offset: number | null | undefined,
+  reference: number | null | undefined,
+) {
+  if (offset == null || offset < 0) {
+    return { display: '—', tooltip: null as string | null }
+  }
+  const secondsLabel = formatOffsetSeconds(offset)
+  const baseTooltip = `距当日零点 ${secondsLabel} 秒`
+  const reason = '当天 00:00 后的毫秒偏移'
+  const display = dayjs()
+    .startOf('day')
+    .add(offset, 'millisecond')
+    .format('HH:mm:ss')
+  if (!reference) {
+    return { display, tooltip: `${baseTooltip}（${reason}）` }
+  }
+  const base = dayjs(reference)
+  if (!base.isValid()) {
+    return { display, tooltip: `${baseTooltip}（${reason}）` }
+  }
+  const deployedMoment = base.startOf('day').add(offset, 'millisecond')
+  return {
+    display,
+    tooltip: `${deployedMoment.format('YYYY-MM-DD HH:mm:ss')} ${baseTooltip}（${reason}）`,
+  }
+}
+
+function formatOffsetSeconds(offset: number) {
+  const seconds = offset / 1000
+  const precision = seconds >= 10 ? 1 : seconds >= 1 ? 2 : 3
+  return Number(seconds.toFixed(precision)).toString()
 }
 
 function getStationName(stationId: string | null | undefined) {
@@ -130,6 +168,7 @@ onMounted(() => {
       >
         <RailwayMapPanel
           :geometry="detail?.geometry ?? null"
+          :stops="detail?.stops ?? []"
           :color="detail?.route.color ?? null"
           :loading="!detail"
           height="720px"
@@ -220,9 +259,24 @@ onMounted(() => {
                 class="flex justify-between text-slate-600 dark:text-slate-300"
               >
                 <span>{{ item.label }}</span>
-                <span class="text-slate-900 dark:text-white">{{
-                  item.value
-                }}</span>
+                <span
+                  v-if="!item.tooltip"
+                  class="text-slate-900 dark:text-white"
+                >
+                  {{ item.value }}
+                </span>
+                <div
+                  v-else
+                  class="flex items-center gap-1 text-slate-900 dark:text-white"
+                >
+                  <span>{{ item.value }}</span>
+                  <UTooltip :text="item.tooltip">
+                    <UIcon
+                      name="i-lucide-info"
+                      class="h-4 w-4 text-slate-400"
+                    />
+                  </UTooltip>
+                </div>
               </div>
             </div>
           </div>
