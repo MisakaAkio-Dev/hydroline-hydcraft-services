@@ -8,6 +8,8 @@ import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type { RailwayRouteDetail } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
 import { parseRouteName } from '@/utils/route/route-name'
+import modpackCreateImg from '@/assets/resources/modpacks/Create.jpg'
+import modpackMtrImg from '@/assets/resources/modpacks/MTR.png'
 
 dayjs.extend(relativeTime)
 
@@ -58,6 +60,60 @@ const routeName = computed(() => parseRouteName(detail.value?.route.name))
 const stations = computed(() => detail.value?.stations ?? [])
 const platforms = computed(() => detail.value?.platforms ?? [])
 const depots = computed(() => detail.value?.depots ?? [])
+const orderedStops = computed(() => {
+  const stops = detail.value?.stops ?? []
+  return [...stops].sort((a, b) => a.order - b.order)
+})
+const platformMap = computed(() => {
+  const map = new Map<string, RailwayRouteDetail['platforms'][number]>()
+  for (const platform of platforms.value) {
+    if (platform.id) {
+      map.set(platform.id, platform)
+    }
+  }
+  return map
+})
+const stopMapByPlatformId = computed(() => {
+  const map = new Map<string, RailwayRouteDetail['stops'][number]>()
+  for (const stop of detail.value?.stops ?? []) {
+    if (stop.platformId) {
+      map.set(stop.platformId, stop)
+    }
+  }
+  return map
+})
+const routeAccentColor = computed(() => {
+  const color = detail.value?.route.color
+  if (color == null) return null
+  const sanitized = Math.max(0, Math.floor(color))
+  const hex = sanitized.toString(16).padStart(6, '0').slice(-6)
+  return `#${hex}`
+})
+
+const modpackInfo = computed(() => {
+  const mod = detail.value?.railwayType
+  if (mod === 'MTR') {
+    return { label: 'MTR', image: modpackMtrImg }
+  }
+  if (mod === 'CREATE') {
+    return { label: '机械动力', image: modpackCreateImg }
+  }
+  return { label: mod || '—', image: null as string | null }
+})
+
+const routeColorHex = computed(() => routeAccentColor.value)
+const stopDisplayItems = computed(() =>
+  orderedStops.value.map((stop) => {
+    const displayName = resolveStopStationName(stop)
+    const nameParts = formatStationNameParts(displayName)
+    return {
+      stop,
+      title: nameParts.title,
+      subtitle: nameParts.subtitle,
+      platformLabel: getStopPlatformLabel(stop),
+    }
+  }),
+)
 
 function formatTimestamp(value: number | null | undefined) {
   if (!value) return '—'
@@ -100,10 +156,90 @@ function formatOffsetSeconds(offset: number) {
   return Number(seconds.toFixed(precision)).toString()
 }
 
+function formatStationNameParts(value: string | null | undefined) {
+  if (!value) {
+    return { title: '未知', subtitle: '—' }
+  }
+  const [title, subtitle] = value.split('|')
+  return {
+    title: (title || '未知').trim(),
+    subtitle: subtitle?.trim() || '—',
+  }
+}
+
+function splitFirstSegment(value: string | null | undefined) {
+  if (!value) return null
+  const [primary] = value.split('|')
+  return primary?.trim() || null
+}
+
+function resolveStopStationName(stop: RailwayRouteDetail['stops'][number]) {
+  const stationId = stop.stationId
+  if (stationId) {
+    const station = stations.value.find((item) => item.id === stationId)
+    if (station?.name) {
+      return station.name
+    }
+  }
+  if (stop.stationName) {
+    return stop.stationName
+  }
+  return null
+}
+
 function getStationName(stationId: string | null | undefined) {
   if (!stationId) return '未知'
   const station = stations.value.find((item) => item.id === stationId)
-  return station?.name || `站点 ${stationId}`
+  const nameParts = station?.name
+    ? formatStationNameParts(station.name).title
+    : null
+  return nameParts || `站点 ${stationId}`
+}
+
+function getStopPlatformLabel(stop: RailwayRouteDetail['stops'][number]) {
+  const platformId = stop.platformId
+  if (!platformId) {
+    return stop.platformName || '未知站台'
+  }
+  const platform = platformMap.value.get(platformId)
+  if (!platform) {
+    return stop.platformName || '未知站台'
+  }
+
+  const platformName =
+    splitFirstSegment(platform.name) ??
+    splitFirstSegment(stop.platformName) ??
+    splitFirstSegment(platformId) ??
+    '站台'
+  return `${platformName}`
+}
+
+function getPlatformDisplayName(
+  platform: RailwayRouteDetail['platforms'][number],
+) {
+  return (
+    splitFirstSegment(platform.name) ??
+    splitFirstSegment(platform.id) ??
+    platform.name ??
+    platform.id ??
+    '站台'
+  )
+}
+
+function getPlatformListingStation(
+  platform: RailwayRouteDetail['platforms'][number],
+) {
+  const platformId = platform.id
+  if (platformId) {
+    const stop = stopMapByPlatformId.value.get(platformId)
+    if (stop) {
+      const stopName =
+        splitFirstSegment(stop.stationName) ??
+        splitFirstSegment(resolveStopStationName(stop))
+      if (stopName) return stopName
+    }
+  }
+  return getStationName(platform.stationId)
 }
 
 function goDetailedMap() {
@@ -167,29 +303,56 @@ onMounted(() => {
 
     <div class="mt-3">
       <div class="flex flex-col gap-1">
-        <p class="text-sm uppercase text-slate-500 mb-2">铁路线路详情</p>
+        <p class="text-sm uppercase text-slate-500">铁路线路详情</p>
 
         <div>
-          <div class="text-4xl font-semibold text-slate-900 dark:text-white">
-            {{ routeName.title }}
-          </div>
-          <div
-            class="flex items-center gap-1.5 text-lg font-semibold text-slate-600 dark:text-slate-300"
-            v-if="routeName.subtitle"
-          >
-            {{ routeName.subtitle }}
+          <div>
+            <div class="text-4xl font-semibold text-slate-900 dark:text-white">
+              {{ routeName.title }}
 
-            <UBadge variant="solid" size="sm" v-if="routeName.badge">
-              {{ routeName.badge }}
-            </UBadge>
+              <span class="inline-flex items-center gap-1.5">
+                <UTooltip
+                  v-if="modpackInfo.image && modpackInfo.label"
+                  :text="`${modpackInfo.label} Mod`"
+                >
+                  <img
+                    :src="modpackInfo.image"
+                    :alt="modpackInfo.label"
+                    class="h-5 w-6 object-cover"
+                  />
+                </UTooltip>
 
-            <UBadge variant="soft" size="sm">
-              {{ detail?.server.name || params.serverId }}
-            </UBadge>
+                <UTooltip :text="`线路色 ${routeColorHex}`">
+                  <span
+                    class="block h-3.5 w-3.5 rounded-full border border-slate-100 dark:border-slate-800 shadow"
+                    :style="
+                      routeColorHex
+                        ? { backgroundColor: routeColorHex }
+                        : undefined
+                    "
+                  ></span>
+                </UTooltip>
+              </span>
+            </div>
+            <div
+              class="flex items-center gap-1.5 text-lg font-semibold text-slate-600 dark:text-slate-300"
+            >
+              <span v-if="routeName.subtitle">
+                {{ routeName.subtitle }}
+              </span>
 
-            <UBadge variant="soft" size="sm">
-              {{ getDimensionName(detail?.dimension || params.dimension) }}
-            </UBadge>
+              <UBadge variant="solid" size="sm" v-if="routeName.badge">
+                {{ routeName.badge.split('|').join(' ') }}
+              </UBadge>
+
+              <UBadge variant="soft" size="sm">
+                {{ detail?.server.name || params.serverId }}
+              </UBadge>
+
+              <UBadge variant="soft" size="sm">
+                {{ getDimensionName(detail?.dimension || params.dimension) }}
+              </UBadge>
+            </div>
           </div>
         </div>
       </div>
@@ -205,6 +368,23 @@ onMounted(() => {
         :loading="!detail"
         height="420px"
       />
+
+      <div class="pointer-events-none absolute bottom-3 left-3 z-998">
+        <div
+          class="rounded-lg text-xl font-semibold text-white"
+          style="text-shadow: 0 0 5px rgba(0, 0, 0, 0.7)"
+        >
+          <span class="text-xs mr-1">线路全长</span>
+          <span>
+            {{
+              detail?.metadata.lengthKm != null
+                ? `${detail.metadata.lengthKm} km`
+                : '—'
+            }}
+          </span>
+        </div>
+      </div>
+
       <div
         class="pointer-events-none absolute inset-x-4 top-4 flex justify-end z-999"
       >
@@ -212,11 +392,11 @@ onMounted(() => {
           size="sm"
           variant="ghost"
           color="neutral"
-          class="pointer-events-auto backdrop-blur-2xl text-white bg-black/20 dark:bg-slate-900/10 hover:bg-white/20 dark:hover:bg-slate-900/20 shadow"
-          icon="i-lucide-compass"
+          class="flex items-center gap-1 pointer-events-auto backdrop-blur-2xl text-white bg-black/20 dark:bg-slate-900/10 hover:bg-white/10 dark:hover:bg-slate-900/20 shadow"
           @click="goDetailedMap"
         >
-          查看地图
+          <UIcon name="i-lucide-maximize" class="h-3.5 w-3.5" />
+          全屏
         </UButton>
       </div>
     </div>
@@ -226,26 +406,72 @@ onMounted(() => {
       <div v-else-if="detail" class="space-y-6">
         <section class="flex flex-col">
           <h3 class="text-lg text-slate-600 dark:text-slate-300">所经站点</h3>
-          <div class="mt-3 flex gap-3 overflow-x-auto">
-            <p v-if="stations.length === 0" class="text-sm text-slate-500">
-              暂无站点数据
-            </p>
-
+          <div
+            class="overflow-x-auto rounded-2xl mask-[linear-gradient(to_right,transparent,#fff_3%_97%,transparent)]"
+            style="scrollbar-width: thin"
+          >
             <div
-              v-for="station in stations"
-              :key="station.id"
-              class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60"
+              v-if="stopDisplayItems.length === 0"
+              class="p-4 text-sm text-slate-500"
             >
-              <p class="font-medium text-slate-900 dark:text-white">
-                {{ station.name || station.id }}
-              </p>
-              <p class="text-xs text-slate-500">
-                区域：{{ station.bounds.xMin }} ~ {{ station.bounds.xMax }},
-                {{ station.bounds.zMin }} ~ {{ station.bounds.zMax }}
-              </p>
-              <p class="text-xs text-slate-500">
-                区号：{{ station.zone ?? '—' }}
-              </p>
+              暂无站点数据
+            </div>
+            <div v-else class="h-32">
+              <div class="relative inline-flex w-full min-w-max items-center">
+                <div
+                  class="mask-[linear-gradient(to_right,transparent,#fff_3%_97%,transparent)] pointer-events-none absolute left-0 right-0 top-20 h-1.5 -translate-y-1/2 w-full"
+                  :style="
+                    routeAccentColor
+                      ? { backgroundColor: routeAccentColor }
+                      : undefined
+                  "
+                ></div>
+
+                <div
+                  v-for="item in stopDisplayItems"
+                  :key="`stop-${item.stop.platformId ?? item.stop.stationId ?? item.stop.order}`"
+                  class="flex flex-col items-center text-center min-w-50"
+                >
+                  <div
+                    class="flex flex-col justify-end pb-3 h-20 w-full max-w-60"
+                  >
+                    <p
+                      class="text-base font-semibold text-slate-900 dark:text-white line-clamp-1 truncate"
+                    >
+                      {{ item.title }}
+                    </p>
+                    <p
+                      class="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 truncate"
+                    >
+                      {{ item.subtitle }}
+                    </p>
+                  </div>
+
+                  <div class="relative flex items-center justify-center">
+                    <span
+                      class="absolute flex items-center justify-center"
+                      aria-hidden="true"
+                    >
+                      <span
+                        class="h-5 w-5 rounded-full border-4 bg-white"
+                        :style="
+                          routeAccentColor
+                            ? { borderColor: routeAccentColor }
+                            : undefined
+                        "
+                      ></span>
+                    </span>
+                  </div>
+
+                  <div class="h-12 pt-4">
+                    <div
+                      class="text-[10px] text-slate-500 dark:text-slate-400 font-mono border border-slate-300 dark:border-slate-600 rounded px-1 bg-white dark:bg-slate-900"
+                    >
+                      {{ item.platformLabel }}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -266,10 +492,50 @@ onMounted(() => {
                   </span>
                 </div>
                 <div class="flex justify-between">
+                  <span>线路长度</span>
+                  <span class="text-slate-900 dark:text-white">
+                    {{
+                      detail.metadata.lengthKm != null
+                        ? `${detail.metadata.lengthKm} km`
+                        : '—'
+                    }}
+                  </span>
+                </div>
+                <div class="flex justify-between">
                   <span>运输模式</span>
                   <span class="text-slate-900 dark:text-white">
                     {{ detail.route.transportMode || '—' }}
                   </span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span>线路颜色</span>
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono text-slate-900 dark:text-white">
+                      {{ routeColorHex }}
+                    </span>
+                    <span
+                      class="h-3.5 w-3.5 rounded-full border border-slate-200 dark:border-slate-700"
+                      :style="
+                        routeColorHex
+                          ? { backgroundColor: routeColorHex }
+                          : undefined
+                      "
+                    ></span>
+                  </div>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span>Mod 类型</span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-slate-900 dark:text-white -mr-1">
+                      {{ modpackInfo.label }}
+                    </span>
+                    <img
+                      v-if="modpackInfo.image"
+                      :src="modpackInfo.image"
+                      :alt="modpackInfo.label"
+                      class="h-5 w-6 object-cover"
+                    />
+                  </div>
                 </div>
                 <div class="flex justify-between">
                   <span>站点数量</span>
@@ -295,7 +561,7 @@ onMounted(() => {
               <div
                 v-for="item in metadataList"
                 :key="item.label"
-                class="flex justify-between text-slate-600 dark:text-slate-300"
+                class="flex justify-between text-sm text-slate-600 dark:text-slate-300"
               >
                 <span>{{ item.label }}</span>
                 <span
@@ -332,7 +598,7 @@ onMounted(() => {
               <h4 class="mb-2 font-medium text-slate-700 dark:text-white">
                 平台
               </h4>
-              <table class="w-full text-left text-xs">
+              <table class="w-full text-left text-sm">
                 <thead>
                   <tr class="text-slate-500">
                     <th class="py-1">名称</th>
@@ -346,9 +612,9 @@ onMounted(() => {
                     :key="platform.id"
                     class="border-t border-slate-100 text-slate-700 dark:border-slate-800 dark:text-slate-200"
                   >
-                    <td class="py-1">{{ platform.name || platform.id }}</td>
+                    <td class="py-1">{{ getPlatformDisplayName(platform) }}</td>
                     <td class="py-1">
-                      {{ getStationName(platform.stationId) }}
+                      {{ getPlatformListingStation(platform) }}
                     </td>
                     <td class="py-1">{{ platform.dwellTime ?? '—' }} tick</td>
                   </tr>
@@ -363,13 +629,13 @@ onMounted(() => {
                 关联车厂/车段
               </h4>
               <div class="space-y-2">
-                <p v-if="depots.length === 0">暂无关联数据。</p>
+                <p v-if="depots.length === 0" class="text-sm">暂无关联数据。</p>
 
                 <div v-for="depot in depots" :key="depot.id">
-                  <p class="font-medium text-slate-900 dark:text-white">
+                  <p class="font-medium text-sm text-slate-900 dark:text-white">
                     {{ depot.name || depot.id }}
                   </p>
-                  <p class="text-xs text-slate-500">
+                  <p class="text-sm text-slate-500">
                     颜色：{{ depot.color || '—' }}
                   </p>
                 </div>

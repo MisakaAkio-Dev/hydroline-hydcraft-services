@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import 'leaflet/dist/leaflet.css'
+import type { LeafletMouseEvent } from 'leaflet'
 import { RailwayMap } from '@/views/user/Transportation/railway/map'
 import type {
   RailwayCurveParameters,
@@ -22,7 +23,7 @@ const props = withDefaults(
   }>(),
   {
     zoom: 3,
-    showZoomControl: true,
+    showZoomControl: false,
     height: '360px',
     loading: false,
     stops: () => [] as RailwayRouteDetail['stops'],
@@ -31,6 +32,8 @@ const props = withDefaults(
 
 const containerRef = ref<HTMLElement | null>(null)
 const railwayMap = ref<RailwayMap | null>(null)
+const pointerBlockCoord = ref<{ x: number; z: number } | null>(null)
+const mapCursorCleanup = ref<(() => void) | null>(null)
 const containerHeight = computed(() => {
   const height = props.height
   if (typeof height === 'number') return `${height}px`
@@ -64,6 +67,9 @@ const resolvedPolylines = computed<RailwayGeometryPoint[][]>(() => {
 })
 
 function destroyMap() {
+  mapCursorCleanup.value?.()
+  mapCursorCleanup.value = null
+  pointerBlockCoord.value = null
   railwayMap.value?.destroy()
   railwayMap.value = null
 }
@@ -87,9 +93,63 @@ function initMap() {
     showZoomControl: props.showZoomControl,
   })
   railwayMap.value = map
+  attachMapCursorTracking()
   drawGeometry()
   syncStops()
 }
+
+function attachMapCursorTracking() {
+  mapCursorCleanup.value?.()
+  mapCursorCleanup.value = null
+  pointerBlockCoord.value = null
+
+  const controller = railwayMap.value?.getController()
+  const map = controller?.getLeafletInstance()
+  if (!controller || !map) return
+
+  const mapContainer = map.getContainer()
+
+  const handleMove = (event: LeafletMouseEvent) => {
+    pointerBlockCoord.value = controller.fromLatLng(event.latlng)
+  }
+  const handleLeave = () => {
+    pointerBlockCoord.value = null
+  }
+
+  const handleDomLeave = () => {
+    handleLeave()
+  }
+
+  const handleWindowBlur = () => {
+    handleLeave()
+  }
+
+  map.on('mousemove', handleMove)
+  map.on('mouseout', handleLeave)
+  map.on('dragstart', handleLeave)
+  map.on('zoomstart', handleLeave)
+
+  mapContainer.addEventListener('pointerleave', handleDomLeave, {
+    passive: true,
+  })
+  mapContainer.addEventListener('mouseleave', handleDomLeave, {
+    passive: true,
+  })
+  window.addEventListener('blur', handleWindowBlur)
+
+  mapCursorCleanup.value = () => {
+    map.off('mousemove', handleMove)
+    map.off('mouseout', handleLeave)
+    map.off('dragstart', handleLeave)
+    map.off('zoomstart', handleLeave)
+
+    mapContainer.removeEventListener('pointerleave', handleDomLeave)
+    mapContainer.removeEventListener('mouseleave', handleDomLeave)
+    window.removeEventListener('blur', handleWindowBlur)
+  }
+}
+
+const formatBlockCoordinate = (value: number) => Math.round(value)
 
 function syncStops() {
   if (!railwayMap.value) return
@@ -272,7 +332,7 @@ function dedupePoints(points: RailwayGeometryPoint[]) {
 </script>
 
 <template>
-  <div class="relative">
+  <div class="relative railway-map-container">
     <div
       ref="containerRef"
       class="w-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 dark:bg-slate-900/20 dark:border-slate-800"
@@ -287,5 +347,73 @@ function dedupePoints(points: RailwayGeometryPoint[]) {
     >
       加载地图…
     </div>
+
+    <div class="absolute inset-0 z-998 p-3 pointer-events-none flex items-end">
+      <div
+        class="absolute inset-0 rounded-2xl bg-[linear-gradient(180deg,transparent_75%,var(--background-dark-2)_125%)]"
+      ></div>
+      <div
+        class="relative w-full rounded-lg text-xs text-white flex items-end justify-between"
+        style="text-shadow: 0 0 5px rgba(0, 0, 0, 0.7)"
+      >
+        <div></div>
+
+        <transition
+          enter-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition-opacity duration-200"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div v-if="pointerBlockCoord">
+            {{ formatBlockCoordinate(pointerBlockCoord.x) }},
+            {{ formatBlockCoordinate(pointerBlockCoord.z) }}
+          </div>
+        </transition>
+      </div>
+    </div>
   </div>
 </template>
+
+<style>
+.railway-station-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 600;
+  padding: 0;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
+.railway-station-label::before {
+  display: none;
+}
+
+.dark .railway-station-label {
+  color: #f1f5f9;
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.85);
+}
+
+.railway-map-container .leaflet-tile-pane {
+  filter: brightness(0.85) saturate(0.85);
+}
+
+.dark .railway-map-container .leaflet-tile-pane {
+  filter: brightness(0.7) saturate(0.85);
+}
+
+.railway-map-container .railway-route-polyline {
+  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.5));
+}
+
+.dark .railway-map-container .railway-route-polyline {
+  filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.7));
+}
+
+.railway-map-container .leaflet-control-container {
+  display: none;
+}
+</style>

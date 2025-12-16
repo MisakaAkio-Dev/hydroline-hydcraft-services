@@ -99,6 +99,7 @@ export interface RailwayRouteDetail {
     lastDeployed: number | null
     lastUpdated: number | null
     snapshotLength: number | null
+    lengthKm: number | null
   }
   stations: Array<
     RailwayEntity & {

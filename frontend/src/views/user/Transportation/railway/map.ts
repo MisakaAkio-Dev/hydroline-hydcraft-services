@@ -17,7 +17,17 @@ type DrawOptions = {
 }
 
 const defaultColor = '#0ea5e9'
-const STATION_AREA_ZOOM = 5
+const STATION_AREA_ZOOM = 3
+const ROUTE_POLYLINE_CLASS = 'railway-route-polyline'
+const LABEL_POSITIONS: Array<{
+  direction: L.Direction
+  offset: L.PointExpression
+}> = [
+  { direction: 'top', offset: L.point(0, -10) },
+  { direction: 'right', offset: L.point(10, 0) },
+  { direction: 'bottom', offset: L.point(0, 10) },
+  { direction: 'left', offset: L.point(-10, 0) },
+]
 
 function toHexColor(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return defaultColor
@@ -30,6 +40,13 @@ export class RailwayMap {
   private stopLayer: L.LayerGroup | null = null
   private stops: RailwayRouteDetail['stops'] = []
   private zoomHandler: (() => void) | null = null
+  private routeColor = defaultColor
+  private polylineEndpoints: RailwayGeometryPoint[] = []
+  private oversizeFallback: {
+    center: L.LatLng
+    zoom: number
+  } | null = null
+  private oversizeRaf: number | null = null
 
   constructor() {
     this.controller = createHydcraftDynmapMap()
@@ -53,6 +70,8 @@ export class RailwayMap {
     const map = this.controller.getLeafletInstance()
     if (!map) return
     const color = toHexColor(options?.color ?? null)
+    this.routeColor = color
+    this.polylineEndpoints = this.getPolylineEndpoints(paths)
     const focusZoom = options?.focusZoom ?? 4
     if (!paths.length) return
     const focusPoint = paths[0]?.[0]
@@ -72,6 +91,7 @@ export class RailwayMap {
         color,
         weight: options?.weight ?? 4,
         opacity: options?.opacity ?? 0.85,
+        className: ROUTE_POLYLINE_CLASS,
       }).addTo(map)
       this.polylines.push(polyline)
       const polyBounds = polyline.getBounds()
@@ -80,9 +100,18 @@ export class RailwayMap {
     if (bounds && bounds.isValid()) {
       const padding = L.point(32, 32)
       const targetZoom = map.getBoundsZoom(bounds, false, padding)
-      if (targetZoom < map.getMinZoom()) {
-        map.setMinZoom(targetZoom)
+      const minZoom = map.getMinZoom()
+
+      // 线路跨度过大：若需要缩小到 minZoom 以下才看全，则改为“中心定位 + 首站可见偏移”。
+      if (targetZoom < minZoom) {
+        const center = bounds.getCenter()
+        this.oversizeFallback = { center, zoom: minZoom }
+        this.scheduleOversizeFocus(map)
+        this.renderStops()
+        return
       }
+
+      this.oversizeFallback = null
       map.flyToBounds(bounds, {
         padding: [padding.x, padding.y],
         maxZoom: focusZoom,
@@ -90,6 +119,7 @@ export class RailwayMap {
     } else if (focusPoint) {
       this.controller.flyToBlock(focusPoint, focusZoom)
     }
+    this.renderStops()
   }
 
   destroy() {
@@ -99,6 +129,10 @@ export class RailwayMap {
       map.off('zoomend', this.zoomHandler)
     }
     this.zoomHandler = null
+    if (this.oversizeRaf != null) {
+      cancelAnimationFrame(this.oversizeRaf)
+      this.oversizeRaf = null
+    }
     this.clearStopLayer()
     this.controller.destroy()
   }
@@ -106,6 +140,12 @@ export class RailwayMap {
   setStops(stops: RailwayRouteDetail['stops'] = []) {
     this.stops = stops ?? []
     this.renderStops()
+
+    // 若 drawGeometry 触发过 oversize fallback，此时 stops 可能刚刚才加载，补一次首站可见偏移。
+    const map = this.controller.getLeafletInstance()
+    if (map && this.oversizeFallback) {
+      this.scheduleOversizeFocus(map)
+    }
   }
 
   private renderStops() {
@@ -115,7 +155,8 @@ export class RailwayMap {
     if (!this.stops.length) return
     const showArea = map.getZoom() >= STATION_AREA_ZOOM
     const layer = L.layerGroup()
-    for (const stop of this.stops) {
+    for (let index = 0; index < this.stops.length; index += 1) {
+      const stop = this.stops[index]
       if (showArea && stop.bounds) {
         const bounds = this.toBounds(stop.bounds)
         if (!bounds) continue
@@ -124,8 +165,9 @@ export class RailwayMap {
           weight: 1,
           fillOpacity: 0.15,
         })
-        if (stop.stationName || stop.platformName) {
-          rectangle.bindTooltip(stop.stationName ?? stop.platformName ?? '', {
+        const stopLabel = this.getStopLabel(stop)
+        if (stopLabel) {
+          rectangle.bindTooltip(stopLabel, {
             permanent: true,
             direction: 'center',
             className: 'railway-station-label',
@@ -134,25 +176,26 @@ export class RailwayMap {
         rectangle.addTo(layer)
         continue
       }
-      if (!stop.position) continue
-      const latlng = this.controller.toLatLng({
-        x: stop.position.x,
-        z: stop.position.z,
-      })
+      const position = this.getStopMarkerPosition(index, stop)
+      if (!position) continue
+      const latlng = this.controller.toLatLng({ x: position.x, z: position.z })
       if (!latlng) continue
+      const stopLabel = this.getStopLabel(stop)
+      const isTerminal = index === 0 || index === this.stops.length - 1
       const marker = L.circleMarker(latlng, {
-        radius: 4,
-        color: '#0ea5e9',
-        weight: 2,
-        fillOpacity: 0.85,
-        fillColor: '#bae6fd',
+        radius: isTerminal ? 7 : 6,
+        color: this.routeColor,
+        weight: 3,
+        fillOpacity: 1,
+        fillColor: '#ffffff',
       })
-      if (stop.stationName || stop.platformName) {
-        marker.bindTooltip(stop.stationName ?? stop.platformName ?? '', {
+      if (stopLabel) {
+        const labelPosition = this.pickLabelPosition(index)
+        marker.bindTooltip(stopLabel, {
           permanent: true,
-          direction: 'top',
+          direction: labelPosition.direction,
           className: 'railway-station-label',
-          offset: L.point(0, -4),
+          offset: labelPosition.offset,
         })
       }
       marker.addTo(layer)
@@ -171,6 +214,233 @@ export class RailwayMap {
   private clearStopLayer() {
     this.stopLayer?.remove()
     this.stopLayer = null
+  }
+
+  private getStopLabel(stop: RailwayRouteDetail['stops'][number]) {
+    const raw = stop.stationName ?? stop.platformName ?? stop.stationId
+    if (!raw) return ''
+    return raw.split('|')[0]?.trim() ?? ''
+  }
+
+  private pickLabelPosition(index: number) {
+    if (!LABEL_POSITIONS.length) {
+      return { direction: 'top' as L.Direction, offset: L.point(0, -12) }
+    }
+    return LABEL_POSITIONS[index % LABEL_POSITIONS.length]
+  }
+
+  private getPolylineEndpoints(paths: RailwayGeometryPoint[][]) {
+    const endpoints: RailwayGeometryPoint[] = []
+    for (const path of paths) {
+      if (!path?.length) continue
+      endpoints.push(path[0])
+      endpoints.push(path[path.length - 1])
+    }
+    return this.dedupeEndpoints(endpoints)
+  }
+
+  private dedupeEndpoints(points: RailwayGeometryPoint[]) {
+    if (!points.length) return []
+    const result: RailwayGeometryPoint[] = []
+    for (const point of points) {
+      const exists = result.some(
+        (p) => Math.abs(p.x - point.x) < 1e-3 && Math.abs(p.z - point.z) < 1e-3,
+      )
+      if (!exists) {
+        result.push(point)
+      }
+    }
+    return result
+  }
+
+  private pickNearestEndpoint(
+    target: RailwayGeometryPoint,
+    endpoints: RailwayGeometryPoint[],
+  ) {
+    if (!endpoints.length) return null
+    let best = endpoints[0]
+    let bestDist = Number.POSITIVE_INFINITY
+    for (const point of endpoints) {
+      const dx = point.x - target.x
+      const dz = point.z - target.z
+      const dist = dx * dx + dz * dz
+      if (dist < bestDist) {
+        bestDist = dist
+        best = point
+      }
+    }
+    return best
+  }
+
+  private pickDirectionalEndpoint(
+    target: RailwayGeometryPoint,
+    direction: RailwayGeometryPoint,
+    endpoints: RailwayGeometryPoint[],
+  ) {
+    if (!endpoints.length) return null
+    const len = Math.hypot(direction.x, direction.z)
+    if (!Number.isFinite(len) || len < 1e-6) {
+      return this.pickNearestEndpoint(target, endpoints)
+    }
+    const vx = direction.x / len
+    const vz = direction.z / len
+
+    let best: RailwayGeometryPoint | null = null
+    let bestScore = -Infinity
+    let bestDist = Number.POSITIVE_INFINITY
+
+    for (const point of endpoints) {
+      const dx = point.x - target.x
+      const dz = point.z - target.z
+      const dist2 = dx * dx + dz * dz
+      const dist = Math.sqrt(dist2)
+      const forward = dx * vx + dz * vz
+      if (forward <= 0) continue
+
+      // Prefer endpoints that are (1) in front of the stop, (2) closer, (3) better aligned.
+      const alignment = forward / (dist + 1e-6)
+      const score = alignment * 2 - dist * 0.001
+
+      if (score > bestScore || (score === bestScore && dist2 < bestDist)) {
+        best = point
+        bestScore = score
+        bestDist = dist2
+      }
+    }
+
+    return best ?? this.pickNearestEndpoint(target, endpoints)
+  }
+
+  private getNearestNeighborPosition(index: number, step: 1 | -1) {
+    for (let i = index + step; i >= 0 && i < this.stops.length; i += step) {
+      const pos = this.stops[i]?.position
+      if (pos) return pos
+    }
+    return null
+  }
+
+  private getStopMarkerPosition(
+    index: number,
+    stop: RailwayRouteDetail['stops'][number],
+  ): RailwayGeometryPoint | null {
+    const isFirst = index === 0
+    const isLast = index === this.stops.length - 1
+    if (isFirst) {
+      if (stop.position) {
+        const neighbor = this.getNearestNeighborPosition(index, 1)
+        const direction = neighbor
+          ? { x: stop.position.x - neighbor.x, z: stop.position.z - neighbor.z }
+          : { x: 0, z: 0 }
+        return (
+          this.pickDirectionalEndpoint(
+            stop.position,
+            direction,
+            this.polylineEndpoints,
+          ) ?? stop.position
+        )
+      }
+      return null
+    }
+    if (isLast) {
+      if (stop.position) {
+        const neighbor = this.getNearestNeighborPosition(index, -1)
+        const direction = neighbor
+          ? { x: stop.position.x - neighbor.x, z: stop.position.z - neighbor.z }
+          : { x: 0, z: 0 }
+        return (
+          this.pickDirectionalEndpoint(
+            stop.position,
+            direction,
+            this.polylineEndpoints,
+          ) ?? stop.position
+        )
+      }
+      return null
+    }
+    return stop.position ?? null
+  }
+
+  private getFirstStopWithPosition() {
+    let first: RailwayRouteDetail['stops'][number] | null = null
+    for (const stop of this.stops) {
+      if (!stop.position) continue
+      if (!first || stop.order < first.order) {
+        first = stop
+      }
+    }
+    return first
+  }
+
+  private toLatLngBoundsAround(
+    point: RailwayGeometryPoint,
+    radiusBlocks: number,
+  ) {
+    const sw = this.controller.toLatLng({
+      x: point.x - radiusBlocks,
+      z: point.z - radiusBlocks,
+    })
+    const ne = this.controller.toLatLng({
+      x: point.x + radiusBlocks,
+      z: point.z + radiusBlocks,
+    })
+    if (!sw || !ne) return null
+    return L.latLngBounds(sw, ne)
+  }
+
+  private panToFirstStopArea(map: L.Map) {
+    const firstStop = this.getFirstStopWithPosition()
+    if (!firstStop?.position) return
+
+    const radius = 100
+    const bounds = this.toLatLngBoundsAround(firstStop.position, radius)
+    if (!bounds || !bounds.isValid()) return
+
+    // 把首站周边 100 方块区域尽量挪到视野内。
+    map.panInsideBounds(bounds, {
+      paddingTopLeft: [24, 24],
+      paddingBottomRight: [24, 24],
+      animate: false,
+    })
+  }
+
+  private focusOnFirstStop(map: L.Map) {
+    const firstStop = this.getFirstStopWithPosition()
+    if (!firstStop?.position) return false
+    const latlng = this.controller.toLatLng({
+      x: firstStop.position.x,
+      z: firstStop.position.z,
+    })
+    if (!latlng) return false
+    const zoom = this.oversizeFallback?.zoom ?? map.getMinZoom()
+    map.setView(latlng, zoom, { animate: false })
+    // 再补一次“首站周围 100 方块”尽量可见（可选偏移）
+    this.panToFirstStopArea(map)
+    return true
+  }
+
+  private scheduleOversizeFocus(map: L.Map) {
+    if (!this.oversizeFallback) return
+    if (this.oversizeRaf != null) {
+      cancelAnimationFrame(this.oversizeRaf)
+      this.oversizeRaf = null
+    }
+
+    // 两帧后执行：等待 Leaflet 容器尺寸/viewport 计算稳定。
+    this.oversizeRaf = requestAnimationFrame(() => {
+      this.oversizeRaf = requestAnimationFrame(() => {
+        this.oversizeRaf = null
+
+        // 目标：至少确保首站可见；若首站数据尚未加载，则退回线路中心。
+        if (this.focusOnFirstStop(map)) return
+        map.setView(
+          this.oversizeFallback!.center,
+          this.oversizeFallback!.zoom,
+          {
+            animate: false,
+          },
+        )
+      })
+    })
   }
 
   private toBounds(bounds: {

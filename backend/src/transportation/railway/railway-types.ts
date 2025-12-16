@@ -125,6 +125,7 @@ export type RouteDetailResult = {
     lastDeployed: number | null;
     lastUpdated: number | null;
     snapshotLength: number | null;
+    lengthKm: number | null;
   };
   stations: Array<
     NormalizedEntity & {
