@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  watchEffect,
+} from 'vue'
 import 'leaflet/dist/leaflet.css'
 import type { LeafletMouseEvent } from 'leaflet'
 import { RailwayMap } from '@/views/user/Transportation/railway/map'
@@ -40,30 +47,75 @@ const containerHeight = computed(() => {
   if (typeof height === 'string') return height
   return '360px'
 })
-const resolvedPolylines = computed<RailwayGeometryPoint[][]>(() => {
+const SECONDARY_ZOOM_THRESHOLD = 3
+const SECONDARY_SEPARATION_THRESHOLD = 12
+type GeometryPathEntry = {
+  id: string
+  label: string | null
+  isPrimary: boolean
+  polylines: RailwayGeometryPoint[][]
+}
+
+const geometryPathEntries = computed<GeometryPathEntry[]>(() => {
   const geometry = props.geometry
   if (!geometry) return []
-  const segments = geometry.segments ?? []
-  const fallback = dedupePoints(geometry.points ?? [])
-  if (!segments.length) {
-    return fallback.length ? [fallback] : []
-  }
-  const polylines: RailwayGeometryPoint[][] = []
-  segments.forEach((segment) => {
-    const startPoint = to2DPoint(segment.start)
-    const endPoint = to2DPoint(segment.end)
-    if (!startPoint || !endPoint) {
-      return
-    }
-    const sampled = sampleSegment(segment, startPoint, endPoint)
-    if (sampled.length >= 2) {
-      polylines.push(sampled)
-    }
-  })
-  if (polylines.length) {
-    return polylines
-  }
-  return fallback.length ? [fallback] : []
+  const sources = geometry.paths?.length
+    ? geometry.paths
+    : [
+        {
+          id: 'legacy',
+          label: null,
+          isPrimary: true,
+          source: geometry.source,
+          points: geometry.points ?? [],
+          segments: geometry.segments,
+        },
+      ]
+  return sources
+    .map((path, index) => {
+      const polylines = resolvePolylinesForPath(path)
+      if (!polylines.length) return null
+      return {
+        id: path.id || `${path.source}-${index}`,
+        label: path.label ?? null,
+        isPrimary:
+          typeof path.isPrimary === 'boolean' ? path.isPrimary : index === 0,
+        polylines,
+      }
+    })
+    .filter((entry): entry is GeometryPathEntry => Boolean(entry))
+})
+
+const primaryEntry = computed(() => {
+  if (!geometryPathEntries.value.length) return null
+  const forced = geometryPathEntries.value.find((entry) => entry.isPrimary)
+  return forced ?? geometryPathEntries.value[0]
+})
+
+const primaryEntryId = computed(() => primaryEntry.value?.id ?? null)
+
+const primaryPolylines = computed(
+  () => primaryEntry.value?.polylines ?? [],
+)
+
+const secondaryEntryList = computed(() =>
+  geometryPathEntries.value.filter((entry) => entry.id !== primaryEntryId.value),
+)
+
+const secondaryPolylines = computed(() =>
+  secondaryEntryList.value.flatMap((entry) => entry.polylines),
+)
+
+const primaryCentroid = computed(() => computeCentroid(primaryPolylines.value))
+const secondaryCentroid = computed(() =>
+  computeCentroid(secondaryPolylines.value),
+)
+
+const shouldForceSeparate = computed(() => {
+  if (!primaryCentroid.value || !secondaryCentroid.value) return false
+  const dx = primaryCentroid.value.x - secondaryCentroid.value.x
+  const dz = primaryCentroid.value.z - secondaryCentroid.value.z
+  return Math.hypot(dx, dz) >= SECONDARY_SEPARATION_THRESHOLD
 })
 
 function destroyMap() {
@@ -76,11 +128,14 @@ function destroyMap() {
 
 function drawGeometry() {
   if (!railwayMap.value) return
-  railwayMap.value.drawGeometry(resolvedPolylines.value, {
+  railwayMap.value.drawGeometry(primaryPolylines.value, {
     color: props.color ?? null,
     weight: 4,
     opacity: 0.9,
     focusZoom: props.zoom,
+    secondaryPaths: secondaryPolylines.value,
+    secondaryZoomThreshold: SECONDARY_ZOOM_THRESHOLD,
+    forceShowSecondary: shouldForceSeparate.value,
   })
 }
 
@@ -150,6 +205,17 @@ function attachMapCursorTracking() {
 }
 
 const formatBlockCoordinate = (value: number) => Math.round(value)
+let scheduledDrawFrame: number | null = null
+
+function scheduleDraw() {
+  if (scheduledDrawFrame != null) {
+    return
+  }
+  scheduledDrawFrame = requestAnimationFrame(() => {
+    scheduledDrawFrame = null
+    drawGeometry()
+  })
+}
 
 function syncStops() {
   if (!railwayMap.value) return
@@ -157,17 +223,17 @@ function syncStops() {
 }
 
 watch(
-  resolvedPolylines,
+  () => props.geometry,
   () => {
-    drawGeometry()
+    scheduleDraw()
   },
-  { deep: true },
+  { immediate: true },
 )
 
 watch(
   () => props.color,
   () => {
-    drawGeometry()
+    scheduleDraw()
   },
 )
 
@@ -185,6 +251,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (scheduledDrawFrame != null) {
+    cancelAnimationFrame(scheduledDrawFrame)
+    scheduledDrawFrame = null
+  }
   destroyMap()
 })
 
@@ -328,6 +398,48 @@ function dedupePoints(points: RailwayGeometryPoint[]) {
     }
   })
   return result
+}
+
+function resolvePolylinesForPath(path: {
+  segments?: RailwayGeometrySegment[]
+  points?: RailwayGeometryPoint[]
+}) {
+  const segments = path.segments ?? []
+  const fallback = dedupePoints(path.points ?? [])
+  if (!segments.length) {
+    return fallback.length ? [fallback] : []
+  }
+  const polylines: RailwayGeometryPoint[][] = []
+  segments.forEach((segment) => {
+    const startPoint = to2DPoint(segment.start)
+    const endPoint = to2DPoint(segment.end)
+    if (!startPoint || !endPoint) {
+      return
+    }
+    const sampled = sampleSegment(segment, startPoint, endPoint)
+    if (sampled.length >= 2) {
+      polylines.push(sampled)
+    }
+  })
+  if (polylines.length) {
+    return polylines
+  }
+  return fallback.length ? [fallback] : []
+}
+
+function computeCentroid(paths: RailwayGeometryPoint[][]) {
+  let sumX = 0
+  let sumZ = 0
+  let total = 0
+  for (const path of paths) {
+    for (const point of path) {
+      sumX += point.x
+      sumZ += point.z
+      total += 1
+    }
+  }
+  if (!total) return null
+  return { x: sumX / total, z: sumZ / total }
 }
 </script>
 

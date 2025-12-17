@@ -21,6 +21,7 @@ import type {
   NormalizedEntity,
   NormalizedRoute,
   RailwayPlatformRecord,
+  RailwayRouteRecord,
   RailwaySnapshotEntry,
   RailwayStationRecord,
   RouteDetailResult,
@@ -185,12 +186,27 @@ export class TransportationRailwayRouteDetailService {
       ) ??
       buildDimensionContextFromDimension(snapshot.dimension, server.railwayMod);
 
-    const geometry = await this.buildRouteGeometry(
+    const mainGeometry = await this.buildRouteGeometry(
       server,
       dimensionContextForGeometry,
       selectedPlatforms,
       [],
     );
+
+    const geometryPaths = await this.buildRouteGeometryPaths(
+      server,
+      dimensionContextForGeometry,
+      normalizedRouteId,
+      snapshot.route,
+      snapshot.payload?.routes ?? [],
+      platforms,
+      mainGeometry,
+    );
+
+    const geometry: RouteDetailResult['geometry'] = {
+      ...mainGeometry,
+      paths: geometryPaths,
+    };
 
     const estimatedLengthKm = estimateGeometryLengthKm(geometry);
 
@@ -1104,6 +1120,121 @@ export class TransportationRailwayRouteDetailService {
 
   private buildPlatformsMap(records: RailwayPlatformRecord[]) {
     return new Map(records.map((record) => [normalizeId(record.id), record]));
+  }
+
+  private async buildRouteGeometryPaths(
+    server: BeaconServerRecord,
+    dimensionContext: string | null,
+    normalizedRouteId: string,
+    mainRoute: RailwayRouteRecord,
+    allRoutes: RailwayRouteRecord[],
+    platformMap: Map<string | null, RailwayPlatformRecord>,
+    mainGeometry: RouteDetailResult['geometry'],
+  ) {
+    const paths: RouteDetailResult['geometry']['paths'] = []
+    paths.push(
+      this.buildGeometryPathEntry(normalizedRouteId, mainRoute, mainGeometry, true),
+    )
+    const candidates = this.findRelatedRoutes(
+      mainRoute,
+      allRoutes,
+      normalizedRouteId,
+    )
+    let altIndex = 0
+    for (const candidate of candidates) {
+      const candidatePlatforms = this.resolvePlatformsForRoute(candidate, platformMap)
+      if (!candidatePlatforms.length) {
+        continue
+      }
+      const geometry = await this.buildRouteGeometry(
+        server,
+        dimensionContext,
+        candidatePlatforms,
+        [],
+      )
+      const pointCount = geometry.points?.length ?? 0
+      if (pointCount < 2) {
+        continue
+      }
+      const candidateId =
+        normalizeId(candidate.id) ?? `${normalizedRouteId}-alt-${altIndex}`
+      altIndex += 1
+      paths.push(
+        this.buildGeometryPathEntry(candidateId, candidate, geometry, false),
+      )
+    }
+    return paths
+  }
+
+  private buildGeometryPathEntry(
+    routeId: string,
+    route: RailwayRouteRecord | null,
+    geometry: RouteDetailResult['geometry'],
+    isPrimary: boolean,
+  ) {
+    return {
+      id: routeId,
+      label: this.buildRouteLabel(route),
+      isPrimary,
+      source: geometry.source,
+      points: geometry.points,
+      segments: geometry.segments,
+    }
+  }
+
+  private resolvePlatformsForRoute(
+    route: RailwayRouteRecord,
+    platformMap: Map<string | null, RailwayPlatformRecord>,
+  ) {
+    const platformIds = normalizeIdList(route.platform_ids ?? [])
+    return platformIds
+      .map((platformId) => platformMap.get(platformId) ?? null)
+      .filter(
+        (platform): platform is RailwayPlatformRecord => Boolean(platform),
+      )
+  }
+
+  private findRelatedRoutes(
+    currentRoute: RailwayRouteRecord,
+    allRoutes: RailwayRouteRecord[],
+    excludeRouteId: string,
+  ) {
+    const referenceKey = this.buildRouteDirectionKey(currentRoute)
+    if (!referenceKey) return []
+    return allRoutes.filter((route) => {
+      const routeId = normalizeId(route.id)
+      if (!routeId || routeId === excludeRouteId) {
+        return false
+      }
+      const candidateKey = this.buildRouteDirectionKey(route)
+      return Boolean(candidateKey && candidateKey === referenceKey)
+    })
+  }
+
+  private buildRouteDirectionKey(route: RailwayRouteRecord | null) {
+    if (!route) return null
+    const normalizeValue = (value?: string | null) => {
+      if (!value) return null
+      const normalized = value
+        .split('||')[0]
+        .split('|')[0]
+        .trim()
+        .toLowerCase()
+      return normalized || null
+    }
+    return (
+      normalizeValue(route.light_rail_route_number) ??
+      normalizeValue(route.name ?? null)
+    )
+  }
+
+  private buildRouteLabel(route: RailwayRouteRecord | null) {
+    if (!route) return null
+    return (
+      readString(route.light_rail_route_number) ??
+      readString(route.name) ??
+      null
+    )
   }
 
   private normalizeStationRecord(

@@ -90,6 +90,15 @@ export interface RailwayGeometrySegment {
   connection: RailwayGeometrySegmentConnection | null
 }
 
+export interface RailwayRouteGeometryPath {
+  id: string
+  label: string | null
+  isPrimary: boolean
+  source: 'rails' | 'platform-centers' | 'station-bounds'
+  points: RailwayGeometryPoint[]
+  segments?: RailwayGeometrySegment[]
+}
+
 export interface RailwayRouteDetail {
   server: { id: string; name: string }
   dimension: string | null
@@ -125,6 +134,7 @@ export interface RailwayRouteDetail {
     source: 'rails' | 'platform-centers' | 'station-bounds'
     points: RailwayGeometryPoint[]
     segments?: RailwayGeometrySegment[]
+    paths?: RailwayRouteGeometryPath[]
   }
   stops: Array<{
     order: number

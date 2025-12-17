@@ -366,7 +366,7 @@ onMounted(() => {
         :stops="detail?.stops ?? []"
         :color="detail?.route.color ?? null"
         :loading="!detail"
-        height="420px"
+        height="520px"
       />
 
       <div class="pointer-events-none absolute bottom-3 left-3 z-998">
@@ -417,7 +417,7 @@ onMounted(() => {
               暂无站点数据
             </div>
             <div v-else class="h-32">
-              <div class="relative inline-flex w-full min-w-max items-center">
+              <div class="relative inline-flex w-full min-w-max items-center justify-between">
                 <div
                   class="mask-[linear-gradient(to_right,transparent,#fff_3%_97%,transparent)] pointer-events-none absolute left-0 right-0 top-20 h-1.5 -translate-y-1/2 w-full"
                   :style="

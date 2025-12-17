@@ -14,6 +14,11 @@ type DrawOptions = {
   weight?: number
   opacity?: number
   focusZoom?: number
+  secondaryPaths?: RailwayGeometryPoint[][]
+  secondaryZoomThreshold?: number
+  forceShowSecondary?: boolean
+  secondaryWeight?: number
+  secondaryOpacity?: number
 }
 
 const defaultColor = '#0ea5e9'
@@ -42,11 +47,24 @@ export class RailwayMap {
   private zoomHandler: (() => void) | null = null
   private routeColor = defaultColor
   private polylineEndpoints: RailwayGeometryPoint[] = []
+  private secondaryPaths: RailwayGeometryPoint[][] = []
+  private secondaryPolylines: L.Polyline[] = []
+  private secondaryConfig:
+    | {
+        color: string
+        weight: number
+        opacity: number
+        zoomThreshold: number
+        force: boolean
+      }
+    | null = null
   private oversizeFallback: {
     center: L.LatLng
     zoom: number
   } | null = null
   private oversizeRaf: number | null = null
+  private pendingDraw: { paths: RailwayGeometryPoint[][]; options?: DrawOptions } | null =
+    null
 
   constructor() {
     this.controller = createHydcraftDynmapMap()
@@ -56,8 +74,14 @@ export class RailwayMap {
     this.controller.mount(options)
     const map = this.controller.getLeafletInstance()
     if (map) {
-      this.zoomHandler = () => this.renderStops()
+      this.zoomHandler = () => {
+        this.renderStops()
+        this.syncSecondaryPolylines()
+      }
       map.on('zoomend', this.zoomHandler)
+      map.whenReady(() => {
+        this.commitPendingDraw()
+      })
     }
   }
 
@@ -67,25 +91,42 @@ export class RailwayMap {
 
   drawGeometry(paths: RailwayGeometryPoint[][] = [], options?: DrawOptions) {
     this.clearPolylines()
+    this.clearSecondaryPolylines()
+    this.secondaryPaths = options?.secondaryPaths ?? []
     const map = this.controller.getLeafletInstance()
+    if (!map || !map['_loaded']) {
+      this.pendingDraw = { paths, options }
+      return
+    }
     if (!map) return
     const color = toHexColor(options?.color ?? null)
     this.routeColor = color
     this.polylineEndpoints = this.getPolylineEndpoints(paths)
     const focusZoom = options?.focusZoom ?? 4
-    if (!paths.length) return
-    const focusPoint = paths[0]?.[0]
+    if (!paths.length && !this.secondaryPaths.length) {
+      this.syncSecondaryPolylines()
+      return
+    }
+    const focusPoint = paths[0]?.[0] ?? this.secondaryPaths[0]?.[0]
+    const secondaryColorHex = color
+    const secondaryWeight = options?.secondaryWeight ?? Math.max(2, (options?.weight ?? 4) - 1)
+    const secondaryOpacity =
+      options?.secondaryOpacity ?? Math.min(1, (options?.opacity ?? 0.9) * 0.85)
+    const secondaryZoomThreshold =
+      options?.secondaryZoomThreshold ?? STATION_AREA_ZOOM
+    const forceSecondary = Boolean(options?.forceShowSecondary)
+    this.secondaryConfig = {
+      color: secondaryColorHex,
+      weight: secondaryWeight,
+      opacity: secondaryOpacity,
+      zoomThreshold: secondaryZoomThreshold,
+      force: forceSecondary,
+    }
+
     let bounds: L.LatLngBounds | null = null
     for (const path of paths) {
       if (!path?.length) continue
-      const latlngs = path
-        .map((point) =>
-          this.controller.toLatLng({
-            x: point.x,
-            z: point.z,
-          }),
-        )
-        .filter(Boolean) as L.LatLngExpression[]
+      const latlngs = this.toLatLngPath(path)
       if (!latlngs.length) continue
       const polyline = L.polyline(latlngs, {
         color,
@@ -96,6 +137,14 @@ export class RailwayMap {
       this.polylines.push(polyline)
       const polyBounds = polyline.getBounds()
       bounds = bounds ? bounds.extend(polyBounds) : polyBounds
+    }
+    const allPaths = [...paths, ...this.secondaryPaths]
+    for (const path of allPaths) {
+      if (!path?.length) continue
+      const latlngs = this.toLatLngPath(path)
+      if (!latlngs.length) continue
+      const pathBounds = L.latLngBounds(latlngs)
+      bounds = bounds ? bounds.extend(pathBounds) : pathBounds
     }
     if (bounds && bounds.isValid()) {
       const padding = L.point(32, 32)
@@ -119,11 +168,13 @@ export class RailwayMap {
     } else if (focusPoint) {
       this.controller.flyToBlock(focusPoint, focusZoom)
     }
+    this.syncSecondaryPolylines()
     this.renderStops()
   }
 
   destroy() {
     this.clearPolylines()
+    this.clearSecondaryPolylines()
     const map = this.controller.getLeafletInstance()
     if (map && this.zoomHandler) {
       map.off('zoomend', this.zoomHandler)
@@ -211,9 +262,62 @@ export class RailwayMap {
     this.polylines = []
   }
 
+  private syncSecondaryPolylines() {
+    const map = this.controller.getLeafletInstance()
+    if (!map) return
+    const config = this.secondaryConfig
+    if (!config || !this.secondaryPaths.length) {
+      this.clearSecondaryPolylines()
+      return
+    }
+    const zoom = map.getZoom()
+    const shouldShow = config.force || zoom >= config.zoomThreshold
+    if (!shouldShow) {
+      this.clearSecondaryPolylines()
+      return
+    }
+    if (this.secondaryPolylines.length) {
+      return
+    }
+    const latlngGroups = this.secondaryPaths
+      .map((path) => this.toLatLngPath(path))
+      .filter((latlngs) => latlngs.length)
+    this.secondaryPolylines = latlngGroups.map((latlngs) =>
+      L.polyline(latlngs, {
+        color: config.color,
+        weight: config.weight,
+        opacity: config.opacity,
+        className: ROUTE_POLYLINE_CLASS,
+      }).addTo(map),
+    )
+  }
+
   private clearStopLayer() {
     this.stopLayer?.remove()
     this.stopLayer = null
+  }
+
+  private clearSecondaryPolylines() {
+    this.secondaryPolylines.forEach((polyline) => polyline.remove())
+    this.secondaryPolylines = []
+  }
+
+  private toLatLngPath(path: RailwayGeometryPoint[]) {
+    return path
+      .map((point) =>
+        this.controller.toLatLng({
+          x: point.x,
+          z: point.z,
+        }),
+      )
+      .filter(Boolean) as L.LatLngExpression[]
+  }
+
+  private commitPendingDraw() {
+    if (!this.pendingDraw) return
+    const { paths, options } = this.pendingDraw
+    this.pendingDraw = null
+    this.drawGeometry(paths, options)
   }
 
   private getStopLabel(stop: RailwayRouteDetail['stops'][number]) {

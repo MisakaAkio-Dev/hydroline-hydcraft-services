@@ -60,6 +60,15 @@ export type RailwayRouteRecord = {
   light_rail_route_number?: string | null;
 };
 
+export type RailwayRouteGeometryPath = {
+  id: string;
+  label: string | null;
+  isPrimary: boolean;
+  source: 'rails' | 'platform-centers' | 'station-bounds';
+  points: Array<{ x: number; z: number }>;
+  segments?: RailGeometrySegment[];
+};
+
 export type RailwayDepotRecord = {
   id?: unknown;
   name?: string | null;
@@ -151,6 +160,7 @@ export type RouteDetailResult = {
     source: 'rails' | 'platform-centers' | 'station-bounds';
     points: Array<{ x: number; z: number }>;
     segments?: RailGeometrySegment[];
+    paths?: RailwayRouteGeometryPath[];
   };
   stops: Array<{
     order: number;
