@@ -17,6 +17,7 @@ type DrawOptions = {
   secondaryPaths?: RailwayGeometryPoint[][]
   secondaryZoomThreshold?: number
   forceShowSecondary?: boolean
+  autoFocus?: boolean
   secondaryWeight?: number
   secondaryOpacity?: number
 }
@@ -49,22 +50,22 @@ export class RailwayMap {
   private polylineEndpoints: RailwayGeometryPoint[] = []
   private secondaryPaths: RailwayGeometryPoint[][] = []
   private secondaryPolylines: L.Polyline[] = []
-  private secondaryConfig:
-    | {
-        color: string
-        weight: number
-        opacity: number
-        zoomThreshold: number
-        force: boolean
-      }
-    | null = null
+  private secondaryConfig: {
+    color: string
+    weight: number
+    opacity: number
+    zoomThreshold: number
+    force: boolean
+  } | null = null
   private oversizeFallback: {
     center: L.LatLng
     zoom: number
   } | null = null
   private oversizeRaf: number | null = null
-  private pendingDraw: { paths: RailwayGeometryPoint[][]; options?: DrawOptions } | null =
-    null
+  private pendingDraw: {
+    paths: RailwayGeometryPoint[][]
+    options?: DrawOptions
+  } | null = null
 
   constructor() {
     this.controller = createHydcraftDynmapMap()
@@ -109,7 +110,8 @@ export class RailwayMap {
     }
     const focusPoint = paths[0]?.[0] ?? this.secondaryPaths[0]?.[0]
     const secondaryColorHex = color
-    const secondaryWeight = options?.secondaryWeight ?? Math.max(2, (options?.weight ?? 4) - 1)
+    const secondaryWeight =
+      options?.secondaryWeight ?? Math.max(2, (options?.weight ?? 4) - 1)
     const secondaryOpacity =
       options?.secondaryOpacity ?? Math.min(1, (options?.opacity ?? 0.9) * 0.85)
     const secondaryZoomThreshold =
@@ -146,6 +148,13 @@ export class RailwayMap {
       const pathBounds = L.latLngBounds(latlngs)
       bounds = bounds ? bounds.extend(pathBounds) : pathBounds
     }
+    const shouldAutoFocus = options?.autoFocus ?? true
+    if (!shouldAutoFocus) {
+      this.syncSecondaryPolylines()
+      this.renderStops()
+      return
+    }
+
     if (bounds && bounds.isValid()) {
       const padding = L.point(32, 32)
       const targetZoom = map.getBoundsZoom(bounds, false, padding)

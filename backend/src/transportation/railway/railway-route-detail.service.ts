@@ -1131,39 +1131,58 @@ export class TransportationRailwayRouteDetailService {
     platformMap: Map<string | null, RailwayPlatformRecord>,
     mainGeometry: RouteDetailResult['geometry'],
   ) {
-    const paths: RouteDetailResult['geometry']['paths'] = []
+    const paths: RouteDetailResult['geometry']['paths'] = [];
     paths.push(
-      this.buildGeometryPathEntry(normalizedRouteId, mainRoute, mainGeometry, true),
-    )
+      this.buildGeometryPathEntry(
+        normalizedRouteId,
+        mainRoute,
+        mainGeometry,
+        true,
+      ),
+    );
+    const mainPlatformIdSet = new Set(
+      normalizeIdList(mainRoute.platform_ids ?? []),
+    );
     const candidates = this.findRelatedRoutes(
       mainRoute,
       allRoutes,
       normalizedRouteId,
-    )
-    let altIndex = 0
+    ).filter((route) => {
+      const candidateIds = normalizeIdList(route.platform_ids ?? []);
+      if (!candidateIds.length || !mainPlatformIdSet.size) {
+        return false;
+      }
+      return candidateIds.some((platformId) =>
+        mainPlatformIdSet.has(platformId),
+      );
+    });
+    let altIndex = 0;
     for (const candidate of candidates) {
-      const candidatePlatforms = this.resolvePlatformsForRoute(candidate, platformMap)
+      const candidatePlatforms = this.resolvePlatformsForRoute(
+        candidate,
+        platformMap,
+      );
       if (!candidatePlatforms.length) {
-        continue
+        continue;
       }
       const geometry = await this.buildRouteGeometry(
         server,
         dimensionContext,
         candidatePlatforms,
         [],
-      )
-      const pointCount = geometry.points?.length ?? 0
+      );
+      const pointCount = geometry.points?.length ?? 0;
       if (pointCount < 2) {
-        continue
+        continue;
       }
       const candidateId =
-        normalizeId(candidate.id) ?? `${normalizedRouteId}-alt-${altIndex}`
-      altIndex += 1
+        normalizeId(candidate.id) ?? `${normalizedRouteId}-alt-${altIndex}`;
+      altIndex += 1;
       paths.push(
         this.buildGeometryPathEntry(candidateId, candidate, geometry, false),
-      )
+      );
     }
-    return paths
+    return paths;
   }
 
   private buildGeometryPathEntry(
@@ -1179,19 +1198,19 @@ export class TransportationRailwayRouteDetailService {
       source: geometry.source,
       points: geometry.points,
       segments: geometry.segments,
-    }
+    };
   }
 
   private resolvePlatformsForRoute(
     route: RailwayRouteRecord,
     platformMap: Map<string | null, RailwayPlatformRecord>,
   ) {
-    const platformIds = normalizeIdList(route.platform_ids ?? [])
+    const platformIds = normalizeIdList(route.platform_ids ?? []);
     return platformIds
       .map((platformId) => platformMap.get(platformId) ?? null)
-      .filter(
-        (platform): platform is RailwayPlatformRecord => Boolean(platform),
-      )
+      .filter((platform): platform is RailwayPlatformRecord =>
+        Boolean(platform),
+      );
   }
 
   private findRelatedRoutes(
@@ -1199,42 +1218,42 @@ export class TransportationRailwayRouteDetailService {
     allRoutes: RailwayRouteRecord[],
     excludeRouteId: string,
   ) {
-    const referenceKey = this.buildRouteDirectionKey(currentRoute)
-    if (!referenceKey) return []
+    const referenceKey = this.buildRouteDirectionKey(currentRoute);
+    if (!referenceKey) return [];
     return allRoutes.filter((route) => {
-      const routeId = normalizeId(route.id)
+      const routeId = normalizeId(route.id);
       if (!routeId || routeId === excludeRouteId) {
-        return false
+        return false;
       }
-      const candidateKey = this.buildRouteDirectionKey(route)
-      return Boolean(candidateKey && candidateKey === referenceKey)
-    })
+      const candidateKey = this.buildRouteDirectionKey(route);
+      return Boolean(candidateKey && candidateKey === referenceKey);
+    });
   }
 
   private buildRouteDirectionKey(route: RailwayRouteRecord | null) {
-    if (!route) return null
+    if (!route) return null;
     const normalizeValue = (value?: string | null) => {
-      if (!value) return null
+      if (!value) return null;
       const normalized = value
         .split('||')[0]
         .split('|')[0]
         .trim()
-        .toLowerCase()
-      return normalized || null
-    }
+        .toLowerCase();
+      return normalized || null;
+    };
     return (
       normalizeValue(route.light_rail_route_number) ??
       normalizeValue(route.name ?? null)
-    )
+    );
   }
 
   private buildRouteLabel(route: RailwayRouteRecord | null) {
-    if (!route) return null
+    if (!route) return null;
     return (
       readString(route.light_rail_route_number) ??
       readString(route.name) ??
       null
-    )
+    );
   }
 
   private normalizeStationRecord(

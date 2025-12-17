@@ -27,6 +27,7 @@ const props = withDefaults(
     showZoomControl?: boolean
     height?: string | number
     loading?: boolean
+    autoFocus?: boolean
   }>(),
   {
     zoom: 3,
@@ -34,6 +35,7 @@ const props = withDefaults(
     height: '360px',
     loading: false,
     stops: () => [] as RailwayRouteDetail['stops'],
+    autoFocus: true,
   },
 )
 
@@ -94,12 +96,12 @@ const primaryEntry = computed(() => {
 
 const primaryEntryId = computed(() => primaryEntry.value?.id ?? null)
 
-const primaryPolylines = computed(
-  () => primaryEntry.value?.polylines ?? [],
-)
+const primaryPolylines = computed(() => primaryEntry.value?.polylines ?? [])
 
 const secondaryEntryList = computed(() =>
-  geometryPathEntries.value.filter((entry) => entry.id !== primaryEntryId.value),
+  geometryPathEntries.value.filter(
+    (entry) => entry.id !== primaryEntryId.value,
+  ),
 )
 
 const secondaryPolylines = computed(() =>
@@ -136,6 +138,7 @@ function drawGeometry() {
     secondaryPaths: secondaryPolylines.value,
     secondaryZoomThreshold: SECONDARY_ZOOM_THRESHOLD,
     forceShowSecondary: shouldForceSeparate.value,
+    autoFocus: props.autoFocus ?? true,
   })
 }
 

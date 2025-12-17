@@ -22,12 +22,68 @@ const detail = ref<RailwayRouteDetail | null>(null)
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
 
+type PathViewMode = 'default' | 'up' | 'down'
+
+const pathViewMode = ref<PathViewMode>('default')
+const pathViewModeOptions = [
+  { label: '默认', value: 'default' },
+  { label: '上行', value: 'up' },
+  { label: '下行', value: 'down' },
+]
+
 const params = computed(() => {
   const routeId = route.params.routeId as string | undefined
   const railwayType = route.params.railwayType as string | undefined
   const serverId = route.query.serverId as string | undefined
   const dimension = (route.query.dimension as string | undefined) ?? undefined
   return { routeId, serverId, dimension, railwayType }
+})
+
+const mapAutoFocus = ref(true)
+
+const circularRegex = /circular|loop/i
+const isCircularRoute = computed(() => {
+  const payload = detail.value?.route.payload ?? {}
+  const candidates = [payload.circular_state, payload.route_type]
+  return candidates.some(
+    (value) =>
+      typeof value === 'string' &&
+      circularRegex.test(value) &&
+      value.toUpperCase() !== 'NONE',
+  )
+})
+const pathViewModeItems = computed(() =>
+  isCircularRoute.value
+    ? pathViewModeOptions.filter((item) => item.value === 'default')
+    : pathViewModeOptions,
+)
+
+let skipAutoFocusForNextPathChange = false
+
+watch(detail, () => {
+  if (pathViewMode.value !== 'default') {
+    skipAutoFocusForNextPathChange = true
+    pathViewMode.value = 'default'
+  }
+  mapAutoFocus.value = true
+})
+
+watch(pathViewMode, (current, previous) => {
+  if (previous === undefined) return
+  if (skipAutoFocusForNextPathChange) {
+    skipAutoFocusForNextPathChange = false
+    return
+  }
+  if (current !== previous) {
+    mapAutoFocus.value = false
+  }
+})
+
+watch(isCircularRoute, (value) => {
+  if (value && pathViewMode.value !== 'default') {
+    skipAutoFocusForNextPathChange = true
+    pathViewMode.value = 'default'
+  }
 })
 
 const metadataList = computed(() => {
@@ -63,6 +119,12 @@ const depots = computed(() => detail.value?.depots ?? [])
 const orderedStops = computed(() => {
   const stops = detail.value?.stops ?? []
   return [...stops].sort((a, b) => a.order - b.order)
+})
+const displayedStops = computed(() => {
+  if (pathViewMode.value === 'down') {
+    return [...orderedStops.value].reverse()
+  }
+  return orderedStops.value
 })
 const platformMap = computed(() => {
   const map = new Map<string, RailwayRouteDetail['platforms'][number]>()
@@ -102,8 +164,31 @@ const modpackInfo = computed(() => {
 })
 
 const routeColorHex = computed(() => routeAccentColor.value)
+const geometryForView = computed(() => {
+  const geometry = detail.value?.geometry
+  if (!geometry) {
+    return null
+  }
+  const paths = geometry.paths
+  if (!paths?.length) {
+    return geometry
+  }
+  if (pathViewMode.value === 'default') {
+    return geometry
+  }
+  const wantsUp = pathViewMode.value === 'up'
+  const filtered = paths.filter((path, index) => {
+    const isPrimary =
+      typeof path.isPrimary === 'boolean' ? path.isPrimary : index === 0
+    return wantsUp ? isPrimary : !isPrimary
+  })
+  if (!filtered.length) {
+    return { ...geometry, paths: [] }
+  }
+  return { ...geometry, paths: filtered }
+})
 const stopDisplayItems = computed(() =>
-  orderedStops.value.map((stop) => {
+  displayedStops.value.map((stop) => {
     const displayName = resolveStopStationName(stop)
     const nameParts = formatStationNameParts(displayName)
     return {
@@ -362,10 +447,11 @@ onMounted(() => {
       class="mt-3 relative rounded-3xl border border-slate-200/70 dark:border-slate-800"
     >
       <RailwayMapPanel
-        :geometry="detail?.geometry ?? null"
+        :geometry="geometryForView"
         :stops="detail?.stops ?? []"
         :color="detail?.route.color ?? null"
         :loading="!detail"
+        :auto-focus="mapAutoFocus"
         height="520px"
       />
 
@@ -405,7 +491,19 @@ onMounted(() => {
       <div v-if="loading" class="text-sm text-slate-500">加载中…</div>
       <div v-else-if="detail" class="space-y-6">
         <section class="flex flex-col">
-          <h3 class="text-lg text-slate-600 dark:text-slate-300">所经站点</h3>
+          <div
+            class="mb-2 flex flex-col gap-2 items-start justify-between sm:flex-row"
+          >
+            <h3 class="text-lg text-slate-600 dark:text-slate-300">所经站点</h3>
+            <USelect
+              v-model="pathViewMode"
+              :items="pathViewModeItems"
+              value-key="value"
+              label-key="label"
+              class="w-36"
+              :disabled="isCircularRoute"
+            />
+          </div>
           <div
             class="overflow-x-auto rounded-2xl mask-[linear-gradient(to_right,transparent,#fff_3%_97%,transparent)]"
             style="scrollbar-width: thin"
@@ -417,7 +515,9 @@ onMounted(() => {
               暂无站点数据
             </div>
             <div v-else class="h-32">
-              <div class="relative inline-flex w-full min-w-max items-center justify-between">
+              <div
+                class="relative inline-flex w-full min-w-max items-center justify-between"
+              >
                 <div
                   class="mask-[linear-gradient(to_right,transparent,#fff_3%_97%,transparent)] pointer-events-none absolute left-0 right-0 top-20 h-1.5 -translate-y-1/2 w-full"
                   :style="
