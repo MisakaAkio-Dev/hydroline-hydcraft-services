@@ -149,7 +149,7 @@ export class TransportationRailwayRouteDetailService {
       .map((platformId) => platforms.get(platformId))
       .filter((item): item is RailwayPlatformRecord => Boolean(item));
 
-    const depots = (snapshot.payload?.depots ?? []).filter((depot) =>
+    const snapshotDepots = (snapshot.payload?.depots ?? []).filter((depot) =>
       (depot.route_ids ?? [])
         .map((id) => normalizeId(id))
         .includes(normalizedRouteId),
@@ -223,7 +223,7 @@ export class TransportationRailwayRouteDetailService {
     const normalizedPlatforms = selectedPlatforms.map((platform) =>
       this.normalizePlatformRecord(platform, server),
     );
-    const normalizedDepots = depots
+    const normalizedSnapshotDepots = snapshotDepots
       .map((depot) =>
         normalizeEntity(
           {
@@ -237,6 +237,21 @@ export class TransportationRailwayRouteDetailService {
         ),
       )
       .filter((item): item is NormalizedEntity => Boolean(item));
+    const storedDepots = await this.fetchDepotsForRoute(
+      server,
+      dimensionContextForGeometry,
+      normalizedRouteId,
+    );
+    const mergedDepotMap = new Map<string, NormalizedEntity>();
+    for (const depot of storedDepots) {
+      mergedDepotMap.set(depot.id, depot);
+    }
+    for (const depot of normalizedSnapshotDepots) {
+      if (!mergedDepotMap.has(depot.id)) {
+        mergedDepotMap.set(depot.id, depot);
+      }
+    }
+    const normalizedDepots = Array.from(mergedDepotMap.values());
 
     const detail: RouteDetailResult = {
       server: { id: server.id, name: server.displayName },
@@ -1049,6 +1064,76 @@ export class TransportationRailwayRouteDetailService {
       }
     }
     return records;
+  }
+
+  private async fetchDepotsForRoute(
+    server: BeaconServerRecord,
+    dimensionContext: string | null,
+    routeId: string,
+  ) {
+    if (!dimensionContext) {
+      return [] as NormalizedEntity[];
+    }
+    const rows = await this.prisma.transportationRailwayEntity.findMany({
+      where: {
+        serverId: server.id,
+        railwayMod: server.railwayMod,
+        category: TransportationRailwayEntityCategory.DEPOT,
+        dimensionContext,
+      },
+      select: {
+        entityId: true,
+        payload: true,
+        name: true,
+        color: true,
+        transportMode: true,
+      },
+    });
+    const matches: NormalizedEntity[] = [];
+    for (const row of rows) {
+      const payload = this.toJsonRecord(row.payload);
+      if (!payload) {
+        continue;
+      }
+      const routeIds = this.extractRouteIds(payload);
+      if (!routeIds.includes(routeId)) {
+        continue;
+      }
+      const normalized =
+        normalizeEntity(
+          {
+            entity_id: row.entityId,
+            name: row.name ?? readString(payload['name']) ?? null,
+            color: row.color ?? toNumber(payload['color']),
+            transport_mode:
+              row.transportMode ?? readString(payload['transport_mode']),
+            payload,
+          },
+          server,
+        ) ??
+        buildFallbackEntity(
+          row.entityId,
+          server,
+          row.name ?? readString(payload['name']) ?? null,
+          row.color ?? toNumber(payload['color']),
+          row.transportMode ?? readString(payload['transport_mode']),
+          payload,
+        );
+      matches.push(normalized);
+    }
+    return matches;
+  }
+
+  private extractRouteIds(payload: Record<string, unknown>) {
+    const raw = payload['route_ids'] ?? payload['routeIds'];
+    if (!raw) {
+      return [];
+    }
+    if (Array.isArray(raw)) {
+      return normalizeIdList(raw);
+    }
+    const single = normalizeId(raw);
+    return single ? [single] : [];
   }
 
   private buildStationRecordFromEntity(
