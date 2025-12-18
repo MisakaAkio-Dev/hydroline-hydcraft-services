@@ -263,7 +263,7 @@ watch(
 
 <template>
   <div
-    class="relative"
+    class="relative railway-map-container"
     :class="props.rounded ? 'rounded-3xl overflow-hidden' : ''"
   >
     <div
@@ -271,6 +271,13 @@ watch(
       class="w-full"
       :style="{ height: containerHeight }"
     ></div>
+
+    <div class="absolute inset-0 z-998 p-3 pointer-events-none flex items-end">
+      <div
+        class="absolute inset-0 bg-[linear-gradient(180deg,transparent_75%,var(--background-dark-2)_125%)]"
+        :class="props.rounded ? 'rounded-3xl' : ''"
+      ></div>
+    </div>
 
     <Transition
       enter-active-class="transition-opacity duration-200"
@@ -348,5 +355,13 @@ watch(
 .dark .railway-route-hover-label {
   color: #f1f5f9;
   text-shadow: 0 1px 2px rgba(2, 6, 23, 0.85);
+}
+
+.railway-map-container .leaflet-tile-pane {
+  filter: brightness(0.85) saturate(0.85);
+}
+
+.dark .railway-map-container .leaflet-tile-pane {
+  filter: brightness(0.7) saturate(0.85);
 }
 </style>
