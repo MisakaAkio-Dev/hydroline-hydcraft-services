@@ -455,7 +455,7 @@ onMounted(() => {
       >
         <RouterView v-slot="{ Component, route }">
           <Transition name="page-fade" mode="out-in">
-            <div v-if="Component" :key="route.fullPath">
+            <div v-if="Component" :key="route.path">
               <component :is="Component" />
             </div>
           </Transition>

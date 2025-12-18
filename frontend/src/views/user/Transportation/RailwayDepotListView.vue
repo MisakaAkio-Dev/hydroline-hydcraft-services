@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { AnimatePresence, Motion } from 'motion-v'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type {
   RailwayEntity,
@@ -16,6 +17,7 @@ const railwayStore = useTransportationRailwayStore()
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 const response = ref<RailwayEntityListResponse | null>(null)
+const renderToken = ref(0)
 
 const ALL_OPTION_VALUE = '__all__'
 
@@ -30,6 +32,18 @@ const filters = reactive({
 })
 
 const pageInput = ref<string>('1')
+
+let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleFetchList(delayMs = 400) {
+  if (filterDebounceTimer) {
+    clearTimeout(filterDebounceTimer)
+  }
+  filterDebounceTimer = setTimeout(() => {
+    syncQuery()
+    void fetchList()
+  }, delayMs)
+}
 
 const servers = computed<RailwayServerOption[]>(() => railwayStore.servers)
 const serverOptions = computed(() => [
@@ -83,6 +97,7 @@ async function fetchList() {
       pageSize: filters.pageSize,
     })
     response.value = data
+    renderToken.value += 1
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error ? error.message : '加载失败'
@@ -93,6 +108,8 @@ async function fetchList() {
 
 function resetToFirstPageAndFetch() {
   filters.page = 1
+  pageInput.value = '1'
+  syncQuery()
   void fetchList()
 }
 
@@ -100,6 +117,8 @@ function goToPage(page: number) {
   const safe = Math.max(1, Math.min(page, pagination.value.pageCount))
   if (safe === filters.page) return
   filters.page = safe
+  pageInput.value = String(safe)
+  syncQuery()
   void fetchList()
 }
 
@@ -152,9 +171,11 @@ function initFiltersFromQuery() {
 }
 
 watch(
-  () => filters.page,
+  () => [filters.search, filters.dimension, filters.transportMode],
   () => {
-    pageInput.value = String(filters.page)
+    filters.page = 1
+    pageInput.value = '1'
+    scheduleFetchList(400)
   },
 )
 
@@ -173,27 +194,9 @@ function openDetail(item: RailwayEntity) {
 }
 
 watch(
-  () => [
-    filters.search,
-    filters.serverId,
-    filters.railwayType,
-    filters.dimension,
-    filters.transportMode,
-    filters.pageSize,
-  ],
+  () => [filters.serverId, filters.railwayType, filters.pageSize],
   () => {
-    filters.page = 1
-    pageInput.value = '1'
-    syncQuery()
-    void fetchList()
-  },
-)
-
-watch(
-  () => filters.page,
-  () => {
-    syncQuery()
-    void fetchList()
+    resetToFirstPageAndFetch()
   },
 )
 
@@ -289,58 +292,66 @@ onMounted(async () => {
         </thead>
 
         <tbody v-if="items.length === 0">
-          <tr>
+          <Motion
+            as="tr"
+            :initial="{ opacity: 0, filter: 'blur(10px)' }"
+            :animate="{ opacity: 1, filter: 'blur(0px)' }"
+            :transition="{ duration: 0.3 }"
+          >
             <td colspan="6" class="p-6 text-center text-slate-500">
               {{ loading ? '加载中...' : '暂无数据' }}
             </td>
-          </tr>
+          </Motion>
         </tbody>
-        <tbody v-else>
-          <tr
-            v-for="item in items"
-            :key="item.server.id + '::' + item.id"
-            class="border-t border-slate-100 text-slate-700 dark:border-slate-800 dark:text-slate-200"
-          >
-            <td class="px-4 py-3">
-              <p class="font-medium text-slate-900 dark:text-white">
-                {{ item.name?.split('|')[0] || '未命名' }}
-              </p>
-              <p class="text-xs text-slate-500" v-if="item.name?.split('|')[1]">
-                {{ item.name?.split('|')[1] }}
-              </p>
-            </td>
-            <td class="px-4 py-3">{{ item.server.name }}</td>
-            <td class="px-4 py-3">
-              {{ getDimensionName(item.dimension) || '未知维度' }}
-            </td>
-            <td class="px-4 py-3">{{ item.transportMode || '—' }}</td>
-            <td class="px-4 py-3 text-xs text-slate-500">
-              {{ formatLastUpdated(item.lastUpdated) }}
-            </td>
-            <td class="px-4 py-3 text-right">
-              <UButton size="xs" variant="soft" @click="openDetail(item)">
-                查看
-              </UButton>
-            </td>
-          </tr>
-        </tbody>
-      </table>
 
-      <Transition
-        enter-active-class="transition-opacity duration-200"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition-opacity duration-200"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div
-          v-if="loading && items.length"
-          class="absolute inset-0 bg-white/60 dark:bg-slate-900/30 backdrop-blur-[1px] flex items-center justify-center"
+        <Motion
+          v-else
+          as="tbody"
+          :animate="{
+            opacity: loading ? 0.75 : 1,
+            filter: loading ? 'blur(1px)' : 'blur(0px)',
+          }"
+          :transition="{ duration: 0.3 }"
         >
-          <span class="text-sm text-slate-500">加载中...</span>
-        </div>
-      </Transition>
+          <AnimatePresence>
+            <Motion
+              v-for="item in items"
+              :key="`${renderToken}::${item.server.id}::${item.id}`"
+              as="tr"
+              :initial="{ opacity: 0, filter: 'blur(10px)', y: 4 }"
+              :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
+              :exit="{ opacity: 0, filter: 'blur(10px)', y: -4 }"
+              :transition="{ duration: 0.3 }"
+              class="border-t border-slate-100 text-slate-700 dark:border-slate-800 dark:text-slate-200"
+            >
+              <td class="px-4 py-3">
+                <p class="font-medium text-slate-900 dark:text-white">
+                  {{ item.name?.split('|')[0] || '未命名' }}
+                </p>
+                <p
+                  class="text-xs text-slate-500"
+                  v-if="item.name?.split('|')[1]"
+                >
+                  {{ item.name?.split('|')[1] }}
+                </p>
+              </td>
+              <td class="px-4 py-3">{{ item.server.name }}</td>
+              <td class="px-4 py-3">
+                {{ getDimensionName(item.dimension) || '未知维度' }}
+              </td>
+              <td class="px-4 py-3">{{ item.transportMode || '—' }}</td>
+              <td class="px-4 py-3 text-xs text-slate-500">
+                {{ formatLastUpdated(item.lastUpdated) }}
+              </td>
+              <td class="px-4 py-3 text-right">
+                <UButton size="xs" variant="soft" @click="openDetail(item)">
+                  查看
+                </UButton>
+              </td>
+            </Motion>
+          </AnimatePresence>
+        </Motion>
+      </table>
     </section>
 
     <div

@@ -383,7 +383,7 @@ const routerPush = (path: string) => {
       <main class="pt-4 mb-8">
         <RouterView v-slot="{ Component, route }">
           <Transition name="page-fade" mode="out-in">
-            <div v-if="Component" :key="route.fullPath">
+            <div v-if="Component" :key="route.path">
               <component :is="Component" />
             </div>
           </Transition>
