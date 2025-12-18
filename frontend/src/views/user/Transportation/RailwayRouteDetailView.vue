@@ -722,12 +722,12 @@ onMounted(() => {
             >
               暂无站点数据
             </div>
-            <div v-else class="h-32">
+            <div v-else class="h-22">
               <div
                 class="relative inline-flex w-full min-w-max items-center justify-between"
               >
                 <div
-                  class="mask-[linear-gradient(to_right,transparent,#fff_3%_97%,transparent)] pointer-events-none absolute left-0 right-0 top-20 h-1.5 -translate-y-1/2 w-full"
+                  class="mask-[linear-gradient(to_right,transparent,#fff_3%_97%,transparent)] pointer-events-none absolute left-0 right-0 top-12 h-1.5 -translate-y-1/2 w-full"
                   :style="
                     routeAccentColor
                       ? { backgroundColor: routeAccentColor }
@@ -741,7 +741,7 @@ onMounted(() => {
                   class="flex flex-col items-center text-center min-w-50"
                 >
                   <div
-                    class="flex flex-col justify-end pb-3 h-20 w-full max-w-60"
+                    class="flex flex-col justify-end pb-3 h-12 w-full max-w-60"
                   >
                     <p
                       class="text-base font-semibold text-slate-900 dark:text-white line-clamp-1 truncate"
@@ -773,7 +773,7 @@ onMounted(() => {
                     </span>
                   </div>
 
-                  <div class="h-12 pt-4">
+                  <div class="h-10 pt-4">
                     <div
                       class="text-[10px] text-slate-500 dark:text-slate-400 font-mono border border-slate-300 dark:border-slate-600 rounded px-1 bg-white dark:bg-slate-900"
                     >
@@ -901,16 +901,31 @@ onMounted(() => {
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h3 class="text-lg text-slate-600 dark:text-slate-300">站点</h3>
             <div
-              class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
+              class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mr-2"
             >
+              <span>
+                列车由
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 underline-offset-2 hover:underline font-semibold text-slate-600 dark:text-slate-300"
+                  @click="goDepotDetail(primaryDepot?.id)"
+                >
+                  <span>
+                    {{ depotLabel.split('|')[0] }}
+                  </span>
+                  <UBadge
+                    v-if="depotLabel.split('|')[1]"
+                    size="xs"
+                    class="text-xs py-0 border border-slate-300/70 dark:border-slate-700/70"
+                    color="neutral"
+                    variant="soft"
+                  >
+                    {{ depotLabel.split('|')[1] }}
+                  </UBadge>
+                </button>
+                发出
+              </span>
               <UIcon name="i-lucide-corner-down-left" class="h-4 w-4" />
-              <button
-                type="button"
-                class="underline-offset-2 hover:underline"
-                @click="goDepotDetail(primaryDepot?.id)"
-              >
-                本线路列车由 {{ depotLabel }} 发出
-              </button>
             </div>
           </div>
           <div

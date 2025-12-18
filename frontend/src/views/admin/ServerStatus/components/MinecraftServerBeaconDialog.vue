@@ -126,7 +126,7 @@ const emit = defineEmits<{
                 >刷新</UButton
               >
               <UButton
-                class="col-span-3 flex justify-center items-center"
+                class="flex justify-center items-center"
                 size="sm"
                 variant="soft"
                 color="primary"
@@ -140,11 +140,12 @@ const emit = defineEmits<{
           </div>
           <div
             v-if="props.railwaySyncJob"
-            class="rounded-lg border border-slate-100 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300"
+            class="mt-2 rounded-lg border border-slate-100 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300"
           >
             <span class="mr-2">铁路同步状态:</span>
             <UBadge
               size="xs"
+              class="py-0.5"
               :color="
                 props.railwaySyncJob.status === 'SUCCEEDED'
                   ? 'success'
