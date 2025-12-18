@@ -500,7 +500,7 @@ onMounted(() => {
       返回概览
     </UButton>
 
-    <div class="mt-3">
+    <div>
       <div class="flex flex-col gap-1">
         <p class="text-sm uppercase text-slate-500">铁路线路详情</p>
 

@@ -148,11 +148,11 @@ onMounted(async () => {
         <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
           全部车厂
         </h1>
-        <p class="text-sm text-slate-500">支持搜索、筛选与查看详情</p>
       </div>
       <UButton
         size="sm"
         variant="ghost"
+        class="absolute left-4 top-6 md:top-10"
         icon="i-lucide-arrow-left"
         @click="router.push({ name: 'transportation.railway' })"
       >
@@ -160,9 +160,7 @@ onMounted(async () => {
       </UButton>
     </div>
 
-    <section
-      class="grid gap-3 rounded-2xl border border-slate-200/70 bg-white/90 p-4 dark:border-slate-800/70 dark:bg-slate-900/70 md:grid-cols-5"
-    >
+    <section class="grid gap-3 rounded-2xl py-4 md:grid-cols-5">
       <label class="flex flex-col gap-1 text-sm">
         <span class="text-xs text-slate-500">关键词</span>
         <UInput v-model="filters.search" placeholder="车厂名 / ID / 模式" />
@@ -241,9 +239,11 @@ onMounted(async () => {
           >
             <td class="px-4 py-3">
               <p class="font-medium text-slate-900 dark:text-white">
-                {{ item.name || '未命名' }}
+                {{ item.name?.split('|')[0] || '未命名' }}
               </p>
-              <p class="text-xs text-slate-500">ID：{{ item.id }}</p>
+              <p class="text-xs text-slate-500" v-if="item.name?.split('|')[1]">
+                {{ item.name?.split('|')[1] }}
+              </p>
             </td>
             <td class="px-4 py-3">{{ item.server.name }}</td>
             <td class="px-4 py-3">
