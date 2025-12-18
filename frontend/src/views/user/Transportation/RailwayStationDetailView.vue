@@ -167,7 +167,7 @@ onMounted(() => {
               </UTooltip>
             </span>
           </p>
-          <div class="-mt-1 flex flex-wrap items-center gap-2 text-sm">
+          <div class="flex flex-wrap items-center gap-2 text-sm">
             <UTooltip :text="`线路色 ${routeColorHex}`">
               <span
                 class="block h-3 w-3 rounded-full"

@@ -517,7 +517,7 @@ onMounted(() => {
               </span>
             </div>
             <div
-              class="-mt-1 flex items-center gap-1.5 text-lg font-semibold text-slate-600 dark:text-slate-300"
+              class="flex items-center gap-1.5 text-lg font-semibold text-slate-600 dark:text-slate-300"
             >
               <UTooltip :text="`线路色 ${routeColorHex}`">
                 <span
