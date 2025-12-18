@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import RailwayMapPanel from '@/views/user/Transportation/railway/components/RailwayMapPanel.vue'
+import RailwayMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwayMapFullscreenOverlay.vue'
 import RailwayRouteBasicInfoPanel from '@/views/user/Transportation/railway/components/RailwayRouteBasicInfoPanel.vue'
 import RailwayRouteDataStatusPanel from '@/views/user/Transportation/railway/components/RailwayRouteDataStatusPanel.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
@@ -72,6 +73,7 @@ const params = computed(() => {
 })
 
 const mapAutoFocus = ref(true)
+const fullscreenMapOpen = ref(false)
 
 const circularRegex = /circular|loop/i
 const isCircularRoute = computed(() => {
@@ -497,11 +499,7 @@ function goLogNext() {
 }
 
 function goDetailedMap() {
-  router.push({
-    name: 'transportation.railway.route.map',
-    params: route.params,
-    query: route.query,
-  })
+  fullscreenMapOpen.value = true
 }
 
 function goStationDetail(stationId: string | null | undefined) {
@@ -552,7 +550,27 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <RailwayMapFullscreenOverlay
+    v-model="fullscreenMapOpen"
+    v-model:pathViewMode="pathViewMode"
+    :path-view-mode-items="pathViewModeItems"
+    :path-view-mode-disabled="isCircularRoute"
+    :route-label="
+      routeName.subtitle
+        ? `${routeName.title} ${routeName.subtitle}`
+        : routeName.title
+    "
+    :length-km="detail?.metadata.lengthKm ?? null"
+    :stop-count="detail?.stops?.length ?? null"
+    :geometry="geometryForView"
+    :stops="detail?.stops ?? []"
+    :color="detail?.route.color ?? null"
+    :loading="!detail"
+    :auto-focus="mapAutoFocus"
+    :combine-paths="combinePaths"
+  />
+
+  <div v-show="!fullscreenMapOpen" class="space-y-6">
     <UButton
       size="sm"
       class="absolute left-4 top-6 md:top-10"

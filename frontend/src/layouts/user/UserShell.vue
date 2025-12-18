@@ -220,10 +220,12 @@ const routerPush = (path: string) => {
     />
 
     <div
+      data-user-shell-content
       class="flex min-h-[110vh] flex-col transition-all duration-300"
       :class="[isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64']"
     >
       <header
+        data-user-shell-header
         class="sticky top-0 z-40000 grid h-16 grid-cols-[1fr_auto_1fr] items-center px-4 border-b transition-all duration-300"
         :class="{
           'backdrop-blur-xl bg-white/60 dark:bg-slate-950/70 border-slate-200 dark:border-slate-800':

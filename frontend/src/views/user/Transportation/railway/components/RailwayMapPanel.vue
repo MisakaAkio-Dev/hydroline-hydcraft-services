@@ -22,6 +22,7 @@ const props = withDefaults(
     loading?: boolean
     autoFocus?: boolean
     combinePaths?: boolean
+    rounded?: boolean
   }>(),
   {
     zoom: 3,
@@ -31,6 +32,7 @@ const props = withDefaults(
     stops: () => [] as RailwayRouteDetail['stops'],
     autoFocus: true,
     combinePaths: true,
+    rounded: true,
   },
 )
 
@@ -657,7 +659,8 @@ function computeCentroid(paths: RailwayGeometryPoint[][]) {
   <div class="relative railway-map-container">
     <div
       ref="containerRef"
-      class="w-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 dark:bg-slate-900/20 dark:border-slate-800"
+      class="w-full overflow-hidden border border-slate-200/70 bg-white/80 dark:bg-slate-900/20 dark:border-slate-800 transition duration-250"
+      :class="props.rounded ? 'rounded-2xl' : 'rounded-none'"
       :style="{
         minHeight: containerHeight,
         height: containerHeight,
@@ -665,14 +668,16 @@ function computeCentroid(paths: RailwayGeometryPoint[][]) {
     ></div>
     <div
       v-if="props.loading"
-      class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-950/30 text-xs text-slate-200 backdrop-blur"
+      class="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/30 text-xs text-slate-200 backdrop-blur transition duration-250"
+      :class="props.rounded ? 'rounded-2xl' : 'rounded-none'"
     >
       加载地图…
     </div>
 
     <div class="absolute inset-0 z-998 p-3 pointer-events-none flex items-end">
       <div
-        class="absolute inset-0 rounded-2xl bg-[linear-gradient(180deg,transparent_75%,var(--background-dark-2)_125%)]"
+        class="absolute inset-0 bg-[linear-gradient(180deg,transparent_75%,var(--background-dark-2)_125%)]"
+        :class="props.rounded ? 'rounded-2xl' : 'rounded-none'"
       ></div>
       <div
         class="relative w-full rounded-lg text-xs text-white flex items-end justify-between"
