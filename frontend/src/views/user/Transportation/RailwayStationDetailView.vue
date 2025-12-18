@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import RailwayStationMapPanel from '@/views/user/Transportation/railway/components/RailwayStationMapPanel.vue'
+import RailwayStationMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwayStationMapFullscreenOverlay.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type { RailwayStationDetail } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
@@ -28,6 +29,8 @@ const logError = ref<string | null>(null)
 
 const logContentRef = ref<HTMLElement | null>(null)
 let lastLogContentHeight: number | null = null
+
+const fullscreenMapOpen = ref(false)
 
 const logPageSize = 8
 const logPage = ref(1)
@@ -63,6 +66,23 @@ const dimensionName = computed(() =>
 
 const associatedRoutes = computed(() => detail.value?.routes ?? [])
 const platforms = computed(() => detail.value?.platforms ?? [])
+
+function extractRouteGroupName(value: string | null | undefined) {
+  if (!value) return null
+  const primary = value.split('||')[0] ?? ''
+  const firstSegment = primary.split('|')[0] ?? ''
+  const trimmed = firstSegment.trim()
+  return trimmed || null
+}
+
+const transferCount = computed(() => {
+  const set = new Set<string>()
+  for (const route of associatedRoutes.value) {
+    const key = extractRouteGroupName(route.name) ?? null
+    if (key) set.add(key)
+  }
+  return set.size
+})
 
 const routeIndex = computed(() => {
   const map = new Map<string, RailwayStationDetail['routes'][number]>()
@@ -195,6 +215,10 @@ function goBack() {
   router.push({ name: 'transportation.railway' })
 }
 
+function goDetailedMap() {
+  fullscreenMapOpen.value = true
+}
+
 function goRoute(routeId: string) {
   if (!detail.value) return
   router.push({
@@ -279,7 +303,18 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <RailwayStationMapFullscreenOverlay
+    v-model="fullscreenMapOpen"
+    :station-label="stationName.split('|')[0]"
+    :transfer-count="transferCount"
+    :platform-count="platforms.length"
+    :bounds="detail?.station.bounds ?? null"
+    :platforms="platforms"
+    :color="detail?.station.color ?? detail?.routes[0]?.color ?? null"
+    :loading="loading"
+  />
+
+  <div v-show="!fullscreenMapOpen" class="space-y-6">
     <UButton
       size="sm"
       class="absolute left-4 top-6 md:top-10"
@@ -336,13 +371,32 @@ onMounted(() => {
       </div>
     </div>
 
-    <RailwayStationMapPanel
-      :bounds="detail?.station.bounds ?? null"
-      :platforms="platforms"
-      :color="detail?.station.color ?? detail?.routes[0]?.color ?? null"
-      :loading="loading"
-      height="460px"
-    />
+    <div
+      class="mt-3 relative rounded-3xl border border-slate-200/70 dark:border-slate-800"
+    >
+      <RailwayStationMapPanel
+        :bounds="detail?.station.bounds ?? null"
+        :platforms="platforms"
+        :color="detail?.station.color ?? detail?.routes[0]?.color ?? null"
+        :loading="loading"
+        height="460px"
+      />
+
+      <div
+        class="pointer-events-none absolute inset-x-4 top-4 flex justify-end z-999"
+      >
+        <UButton
+          size="sm"
+          variant="ghost"
+          color="neutral"
+          class="flex items-center gap-1 pointer-events-auto backdrop-blur-2xl text-white bg-black/20 dark:bg-slate-900/10 hover:bg-white/10 dark:hover:bg-slate-900/20 shadow"
+          @click="goDetailedMap"
+        >
+          <UIcon name="i-lucide-maximize" class="h-3.5 w-3.5" />
+          全屏
+        </UButton>
+      </div>
+    </div>
 
     <div v-if="loading" class="text-sm text-slate-500">
       <UIcon
