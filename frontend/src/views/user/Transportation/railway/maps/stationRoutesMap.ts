@@ -12,6 +12,7 @@ import type {
 type RouteGroup = {
   color?: number | null
   paths: RailwayGeometryPoint[][]
+  label?: string | null
 }
 
 type DrawOptions = {
@@ -132,6 +133,7 @@ export class RailwayStationRoutesMap {
     const routeGroups = options.routeGroups ?? []
     for (const group of routeGroups) {
       const color = toHexColor(group.color ?? null)
+      const groupLabel = group.label?.trim()
       for (const path of group.paths ?? []) {
         if (!path?.length) continue
         const latlngs = this.toLatLngPath(path)
@@ -141,7 +143,19 @@ export class RailwayStationRoutesMap {
           weight: 4,
           opacity: 0.85,
           className: ROUTE_POLYLINE_CLASS,
+          interactive: true,
         }).addTo(map)
+
+        if (groupLabel) {
+          polyline.bindTooltip(groupLabel, {
+            permanent: false,
+            sticky: true,
+            direction: 'top',
+            offset: L.point(0, -8),
+            className: 'railway-route-hover-label',
+          })
+        }
+
         this.routePolylines.push(polyline)
       }
     }

@@ -113,6 +113,7 @@ const routeGroups = computed(() => {
   return groups.map((group) => ({
     color: group.color ?? null,
     paths: group.paths ?? [],
+    label: (group.displayName || group.key || '').trim() || null,
   }))
 })
 
@@ -325,6 +326,26 @@ watch(
 }
 
 .dark .railway-station-label-small {
+  color: #f1f5f9;
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.85);
+}
+
+.railway-route-hover-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
+.railway-route-hover-label::before {
+  display: none;
+}
+
+.dark .railway-route-hover-label {
   color: #f1f5f9;
   text-shadow: 0 1px 2px rgba(2, 6, 23, 0.85);
 }

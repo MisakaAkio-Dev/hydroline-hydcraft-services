@@ -175,7 +175,7 @@ onBeforeUnmount(() => {
       leave-to-class="opacity-0"
     >
       <div
-        v-if="open"
+        v-show="open"
         class="fixed"
         :style="{
           top: `${insetTop}px`,
