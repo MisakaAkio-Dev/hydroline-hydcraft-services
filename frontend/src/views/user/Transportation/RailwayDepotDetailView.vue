@@ -534,13 +534,13 @@ onMounted(() => {
               >
                 <div>
                   <p
-                    class="flex items-center gap-1 font-medium text-slate-900 dark:text-white"
+                    class="flex items-baseline gap-1 font-medium text-slate-900 dark:text-white"
                   >
                     <span>
                       {{ route.name?.split('|')[0] }}
                     </span>
 
-                    <span>
+                    <span class="text-xs text-slate-700 dark:text-slate-500" v-if="route.name?.split('|')[1]">
                       {{ route.name?.split('|')[1] }}
                     </span>
                   </p>

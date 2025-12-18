@@ -21,6 +21,9 @@ const props = withDefaults(
     secondaryColor?: number | null
     secondaryWeight?: number
     secondaryOpacity?: number
+    stopMarkerMode?: 'circle' | 'label-only' | 'none'
+    stopLabelZoomThreshold?: number
+    stopLabelClassName?: string
     color?: number | null
     zoom?: number
     showZoomControl?: boolean
@@ -338,6 +341,12 @@ function drawGeometry() {
       typeof props.secondaryOpacity === 'number'
         ? props.secondaryOpacity
         : undefined,
+    stopMarkerMode: props.stopMarkerMode,
+    stopLabelZoomThreshold:
+      typeof props.stopLabelZoomThreshold === 'number'
+        ? props.stopLabelZoomThreshold
+        : undefined,
+    stopLabelClassName: props.stopLabelClassName,
     forceShowSecondary:
       typeof props.forceShowSecondary === 'boolean'
         ? props.forceShowSecondary
@@ -774,6 +783,17 @@ function computeCentroid(paths: RailwayGeometryPoint[][]) {
   border: none;
   box-shadow: none;
   color: #fff;
+  font-size: 24px;
+  font-weight: 600;
+  padding: 0;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
+.railway-station-label-small {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #fff;
   font-size: 16px;
   font-weight: 600;
   padding: 0;
@@ -785,6 +805,11 @@ function computeCentroid(paths: RailwayGeometryPoint[][]) {
 }
 
 .dark .railway-station-label {
+  color: #f1f5f9;
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.85);
+}
+
+.dark .railway-station-label-small {
   color: #f1f5f9;
   text-shadow: 0 1px 2px rgba(2, 6, 23, 0.85);
 }

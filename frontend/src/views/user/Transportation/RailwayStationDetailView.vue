@@ -525,7 +525,15 @@ onMounted(() => {
 
         <div class="space-y-6">
           <div>
-            <h3 class="text-lg text-slate-600 dark:text-slate-300">途径线路</h3>
+            <h3
+              class="flex items-center justify-between text-lg text-slate-600 dark:text-slate-300"
+            >
+              途径线路
+
+              <span class="ml-2 text-xs text-slate-400 dark:text-slate-500">
+                共 {{ associatedRoutes.length }} 条
+              </span>
+            </h3>
             <div
               class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60"
             >
@@ -543,13 +551,13 @@ onMounted(() => {
                 >
                   <div>
                     <p
-                      class="flex items-center gap-1 font-medium text-slate-900 dark:text-white"
+                      class="flex items-baseline gap-1 font-medium text-slate-900 dark:text-white"
                     >
                       <span>
                         {{ route.name?.split('|')[0] || '未命名' }}
                       </span>
 
-                      <span v-if="route.name?.split('|')[1]">
+                      <span class="text-xs text-slate-700 dark:text-slate-500" v-if="route.name?.split('|')[1]">
                         {{ route.name?.split('|')[1] }}
                       </span>
                     </p>
@@ -580,16 +588,26 @@ onMounted(() => {
           </div>
 
           <div>
-            <h3 class="text-lg text-slate-600 dark:text-slate-300">站台详情</h3>
+            <h3
+              class="flex items-center justify-between text-lg text-slate-600 dark:text-slate-300"
+            >
+              站台详情
+
+              <span class="ml-2 text-xs text-slate-400 dark:text-slate-500">
+                共 {{ platforms.length }} 条
+              </span>
+            </h3>
             <div
               class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60"
             >
               <table class="w-full text-left text-sm">
                 <thead>
                   <tr class="text-slate-500 text-xs">
-                    <th class="pb-2 font-normal">站台</th>
-                    <th class="pb-2 font-normal">停靠线路</th>
-                    <th class="pb-2 font-normal">停留时间</th>
+                    <th class="pb-2 font-normal whitespace-nowrap pr-2">
+                      站台
+                    </th>
+                    <th class="pb-2 font-normal whitespace-nowrap">停靠线路</th>
+                    <th class="pb-2 font-normal whitespace-nowrap">停留时间</th>
                   </tr>
                 </thead>
                 <tbody>

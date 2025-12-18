@@ -20,6 +20,9 @@ type DrawOptions = {
   secondaryZoomThreshold?: number
   forceShowSecondary?: boolean
   autoFocus?: boolean
+  stopMarkerMode?: 'circle' | 'label-only' | 'none'
+  stopLabelZoomThreshold?: number
+  stopLabelClassName?: string
   secondaryColor?: number | null
   secondaryWeight?: number
   secondaryOpacity?: number
@@ -27,7 +30,6 @@ type DrawOptions = {
 
 const defaultColor = '#0ea5e9'
 const STATION_AREA_ZOOM = 2
-const STATION_LABEL_ZOOM = 3
 const ROUTE_POLYLINE_CLASS = 'railway-route-polyline'
 const SECONDARY_POLYLINE_CLASS = 'railway-secondary-polyline'
 const LABEL_POSITIONS: Array<{
@@ -62,6 +64,15 @@ export class RailwayMap {
     zoomThreshold: number
     force: boolean
   } | null = null
+  private stopRenderConfig: {
+    markerMode: 'circle' | 'label-only' | 'none'
+    labelZoomThreshold: number | null
+    labelClassName: string
+  } = {
+    markerMode: 'circle',
+    labelZoomThreshold: null,
+    labelClassName: 'railway-station-label',
+  }
   private oversizeFallback: {
     center: L.LatLng
     zoom: number
@@ -107,6 +118,15 @@ export class RailwayMap {
     if (!map) return
     const color = toHexColor(options?.color ?? null)
     this.routeColor = color
+    this.stopRenderConfig = {
+      markerMode: options?.stopMarkerMode ?? 'circle',
+      labelZoomThreshold:
+        typeof options?.stopLabelZoomThreshold === 'number'
+          ? options.stopLabelZoomThreshold
+          : null,
+      labelClassName:
+        options?.stopLabelClassName?.trim() || 'railway-station-label',
+    }
     this.polylineEndpoints = this.getPolylineEndpoints(paths)
     const focusZoom = options?.focusZoom ?? 4
     if (!paths.length && !this.secondaryPaths.length) {
@@ -230,7 +250,6 @@ export class RailwayMap {
     if (!this.stops.length) return
     const zoom = map.getZoom()
     const showArea = zoom >= STATION_AREA_ZOOM
-    const showLabels = zoom >= STATION_LABEL_ZOOM
     const layer = L.layerGroup()
     for (let index = 0; index < this.stops.length; index += 1) {
       const stop = this.stops[index]
@@ -248,15 +267,15 @@ export class RailwayMap {
           rectangle.bindTooltip(stopLabel, {
             permanent: true,
             direction: 'center',
-            className: 'railway-station-label',
+            className: this.stopRenderConfig.labelClassName,
           })
         }
         rectangle.addTo(layer)
         continue
       }
 
-      // Keep stop labels (numbers) only when zoomed in enough.
-      if (!showLabels) {
+      const markerMode = this.stopRenderConfig.markerMode
+      if (markerMode === 'none') {
         continue
       }
       const position = this.getStopMarkerPosition(index, stop)
@@ -264,27 +283,53 @@ export class RailwayMap {
       const latlng = this.controller.toLatLng({ x: position.x, z: position.z })
       if (!latlng) continue
       const stopLabel = this.getStopLabel(stop)
-      if (!stopLabel) continue
+      const shouldShowLabel =
+        Boolean(stopLabel) &&
+        (this.stopRenderConfig.labelZoomThreshold == null ||
+          zoom >= this.stopRenderConfig.labelZoomThreshold)
 
-      // Render only the label: use an invisible marker as tooltip anchor.
-      const anchor = L.marker(latlng, {
-        icon: L.divIcon({
-          className: 'railway-stop-anchor',
-          html: '',
-          iconSize: [0, 0],
-          iconAnchor: [0, 0],
-        }),
-        interactive: false,
-        keyboard: false,
+      if (markerMode === 'label-only') {
+        if (!shouldShowLabel) continue
+        const anchor = L.marker(latlng, {
+          icon: L.divIcon({
+            className: 'railway-stop-anchor',
+            html: '',
+            iconSize: [0, 0],
+            iconAnchor: [0, 0],
+          }),
+          interactive: false,
+          keyboard: false,
+        })
+        const labelPosition = this.pickLabelPosition(index)
+        anchor.bindTooltip(stopLabel!, {
+          permanent: true,
+          direction: labelPosition.direction,
+          className: this.stopRenderConfig.labelClassName,
+          offset: labelPosition.offset,
+        })
+        anchor.addTo(layer)
+        continue
+      }
+
+      // Default: circle marker (routes/depots) + optional label.
+      const isTerminal = index === 0 || index === this.stops.length - 1
+      const marker = L.circleMarker(latlng, {
+        radius: isTerminal ? 7 : 6,
+        color: this.routeColor,
+        weight: 3,
+        fillOpacity: 1,
+        fillColor: '#ffffff',
       })
-      const labelPosition = this.pickLabelPosition(index)
-      anchor.bindTooltip(stopLabel, {
-        permanent: true,
-        direction: labelPosition.direction,
-        className: 'railway-station-label',
-        offset: labelPosition.offset,
-      })
-      anchor.addTo(layer)
+      if (shouldShowLabel) {
+        const labelPosition = this.pickLabelPosition(index)
+        marker.bindTooltip(stopLabel!, {
+          permanent: true,
+          direction: labelPosition.direction,
+          className: this.stopRenderConfig.labelClassName,
+          offset: labelPosition.offset,
+        })
+      }
+      marker.addTo(layer)
     }
     if (layer.getLayers().length) {
       layer.addTo(map)
