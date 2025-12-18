@@ -88,17 +88,25 @@ const updateInset = () => {
   insetLeft.value = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
 }
 
+let isLocked = false
 let previousBodyOverflow = ''
 
 const lockBodyScroll = () => {
+  if (isLocked) return
   const body = document.body
-  previousBodyOverflow = body.style.overflow
+  const existing = body.style.overflow
+  if (existing !== 'hidden') {
+    previousBodyOverflow = existing
+  }
   body.style.overflow = 'hidden'
+  isLocked = true
 }
 
 const unlockBodyScroll = () => {
+  if (!isLocked) return
   const body = document.body
   body.style.overflow = previousBodyOverflow
+  isLocked = false
 }
 
 const startObservers = () => {
@@ -130,11 +138,9 @@ watch(
       updateInset()
       startObservers()
       lockBodyScroll()
-      return
+    } else {
+      stopObservers()
     }
-
-    stopObservers()
-    unlockBodyScroll()
   },
   { immediate: true },
 )
@@ -148,9 +154,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopObservers()
-  if (open.value) {
-    unlockBodyScroll()
-  }
+  unlockBodyScroll()
 })
 </script>
 
@@ -164,6 +168,7 @@ onBeforeUnmount(() => {
       leave-active-class="transition-opacity duration-200 ease-in"
       leave-from-class="opacity-100"
       leave-to-class="opacity-0"
+      @after-leave="unlockBodyScroll"
     >
       <div
         v-if="open"
