@@ -5,6 +5,8 @@ import RailwayStationMapPanel from '@/views/user/Transportation/railway/componen
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type { RailwayStationDetail } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
+import modpackCreateImg from '@/assets/resources/modpacks/Create.jpg'
+import modpackMtrImg from '@/assets/resources/modpacks/MTR.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,6 +38,29 @@ const dimensionName = computed(() =>
 
 const associatedRoutes = computed(() => detail.value?.routes ?? [])
 const platforms = computed(() => detail.value?.platforms ?? [])
+
+const modpackInfo = computed(() => {
+  const modRaw = detail.value?.railwayType ?? params.value.railwayType
+  const mod = typeof modRaw === 'string' ? modRaw.toUpperCase() : null
+  if (mod === 'MTR') {
+    return { label: 'MTR', image: modpackMtrImg }
+  }
+  if (mod === 'CREATE') {
+    return { label: '机械动力', image: modpackCreateImg }
+  }
+  return { label: modRaw || '—', image: null as string | null }
+})
+
+const routeColor = computed(
+  () => detail.value?.station.color ?? detail.value?.routes?.[0]?.color ?? null,
+)
+const routeColorHex = computed(() => colorToHex(routeColor.value))
+
+function colorToHex(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return null
+  const sanitized = Math.max(0, Math.floor(value))
+  return `#${sanitized.toString(16).padStart(6, '0').slice(-6)}`
+}
 
 function formatSecondsFromTicks(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return null
@@ -128,8 +153,30 @@ onMounted(() => {
         <div>
           <p class="text-4xl font-semibold text-slate-900 dark:text-white">
             {{ stationName.split('|')[0] }}
+
+            <span class="inline-flex items-center gap-1.5">
+              <UTooltip
+                v-if="modpackInfo.image && modpackInfo.label"
+                :text="`${modpackInfo.label} Mod`"
+              >
+                <img
+                  :src="modpackInfo.image"
+                  :alt="modpackInfo.label"
+                  class="h-5 w-6 object-cover"
+                />
+              </UTooltip>
+            </span>
           </p>
           <div class="-mt-1 flex flex-wrap items-center gap-2 text-sm">
+            <UTooltip :text="`线路色 ${routeColorHex}`">
+              <span
+                class="block h-3 w-3 rounded-full"
+                :style="
+                  routeColorHex ? { backgroundColor: routeColorHex } : undefined
+                "
+              ></span>
+            </UTooltip>
+
             <span
               class="text-lg font-semibold text-slate-600 dark:text-slate-300"
               v-if="stationName.split('|')[1]"
@@ -198,87 +245,92 @@ onMounted(() => {
           </dl>
         </div>
 
-        <div>
-          <h3 class="text-lg text-slate-600 dark:text-slate-300">服务线路</h3>
-          <div
-            class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60"
-          >
-            <p
-              v-if="associatedRoutes.length === 0"
-              class="text-sm text-slate-500"
-            >
-              暂无线路数据
-            </p>
+        <div class="space-y-6">
+          <div>
+            <h3 class="text-lg text-slate-600 dark:text-slate-300">服务线路</h3>
             <div
-              v-for="route in associatedRoutes"
-              :key="route.id"
-              class="flex items-center justify-between rounded-xl border border-slate-100/70 px-3 py-2 text-sm transition hover:border-primary-200 dark:border-slate-800/60 dark:hover:border-primary-400/60"
+              class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60"
             >
-              <div>
-                <p class="font-medium text-slate-900 dark:text-white">
-                  {{ route.name || route.id }}
-                </p>
-                <p class="text-xs text-slate-500">
-                  {{ route.server.name }} ·
-                  {{ getDimensionName(route.dimension) || '未知维度' }}
-                </p>
+              <p
+                v-if="associatedRoutes.length === 0"
+                class="text-sm text-slate-500"
+              >
+                暂无线路数据
+              </p>
+              <div
+                v-for="route in associatedRoutes"
+                :key="route.id"
+                class="flex items-center justify-between rounded-xl border border-slate-100/70 px-3 py-2 text-sm transition hover:border-primary-200 dark:border-slate-800/60 dark:hover:border-primary-400/60"
+              >
+                <div>
+                  <p class="font-medium text-slate-900 dark:text-white">
+                    {{ route.name || route.id }}
+                  </p>
+                  <p class="text-xs text-slate-500">
+                    {{ route.server.name }} ·
+                    {{ getDimensionName(route.dimension) || '未知维度' }}
+                  </p>
+                </div>
+                <UButton size="xs" variant="soft" @click="goRoute(route.id)">
+                  查看
+                </UButton>
               </div>
-              <UButton size="xs" variant="soft" @click="goRoute(route.id)">
-                查看
-              </UButton>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section>
-        <h3 class="text-lg text-slate-600 dark:text-slate-300">站台详情</h3>
-        <div
-          class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60"
-        >
-          <table class="w-full text-left text-sm">
-            <thead>
-              <tr class="text-slate-500">
-                <th class="py-2">站台</th>
-                <th class="py-2">停靠线路</th>
-                <th class="py-2">停留时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="platform in platforms"
-                :key="platform.id"
-                class="border-t border-slate-100 text-slate-700 dark:border-slate-800 dark:text-slate-200"
-              >
-                <td class="py-2 font-medium">
-                  {{ platform.name || platform.id }}
-                </td>
-                <td class="py-2">
-                  <div class="flex flex-wrap gap-1">
-                    <UBadge
-                      v-for="routeId in platform.routeIds"
-                      :key="routeId"
-                      size="xs"
-                      variant="soft"
-                    >
-                      {{ routeId }}
-                    </UBadge>
-                  </div>
-                </td>
-                <td class="py-2">
-                  <span v-if="platform.dwellTime == null">—</span>
-                  <UTooltip
-                    v-else
-                    :text="`真实停留：${platform.dwellTime} tick`"
+          <div>
+            <h3 class="text-lg text-slate-600 dark:text-slate-300">站台详情</h3>
+            <div
+              class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60"
+            >
+              <table class="w-full text-left text-sm">
+                <thead>
+                  <tr class="text-slate-500">
+                    <th class="py-2">站台</th>
+                    <th class="py-2">停靠线路</th>
+                    <th class="py-2">停留时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="platform in platforms"
+                    :key="platform.id"
+                    class="border-t border-slate-100 text-slate-700 dark:border-slate-800 dark:text-slate-200"
                   >
-                    <span
-                      >{{ formatSecondsFromTicks(platform.dwellTime) }} s</span
-                    >
-                  </UTooltip>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                    <td class="py-2 font-medium">
+                      {{ platform.name || platform.id }}
+                    </td>
+                    <td class="py-2">
+                      <div class="flex flex-wrap gap-1">
+                        <UBadge
+                          v-for="routeId in platform.routeIds"
+                          :key="routeId"
+                          size="xs"
+                          variant="soft"
+                        >
+                          {{ routeId }}
+                        </UBadge>
+                      </div>
+                    </td>
+                    <td class="py-2">
+                      <span v-if="platform.dwellTime == null">—</span>
+                      <UTooltip
+                        v-else
+                        :text="`真实停留：${platform.dwellTime} tick`"
+                      >
+                        <span
+                          >{{
+                            formatSecondsFromTicks(platform.dwellTime)
+                          }}
+                          s</span
+                        >
+                      </UTooltip>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
     </div>

@@ -249,6 +249,10 @@ function destroyMap() {
 
 function drawGeometry() {
   if (!railwayMap.value) return
+  const isBoundsGeometry =
+    Boolean(props.geometry) &&
+    !props.geometry?.paths?.length &&
+    props.geometry?.source === 'station-bounds'
   const directionalMode = !props.combinePaths
   const useMidline = props.combinePaths && !showSplitLines.value
   const primaryPaths = directionalMode
@@ -275,8 +279,10 @@ function drawGeometry() {
   lastDrawSignature = drawSignature
   railwayMap.value.drawGeometry(primaryPaths, {
     color: props.color ?? null,
-    weight: 4,
-    opacity: 0.9,
+    weight: isBoundsGeometry ? 0 : 4,
+    opacity: isBoundsGeometry ? 0 : 0.9,
+    fill: isBoundsGeometry,
+    fillOpacity: 0.7,
     focusZoom: props.zoom,
     secondaryPaths,
     secondaryZoomThreshold,

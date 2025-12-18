@@ -5,6 +5,8 @@ import RailwayDepotMapPanel from '@/views/user/Transportation/railway/components
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type { RailwayDepotDetail } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
+import modpackCreateImg from '@/assets/resources/modpacks/Create.jpg'
+import modpackMtrImg from '@/assets/resources/modpacks/MTR.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -35,6 +37,29 @@ const dimensionName = computed(() =>
 )
 
 const associatedRoutes = computed(() => detail.value?.routes ?? [])
+
+const modpackInfo = computed(() => {
+  const modRaw = detail.value?.railwayType ?? params.value.railwayType
+  const mod = typeof modRaw === 'string' ? modRaw.toUpperCase() : null
+  if (mod === 'MTR') {
+    return { label: 'MTR', image: modpackMtrImg }
+  }
+  if (mod === 'CREATE') {
+    return { label: '机械动力', image: modpackCreateImg }
+  }
+  return { label: modRaw || '—', image: null as string | null }
+})
+
+const routeColor = computed(
+  () => detail.value?.depot.color ?? detail.value?.routes?.[0]?.color ?? null,
+)
+const routeColorHex = computed(() => colorToHex(routeColor.value))
+
+function colorToHex(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return null
+  const sanitized = Math.max(0, Math.floor(value))
+  return `#${sanitized.toString(16).padStart(6, '0').slice(-6)}`
+}
 
 async function fetchDetail() {
   const { depotId, railwayType, serverId, dimension } = params.value
@@ -122,10 +147,47 @@ onMounted(() => {
       <div class="flex flex-col gap-2">
         <p class="text-sm uppercase text-slate-500">铁路车厂信息</p>
         <div>
-          <p class="text-3xl font-semibold text-slate-900 dark:text-white">
-            {{ depotName }}
+          <p class="text-4xl font-semibold text-slate-900 dark:text-white">
+            {{ depotName.split('|')[0] }}
+
+            <span class="inline-flex items-center gap-1.5">
+              <UTooltip
+                v-if="modpackInfo.image && modpackInfo.label"
+                :text="`${modpackInfo.label} Mod`"
+              >
+                <img
+                  :src="modpackInfo.image"
+                  :alt="modpackInfo.label"
+                  class="h-5 w-6 object-cover"
+                />
+              </UTooltip>
+            </span>
           </p>
-          <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            <UTooltip :text="`线路色 ${routeColorHex}`">
+              <span
+                class="block h-3 w-3 rounded-full"
+                :style="
+                  routeColorHex ? { backgroundColor: routeColorHex } : undefined
+                "
+              ></span>
+            </UTooltip>
+
+            <span
+              class="text-lg font-semibold text-slate-600 dark:text-slate-300"
+              v-if="depotName.split('|')[1]"
+            >
+              {{ depotName.split('|')[1] }}
+            </span>
+
+            <UBadge
+              v-if="depotName.split('||').length > 1"
+              variant="soft"
+              size="sm"
+              color="neutral"
+            >
+              {{ depotName.split('||')[1].split('|')[0] }}
+            </UBadge>
             <UBadge variant="soft" size="sm">{{ serverBadge }}</UBadge>
             <UBadge variant="soft" size="sm">{{
               dimensionName || '未知维度'

@@ -115,12 +115,6 @@ const routeName = computed(() => parseRouteName(detail.value?.route.name))
 const stations = computed(() => detail.value?.stations ?? [])
 const platforms = computed(() => detail.value?.platforms ?? [])
 const depots = computed(() => detail.value?.depots ?? [])
-const primaryDepot = computed(() => depots.value[0] ?? null)
-const depotLabel = computed(() =>
-  depots.value.length
-    ? depots.value.map((depot) => depot.name || depot.id).join('、')
-    : '暂无车厂信息',
-)
 const orderedStops = computed(() => {
   const stops = detail.value?.stops ?? []
   return [...stops].sort((a, b) => a.order - b.order)
@@ -798,24 +792,35 @@ onMounted(() => {
                 >
                   <span>
                     列车由
-                    <button
-                      type="button"
-                      class="inline-flex items-center gap-1 underline-offset-2 hover:underline font-semibold text-slate-600 dark:text-slate-300 cursor-pointer"
-                      @click="goDepotDetail(primaryDepot?.id)"
-                    >
-                      <span>
-                        {{ depotLabel.split('|')[0] }}
-                      </span>
-                      <UBadge
-                        v-if="depotLabel.split('|')[1]"
-                        size="xs"
-                        class="text-xs py-0 border border-slate-300/70 dark:border-slate-700/70"
-                        color="neutral"
-                        variant="soft"
+                    <template v-if="depots.length">
+                      <template
+                        v-for="(depot, index) in depots"
+                        :key="depot.id"
                       >
-                        {{ depotLabel.split('|')[1] }}
-                      </UBadge>
-                    </button>
+                        <span v-if="index !== 0" class="font-normal">、</span>
+                        <button
+                          type="button"
+                          class="group inline-flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300 cursor-pointer"
+                          @click="goDepotDetail(depot.id)"
+                        >
+                          <span
+                            class="underline-offset-2 group-hover:underline"
+                          >
+                            {{ (depot.name || depot.id).split('|')[0] }}
+                          </span>
+                          <UBadge
+                            v-if="(depot.name || depot.id).split('|')[1]"
+                            size="xs"
+                            class="text-xs py-0 border border-slate-300/70 dark:border-slate-700/70"
+                            color="neutral"
+                            variant="soft"
+                          >
+                            {{ (depot.name || depot.id).split('|')[1] }}
+                          </UBadge>
+                        </button>
+                      </template>
+                    </template>
+                    <span v-else class="font-semibold">暂无车厂信息</span>
                     发出
                   </span>
                   <UIcon name="i-lucide-corner-down-left" class="h-4 w-4" />

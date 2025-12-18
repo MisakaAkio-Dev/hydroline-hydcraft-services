@@ -13,6 +13,8 @@ type DrawOptions = {
   color?: number | null
   weight?: number
   opacity?: number
+  fill?: boolean
+  fillOpacity?: number
   focusZoom?: number
   secondaryPaths?: RailwayGeometryPoint[][]
   secondaryZoomThreshold?: number
@@ -130,12 +132,20 @@ export class RailwayMap {
       if (!path?.length) continue
       const latlngs = this.toLatLngPath(path)
       if (!latlngs.length) continue
-      const polyline = L.polyline(latlngs, {
-        color,
-        weight: options?.weight ?? 4,
-        opacity: options?.opacity ?? 0.85,
-        className: ROUTE_POLYLINE_CLASS,
-      }).addTo(map)
+      const polyline = options?.fill
+        ? L.polygon(latlngs, {
+            stroke: false,
+            fill: true,
+            fillColor: color,
+            fillOpacity: options?.fillOpacity ?? 0.18,
+            className: ROUTE_POLYLINE_CLASS,
+          }).addTo(map)
+        : L.polyline(latlngs, {
+            color,
+            weight: options?.weight ?? 4,
+            opacity: options?.opacity ?? 0.85,
+            className: ROUTE_POLYLINE_CLASS,
+          }).addTo(map)
       this.polylines.push(polyline)
       const polyBounds = polyline.getBounds()
       bounds = bounds ? bounds.extend(polyBounds) : polyBounds
