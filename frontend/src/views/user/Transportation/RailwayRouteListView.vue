@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type {
   RailwayRoute,
@@ -10,6 +10,7 @@ import type {
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
 
 const router = useRouter()
+const route = useRoute()
 const railwayStore = useTransportationRailwayStore()
 
 const loading = ref(false)
@@ -27,6 +28,8 @@ const filters = reactive({
   page: 1,
   pageSize: 20,
 })
+
+const pageInput = ref<string>('1')
 
 const servers = computed<RailwayServerOption[]>(() => railwayStore.servers)
 const serverOptions = computed(() => [
@@ -83,7 +86,6 @@ async function fetchList() {
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error ? error.message : '加载失败'
-    response.value = null
   } finally {
     loading.value = false
   }
@@ -100,6 +102,61 @@ function goToPage(page: number) {
   filters.page = safe
   void fetchList()
 }
+
+function syncQuery() {
+  void router.replace({
+    query: {
+      ...route.query,
+      search: filters.search || undefined,
+      serverId:
+        filters.serverId === ALL_OPTION_VALUE ? undefined : filters.serverId,
+      railwayType:
+        filters.railwayType === ALL_OPTION_VALUE
+          ? undefined
+          : filters.railwayType,
+      dimension: filters.dimension || undefined,
+      transportMode: filters.transportMode || undefined,
+      page: String(filters.page),
+      pageSize: String(filters.pageSize),
+    },
+  })
+}
+
+function initFiltersFromQuery() {
+  const query = route.query
+
+  const search = typeof query.search === 'string' ? query.search : ''
+  const serverId = typeof query.serverId === 'string' ? query.serverId : ''
+  const railwayType =
+    typeof query.railwayType === 'string' ? query.railwayType : ''
+  const dimension = typeof query.dimension === 'string' ? query.dimension : ''
+  const transportMode =
+    typeof query.transportMode === 'string' ? query.transportMode : ''
+
+  const page =
+    typeof query.page === 'string' ? Number.parseInt(query.page, 10) : 1
+  const pageSize =
+    typeof query.pageSize === 'string'
+      ? Number.parseInt(query.pageSize, 10)
+      : filters.pageSize
+
+  filters.search = search
+  filters.serverId = serverId || ALL_OPTION_VALUE
+  filters.railwayType = railwayType || ALL_OPTION_VALUE
+  filters.dimension = dimension
+  filters.transportMode = transportMode
+  filters.page = Number.isFinite(page) && page > 0 ? page : 1
+  filters.pageSize =
+    Number.isFinite(pageSize) && pageSize > 0 ? pageSize : filters.pageSize
+  pageInput.value = String(filters.page)
+}
+
+watch(
+  () => filters.page,
+  () => {
+    pageInput.value = String(filters.page)
+  },
+)
 
 function openDetail(item: RailwayRoute) {
   router.push({
@@ -125,11 +182,23 @@ watch(
     filters.pageSize,
   ],
   () => {
-    resetToFirstPageAndFetch()
+    filters.page = 1
+    pageInput.value = '1'
+    syncQuery()
+    void fetchList()
+  },
+)
+
+watch(
+  () => filters.page,
+  () => {
+    syncQuery()
+    void fetchList()
   },
 )
 
 onMounted(async () => {
+  initFiltersFromQuery()
   if (railwayStore.servers.length === 0) {
     try {
       await railwayStore.fetchServers()
@@ -205,7 +274,7 @@ onMounted(async () => {
     />
 
     <section
-      class="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white/90 dark:border-slate-800/70 dark:bg-slate-900/70"
+      class="relative overflow-x-auto rounded-2xl border border-slate-200/70 bg-white/90 dark:border-slate-800/70 dark:bg-slate-900/70"
     >
       <table class="w-full text-left text-sm">
         <thead class="text-slate-500">
@@ -220,16 +289,11 @@ onMounted(async () => {
           </tr>
         </thead>
 
-        <tbody v-if="loading">
+        <tbody v-if="items.length === 0">
           <tr>
             <td colspan="7" class="p-6 text-center text-slate-500">
-              加载中...
+              {{ loading ? '加载中...' : '暂无数据' }}
             </td>
-          </tr>
-        </tbody>
-        <tbody v-else-if="items.length === 0">
-          <tr>
-            <td colspan="7" class="p-6 text-center text-slate-500">暂无数据</td>
           </tr>
         </tbody>
         <tbody v-else>
@@ -245,7 +309,7 @@ onMounted(async () => {
                 {{ item.name?.split('|')[0] || '未命名' }}
 
                 <UBadge
-                  v-if="(item.name.split('||').length ?? 0) > 1"
+                  v-if="(item.name?.split('||').length ?? 0) > 1"
                   size="xs"
                   variant="soft"
                   color="neutral"
@@ -274,6 +338,22 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
+
+      <Transition
+        enter-active-class="transition-opacity duration-200"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-opacity duration-200"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="loading && items.length"
+          class="absolute inset-0 bg-white/60 dark:bg-slate-900/30 backdrop-blur-[1px] flex items-center justify-center"
+        >
+          <span class="text-sm text-slate-500">加载中...</span>
+        </div>
+      </Transition>
     </section>
 
     <div
@@ -286,7 +366,7 @@ onMounted(async () => {
         }}
         页
       </span>
-      <div class="space-x-2">
+      <div class="flex items-center gap-2">
         <UButton
           size="xs"
           :disabled="filters.page <= 1 || loading"
@@ -294,6 +374,27 @@ onMounted(async () => {
         >
           上一页
         </UButton>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs">跳转</span>
+          <UInput
+            v-model="pageInput"
+            class="w-20"
+            type="number"
+            :min="1"
+            :max="pagination.pageCount"
+            @keydown.enter.prevent="goToPage(Number(pageInput))"
+          />
+          <UButton
+            size="xs"
+            variant="soft"
+            :disabled="loading"
+            @click="goToPage(Number(pageInput))"
+          >
+            前往
+          </UButton>
+        </div>
+
         <UButton
           size="xs"
           :disabled="filters.page >= pagination.pageCount || loading"

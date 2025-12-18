@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -30,6 +30,22 @@ const errorMessage = ref<string | null>(null)
 const logs = ref<RailwayRouteLogResult | null>(null)
 const logLoading = ref(true)
 const logError = ref<string | null>(null)
+
+const logContentRef = ref<HTMLElement | null>(null)
+let lastLogContentHeight: number | null = null
+
+const logPageSize = 8
+const logPage = ref(1)
+const logPageCount = computed(() => {
+  const total = logs.value?.total ?? 0
+  const pageSize = logs.value?.pageSize ?? logPageSize
+  if (!total || !pageSize) return 1
+  return Math.max(1, Math.ceil(total / pageSize))
+})
+const canGoLogPrev = computed(() => (logs.value?.page ?? logPage.value) > 1)
+const canGoLogNext = computed(
+  () => (logs.value?.page ?? logPage.value) < logPageCount.value,
+)
 
 type PathViewMode = 'default' | 'up' | 'down'
 
@@ -414,18 +430,70 @@ async function fetchLogs(force = true) {
   logError.value = null
   try {
     const result = await transportationStore.fetchRouteLogs(
-      { routeId, serverId, dimension, railwayType, limit: 8, page: 1 },
+      {
+        routeId,
+        serverId,
+        dimension,
+        railwayType,
+        limit: logPageSize,
+        page: Math.max(1, logPage.value),
+      },
       force,
     )
     logs.value = result
+    logPage.value = Math.max(1, result.page ?? logPage.value)
   } catch (error) {
     console.error(error)
     logError.value = error instanceof Error ? error.message : '日志加载失败'
     toast.add({ title: logError.value, color: 'error' })
-    logs.value = null
   } finally {
     logLoading.value = false
   }
+}
+
+watch(
+  () => [logs.value?.page, logs.value?.entries.length] as const,
+  async () => {
+    await nextTick()
+    const el = logContentRef.value
+    if (!el) return
+
+    const nextHeight = el.getBoundingClientRect().height
+    if (lastLogContentHeight == null) {
+      lastLogContentHeight = nextHeight
+      return
+    }
+    if (Math.abs(nextHeight - lastLogContentHeight) < 1) return
+
+    el.style.height = `${lastLogContentHeight}px`
+    el.style.overflow = 'hidden'
+    // force reflow
+    void el.getBoundingClientRect()
+    el.style.transition = 'height 200ms ease'
+    el.style.height = `${nextHeight}px`
+
+    window.setTimeout(() => {
+      if (el !== logContentRef.value) return
+      el.style.transition = ''
+      el.style.height = ''
+      el.style.overflow = ''
+    }, 220)
+
+    lastLogContentHeight = nextHeight
+  },
+  { flush: 'post' },
+)
+
+function goLogPrev() {
+  if (!canGoLogPrev.value) return
+  logPage.value = Math.max(1, logPage.value - 1)
+  void fetchLogs(false)
+}
+
+function goLogNext() {
+  if (!canGoLogNext.value) return
+  logPage.value = Math.min(logPageCount.value, logPage.value + 1)
+  void fetchLogs(false)
 }
 
 function goDetailedMap() {
@@ -471,6 +539,7 @@ function goPlayerProfile(playerName: string | null | undefined) {
 watch(
   () => route.fullPath,
   () => {
+    logPage.value = 1
     void fetchDetail()
     void fetchLogs()
   },
@@ -703,78 +772,134 @@ onMounted(() => {
             </section>
 
             <section class="space-y-3">
-              <div class="flex items-center justify-between">
+              <div
+                class="flex flex-col lg:flex-row lg:items-center lg:justify-betweenx"
+              >
                 <h3 class="text-lg text-slate-600 dark:text-slate-300">
                   线路修改日志
                 </h3>
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  icon="i-lucide-refresh-cw"
-                  @click="fetchLogs(true)"
-                >
-                  刷新
-                </UButton>
+                <div class="flex items-center gap-2 mx-auto lg:mx-0 lg:ml-auto">
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    icon="i-lucide-chevron-left"
+                    :disabled="logLoading || !canGoLogPrev"
+                    @click="goLogPrev"
+                  >
+                    上一页
+                  </UButton>
+                  <span class="text-xs text-slate-500 dark:text-slate-400">
+                    第 {{ logs?.page ?? logPage }} / {{ logPageCount }} 页
+                  </span>
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    icon="i-lucide-chevron-right"
+                    :disabled="logLoading || !canGoLogNext"
+                    @click="goLogNext"
+                  >
+                    下一页
+                  </UButton>
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    icon="i-lucide-refresh-cw"
+                    :disabled="logLoading"
+                    @click="fetchLogs(true)"
+                  >
+                    刷新
+                  </UButton>
+                </div>
               </div>
               <div>
-                <p v-if="logLoading" class="text-sm text-slate-500">
-                  <UIcon
-                    name="i-lucide-loader-2"
-                    class="inline-block h-5 w-5 animate-spin text-slate-400"
-                  />
-                </p>
-                <p v-else-if="logError" class="text-sm text-red-500">
-                  {{ logError }}
-                </p>
-                <p
-                  v-else-if="!logs || logs.entries.length === 0"
-                  class="text-sm text-slate-500"
-                >
-                  暂无日志记录。
-                </p>
-                <div v-else class="space-y-3">
-                  <div
-                    v-for="entry in logs.entries"
-                    :key="entry.id"
-                    class="flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250 outline-2 outline-transparent hover:outline-primary"
-                    @click="goPlayerProfile(entry.playerName)"
-                  >
-                    <div class="flex items-center gap-3">
-                      <button
-                        type="button"
-                        class="shrink-0"
+                <div ref="logContentRef" class="relative">
+                  <p v-if="!logs && logLoading" class="text-sm text-slate-500">
+                    <UIcon
+                      name="i-lucide-loader-2"
+                      class="inline-block h-5 w-5 animate-spin text-slate-400"
+                    />
+                  </p>
+                  <p v-else-if="!logs && logError" class="text-sm text-red-500">
+                    {{ logError }}
+                  </p>
+                  <p v-else-if="!logs" class="text-sm text-slate-500">
+                    暂无日志记录。
+                  </p>
+                  <div v-else>
+                    <p
+                      v-if="logs.entries.length === 0"
+                      class="text-sm text-slate-500"
+                    >
+                      暂无日志记录。
+                    </p>
+                    <div v-else class="space-y-3">
+                      <div
+                        v-for="entry in logs.entries"
+                        :key="entry.id"
+                        class="flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250 outline-2 outline-transparent hover:outline-primary"
                         @click="goPlayerProfile(entry.playerName)"
                       >
-                        <img
-                          v-if="getPlayerAvatar(entry.playerName)"
-                          :src="getPlayerAvatar(entry.playerName) || undefined"
-                          class="h-10 w-10 rounded-full border border-slate-200 dark:border-slate-700"
-                          alt="player avatar"
-                        />
-                        <div
-                          v-else
-                          class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
-                        >
-                          无
+                        <div class="flex items-center gap-3">
+                          <button
+                            type="button"
+                            class="shrink-0"
+                            @click="goPlayerProfile(entry.playerName)"
+                          >
+                            <img
+                              v-if="getPlayerAvatar(entry.playerName)"
+                              :src="
+                                getPlayerAvatar(entry.playerName) || undefined
+                              "
+                              class="h-10 w-10 rounded-full border border-slate-200 dark:border-slate-700"
+                              alt="player avatar"
+                            />
+                            <div
+                              v-else
+                              class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                            >
+                              无
+                            </div>
+                          </button>
+                          <div>
+                            <p
+                              class="text-sm font-semibold text-slate-900 dark:text-white"
+                            >
+                              {{ entry.playerName || '未知玩家' }}
+                            </p>
+                            <p class="text-xs text-slate-500">
+                              {{ entry.changeType || '—' }} ·
+                              {{
+                                entry.entryName ||
+                                entry.className ||
+                                entry.entryId
+                              }}
+                            </p>
+                            <p class="text-xs text-slate-400">
+                              {{ formatLogTimestamp(entry.timestamp) }}
+                            </p>
+                          </div>
                         </div>
-                      </button>
-                      <div>
-                        <p
-                          class="text-sm font-semibold text-slate-900 dark:text-white"
-                        >
-                          {{ entry.playerName || '未知玩家' }}
-                        </p>
-                        <p class="text-xs text-slate-500">
-                          {{ entry.changeType || '—' }} ·
-                          {{
-                            entry.entryName || entry.className || entry.entryId
-                          }}
-                        </p>
-                        <p class="text-xs text-slate-400">
-                          {{ formatLogTimestamp(entry.timestamp) }}
-                        </p>
                       </div>
                     </div>
+
+                    <Transition
+                      enter-active-class="transition-opacity duration-200"
+                      enter-from-class="opacity-0"
+                      enter-to-class="opacity-100"
+                      leave-active-class="transition-opacity duration-200"
+                      leave-from-class="opacity-100"
+                      leave-to-class="opacity-0"
+                    >
+                      <div
+                        v-if="logLoading"
+                        class="absolute inset-0 rounded-xl bg-white/60 dark:bg-slate-900/30 backdrop-blur-[1px] flex items-center justify-center"
+                      >
+                        <UIcon
+                          name="i-lucide-loader-2"
+                          class="h-5 w-5 animate-spin text-slate-400"
+                        />
+                      </div>
+                    </Transition>
                   </div>
                 </div>
               </div>
@@ -831,6 +956,7 @@ onMounted(() => {
               >
                 <div class="divide-y divide-slate-100 dark:divide-slate-800/60">
                   <div
+                    v-if="stopDisplayItems.length > 0"
                     v-for="item in stopDisplayItems"
                     :key="`station-card-${item.stop.platformId ?? item.stop.stationId ?? item.stop.order}`"
                     class="py-3 first:pt-0 last:pb-0"
@@ -883,6 +1009,7 @@ onMounted(() => {
                       </div>
                     </div>
                   </div>
+                  <div v-else class="text-sm">暂无站点数据</div>
                 </div>
               </div>
             </section>
