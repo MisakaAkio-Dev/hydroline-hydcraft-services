@@ -657,7 +657,7 @@ onUnmounted(() => {
               class="flex flex-col lg:flex-row lg:items-center lg:justify-betweenx"
             >
               <h3 class="text-lg text-slate-600 dark:text-slate-300">
-                线路修改日志
+                站点修改日志
               </h3>
               <div class="flex items-center gap-2 mx-auto lg:mx-0 lg:ml-auto">
                 <UButton

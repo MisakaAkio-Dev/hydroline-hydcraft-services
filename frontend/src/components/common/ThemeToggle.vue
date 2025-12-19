@@ -18,7 +18,10 @@ function select(mode: 'light' | 'dark' | 'system') {
 </script>
 
 <template>
-  <UPopover :popper="{ placement: 'bottom-end' }">
+  <UPopover
+    :popper="{ placement: 'bottom-end' }"
+    :ui="{ content: 'z-[40000]' }"
+  >
     <UButton
       color="neutral"
       variant="ghost"

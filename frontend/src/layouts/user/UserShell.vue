@@ -297,7 +297,10 @@ const routerPush = (path: string) => {
 
         <div class="flex items-center justify-end gap-2">
           <div v-if="authStore.isAuthenticated">
-            <UPopover :popper="{ placement: 'bottom-end' }">
+            <UPopover
+              :popper="{ placement: 'bottom-end' }"
+              :ui="{ content: 'z-[40000]' }"
+            >
               <UButton
                 color="neutral"
                 variant="ghost"
