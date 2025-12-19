@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { TransportationRailwayMod } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RailwayRouteDetailQueryDto } from '../dto/railway.dto';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { RailwayRouteDetailQueryDto } from '../../dto/railway.dto';
 import {
   buildDimensionContextFromDimension,
   normalizeId,
-} from './railway-normalizer';
+} from '../utils/railway-normalizer';
 
 type StationRouteMapGroup = {
   key: string;

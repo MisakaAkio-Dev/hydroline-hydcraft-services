@@ -11,15 +11,15 @@ import {
   TransportationRailwaySyncStatus,
   TransportationRailwayMod,
 } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
-import { HydrolineBeaconPoolService } from '../../lib/hydroline-beacon';
-import { HydrolineBeaconEvent } from '../../lib/hydroline-beacon/beacon.client';
-import { TransportationRailwaySnapshotService } from './railway-snapshot.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { HydrolineBeaconPoolService } from '../../../lib/hydroline-beacon';
+import { HydrolineBeaconEvent } from '../../../lib/hydroline-beacon/beacon.client';
+import { TransportationRailwaySnapshotService } from '../snapshot/railway-snapshot.service';
 import {
   DEFAULT_RAILWAY_TYPE,
   RAILWAY_TYPE_CONFIG,
   RailwayTypeConfig,
-} from './railway-type.config';
+} from '../config/railway-type.config';
 
 const BEACON_TIMEOUT_MS = 10000;
 const QUERY_LIMIT = 200;

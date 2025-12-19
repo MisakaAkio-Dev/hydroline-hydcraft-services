@@ -12,15 +12,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
-import { AuthGuard } from '../../auth/auth.guard';
-import { PermissionsGuard } from '../../auth/permissions.guard';
-import { RequirePermissions } from '../../auth/permissions.decorator';
-import { PERMISSIONS } from '../../auth/services/roles.service';
+import { AuthGuard } from '../../../auth/auth.guard';
+import { PermissionsGuard } from '../../../auth/permissions.guard';
+import { RequirePermissions } from '../../../auth/permissions.decorator';
+import { PERMISSIONS } from '../../../auth/services/roles.service';
 import {
   CreateRailwayBannerDto,
   UpdateRailwayBannerDto,
-} from '../dto/railway.dto';
-import { TransportationRailwayService } from './railway.service';
+} from '../../dto/railway.dto';
+import { TransportationRailwayService } from '../services/railway.service';
 
 @ApiTags('交通系统 - 铁路（管理端）')
 @ApiBearerAuth()

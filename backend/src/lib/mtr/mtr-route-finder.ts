@@ -6,7 +6,7 @@ import type {
   RailGeometrySegment,
   RailGraph,
   RailGraphNode,
-} from '../../transportation/railway/railway-graph.types';
+} from '../../transportation/railway/types/railway-graph.types';
 
 // Large routes can span thousands of rail nodes.
 // If the search is capped too low, route detail will fall back to

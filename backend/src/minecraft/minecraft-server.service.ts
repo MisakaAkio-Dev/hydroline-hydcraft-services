@@ -13,7 +13,7 @@ import {
   HydrolineBeaconPoolService,
   BeaconLibService,
 } from '../lib/hydroline-beacon';
-import { TransportationRailwaySyncService } from '../transportation/railway/railway-sync.service';
+import { TransportationRailwaySyncService } from '../transportation/railway/services/railway-sync.service';
 
 @Injectable()
 export class MinecraftServerService {

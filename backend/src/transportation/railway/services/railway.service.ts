@@ -5,27 +5,30 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { HydrolineBeaconPoolService } from '../../lib/hydroline-beacon';
-import { PrismaService } from '../../prisma/prisma.service';
-import { buildPublicUrl } from '../../lib/shared/url';
+import { HydrolineBeaconPoolService } from '../../../lib/hydroline-beacon';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { buildPublicUrl } from '../../../lib/shared/url';
 import {
   CreateRailwayBannerDto,
   UpdateRailwayBannerDto,
-} from '../dto/railway.dto';
-import { BeaconServerRecord } from './railway-common';
+} from '../../dto/railway.dto';
+import { BeaconServerRecord } from '../utils/railway-common';
 import {
   fetchRailwaySnapshot,
   queryRailwayEntities,
-} from './railway-beacon.util';
+} from '../utils/railway-beacon.util';
 import type {
   NormalizedEntity,
   NormalizedRoute,
   OverviewStats,
   OverviewLatest,
   RailwaySnapshotEntry,
-} from './railway-types';
-import { normalizeEntity, normalizeRouteRow } from './railway-normalizer';
-import { DEFAULT_RAILWAY_TYPE } from './railway-type.config';
+} from '../types/railway-types';
+import {
+  normalizeEntity,
+  normalizeRouteRow,
+} from '../utils/railway-normalizer';
+import { DEFAULT_RAILWAY_TYPE } from '../config/railway-type.config';
 
 const DEFAULT_RECOMMENDATION_COUNT = 4;
 

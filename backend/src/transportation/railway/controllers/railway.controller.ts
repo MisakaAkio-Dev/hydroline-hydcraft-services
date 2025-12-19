@@ -7,15 +7,15 @@ import {
 } from '@nestjs/common';
 import { TransportationRailwayMod } from '@prisma/client';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { TransportationRailwayService } from './railway.service';
-import { TransportationRailwayRouteDetailService } from './railway-route-detail.service';
-import { TransportationRailwayListService } from './railway-list.service';
-import { TransportationRailwayStationMapService } from './railway-station-map.service';
+import { TransportationRailwayService } from '../services/railway.service';
+import { TransportationRailwayRouteDetailService } from '../route-detail/railway-route-detail.service';
+import { TransportationRailwayListService } from '../services/railway-list.service';
+import { TransportationRailwayStationMapService } from '../services/railway-station-map.service';
 import {
   RailwayEntityListQueryDto,
   RailwayRouteDetailQueryDto,
   RailwayRouteLogQueryDto,
-} from '../dto/railway.dto';
+} from '../../dto/railway.dto';
 
 @ApiTags('交通系统 - 铁路（前台）')
 @Controller('transportation/railway')

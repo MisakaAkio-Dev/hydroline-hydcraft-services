@@ -1,18 +1,18 @@
 import {
   HydrolineBeaconEvent,
   HydrolineBeaconPoolService,
-} from '../../lib/hydroline-beacon';
+} from '../../../lib/hydroline-beacon';
 import { TransportationRailwayMod } from '@prisma/client';
 import { BEACON_TIMEOUT_MS, BeaconServerRecord } from './railway-common';
 import {
   DEFAULT_RAILWAY_TYPE,
   RailwayTypeConfig,
   RAILWAY_TYPE_CONFIG,
-} from './railway-type.config';
+} from '../config/railway-type.config';
 import type {
   QueryMtrEntitiesResponse,
   RailwaySnapshotResponse,
-} from './railway-types';
+} from '../types/railway-types';
 
 export function resolveRailwayMod(type?: TransportationRailwayMod) {
   if (type && RAILWAY_TYPE_CONFIG[type]) {

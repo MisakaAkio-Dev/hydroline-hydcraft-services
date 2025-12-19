@@ -1,4 +1,4 @@
-import { HydrolineBeaconEvent } from '../../lib/hydroline-beacon/beacon.client';
+import { HydrolineBeaconEvent } from '../../../lib/hydroline-beacon/beacon.client';
 import { TransportationRailwayMod } from '@prisma/client';
 
 export type RailwayTypeConfig = {

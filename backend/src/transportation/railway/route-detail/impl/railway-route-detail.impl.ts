@@ -12,14 +12,14 @@ import {
   TransportationRailwayRoute,
   TransportationRailwayStation,
 } from '@prisma/client';
-import { HydrolineBeaconPoolService } from '../../lib/hydroline-beacon';
-import { PrismaService } from '../../prisma/prisma.service';
+import { HydrolineBeaconPoolService } from '../../../../lib/hydroline-beacon';
+import { PrismaService } from '../../../../prisma/prisma.service';
 import {
   RailwayRouteDetailQueryDto,
   RailwayRouteLogQueryDto,
-} from '../dto/railway.dto';
-import { BeaconServerRecord } from './railway-common';
-import { emitBeacon } from './railway-beacon.util';
+} from '../../../dto/railway.dto';
+import { BeaconServerRecord } from '../../utils/railway-common';
+import { emitBeacon } from '../../utils/railway-beacon.util';
 import type {
   NormalizedEntity,
   NormalizedRoute,
@@ -32,7 +32,7 @@ import type {
   RailwayStationDetailResult,
   RailwayStationRecord,
   RouteDetailResult,
-} from './railway-types';
+} from '../../types/railway-types';
 
 const BLOCKS_PER_KM = 1000;
 
@@ -121,13 +121,13 @@ import {
   readString,
   toBoolean,
   toNumber,
-} from './railway-normalizer';
-import { DEFAULT_RAILWAY_TYPE } from './railway-type.config';
+} from '../../utils/railway-normalizer';
+import { DEFAULT_RAILWAY_TYPE } from '../../config/railway-type.config';
 import {
   BlockPosition,
   decodeBlockPosition,
   encodeBlockPosition,
-} from '../utils/block-pos.util';
+} from '../../../utils/block-pos.util';
 import type {
   PlatformNode,
   RailConnectionMetadata,
@@ -136,8 +136,8 @@ import type {
   RailGraph,
   RailGraphNode,
   PreferredRailCurve,
-} from './railway-graph.types';
-import { MtrRouteFinder } from '../../lib/mtr/mtr-route-finder';
+} from '../../types/railway-graph.types';
+import { MtrRouteFinder } from '../../../../lib/mtr/mtr-route-finder';
 
 @Injectable()
 export class TransportationRailwayRouteDetailService {

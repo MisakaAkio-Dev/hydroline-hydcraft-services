@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, TransportationRailwayMod } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 import {
   buildDimensionContextFromDimension,
   normalizeEntity,
   normalizeRouteRow,
-} from './railway-normalizer';
+} from '../utils/railway-normalizer';
 import type {
   NormalizedEntity,
   NormalizedRoute,
   QueryMtrEntityRow,
-} from './railway-types';
+} from '../types/railway-types';
 
 type RailwayListPagination = {
   total: number;

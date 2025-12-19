@@ -1,4 +1,4 @@
-import type { BlockPosition } from '../utils/block-pos.util';
+import type { BlockPosition } from '../../utils/block-pos.util';
 
 export type PreferredRailCurve = 'primary' | 'secondary' | null;
 

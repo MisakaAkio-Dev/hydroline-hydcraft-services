@@ -5,9 +5,9 @@ import type {
   NormalizedRoute,
   QueryMtrEntityRow,
   RailwayRouteRecord,
-} from './railway-types';
+} from '../types/railway-types';
 import { getRailwayModConfig } from './railway-beacon.util';
-import { decodeBlockPosition } from '../utils/block-pos.util';
+import { decodeBlockPosition } from '../../utils/block-pos.util';
 
 export function normalizePayloadRecord(value: Record<string, unknown>) {
   const normalized: Record<string, unknown> = { ...value };
