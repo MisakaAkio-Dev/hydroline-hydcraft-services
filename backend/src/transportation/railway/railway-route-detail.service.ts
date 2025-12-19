@@ -60,6 +60,18 @@ type BeaconExecuteSqlResponse = {
   truncated?: boolean;
 };
 
+export type RailwayRouteVariantItem = {
+  routeId: string;
+  variantLabel: string;
+  detail: RouteDetailResult;
+};
+
+export type RailwayRouteVariantsResult = {
+  baseKey: string | null;
+  baseName: string | null;
+  routes: RailwayRouteVariantItem[];
+};
+
 function estimateGeometryLengthKm(geometry: RouteDetailResult['geometry']) {
   const segments = geometry.segments ?? [];
   if (segments.length) {
@@ -204,11 +216,6 @@ export class TransportationRailwayRouteDetailService {
         routeEntity.dimensionContext ?? dimensionContextForGeometry;
     }
 
-    const siblingRoutes = await this.fetchRoutesForDimension(
-      server,
-      dimensionContextForGeometry,
-    );
-
     const mainGeometry = await this.buildRouteGeometry(
       server,
       dimensionContextForGeometry,
@@ -216,19 +223,18 @@ export class TransportationRailwayRouteDetailService {
       [],
     );
 
-    const geometryPaths = await this.buildRouteGeometryPaths(
-      server,
-      dimensionContextForGeometry,
-      normalizedRouteId,
-      routeRecord,
-      siblingRoutes,
-      platforms,
-      mainGeometry,
-    );
-
     const geometry: RouteDetailResult['geometry'] = {
       ...mainGeometry,
-      paths: geometryPaths,
+      // IMPORTANT: route detail should only return geometry for this route.
+      // Other variants (e.g. opposite direction / express / local) are served via /variants.
+      paths: [
+        this.buildGeometryPathEntry(
+          normalizedRouteId,
+          routeRecord,
+          mainGeometry,
+          true,
+        ),
+      ],
     };
 
     const estimatedLengthKm = estimateGeometryLengthKm(geometry);
@@ -283,6 +289,129 @@ export class TransportationRailwayRouteDetailService {
     };
 
     return detail;
+  }
+
+  async getRouteVariants(
+    routeId: string,
+    railwayMod: TransportationRailwayMod,
+    query: RailwayRouteDetailQueryDto,
+  ): Promise<RailwayRouteVariantsResult> {
+    if (!routeId || !query?.serverId) {
+      throw new BadRequestException('Route ID and serverId are required');
+    }
+    const server = await this.getBeaconServerById(query.serverId);
+    if (server.railwayMod !== railwayMod) {
+      throw new BadRequestException(
+        'Specified railway type does not match server configuration',
+      );
+    }
+
+    const normalizedRouteId = routeId.trim();
+    const routeEntity = await this.fetchStoredEntityRow(
+      server,
+      'ROUTE',
+      normalizedRouteId,
+      query.dimension ?? null,
+    );
+    if (!routeEntity) {
+      throw new NotFoundException('Route not found');
+    }
+    const routeRecord = this.buildRouteRecordFromEntity(routeEntity);
+    if (!routeRecord) {
+      throw new NotFoundException('Route data missing');
+    }
+    const normalizedRoute = this.normalizeStoredRoute(routeEntity, server);
+    if (!normalizedRoute) {
+      throw new NotFoundException('Unable to parse route data');
+    }
+
+    const dimensionContextForGeometry = this.resolveRouteDimensionContext(
+      normalizedRoute,
+      routeEntity.dimensionContext ?? null,
+      query.dimension ?? null,
+      server.railwayMod,
+    );
+
+    const baseKey = this.buildRouteBaseKey(routeRecord);
+    const baseName = this.buildRouteBaseName(routeRecord);
+    if (!baseKey) {
+      return { baseKey: null, baseName: baseName ?? null, routes: [] };
+    }
+
+    const [allPlatforms, allStations, routeRows] = await Promise.all([
+      this.fetchPlatformsFromStorage(server, dimensionContextForGeometry),
+      this.fetchStationsFromStorage(server, dimensionContextForGeometry),
+      this.fetchStoredRoutesForDimensionRows(
+        server,
+        dimensionContextForGeometry,
+      ),
+    ]);
+    const platformMap = this.buildPlatformsMap(allPlatforms);
+    const stationsMap = this.buildStationsMap(allStations);
+
+    const candidates = routeRows
+      .map((row) => {
+        const record = this.buildRouteRecordFromEntity(row);
+        if (!record) return null;
+        const key = this.buildRouteBaseKey(record);
+        if (!key || key !== baseKey) return null;
+        const rid = row.entityId?.trim();
+        if (!rid) return null;
+        return { row, record, routeId: rid };
+      })
+      .filter(
+        (
+          item,
+        ): item is {
+          row: TransportationRailwayRoute;
+          record: RailwayRouteRecord;
+          routeId: string;
+        } => Boolean(item),
+      );
+
+    const uniqueById = new Map<string, (typeof candidates)[number]>();
+    for (const item of candidates) {
+      uniqueById.set(item.routeId, item);
+    }
+    const uniqueCandidates = Array.from(uniqueById.values());
+
+    const primaryRouteId = routeEntity.entityId ?? normalizedRouteId;
+
+    uniqueCandidates.sort((a, b) => {
+      if (a.routeId === primaryRouteId && b.routeId !== primaryRouteId) {
+        return -1;
+      }
+      if (b.routeId === primaryRouteId && a.routeId !== primaryRouteId) {
+        return 1;
+      }
+      const la = this.buildRouteVariantLabel(a.record) ?? '主线';
+      const lb = this.buildRouteVariantLabel(b.record) ?? '主线';
+      return la.localeCompare(lb, 'zh-Hans-CN');
+    });
+
+    const results: RailwayRouteVariantItem[] = [];
+    for (const item of uniqueCandidates) {
+      const detail = await this.buildRouteDetailFromStoredRow(
+        server,
+        item.row,
+        item.routeId,
+        dimensionContextForGeometry,
+        platformMap,
+        stationsMap,
+      );
+      if (!detail) continue;
+      results.push({
+        routeId: item.routeId,
+        variantLabel: this.buildRouteVariantLabel(item.record) ?? '主线',
+        detail,
+      });
+    }
+
+    return {
+      baseKey,
+      baseName: baseName ?? null,
+      routes: results,
+    };
   }
 
   async getStationDetail(
@@ -626,6 +755,163 @@ export class TransportationRailwayRouteDetailService {
       default:
         return null;
     }
+  }
+
+  private async fetchStoredRoutesForDimensionRows(
+    server: BeaconServerRecord,
+    dimensionContext: string | null,
+  ) {
+    const where: Prisma.TransportationRailwayRouteWhereInput = {
+      serverId: server.id,
+      railwayMod: server.railwayMod,
+    };
+    if (dimensionContext) {
+      where.dimensionContext = dimensionContext;
+    }
+    return await this.prisma.transportationRailwayRoute.findMany({ where });
+  }
+
+  private buildRouteBaseKey(route: RailwayRouteRecord | null) {
+    if (!route) return null;
+    const normalizeValue = (value?: string | null) => {
+      if (!value) return null;
+      const normalized = value
+        .split('||')[0]
+        .split('|')[0]
+        .trim()
+        .toLowerCase();
+      return normalized || null;
+    };
+    // IMPORTANT: grouping must always be based on the current route name
+    // (name.split('||')[0].split('|')[0]).
+    return normalizeValue(route.name ?? null);
+  }
+
+  private buildRouteBaseName(route: RailwayRouteRecord | null) {
+    if (!route) return null;
+    // IMPORTANT: base name must always be derived from route.name.
+    const raw = readString(route.name) ?? null;
+    if (!raw) return null;
+    const base = raw.split('||')[0]?.split('|')[0]?.trim();
+    return base || null;
+  }
+
+  private buildRouteVariantLabel(route: RailwayRouteRecord | null) {
+    if (!route) return null;
+    // IMPORTANT: variant label must always be derived from route.name.
+    const raw = readString(route.name) ?? null;
+    if (!raw) return null;
+
+    const doubleParts = raw.split('||');
+    if (doubleParts.length >= 2) {
+      const candidate = doubleParts[1]?.split('|')[0]?.trim();
+      return candidate || null;
+    }
+
+    const singleParts = doubleParts[0]?.split('|') ?? [];
+    if (singleParts.length >= 2) {
+      const candidate = singleParts[1]?.trim();
+      return candidate || null;
+    }
+
+    return null;
+  }
+
+  private async buildRouteDetailFromStoredRow(
+    server: BeaconServerRecord,
+    routeEntity: TransportationRailwayRoute,
+    normalizedRouteId: string,
+    dimensionContextForGeometry: string | null,
+    platformMap: Map<string | null, RailwayPlatformRecord>,
+    stationsMap: Map<string | null, RailwayStationRecord>,
+  ): Promise<RouteDetailResult | null> {
+    const routeRecord = this.buildRouteRecordFromEntity(routeEntity);
+    if (!routeRecord) return null;
+    const normalizedRoute = this.normalizeStoredRoute(routeEntity, server);
+    if (!normalizedRoute) return null;
+
+    const orderedPlatformIds = normalizeIdList(routeRecord.platform_ids ?? []);
+    const selectedPlatforms = orderedPlatformIds
+      .map((platformId) => platformMap.get(platformId) ?? null)
+      .filter((item): item is RailwayPlatformRecord => Boolean(item));
+
+    const mainGeometry = await this.buildRouteGeometry(
+      server,
+      dimensionContextForGeometry,
+      selectedPlatforms,
+      [],
+    );
+
+    const geometry: RouteDetailResult['geometry'] = {
+      ...mainGeometry,
+      paths: [
+        this.buildGeometryPathEntry(
+          normalizedRouteId,
+          routeRecord,
+          mainGeometry,
+          true,
+        ),
+      ],
+    };
+
+    const estimatedLengthKm = estimateGeometryLengthKm(geometry);
+    const stationAssociations = await this.resolvePlatformStations(
+      server,
+      dimensionContextForGeometry,
+      stationsMap,
+      selectedPlatforms,
+    );
+
+    const normalizedStations = stationAssociations.stations.map((station) =>
+      this.normalizeStationRecord(station, server),
+    );
+    const normalizedPlatforms = selectedPlatforms.map((platform) =>
+      this.normalizePlatformRecord(platform, server),
+    );
+    const normalizedDepots = await this.fetchDepotsForRoute(
+      server,
+      dimensionContextForGeometry,
+      normalizedRouteId,
+    );
+
+    normalizedRoute.platformCount = orderedPlatformIds.length;
+    if (!normalizedRoute.dimension) {
+      normalizedRoute.dimension = this.extractDimensionFromContext(
+        normalizedRoute.dimensionContext ??
+          routeEntity.dimensionContext ??
+          dimensionContextForGeometry,
+      );
+    }
+    if (!normalizedRoute.dimensionContext) {
+      normalizedRoute.dimensionContext =
+        routeEntity.dimensionContext ?? dimensionContextForGeometry;
+    }
+
+    return {
+      server: { id: server.id, name: server.displayName },
+      railwayType: server.railwayMod,
+      dimension:
+        normalizedRoute.dimension ??
+        this.extractDimensionFromContext(dimensionContextForGeometry),
+      route: normalizedRoute,
+      metadata: {
+        lastUpdated:
+          normalizedRoute.lastUpdated ??
+          routeEntity.lastBeaconUpdatedAt?.getTime() ??
+          routeEntity.updatedAt.getTime(),
+        snapshotLength: null,
+        lengthKm: estimatedLengthKm,
+      },
+      stations: normalizedStations,
+      platforms: normalizedPlatforms,
+      depots: normalizedDepots,
+      geometry,
+      stops: this.buildStopSequence(
+        orderedPlatformIds,
+        platformMap,
+        stationAssociations.platformStations,
+      ),
+    };
   }
 
   private buildQueryRowFromEntity(row: StoredRailwayEntity): QueryMtrEntityRow {

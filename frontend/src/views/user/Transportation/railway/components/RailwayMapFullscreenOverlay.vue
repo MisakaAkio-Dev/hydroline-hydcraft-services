@@ -3,14 +3,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import RailwayMapPanel from '@/views/user/Transportation/railway/components/RailwayMapPanel.vue'
 import type { RailwayRouteDetail } from '@/types/transportation'
 
-type PathViewMode = 'default' | 'up' | 'down'
-
 const props = withDefaults(
   defineProps<{
     modelValue: boolean
-    pathViewMode: PathViewMode
-    pathViewModeItems: Array<{ label: string; value: string }>
-    pathViewModeDisabled?: boolean
+    variantMode: string
+    variantItems: Array<{ label: string; value: string }>
+    variantDisabled?: boolean
     routeLabel?: string | null
     lengthKm?: number | null
     stopCount?: number | null
@@ -27,7 +25,7 @@ const props = withDefaults(
     loading: false,
     autoFocus: true,
     combinePaths: true,
-    pathViewModeDisabled: false,
+    variantDisabled: false,
     routeLabel: null,
     lengthKm: null,
     stopCount: null,
@@ -36,7 +34,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void
-  (event: 'update:pathViewMode', value: PathViewMode): void
+  (event: 'update:variantMode', value: string): void
 }>()
 
 const open = computed(() => props.modelValue)
@@ -45,9 +43,9 @@ const close = () => {
   emit('update:modelValue', false)
 }
 
-const pathViewModeModel = computed<PathViewMode>({
-  get: () => props.pathViewMode,
-  set: (value) => emit('update:pathViewMode', value),
+const variantModeModel = computed<string>({
+  get: () => props.variantMode,
+  set: (value) => emit('update:variantMode', value),
 })
 
 const lengthLabel = computed(() => {
@@ -212,12 +210,12 @@ onBeforeUnmount(() => {
               </div>
 
               <USelect
-                v-model="pathViewModeModel"
-                :items="props.pathViewModeItems"
+                v-model="variantModeModel"
+                :items="props.variantItems"
                 value-key="value"
                 label-key="label"
                 class="w-20"
-                :disabled="Boolean(props.pathViewModeDisabled)"
+                :disabled="Boolean(props.variantDisabled)"
                 :ui="{ content: 'z-[35000]' }"
               />
             </div>

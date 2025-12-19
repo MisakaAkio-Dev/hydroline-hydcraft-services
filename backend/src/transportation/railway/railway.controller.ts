@@ -129,6 +129,21 @@ export class TransportationRailwayController {
     return this.routeDetailService.getRouteLogs(routeId, railwayType, query);
   }
 
+  @Get('routes/:railwayType/:routeId/variants')
+  @ApiOperation({ summary: '查询同名线路的其他子线路（快线/慢线/上下行等）' })
+  async getRouteVariants(
+    @Param('railwayType') railwayTypeParam: string,
+    @Param('routeId') routeId: string,
+    @Query() query: RailwayRouteDetailQueryDto,
+  ) {
+    const railwayType = parseRailwayTypeParam(railwayTypeParam);
+    return this.routeDetailService.getRouteVariants(
+      routeId,
+      railwayType,
+      query,
+    );
+  }
+
   @Get('stations/:railwayType/:stationId/logs')
   @ApiOperation({ summary: '查看车站变更日志' })
   async getStationLogs(

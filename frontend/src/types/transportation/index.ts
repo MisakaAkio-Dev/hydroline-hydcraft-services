@@ -255,6 +255,18 @@ export interface RailwayRouteLogResult {
   entries: RailwayRouteLogEntry[]
 }
 
+export interface RailwayRouteVariantItem {
+  routeId: string
+  variantLabel: string
+  detail: RailwayRouteDetail
+}
+
+export interface RailwayRouteVariantsResult {
+  baseKey: string | null
+  baseName: string | null
+  routes: RailwayRouteVariantItem[]
+}
+
 export interface RailwayListPagination {
   total: number
   page: number

@@ -12,6 +12,7 @@ import type {
   RailwayGeometryPoint,
   RailwayRouteDetail,
   RailwayRouteLogResult,
+  RailwayRouteVariantsResult,
 } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
 import { parseRouteName } from '@/utils/route/route-name'
@@ -32,6 +33,13 @@ const logs = ref<RailwayRouteLogResult | null>(null)
 const logLoading = ref(true)
 const logError = ref<string | null>(null)
 
+const variants = ref<RailwayRouteVariantsResult | null>(null)
+const variantsLoading = ref(false)
+const variantsError = ref<string | null>(null)
+
+const DEFAULT_VARIANT_MODE = '__default__'
+const variantMode = ref<string>(DEFAULT_VARIANT_MODE)
+
 const logContentRef = ref<HTMLElement | null>(null)
 let lastLogContentHeight: number | null = null
 
@@ -48,22 +56,6 @@ const canGoLogNext = computed(
   () => (logs.value?.page ?? logPage.value) < logPageCount.value,
 )
 
-type PathViewMode = 'default' | 'up' | 'down'
-
-const pathViewMode = ref<PathViewMode>('default')
-const pathViewModeOptions = [
-  { label: '默认', value: 'default' },
-  { label: '上行', value: 'up' },
-  { label: '下行', value: 'down' },
-]
-
-const geometryPaths = computed(() => detail.value?.geometry.paths ?? [])
-const hasDirectionalPaths = computed(
-  () =>
-    geometryPaths.value.filter((path) => path && path.isPrimary === false)
-      .length > 0,
-)
-
 const params = computed(() => {
   const routeId = route.params.routeId as string | undefined
   const railwayType = route.params.railwayType as string | undefined
@@ -74,10 +66,63 @@ const params = computed(() => {
 
 const mapAutoFocus = ref(true)
 const fullscreenMapOpen = ref(false)
+const variantModeItems = computed(() => {
+  const items: Array<{ label: string; value: string }> = [
+    { label: '默认', value: DEFAULT_VARIANT_MODE },
+  ]
+  const list = variantRouteItems.value
+  for (const entry of list) {
+    if (!entry?.routeId) continue
+    items.push({
+      label: entry.variantLabel || entry.detail?.route?.name || entry.routeId,
+      value: entry.routeId,
+    })
+  }
+  return items
+})
+
+watch(detail, () => {
+  mapAutoFocus.value = true
+})
+
+watch(variantMode, (current, previous) => {
+  if (previous === undefined) return
+  if (current !== previous) {
+    mapAutoFocus.value = false
+    logPage.value = 1
+    void fetchLogs(false)
+  }
+})
+
+const variantRouteItems = computed(() => {
+  const list = variants.value?.routes ?? []
+  if (list.length) return list
+  const rid = params.value.routeId
+  if (rid && detail.value) {
+    return [
+      {
+        routeId: rid,
+        variantLabel: '主线',
+        detail: detail.value,
+      },
+    ]
+  }
+  return []
+})
+
+const activeDetail = computed(() => {
+  if (variantMode.value === DEFAULT_VARIANT_MODE) {
+    return detail.value
+  }
+  const found = variantRouteItems.value.find(
+    (entry) => entry.routeId === variantMode.value,
+  )
+  return found?.detail ?? detail.value
+})
 
 const circularRegex = /circular|loop/i
 const isCircularRoute = computed(() => {
-  const payload = detail.value?.route.payload ?? {}
+  const payload = activeDetail.value?.route.payload ?? {}
   const candidates = [payload.circular_state, payload.route_type]
   return candidates.some(
     (value) =>
@@ -86,62 +131,112 @@ const isCircularRoute = computed(() => {
       value.toUpperCase() !== 'NONE',
   )
 })
-const pathViewModeItems = computed(() => {
-  if (isCircularRoute.value || !hasDirectionalPaths.value) {
-    return pathViewModeOptions.filter((item) => item.value === 'default')
+
+const maxStopsDetail = computed(() => {
+  const list = variantRouteItems.value
+  if (!list.length) return detail.value
+  let best = list[0]?.detail
+  let bestCount = best?.stops?.length ?? 0
+  for (const candidate of list) {
+    const d = candidate.detail
+    const count = d?.stops?.length ?? 0
+    if (count > bestCount) {
+      best = d
+      bestCount = count
+    }
   }
-  return pathViewModeOptions
+  return best ?? detail.value
 })
 
-let skipAutoFocusForNextPathChange = false
+const routeName = computed(() => parseRouteName(activeDetail.value?.route.name))
 
-watch(detail, () => {
-  if (pathViewMode.value !== 'default') {
-    skipAutoFocusForNextPathChange = true
-    pathViewMode.value = 'default'
-  }
-  mapAutoFocus.value = true
-})
-
-watch(pathViewMode, (current, previous) => {
-  if (previous === undefined) return
-  if (skipAutoFocusForNextPathChange) {
-    skipAutoFocusForNextPathChange = false
-    return
-  }
-  if (current !== previous) {
-    mapAutoFocus.value = false
-  }
-})
-
-watch(isCircularRoute, (value) => {
-  if (value && pathViewMode.value !== 'default') {
-    skipAutoFocusForNextPathChange = true
-    pathViewMode.value = 'default'
-  }
-})
-
-watch(hasDirectionalPaths, (value) => {
-  if (!value && pathViewMode.value !== 'default') {
-    skipAutoFocusForNextPathChange = true
-    pathViewMode.value = 'default'
-  }
-})
-
-const routeName = computed(() => parseRouteName(detail.value?.route.name))
-
-const stations = computed(() => detail.value?.stations ?? [])
-const platforms = computed(() => detail.value?.platforms ?? [])
-const depots = computed(() => detail.value?.depots ?? [])
+const stations = computed(() => maxStopsDetail.value?.stations ?? [])
+const platforms = computed(() => activeDetail.value?.platforms ?? [])
+const depots = computed(() => activeDetail.value?.depots ?? [])
 const orderedStops = computed(() => {
-  const stops = detail.value?.stops ?? []
+  const stops = maxStopsDetail.value?.stops ?? []
   return [...stops].sort((a, b) => a.order - b.order)
 })
-const displayedStops = computed(() => {
-  if (pathViewMode.value === 'down') {
-    return [...orderedStops.value].reverse()
+
+function resolveStopStationIdForDetail(
+  d: RailwayRouteDetail | null | undefined,
+  stop: RailwayRouteDetail['stops'][number] | null | undefined,
+) {
+  if (!d || !stop) return null
+  if (stop.stationId) return stop.stationId
+  if (!stop.platformId) return null
+  const platform = (d.platforms ?? []).find((p) => p.id === stop.platformId)
+  return platform?.stationId ?? null
+}
+
+const shouldReverseStopOrder = computed(() => {
+  if (variantMode.value === DEFAULT_VARIANT_MODE) return false
+  const base = maxStopsDetail.value
+  const active = activeDetail.value
+  if (!base || !active) return false
+
+  const baseStops = [...(base.stops ?? [])].sort((a, b) => a.order - b.order)
+  const activeStops = [...(active.stops ?? [])].sort(
+    (a, b) => a.order - b.order,
+  )
+  if (baseStops.length < 2 || activeStops.length < 2) return false
+
+  const baseFirstId = resolveStopStationIdForDetail(base, baseStops[0])
+  const baseLastId = resolveStopStationIdForDetail(
+    base,
+    baseStops[baseStops.length - 1],
+  )
+  const activeFirstId = resolveStopStationIdForDetail(active, activeStops[0])
+  const activeLastId = resolveStopStationIdForDetail(
+    active,
+    activeStops[activeStops.length - 1],
+  )
+
+  if (baseFirstId && activeFirstId && baseFirstId === activeFirstId) {
+    return false
   }
-  return orderedStops.value
+  if (baseFirstId && activeLastId && baseFirstId === activeLastId) {
+    return true
+  }
+  if (baseLastId && activeFirstId && baseLastId === activeFirstId) {
+    return true
+  }
+
+  const baseFirstName = resolveStopStationName({
+    ...baseStops[0],
+    stationId: baseFirstId ?? baseStops[0].stationId,
+  })
+  const baseLastName = resolveStopStationName({
+    ...baseStops[baseStops.length - 1],
+    stationId: baseLastId ?? baseStops[baseStops.length - 1].stationId,
+  })
+  const activeFirstName = resolveStopStationName({
+    ...activeStops[0],
+    stationId: activeFirstId ?? activeStops[0].stationId,
+  })
+  const activeLastName = resolveStopStationName({
+    ...activeStops[activeStops.length - 1],
+    stationId: activeLastId ?? activeStops[activeStops.length - 1].stationId,
+  })
+
+  if (baseFirstName && activeFirstName && baseFirstName === activeFirstName) {
+    return false
+  }
+  if (baseFirstName && activeLastName && baseFirstName === activeLastName) {
+    return true
+  }
+  if (baseLastName && activeFirstName && baseLastName === activeFirstName) {
+    return true
+  }
+
+  return false
+})
+
+const orderedStopsForView = computed(() => {
+  if (!orderedStops.value.length) return []
+  return shouldReverseStopOrder.value
+    ? [...orderedStops.value].reverse()
+    : orderedStops.value
 })
 const platformMap = computed(() => {
   const map = new Map<string, RailwayRouteDetail['platforms'][number]>()
@@ -153,102 +248,15 @@ const platformMap = computed(() => {
   return map
 })
 const routeAccentColor = computed(() => {
-  const color = detail.value?.route.color
+  const color = activeDetail.value?.route.color
   if (color == null) return null
   const sanitized = Math.max(0, Math.floor(color))
   const hex = sanitized.toString(16).padStart(6, '0').slice(-6)
   return `#${hex}`
 })
 
-function getStopAnchor(
-  stop: RailwayRouteDetail['stops'][number] | undefined,
-): RailwayGeometryPoint | null {
-  if (!stop) return null
-  if (stop.position) {
-    return stop.position
-  }
-  const bounds = stop.bounds
-  if (
-    bounds &&
-    bounds.xMin != null &&
-    bounds.xMax != null &&
-    bounds.zMin != null &&
-    bounds.zMax != null
-  ) {
-    return {
-      x: (bounds.xMin + bounds.xMax) / 2,
-      z: (bounds.zMin + bounds.zMax) / 2,
-    }
-  }
-  return null
-}
-
-function getPathStartPoint(
-  path: NonNullable<RailwayRouteDetail['geometry']['paths']>[number],
-) {
-  if (!path) return null
-  if (path.points?.length) {
-    return path.points[0]
-  }
-  const segment = path.segments?.[0]
-  if (segment) {
-    const start = segment.start
-    if (
-      typeof start.x === 'number' &&
-      typeof start.z === 'number' &&
-      Number.isFinite(start.x) &&
-      Number.isFinite(start.z)
-    ) {
-      return { x: start.x, z: start.z }
-    }
-  }
-  return null
-}
-
-function pickBestPathForStop(
-  paths: NonNullable<RailwayRouteDetail['geometry']['paths']>,
-  stop: RailwayRouteDetail['stops'][number] | null,
-) {
-  if (!paths.length) return null
-  const anchor = getStopAnchor(stop ?? undefined)
-  if (!anchor) {
-    return paths[0]
-  }
-  let best = paths[0]
-  let bestDistance = Number.POSITIVE_INFINITY
-  for (const path of paths) {
-    const point = getPathStartPoint(path)
-    if (!point) continue
-    const dx = point.x - anchor.x
-    const dz = point.z - anchor.z
-    const distance = dx * dx + dz * dz
-    if (distance < bestDistance) {
-      bestDistance = distance
-      best = path
-    }
-  }
-  return best
-}
-
-type Direction = 'up' | 'down'
-
-function resolveDirectionForMode(mode: PathViewMode): Direction {
-  if (mode === 'up') {
-    return 'up'
-  }
-  return 'down'
-}
-
-function getReferenceStopForDirection(
-  direction: Direction,
-): RailwayRouteDetail['stops'][number] | null {
-  const stops = orderedStops.value
-  if (!stops.length) return null
-  return direction === 'up' ? stops[0] : stops[stops.length - 1]
-}
-
 const modpackInfo = computed(() => {
-  const mod = detail.value?.railwayType
+  const mod = activeDetail.value?.railwayType
   if (mod === 'MTR') {
     return { label: 'MTR', image: modpackMtrImg }
   }
@@ -259,61 +267,125 @@ const modpackInfo = computed(() => {
 })
 
 const routeColorHex = computed(() => routeAccentColor.value)
-const combinePaths = computed(() => pathViewMode.value === 'default')
-const geometryForView = computed(() => {
-  const geometry = detail.value?.geometry
-  if (!geometry) {
-    return null
+const combinePaths = computed(() => variantMode.value === DEFAULT_VARIANT_MODE)
+
+const variantLabelMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const entry of variantRouteItems.value) {
+    if (!entry?.routeId) continue
+    map.set(entry.routeId, entry.variantLabel || '')
   }
-  const paths = geometry.paths
-  if (!paths?.length) {
-    return geometry
-  }
-  const modeDirection = resolveDirectionForMode(pathViewMode.value)
-  const wantsUp = modeDirection === 'up'
-  const directionalPaths = paths.filter((path, index) => {
-    const isPrimary =
-      typeof path.isPrimary === 'boolean' ? path.isPrimary : index === 0
-    return wantsUp ? isPrimary : !isPrimary
-  })
-  const fallbackPaths = directionalPaths.length ? directionalPaths : paths
-  const referenceStop = getReferenceStopForDirection(modeDirection)
-  const chosenPath = pickBestPathForStop(fallbackPaths, referenceStop)
-  if (!chosenPath) {
-    return { ...geometry, paths: fallbackPaths }
-  }
-  const secondaryPaths = paths
-    .filter((path) => path !== chosenPath)
-    .map((path) => ({ ...path, isPrimary: false }))
-  const primaryPath = { ...chosenPath, isPrimary: true }
-  if (pathViewMode.value === 'default') {
-    return { ...geometry, paths: [primaryPath, ...secondaryPaths] }
-  }
-  return { ...geometry, paths: [primaryPath] }
+  return map
 })
-const stopDisplayItems = computed(() =>
-  displayedStops.value.map((stop) => {
+
+const geometryForView = computed(() => {
+  if (variantMode.value !== DEFAULT_VARIANT_MODE) {
+    return activeDetail.value?.geometry ?? null
+  }
+  const list = variantRouteItems.value
+  if (!list.length) return activeDetail.value?.geometry ?? null
+
+  const primaryId = params.value.routeId ?? null
+  const paths = list
+    .map((entry) => {
+      const rid = entry.routeId
+      const d = entry.detail
+      if (!rid || !d) return null
+      const primaryPath =
+        d.geometry.paths?.find((p) => p && p.isPrimary) ?? d.geometry.paths?.[0]
+      const pathLike = primaryPath ?? {
+        id: rid,
+        label: null,
+        isPrimary: true,
+        source: d.geometry.source,
+        points: d.geometry.points ?? [],
+        segments: d.geometry.segments,
+      }
+      return {
+        id: rid,
+        label: variantLabelMap.value.get(rid) || pathLike.label || null,
+        isPrimary: primaryId ? rid === primaryId : false,
+        source: pathLike.source,
+        points: pathLike.points,
+        segments: pathLike.segments,
+      }
+    })
+    .filter(Boolean)
+
+  if (!paths.length) return activeDetail.value?.geometry ?? null
+
+  return {
+    source: paths[0].source,
+    points: [],
+    paths,
+  }
+})
+
+const mapStopsForView = computed(() => {
+  if (variantMode.value === DEFAULT_VARIANT_MODE) {
+    return maxStopsDetail.value?.stops ?? []
+  }
+  return activeDetail.value?.stops ?? []
+})
+const activeStopStationIdMap = computed(() => {
+  const active = activeDetail.value
+  if (!active) return new Map<string, RailwayRouteDetail['stops'][number]>()
+  const map = new Map<string, RailwayRouteDetail['stops'][number]>()
+  const platformById = new Map(
+    (active.platforms ?? []).map((p) => [p.id, p] as const),
+  )
+  for (const stop of active.stops ?? []) {
     const platformStationId = stop.platformId
-      ? (platformMap.value.get(stop.platformId)?.stationId ?? null)
+      ? (platformById.get(stop.platformId)?.stationId ?? null)
       : null
     const resolvedStationId = stop.stationId ?? platformStationId
+    if (resolvedStationId) {
+      map.set(resolvedStationId, stop)
+    }
+  }
+  return map
+})
+
+const stopDisplayItems = computed(() =>
+  orderedStopsForView.value.map((baseStop) => {
+    const basePlatformStationId = baseStop.platformId
+      ? ((maxStopsDetail.value?.platforms ?? []).find(
+          (p) => p.id === baseStop.platformId,
+        )?.stationId ?? null)
+      : null
+    const resolvedStationId = baseStop.stationId ?? basePlatformStationId
+
+    const activeStop = resolvedStationId
+      ? (activeStopStationIdMap.value.get(resolvedStationId) ?? null)
+      : null
+    const skipped =
+      variantMode.value !== DEFAULT_VARIANT_MODE ? activeStop == null : false
 
     const displayName = resolveStopStationName({
-      ...stop,
+      ...baseStop,
       stationId: resolvedStationId,
     })
     const nameParts = formatStationNameParts(displayName)
     const station = resolvedStationId
       ? stations.value.find((item) => item.id === resolvedStationId)
       : null
+
+    const stopForPlatform =
+      variantMode.value !== DEFAULT_VARIANT_MODE && activeStop
+        ? activeStop
+        : baseStop
+
+    const platformLabel = skipped ? '—' : getStopPlatformLabel(stopForPlatform)
+
     return {
-      stop,
+      stop: stopForPlatform,
       title: nameParts.title,
       subtitle: nameParts.subtitle,
-      platformLabel: getStopPlatformLabel(stop),
+      platformLabel,
       stationId: resolvedStationId,
       stationColorHex: colorToHex(station?.color ?? null),
-      dwellTime: stop.dwellTime ?? null,
+      dwellTime: skipped ? null : (stopForPlatform.dwellTime ?? null),
+      skipped,
     }
   }),
 )
@@ -428,9 +500,35 @@ async function fetchDetail() {
   }
 }
 
-async function fetchLogs(force = true) {
+async function fetchVariants(force = true) {
   const { routeId, serverId, dimension, railwayType } = params.value
   if (!routeId || !serverId || !railwayType) {
+    variants.value = null
+    return
+  }
+  variantsLoading.value = true
+  variantsError.value = null
+  try {
+    const result = await transportationStore.fetchRouteVariants(
+      { routeId, serverId, dimension, railwayType },
+      force,
+    )
+    variants.value = result
+  } catch (error) {
+    console.error(error)
+    variantsError.value =
+      error instanceof Error ? error.message : '加载同名线路失败'
+    variants.value = null
+  } finally {
+    variantsLoading.value = false
+  }
+}
+
+async function fetchLogs(force = true) {
+  const { routeId, serverId, dimension, railwayType } = params.value
+  const targetRouteId =
+    variantMode.value === DEFAULT_VARIANT_MODE ? routeId : variantMode.value
+  if (!targetRouteId || !serverId || !railwayType) {
     logs.value = null
     return
   }
@@ -439,7 +537,7 @@ async function fetchLogs(force = true) {
   try {
     const result = await transportationStore.fetchRouteLogs(
       {
-        routeId,
+        routeId: targetRouteId,
         serverId,
         dimension,
         railwayType,
@@ -544,13 +642,16 @@ watch(
   () => route.fullPath,
   () => {
     logPage.value = 1
+    variantMode.value = DEFAULT_VARIANT_MODE
     void fetchDetail()
+    void fetchVariants()
     void fetchLogs()
   },
 )
 
 onMounted(() => {
   void fetchDetail()
+  void fetchVariants()
   void fetchLogs()
 })
 </script>
@@ -558,20 +659,20 @@ onMounted(() => {
 <template>
   <RailwayMapFullscreenOverlay
     v-model="fullscreenMapOpen"
-    v-model:pathViewMode="pathViewMode"
-    :path-view-mode-items="pathViewModeItems"
-    :path-view-mode-disabled="isCircularRoute"
+    v-model:variantMode="variantMode"
+    :variant-items="variantModeItems"
+    :variant-disabled="variantsLoading || variantModeItems.length <= 1"
     :route-label="
       routeName.subtitle
         ? `${routeName.title} ${routeName.subtitle}`
         : routeName.title
     "
-    :length-km="detail?.metadata.lengthKm ?? null"
-    :stop-count="detail?.stops?.length ?? null"
+    :length-km="activeDetail?.metadata.lengthKm ?? null"
+    :stop-count="mapStopsForView.length"
     :geometry="geometryForView"
-    :stops="detail?.stops ?? []"
-    :color="detail?.route.color ?? null"
-    :loading="!detail"
+    :stops="mapStopsForView"
+    :color="activeDetail?.route.color ?? null"
+    :loading="!activeDetail"
     :auto-focus="mapAutoFocus"
     :combine-paths="combinePaths"
   />
@@ -649,9 +750,9 @@ onMounted(() => {
     >
       <RailwayMapPanel
         :geometry="geometryForView"
-        :stops="detail?.stops ?? []"
-        :color="detail?.route.color ?? null"
-        :loading="!detail"
+        :stops="mapStopsForView"
+        :color="activeDetail?.route.color ?? null"
+        :loading="!activeDetail"
         :auto-focus="mapAutoFocus"
         :combine-paths="combinePaths"
         height="520px"
@@ -665,8 +766,8 @@ onMounted(() => {
           <span class="text-xs mr-1">线路全长</span>
           <span>
             {{
-              detail?.metadata.lengthKm != null
-                ? `${detail.metadata.lengthKm} km`
+              activeDetail?.metadata.lengthKm != null
+                ? `${activeDetail.metadata.lengthKm} km`
                 : '—'
             }}
           </span>
@@ -696,7 +797,7 @@ onMounted(() => {
           class="inline-block h-5 w-5 animate-spin text-slate-400"
         />
       </div>
-      <div v-else-if="detail" class="space-y-6">
+      <div v-else-if="activeDetail" class="space-y-6">
         <section class="flex flex-col">
           <div class="mb-2 flex gap-2 items-start justify-between">
             <h3
@@ -713,12 +814,12 @@ onMounted(() => {
               </span>
             </h3>
             <USelect
-              v-model="pathViewMode"
-              :items="pathViewModeItems"
+              v-model="variantMode"
+              :items="variantModeItems"
               value-key="value"
               label-key="label"
               class="w-36"
-              :disabled="isCircularRoute"
+              :disabled="variantsLoading || variantModeItems.length <= 1"
             />
           </div>
           <div
@@ -754,6 +855,7 @@ onMounted(() => {
                   >
                     <p
                       class="text-base font-semibold text-slate-900 dark:text-white line-clamp-1 truncate hover:underline underline-offset-2 cursor-pointer"
+                      :class="item.skipped ? 'opacity-40' : ''"
                       @click="goStationDetail(item.stationId)"
                     >
                       {{ item.title }}
@@ -774,8 +876,13 @@ onMounted(() => {
                     >
                       <span
                         class="h-5 w-5 rounded-full border-4 bg-white"
+                        :class="
+                          item.skipped
+                            ? 'border-slate-300 dark:border-slate-600'
+                            : ''
+                        "
                         :style="
-                          routeAccentColor
+                          !item.skipped && routeAccentColor
                             ? { borderColor: routeAccentColor }
                             : undefined
                         "
@@ -786,6 +893,7 @@ onMounted(() => {
                   <div class="h-10 pt-4">
                     <div
                       class="text-[10px] text-slate-500 dark:text-slate-400 font-mono border border-slate-300 dark:border-slate-600 rounded px-1 bg-white dark:bg-slate-900"
+                      :class="item.skipped ? 'opacity-40' : ''"
                     >
                       {{ item.platformLabel }}
                     </div>
@@ -800,7 +908,7 @@ onMounted(() => {
           <div class="space-y-6">
             <section class="space-y-3">
               <RailwayRouteBasicInfoPanel
-                :detail="detail"
+                :detail="activeDetail"
                 :route-color-hex="routeColorHex"
                 :modpack-label="modpackInfo.label"
                 :modpack-image="modpackInfo.image"

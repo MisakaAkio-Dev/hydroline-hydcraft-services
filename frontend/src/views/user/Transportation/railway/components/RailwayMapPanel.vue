@@ -58,6 +58,13 @@ const containerHeight = computed(() => {
 })
 const SECONDARY_ZOOM_THRESHOLD = 4
 const SECONDARY_SEPARATION_THRESHOLD = 12
+
+function resolveSecondaryZoomThreshold(map: { getMaxZoom: () => number }) {
+  const maxZoom = map.getMaxZoom()
+  return Number.isFinite(maxZoom)
+    ? Math.min(SECONDARY_ZOOM_THRESHOLD, maxZoom)
+    : SECONDARY_ZOOM_THRESHOLD
+}
 type GeometryPathEntry = {
   id: string
   label: string | null
@@ -114,28 +121,133 @@ const secondaryPolylines = computed(() =>
   secondaryEntryList.value.flatMap((entry) => entry.polylines),
 )
 
+const SPLIT_VARIANT_OFFSET_STEP = 0.8
+
+function computeNormalForPolyline(points: RailwayGeometryPoint[]) {
+  if (points.length < 2) return null
+  const first = points[0]
+  const last = points[points.length - 1]
+  const dx = last.x - first.x
+  const dz = last.z - first.z
+  const len = Math.hypot(dx, dz)
+  if (!Number.isFinite(len) || len < 1e-6) return null
+  return { nx: -dz / len, nz: dx / len }
+}
+
+function offsetPolyline(points: RailwayGeometryPoint[], offset: number) {
+  if (!offset) return points
+  const normal = computeNormalForPolyline(points)
+  if (!normal) return points
+  return points.map((p) => ({
+    x: p.x + normal.nx * offset,
+    z: p.z + normal.nz * offset,
+  }))
+}
+
+const secondaryPolylinesWithVariantOffsets = computed(() => {
+  // Only apply offsets when we are actually showing split lines.
+  if (!showSplitLines.value) return secondaryPolylines.value
+
+  const entries = secondaryEntryList.value
+  if (entries.length <= 1) return secondaryPolylines.value
+
+  const polylines: RailwayGeometryPoint[][] = []
+  entries.forEach((entry, index) => {
+    // Alternate offsets: -1, +1, -2, +2 ... times step.
+    const band = Math.floor(index / 2) + 1
+    const sign = index % 2 === 0 ? -1 : 1
+    const offset = sign * band * SPLIT_VARIANT_OFFSET_STEP
+    entry.polylines.forEach((line) => {
+      polylines.push(offsetPolyline(line, offset))
+    })
+  })
+  return polylines
+})
+
 const directionalPolylines = computed(() =>
   geometryPathEntries.value.flatMap((entry) => entry.polylines),
 )
+
+const directionalPathLabels = computed(() =>
+  geometryPathEntries.value.flatMap((entry) =>
+    entry.polylines.map(() => entry.label ?? null),
+  ),
+)
+
+const secondaryPathLabelsWithVariantOffsets = computed(() => {
+  const labels: Array<string | null> = []
+  for (const entry of secondaryEntryList.value) {
+    for (const _polyline of entry.polylines) {
+      labels.push(entry.label ?? null)
+    }
+  }
+  return labels
+})
 
 const MERGE_DISTANCE_THRESHOLD = 50
 
 const flatSecondaryPoints = computed(() => secondaryPolylines.value.flat())
 
-const adjustPointWithSecondary = (point: RailwayGeometryPoint) => {
-  if (!props.combinePaths) return point
-  let closest: RailwayGeometryPoint | null = null
-  let minDistance = Infinity
-  for (const candidate of flatSecondaryPoints.value) {
-    const dx = candidate.x - point.x
-    const dz = candidate.z - point.z
-    const distance = Math.hypot(dx, dz)
-    if (distance < minDistance) {
-      minDistance = distance
-      closest = candidate
+type SecondaryPointGridIndex = {
+  cellSize: number
+  cells: Map<string, RailwayGeometryPoint[]>
+}
+
+function buildSecondaryPointGridIndex(
+  points: RailwayGeometryPoint[],
+  cellSize: number,
+): SecondaryPointGridIndex {
+  const cells = new Map<string, RailwayGeometryPoint[]>()
+  if (!points.length) return { cellSize, cells }
+  const size = cellSize > 0 ? cellSize : 1
+  for (const point of points) {
+    const cx = Math.floor(point.x / size)
+    const cz = Math.floor(point.z / size)
+    const key = `${cx},${cz}`
+    const bucket = cells.get(key)
+    if (bucket) {
+      bucket.push(point)
+    } else {
+      cells.set(key, [point])
     }
   }
-  if (closest && minDistance <= MERGE_DISTANCE_THRESHOLD) {
+  return { cellSize: size, cells }
+}
+
+const secondaryPointIndex = computed<SecondaryPointGridIndex | null>(() => {
+  if (!props.combinePaths) return null
+  const points = flatSecondaryPoints.value
+  if (!points.length) return null
+  return buildSecondaryPointGridIndex(points, MERGE_DISTANCE_THRESHOLD)
+})
+
+const adjustPointWithSecondary = (point: RailwayGeometryPoint) => {
+  if (!props.combinePaths) return point
+  const index = secondaryPointIndex.value
+  if (!index) return point
+  const thresholdSq = MERGE_DISTANCE_THRESHOLD * MERGE_DISTANCE_THRESHOLD
+
+  const cx = Math.floor(point.x / index.cellSize)
+  const cz = Math.floor(point.z / index.cellSize)
+  let closest: RailwayGeometryPoint | null = null
+  let minDistanceSq = Infinity
+  for (let dxCell = -1; dxCell <= 1; dxCell += 1) {
+    for (let dzCell = -1; dzCell <= 1; dzCell += 1) {
+      const key = `${cx + dxCell},${cz + dzCell}`
+      const bucket = index.cells.get(key)
+      if (!bucket?.length) continue
+      for (const candidate of bucket) {
+        const dx = candidate.x - point.x
+        const dz = candidate.z - point.z
+        const distanceSq = dx * dx + dz * dz
+        if (distanceSq < minDistanceSq) {
+          minDistanceSq = distanceSq
+          closest = candidate
+        }
+      }
+    }
+  }
+  if (closest && minDistanceSq <= thresholdSq) {
     return {
       x: Math.round((point.x + closest.x) / 2),
       z: Math.round((point.z + closest.z) / 2),
@@ -174,7 +286,8 @@ const geometrySignature = computed(() => {
   const lengths = paths
     .map((path) => path.points?.length ?? path.segments?.length ?? 0)
     .join(',')
-  return `${ids}:${lengths}:${secondaryHash.value}:${props.combinePaths}`
+  const labels = paths.map((path) => path.label ?? '').join('|')
+  return `${ids}:${lengths}:${labels}:${secondaryHash.value}:${props.combinePaths}`
 })
 
 const secondaryPathsSignature = computed(() => {
@@ -251,9 +364,10 @@ const handleSplitZoom = () => {
   const controller = railwayMap.value?.getController()
   const map = controller?.getLeafletInstance()
   if (!map) return
+  const threshold = resolveSecondaryZoomThreshold(map)
   const shouldShowSplit = !props.combinePaths
     ? true
-    : map.getZoom() >= SECONDARY_ZOOM_THRESHOLD
+    : map.getZoom() >= threshold
   if (showSplitLines.value !== shouldShowSplit) {
     showSplitLines.value = shouldShowSplit
     skipAutoFocus.value = true
@@ -299,16 +413,33 @@ function drawGeometry() {
     ? []
     : useMidline
       ? []
-      : secondaryPolylines.value
+      : secondaryPolylinesWithVariantOffsets.value
   const secondaryPaths = props.secondaryPaths?.length
     ? props.secondaryPaths
     : computedSecondaryPaths
+
+  const enableRouteHoverLabels = !useMidline
+  const pathLabels = !enableRouteHoverLabels
+    ? []
+    : directionalMode
+      ? directionalPathLabels.value
+      : primaryPaths.map(() => primaryEntry.value?.label ?? null)
+  const secondaryPathLabels =
+    !enableRouteHoverLabels || props.secondaryPaths?.length
+      ? []
+      : directionalMode
+        ? []
+        : secondaryPathLabelsWithVariantOffsets.value
 
   const computedSecondaryZoomThreshold = directionalMode
     ? Number.POSITIVE_INFINITY
     : useMidline
       ? Number.POSITIVE_INFINITY
-      : SECONDARY_ZOOM_THRESHOLD
+      : (() => {
+          const map = railwayMap.value?.getController()?.getLeafletInstance()
+          if (!map) return SECONDARY_ZOOM_THRESHOLD
+          return resolveSecondaryZoomThreshold(map)
+        })()
   const secondaryZoomThreshold =
     typeof props.secondaryZoomThreshold === 'number'
       ? props.secondaryZoomThreshold
@@ -330,7 +461,9 @@ function drawGeometry() {
     fill: isBoundsGeometry,
     fillOpacity: 0.7,
     focusZoom: props.zoom,
+    pathLabels,
     secondaryPaths,
+    secondaryPathLabels,
     secondaryZoomThreshold,
     secondaryColor: props.secondaryColor ?? null,
     secondaryWeight:
@@ -810,6 +943,26 @@ function computeCentroid(paths: RailwayGeometryPoint[][]) {
 }
 
 .dark .railway-station-label-small {
+  color: #f1f5f9;
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.85);
+}
+
+.railway-route-hover-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
+.railway-route-hover-label::before {
+  display: none;
+}
+
+.dark .railway-route-hover-label {
   color: #f1f5f9;
   text-shadow: 0 1px 2px rgba(2, 6, 23, 0.85);
 }

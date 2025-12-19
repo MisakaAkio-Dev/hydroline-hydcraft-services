@@ -11,6 +11,7 @@ import type {
   RailwayRouteDetail,
   RailwayRouteListResponse,
   RailwayRouteLogResult,
+  RailwayRouteVariantsResult,
   RailwayServerOption,
   RailwayStationDetail,
   RailwayStationRouteMapResponse,
@@ -44,6 +45,7 @@ export const useTransportationRailwayStore = defineStore(
       routeLogs: {} as Record<string, RailwayRouteLogResult>,
       stationLogs: {} as Record<string, RailwayRouteLogResult>,
       depotLogs: {} as Record<string, RailwayRouteLogResult>,
+      routeVariants: {} as Record<string, RailwayRouteVariantsResult>,
       routeLoading: false,
       adminBanners: [] as RailwayBanner[],
       adminBannersLoading: false,
@@ -177,6 +179,24 @@ export const useTransportationRailwayStore = defineStore(
         )
         this.routeLogs[cacheKey] = detail
         return detail
+      },
+
+      async fetchRouteVariants(params: RouteCacheParams, force = false) {
+        const cacheKey = `${this.buildRouteCacheKey(params)}::variants`
+        if (this.routeVariants[cacheKey] && !force) {
+          return this.routeVariants[cacheKey]
+        }
+        const query = new URLSearchParams({
+          serverId: params.serverId,
+        })
+        if (params.dimension) {
+          query.set('dimension', params.dimension)
+        }
+        const data = await apiFetch<RailwayRouteVariantsResult>(
+          `/transportation/railway/routes/${encodeURIComponent(params.railwayType)}/${encodeURIComponent(params.routeId)}/variants?${query.toString()}`,
+        )
+        this.routeVariants[cacheKey] = data
+        return data
       },
 
       async fetchStationLogs(

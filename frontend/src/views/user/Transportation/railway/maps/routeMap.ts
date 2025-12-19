@@ -16,7 +16,9 @@ type DrawOptions = {
   fill?: boolean
   fillOpacity?: number
   focusZoom?: number
+  pathLabels?: Array<string | null | undefined>
   secondaryPaths?: RailwayGeometryPoint[][]
+  secondaryPathLabels?: Array<string | null | undefined>
   secondaryZoomThreshold?: number
   forceShowSecondary?: boolean
   autoFocus?: boolean
@@ -42,6 +44,18 @@ const LABEL_POSITIONS: Array<{
   { direction: 'left', offset: L.point(-10, 0) },
 ]
 
+function bindRouteHoverLabel(polyline: L.Polyline, label: string) {
+  const text = label.trim()
+  if (!text) return
+  polyline.bindTooltip(text, {
+    permanent: false,
+    sticky: true,
+    direction: 'top',
+    offset: L.point(0, -8),
+    className: 'railway-route-hover-label',
+  })
+}
+
 function toHexColor(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return defaultColor
   return `#${(value >>> 0).toString(16).padStart(6, '0')}`
@@ -56,6 +70,7 @@ export class RailwayMap {
   private routeColor = defaultColor
   private polylineEndpoints: RailwayGeometryPoint[] = []
   private secondaryPaths: RailwayGeometryPoint[][] = []
+  private secondaryPathLabels: Array<string | null> = []
   private secondaryPolylines: L.Polyline[] = []
   private secondaryConfig: {
     color: string
@@ -110,6 +125,12 @@ export class RailwayMap {
     this.clearPolylines()
     this.clearSecondaryPolylines()
     this.secondaryPaths = options?.secondaryPaths ?? []
+    this.secondaryPathLabels = (options?.secondaryPathLabels ?? []).map((v) =>
+      typeof v === 'string' ? v : null,
+    )
+    const pathLabels = (options?.pathLabels ?? []).map((v) =>
+      typeof v === 'string' ? v : null,
+    )
     const map = this.controller.getLeafletInstance()
     if (!map || !map['_loaded']) {
       this.pendingDraw = { paths, options }
@@ -157,12 +178,13 @@ export class RailwayMap {
       zoomThreshold: secondaryZoomThreshold,
       force: forceSecondary,
     }
-
     let bounds: L.LatLngBounds | null = null
-    for (const path of paths) {
+    for (let index = 0; index < paths.length; index += 1) {
+      const path = paths[index]
       if (!path?.length) continue
       const latlngs = this.toLatLngPath(path)
       if (!latlngs.length) continue
+      const label = pathLabels[index]
       const polyline = options?.fill
         ? L.polygon(latlngs, {
             stroke: false,
@@ -170,14 +192,19 @@ export class RailwayMap {
             fillColor: color,
             fillOpacity: options?.fillOpacity ?? 0.7,
             className: ROUTE_POLYLINE_CLASS,
+            interactive: false,
           }).addTo(map)
         : L.polyline(latlngs, {
             color,
             weight: options?.weight ?? 4,
             opacity: options?.opacity ?? 0.85,
             className: ROUTE_POLYLINE_CLASS,
+            interactive: true,
           }).addTo(map)
       this.polylines.push(polyline)
+      if (!options?.fill && label) {
+        bindRouteHoverLabel(polyline, label)
+      }
       const polyBounds = polyline.getBounds()
       bounds = bounds ? bounds.extend(polyBounds) : polyBounds
     }
@@ -365,17 +392,27 @@ export class RailwayMap {
     if (this.secondaryPolylines.length) {
       return
     }
-    const latlngGroups = this.secondaryPaths
-      .map((path) => this.toLatLngPath(path))
-      .filter((latlngs) => latlngs.length)
-    this.secondaryPolylines = latlngGroups.map((latlngs) =>
-      L.polyline(latlngs, {
+
+    const secondaryPolylines: L.Polyline[] = []
+    for (let index = 0; index < this.secondaryPaths.length; index += 1) {
+      const path = this.secondaryPaths[index]
+      if (!path?.length) continue
+      const latlngs = this.toLatLngPath(path)
+      if (!latlngs.length) continue
+      const label = this.secondaryPathLabels[index]
+      const polyline = L.polyline(latlngs, {
         color: config.color,
         weight: config.weight,
         opacity: config.opacity,
         className: `${ROUTE_POLYLINE_CLASS} ${SECONDARY_POLYLINE_CLASS}`,
-      }).addTo(map),
-    )
+        interactive: true,
+      }).addTo(map)
+      if (label) {
+        bindRouteHoverLabel(polyline, label)
+      }
+      secondaryPolylines.push(polyline)
+    }
+    this.secondaryPolylines = secondaryPolylines
   }
 
   private clearStopLayer() {
