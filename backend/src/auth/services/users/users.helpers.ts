@@ -193,7 +193,9 @@ export async function composeAuthmeBindingSnapshots(
       }>
     | null
     | undefined,
+  options: { allowFallback?: boolean } = {},
 ) {
+  const allowFallback = options.allowFallback ?? true;
   const rawList = Array.isArray(entries) ? entries : [];
   const list = rawList
     .map((entry) => {
@@ -282,15 +284,15 @@ export async function composeAuthmeBindingSnapshots(
       try {
         const [account, luckperms] = await Promise.all([
           ctx.authmeLookupService.getAccount(binding.authmeUsername, {
-            allowFallback: true,
+            allowFallback,
           }),
           binding.authmeUuid
             ? ctx.luckpermsLookupService.getPlayerByUuid(binding.authmeUuid, {
-                allowFallback: true,
+                allowFallback,
               })
             : ctx.luckpermsLookupService.getPlayerByUsername(
                 binding.authmeRealname ?? binding.authmeUsername,
-                { allowFallback: true },
+                { allowFallback },
               ),
         ]);
 

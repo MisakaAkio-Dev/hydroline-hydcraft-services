@@ -310,7 +310,11 @@ function resolveUserSort(
   }
 }
 
-export async function getSessionUser(ctx: UsersServiceContext, userId: string) {
+export async function getSessionUser(
+  ctx: UsersServiceContext,
+  userId: string,
+  options: { allowFallback?: boolean } = {},
+) {
   const user = await ctx.prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -508,7 +512,9 @@ export async function getSessionUser(ctx: UsersServiceContext, userId: string) {
     normalizedLastLoginIp
       ? ctx.ipLocationService.lookup(normalizedLastLoginIp)
       : Promise.resolve(null),
-    composeAuthmeBindingSnapshots(ctx, user.authmeBindings),
+    composeAuthmeBindingSnapshots(ctx, user.authmeBindings, {
+      allowFallback: options.allowFallback,
+    }),
   ]);
   const nicknames = (user.minecraftIds ?? []).map((profile) => ({
     id: profile.id,

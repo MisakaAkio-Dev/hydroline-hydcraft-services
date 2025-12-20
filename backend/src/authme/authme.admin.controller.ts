@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
@@ -9,6 +17,7 @@ import { AuthmeService } from './authme.service';
 import { AuthFeatureService } from './auth-feature.service';
 import { UpdateAuthmeConfigDto } from './dto/update-authme-config.dto';
 import { UpdateAuthmeFeatureDto } from './dto/update-authme-feature.dto';
+import { ScheduledFetchService } from '../lib/sync/scheduled-fetch.service';
 
 @ApiTags('AuthMe 管理')
 @ApiBearerAuth()
@@ -18,6 +27,7 @@ export class AuthmeAdminController {
   constructor(
     private readonly authmeService: AuthmeService,
     private readonly authFeatureService: AuthFeatureService,
+    private readonly scheduledFetch: ScheduledFetchService,
   ) {}
 
   @Get('overview')
@@ -64,5 +74,13 @@ export class AuthmeAdminController {
   ) {
     await this.authFeatureService.setFlags(dto, req.user?.id);
     return this.getOverview();
+  }
+
+  @Post('sync-cache')
+  @ApiOperation({ summary: '手动触发 AuthMe 缓存同步' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_AUTHME)
+  async triggerCacheSync() {
+    await this.scheduledFetch.triggerTask('authme-cache', 'manual');
+    return { success: true };
   }
 }

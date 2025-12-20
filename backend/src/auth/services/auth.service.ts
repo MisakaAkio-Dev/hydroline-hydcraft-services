@@ -31,6 +31,7 @@ import { MailService } from '../../mail/mail.service';
 import { ChangePasswordWithCodeDto } from '../dto/change-password-with-code.dto';
 import { OAuthProvidersService } from '../../oauth/services/oauth-providers.service';
 import { formatDateTimeCn } from '../../lib/shared/datetime';
+import { RedisService } from '../../lib/redis/redis.service';
 
 interface AuthResponse {
   token: string | null;
@@ -70,6 +71,9 @@ interface AccessTokenPayload extends JwtPayload {
   type: 'access';
 }
 
+const SESSION_USER_CACHE_TTL_MS = 30 * 1000;
+const SESSION_USER_CACHE_KEY_VERSION = 'v1';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -81,6 +85,7 @@ export class AuthService {
     private readonly authFeatureService: AuthFeatureService,
     private readonly mailService: MailService,
     private readonly oauthProvidersService: OAuthProvidersService,
+    private readonly redis: RedisService,
   ) {}
 
   private readonly passwordCodeTtlMs = 10 * 60 * 1000;
@@ -180,7 +185,8 @@ export class AuthService {
     return { success: true };
   }
 
-  async getSession(accessToken: string) {
+  async getSession(accessToken: string, options: { skipTouch?: boolean } = {}) {
+    const skipTouch = options.skipTouch ?? false;
     const payload = this.verifyAccessToken(accessToken);
     const session = await this.prisma.session.findUnique({
       where: { token: payload.sid },
@@ -195,9 +201,22 @@ export class AuthService {
       throw new UnauthorizedException('Invalid session');
     }
 
-    await this.maybeExtendActiveSession(session);
+    if (!skipTouch) {
+      await this.maybeExtendActiveSession(session);
+    }
 
-    const user = await this.usersService.getSessionUser(session.userId);
+    const cacheKey = this.buildSessionUserCacheKey(session.token);
+    const cached =
+      await this.redis.get<Awaited<ReturnType<UsersService['getSessionUser']>>>(
+        cacheKey,
+      );
+    if (cached) {
+      return { user: cached, sessionToken: session.token };
+    }
+    const user = await this.usersService.getSessionUser(session.userId, {
+      allowFallback: false,
+    });
+    await this.redis.set(cacheKey, user, SESSION_USER_CACHE_TTL_MS);
     return { user, sessionToken: session.token };
   }
 
@@ -1239,6 +1258,10 @@ export class AuthService {
       accessToken: this.signAccessToken(userId, sessionToken),
       refreshToken: sessionToken,
     } as const;
+  }
+
+  private buildSessionUserCacheKey(sessionToken: string) {
+    return `auth:session-user:${SESSION_USER_CACHE_KEY_VERSION}:${sessionToken}`;
   }
 
   private verifyAccessToken(accessToken: string): AccessTokenPayload {

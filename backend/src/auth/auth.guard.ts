@@ -23,16 +23,24 @@ export class AuthGuard implements CanActivate {
     }
 
     const token = authHeader.slice(7);
-    const session = await this.authService.getSession(token);
-    // Persist latest IP/User-Agent on every authenticated request
-    try {
-      const ctx = buildRequestContext(request);
-      await this.authService.touchSession(session.sessionToken, ctx);
-    } catch {
-      // best-effort only
+    const skipTouch = this.shouldSkipTouch(request);
+    const session = await this.authService.getSession(token, { skipTouch });
+    if (!skipTouch) {
+      // Persist latest IP/User-Agent on every authenticated request
+      try {
+        const ctx = buildRequestContext(request);
+        await this.authService.touchSession(session.sessionToken, ctx);
+      } catch {
+        // best-effort only
+      }
     }
     request.user = session.user;
     request.sessionToken = session.sessionToken;
     return true;
+  }
+
+  private shouldSkipTouch(request: { originalUrl?: string; url?: string }) {
+    const url = request.originalUrl ?? request.url ?? '';
+    return /\/auth\/session(?:$|\?)/.test(url);
   }
 }

@@ -57,6 +57,7 @@ const loading = ref(true)
 const savingConfig = ref(false)
 const savingFeature = ref(false)
 const reloadingHealth = ref(false)
+const syncingCache = ref(false)
 
 const configDialogOpen = ref(false)
 const featureDialogOpen = ref(false)
@@ -205,6 +206,10 @@ const statusRows = computed<StatusRow[]>(() => {
   return rows
 })
 
+const canSyncCache = computed(() =>
+  authStore.hasPermission('config.manage.authme'),
+)
+
 async function loadOverview() {
   if (!authStore.token) {
     throw new Error('未登录')
@@ -294,6 +299,23 @@ async function refreshHealth() {
     handleError(error, '刷新状态失败')
   } finally {
     reloadingHealth.value = false
+  }
+}
+
+async function forceSyncCache() {
+  if (!authStore.token || !canSyncCache.value) return
+  syncingCache.value = true
+  try {
+    await apiFetch('/authme/admin/sync-cache', {
+      method: 'POST',
+      token: authStore.token,
+    })
+    await loadOverview()
+    toastSuccess('已触发 AuthMe 缓存同步')
+  } catch (error) {
+    handleError(error, '触发 AuthMe 同步失败')
+  } finally {
+    syncingCache.value = false
   }
 }
 
@@ -409,6 +431,15 @@ onMounted(() => {
           @click="refreshHealth"
         >
           刷新状态
+        </UButton>
+        <UButton
+          v-if="canSyncCache"
+          variant="soft"
+          icon="i-lucide-rotate-cw"
+          :loading="syncingCache"
+          @click="forceSyncCache"
+        >
+          强制同步
         </UButton>
         <UButton
           variant="soft"

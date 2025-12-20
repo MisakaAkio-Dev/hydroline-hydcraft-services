@@ -39,6 +39,7 @@ import { UpdateAvatarResponseDto } from '../dto/update-avatar.dto';
 import { ChangePasswordWithCodeDto } from '../dto/change-password-with-code.dto';
 import { CreateMinecraftProfileDto } from '../dto/create-minecraft-profile.dto';
 import { UpdateMinecraftProfileDto } from '../dto/update-minecraft-profile.dto';
+import { RedisService } from '../../lib/redis/redis.service';
 import {
   AddPhoneContactDto,
   UpdatePhoneContactDto,
@@ -105,7 +106,11 @@ export class AuthController {
     private readonly usersService: UsersService,
     private readonly ipLocationService: IpLocationService,
     private readonly attachmentsService: AttachmentsService,
+    private readonly redis: RedisService,
   ) {}
+
+  private static readonly SESSION_RESPONSE_CACHE_TTL_MS = 30 * 1000;
+  private static readonly SESSION_RESPONSE_CACHE_KEY_VERSION = 'v1';
 
   @Post('signup')
   @ApiOperation({ summary: '邮箱注册' })
@@ -447,38 +452,39 @@ export class AuthController {
     if (!userAny || typeof userAny !== 'object') {
       return { user: null };
     }
+    const sessionToken = req.sessionToken as string | undefined;
+    const cacheKey = sessionToken
+      ? this.buildSessionResponseCacheKey(sessionToken)
+      : null;
+    if (cacheKey) {
+      const cached = await this.redis.get<{ user: unknown }>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
     const user = userAny as Record<string, unknown>;
-    const rawBindings = Array.isArray(user.authmeBindings)
-      ? (user.authmeBindings as Array<Record<string, unknown>>)
-      : [];
-    const enrichedBindings = await Promise.all(
-      rawBindings.map(async (binding) => {
-        const ip = (binding.ip as string | null | undefined) ?? null;
-        const regip = (binding.regip as string | null | undefined) ?? null;
-        const [ipLoc, regipLoc] = await Promise.all([
-          this.ipLocationService.lookup(ip),
-          this.ipLocationService.lookup(regip),
-        ]);
-        return {
-          ...binding,
-          ip_location: ipLoc?.raw ?? null,
-          ip_location_display: ipLoc?.display ?? null,
-          regip_location: regipLoc?.raw ?? null,
-          regip_location_display: regipLoc?.display ?? null,
-        };
-      }),
+    const enrichedBindings = this.mapAuthmeBindingsWithLocation(
+      user.authmeBindings,
     );
     const withBindings = {
       ...user,
-      authmeBindings: enrichedBindings,
+      authmeBindings: enrichedBindings ?? user.authmeBindings,
     };
     const enrichedUser = await enrichUserAvatar(
       this.attachmentsService,
       withBindings as any,
     );
-    return {
+    const payload = {
       user: enrichedUser,
     };
+    if (cacheKey) {
+      await this.redis.set(
+        cacheKey,
+        payload,
+        AuthController.SESSION_RESPONSE_CACHE_TTL_MS,
+      );
+    }
+    return payload;
   }
 
   @Get('me')
@@ -490,9 +496,12 @@ export class AuthController {
     if (!userId) {
       throw new UnauthorizedException('Invalid session');
     }
-    const user = await this.usersService.getSessionUser(userId);
-    const enrichedBindings = await this.enrichAuthmeBindings(
-      (user as Record<string, unknown>)?.['authmeBindings'],
+    const user = (req.user as Record<string, unknown>) ?? null;
+    if (!user) {
+      throw new UnauthorizedException('Invalid session');
+    }
+    const enrichedBindings = this.mapAuthmeBindingsWithLocation(
+      user.authmeBindings,
     );
     const withBindings = enrichedBindings
       ? { ...(user as any), authmeBindings: enrichedBindings }
@@ -514,7 +523,10 @@ export class AuthController {
     if (!userId) {
       throw new UnauthorizedException('Invalid session');
     }
-    const user = await this.usersService.getSessionUser(userId);
+    const user = req.user as Record<string, unknown>;
+    if (!user) {
+      throw new UnauthorizedException('Invalid session');
+    }
     const enrichedUser = await enrichUserAvatar(
       this.attachmentsService,
       user as any,
@@ -570,8 +582,10 @@ export class AuthController {
     if (!userId) {
       throw new UnauthorizedException('Invalid session');
     }
-    const user = await this.usersService.getSessionUser(userId);
-    const enrichedBindings = await this.enrichAuthmeBindings(
+    const user = await this.usersService.getSessionUser(userId, {
+      allowFallback: false,
+    });
+    const enrichedBindings = this.mapAuthmeBindingsWithLocation(
       (user as Record<string, unknown>)?.['authmeBindings'],
     );
     const usr = user as Record<string, unknown>;
@@ -868,8 +882,10 @@ export class AuthController {
   }
 
   private async reloadCurrentUser(userId: string) {
-    const user = await this.usersService.getSessionUser(userId);
-    const enrichedBindings = await this.enrichAuthmeBindings(
+    const user = await this.usersService.getSessionUser(userId, {
+      allowFallback: false,
+    });
+    const enrichedBindings = this.mapAuthmeBindingsWithLocation(
       (user as Record<string, unknown>)?.['authmeBindings'],
     );
     const withBindings = enrichedBindings
@@ -878,7 +894,7 @@ export class AuthController {
     return enrichUserAvatar(this.attachmentsService, withBindings);
   }
 
-  private async enrichAuthmeBindings(bindings: unknown) {
+  private mapAuthmeBindingsWithLocation(bindings: unknown) {
     if (!Array.isArray(bindings) || bindings.length === 0) {
       return null;
     }
@@ -895,24 +911,34 @@ export class AuthController {
       return null;
     }
 
-    return Promise.all(
-      normalized.map(async (binding) => {
-        const [ipLocation, regipLocation] = await Promise.all([
-          this.ipLocationService.lookup(
-            (binding['ip'] as string | null | undefined) ?? null,
-          ),
-          this.ipLocationService.lookup(
-            (binding['regip'] as string | null | undefined) ?? null,
-          ),
-        ]);
-        return {
-          ...binding,
-          ip_location: ipLocation?.raw ?? null,
-          ip_location_display: ipLocation?.display ?? null,
-          regip_location: regipLocation?.raw ?? null,
-          regip_location_display: regipLocation?.display ?? null,
-        };
-      }),
-    );
+    return normalized.map((binding) => {
+      const ipLocationRaw =
+        (binding['ipLocationRaw'] as string | null | undefined) ??
+        (binding['ip_location'] as string | null | undefined) ??
+        null;
+      const ipLocationDisplay =
+        (binding['ipLocation'] as string | null | undefined) ??
+        (binding['ip_location_display'] as string | null | undefined) ??
+        ipLocationRaw;
+      const regipLocationRaw =
+        (binding['regipLocationRaw'] as string | null | undefined) ??
+        (binding['regip_location'] as string | null | undefined) ??
+        null;
+      const regipLocationDisplay =
+        (binding['regipLocation'] as string | null | undefined) ??
+        (binding['regip_location_display'] as string | null | undefined) ??
+        regipLocationRaw;
+      return {
+        ...binding,
+        ip_location: ipLocationRaw,
+        ip_location_display: ipLocationDisplay,
+        regip_location: regipLocationRaw,
+        regip_location_display: regipLocationDisplay,
+      };
+    });
+  }
+
+  private buildSessionResponseCacheKey(sessionToken: string) {
+    return `auth:session-response:${AuthController.SESSION_RESPONSE_CACHE_KEY_VERSION}:${sessionToken}`;
   }
 }

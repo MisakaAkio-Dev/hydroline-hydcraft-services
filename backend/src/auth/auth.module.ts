@@ -24,6 +24,7 @@ import { OAuthModule } from '../oauth/oauth.module';
 import { VerificationAdminController } from './controllers/verification-admin.controller';
 import { AttachmentsModule } from '../attachments/attachments.module';
 import { CacheModule } from '../cache/cache.module';
+import { RedisModule } from '../lib/redis/redis.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { CacheModule } from '../cache/cache.module';
     forwardRef(() => OAuthModule),
     forwardRef(() => AttachmentsModule),
     CacheModule,
+    RedisModule,
   ],
   controllers: [
     AuthController,

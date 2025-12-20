@@ -73,6 +73,7 @@ const loading = ref(true)
 const savingConfig = ref(false)
 const savingGroupConfig = ref(false)
 const reloadingHealth = ref(false)
+const syncingCache = ref(false)
 
 const configDialogOpen = ref(false)
 const groupConfigDialogOpen = ref(false)
@@ -253,6 +254,10 @@ const statusRows = computed<StatusRow[]>(() => {
   })
   return rows
 })
+
+const canSyncCache = computed(() =>
+  authStore.hasPermission('config.manage.luckperms'),
+)
 
 function normalizeGroupLabelPayload(
   entries: Array<{ group: string; label: string }>,
@@ -500,6 +505,23 @@ async function refreshHealth() {
   }
 }
 
+async function forceSyncCache() {
+  if (!authStore.token || !canSyncCache.value) return
+  syncingCache.value = true
+  try {
+    await apiFetch('/luckperms/admin/sync-cache', {
+      method: 'POST',
+      token: authStore.token,
+    })
+    await loadOverview()
+    toastSuccess('已触发 LuckPerms 缓存同步')
+  } catch (error) {
+    handleError(error, '触发 LuckPerms 同步失败')
+  } finally {
+    syncingCache.value = false
+  }
+}
+
 function toastSuccess(message: string) {
   toast.add({
     title: '已保存',
@@ -589,6 +611,15 @@ onMounted(() => {
           @click="refreshHealth"
         >
           刷新状态
+        </UButton>
+        <UButton
+          v-if="canSyncCache"
+          variant="soft"
+          icon="i-lucide-rotate-cw"
+          :loading="syncingCache"
+          @click="forceSyncCache"
+        >
+          强制同步
         </UButton>
         <UButton
           variant="soft"

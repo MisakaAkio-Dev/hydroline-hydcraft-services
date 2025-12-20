@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
@@ -9,13 +17,17 @@ import { LuckpermsService } from './luckperms.service';
 import { UpdateLuckpermsConfigDto } from './dto/update-luckperms-config.dto';
 import { UpdateLuckpermsGroupLabelsDto } from './dto/update-luckperms-group-labels.dto';
 import { UpdateLuckpermsGroupPrioritiesDto } from './dto/update-luckperms-group-priorities.dto';
+import { ScheduledFetchService } from '../lib/sync/scheduled-fetch.service';
 
 @ApiTags('LuckPerms 管理')
 @ApiBearerAuth()
 @Controller('luckperms/admin')
 @UseGuards(AuthGuard, PermissionsGuard)
 export class LuckpermsAdminController {
-  constructor(private readonly luckpermsService: LuckpermsService) {}
+  constructor(
+    private readonly luckpermsService: LuckpermsService,
+    private readonly scheduledFetch: ScheduledFetchService,
+  ) {}
 
   @Get('overview')
   @ApiOperation({ summary: '获取 LuckPerms 配置与状态' })
@@ -83,5 +95,13 @@ export class LuckpermsAdminController {
       req.user?.id,
     );
     return this.getOverview();
+  }
+
+  @Post('sync-cache')
+  @ApiOperation({ summary: '手动触发 LuckPerms 缓存同步' })
+  @RequirePermissions(PERMISSIONS.CONFIG_MANAGE_LUCKPERMS)
+  async triggerCacheSync() {
+    await this.scheduledFetch.triggerTask('luckperms-cache', 'manual');
+    return { success: true };
   }
 }

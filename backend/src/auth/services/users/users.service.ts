@@ -126,8 +126,11 @@ export class UsersService {
     return listUsers(this.ctx, params);
   }
 
-  async getSessionUser(userId: string) {
-    return getSessionUser(this.ctx, userId);
+  async getSessionUser(
+    userId: string,
+    options: { allowFallback?: boolean } = {},
+  ) {
+    return getSessionUser(this.ctx, userId, options);
   }
 
   async updateCurrentUser(userId: string, dto: UpdateCurrentUserDto) {

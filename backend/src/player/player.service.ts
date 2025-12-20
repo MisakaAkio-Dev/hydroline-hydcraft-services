@@ -43,6 +43,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOGIN_MAP_RANGE_DAYS = 30;
 const PLAYER_STATS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const PLAYER_STATS_CACHE_VERSION = 'v2';
+const PLAYER_PROFILE_CACHE_TTL_MS = 30 * 1000;
+const PLAYER_PROFILE_CACHE_VERSION = 'v1';
 const PLAYER_DATA_CACHE_TTL_MS = 30 * 60 * 1000;
 const PLAYER_GAME_METRIC_KEYS = {
   walkOneCm: 'minecraft:custom:minecraft:walk_one_cm',
@@ -169,6 +171,14 @@ export class PlayerService {
     targetUserId: string,
   ) {
     const viewerId = viewer?.id ?? null;
+    const cacheKey = this.buildPlayerProfileCacheKey(targetUserId, viewerId);
+    const cached =
+      await this.redis.get<
+        Awaited<ReturnType<PlayerService['getPlayerPortalData']>>
+      >(cacheKey);
+    if (cached) {
+      return cached;
+    }
     const [
       summary,
       rawAssets,
@@ -194,7 +204,7 @@ export class PlayerService {
       companies: rawAssets.companies ?? [],
       railways: rawAssets.railways ?? [],
     };
-    return {
+    const payload = {
       viewerId,
       targetId: targetUserId,
       summary,
@@ -207,6 +217,8 @@ export class PlayerService {
       biography,
       messages,
     };
+    await this.redis.set(cacheKey, payload, PLAYER_PROFILE_CACHE_TTL_MS);
+    return payload;
   }
 
   async getPlayerPortalDataByAuthmeUsername(
@@ -1347,6 +1359,11 @@ export class PlayerService {
     return `player:stats:${PLAYER_STATS_CACHE_VERSION}:${userId}:${period}`;
   }
 
+  private buildPlayerProfileCacheKey(userId: string, viewerId: string | null) {
+    const viewerKey = viewerId ?? 'guest';
+    return `player:profile:${PLAYER_PROFILE_CACHE_VERSION}:${userId}:${viewerKey}`;
+  }
+
   private resolvePlayerBeaconIdentity(
     profile: { primaryAuthmeBindingId: string | null } | null,
     bindings: Array<{
@@ -2149,7 +2166,7 @@ export class PlayerService {
     }
     try {
       return await this.authmeLookupService.getAccount(username, {
-        allowFallback: true,
+        allowFallback: false,
       });
     } catch (error) {
       this.logger.debug(`无法获取 AuthMe 账号 ${username}: ${String(error)}`);
@@ -2378,7 +2395,7 @@ export class PlayerService {
     uuidCache: Map<string, LuckpermsPlayer | null>,
     usernameCache: Map<string, LuckpermsPlayer | null>,
   ) {
-    const allowFallback = this.luckpermsService.isEnabled();
+    const allowFallback = false;
     const normalizedUuid = this.normalizeLookupKey(binding.authmeUuid);
     if (normalizedUuid) {
       const uuidKey = normalizedUuid.toLowerCase();
