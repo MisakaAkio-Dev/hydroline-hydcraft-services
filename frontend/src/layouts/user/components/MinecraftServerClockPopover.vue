@@ -310,7 +310,7 @@ function serverOnlinePercent(item: PublicServerStatusItem) {
     >
       <div
         ref="serversHeaderContainer"
-        class="flex items-center gap-3 select-none whitespace-nowrap"
+        class="flex items-center gap-1.5 select-none whitespace-nowrap"
       >
         <template v-if="servers.length">
           <template
@@ -319,7 +319,7 @@ function serverOnlinePercent(item: PublicServerStatusItem) {
           >
             <Motion
               as="div"
-              class="flex items-center gap-1"
+              class="flex items-center gap-1.5"
               :initial="{ opacity: 0, filter: 'blur(6px)', y: 8 }"
               :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
               :transition="{ duration: 0.35, ease: 'easeInOut' }"
@@ -328,19 +328,13 @@ function serverOnlinePercent(item: PublicServerStatusItem) {
               <span class="font-medium text-slate-900 dark:text-white">
                 {{ item.displayName }}
               </span>
-              <span
-                :class="[
-                  displayMode === 1 && item.beacon?.clock?.locked
-                    ? 'text-rose-500 dark:text-rose-400'
-                    : 'text-slate-500 dark:text-slate-400',
-                ]"
-              >
+              <span>
                 {{ displayHeaderLabel(item) }}
               </span>
               <UIcon
                 v-if="displayMode === 1 && item.beacon?.clock?.locked"
                 name="i-lucide-lock"
-                class="h-3 w-3 text-rose-500 dark:text-rose-400"
+                class="h-3 w-3"
               />
             </Motion>
             <div
