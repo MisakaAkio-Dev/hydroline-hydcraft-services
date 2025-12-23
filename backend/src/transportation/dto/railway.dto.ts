@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsEnum,
   IsInt,
   IsIn,
@@ -33,6 +34,12 @@ export class CreateRailwayFeaturedItemDto {
   @Type(() => Number)
   @IsInt()
   displayOrder?: number;
+}
+
+export class ReorderRailwayFeaturedItemsDto {
+  @IsArray()
+  @IsString({ each: true })
+  ids!: string[];
 }
 
 export class RailwayRouteDetailQueryDto {

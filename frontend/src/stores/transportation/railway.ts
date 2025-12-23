@@ -393,6 +393,24 @@ export const useTransportationRailwayStore = defineStore(
           this.featuredSubmitting = false
         }
       },
+      async reorderFeaturedItems(order: string[]) {
+        const authStore = useAuthStore()
+        await apiFetch('/transportation/railway/admin/featured/order', {
+          method: 'PATCH',
+          token: authStore.token,
+          body: { ids: order },
+        })
+        const map = new Map(this.adminFeatured.map((item) => [item.id, item]))
+        const reordered = order
+          .map((id) => map.get(id))
+          .filter((item): item is RailwayFeaturedItem => Boolean(item))
+        const remaining = this.adminFeatured.filter(
+          (item) => !order.includes(item.id),
+        )
+        this.adminFeatured = [...reordered, ...remaining]
+        await this.fetchOverview(true)
+      },
+
       async deleteFeaturedItem(featuredId: string) {
         const authStore = useAuthStore()
         await apiFetch(`/transportation/railway/admin/featured/${featuredId}`, {

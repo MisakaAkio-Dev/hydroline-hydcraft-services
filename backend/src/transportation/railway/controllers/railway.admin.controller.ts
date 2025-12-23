@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -16,6 +17,7 @@ import { PermissionsGuard } from '../../../auth/permissions.guard';
 import { RequirePermissions } from '../../../auth/permissions.decorator';
 import { PERMISSIONS } from '../../../auth/services/roles.service';
 import { CreateRailwayFeaturedItemDto } from '../../dto/railway.dto';
+import { ReorderRailwayFeaturedItemsDto } from '../../dto/railway.dto';
 import { TransportationRailwayService } from '../services/railway.service';
 
 @ApiTags('交通系统 - 铁路（管理端）')
@@ -55,5 +57,12 @@ export class TransportationRailwayAdminController {
   @ApiOperation({ summary: '删除铁路首页设施推荐' })
   async delete(@Param('featuredId') featuredId: string) {
     return this.transportationRailwayService.deleteFeaturedItem(featuredId);
+  }
+
+  @Patch('order')
+  @RequirePermissions(PERMISSIONS.TRANSPORTATION_RAILWAY_MANAGE_FEATURED)
+  @ApiOperation({ summary: '重新排序铁路设施推荐' })
+  async reorder(@Body() dto: ReorderRailwayFeaturedItemsDto) {
+    return this.transportationRailwayService.reorderFeaturedItems(dto.ids);
   }
 }

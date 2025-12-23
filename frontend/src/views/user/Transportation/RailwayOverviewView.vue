@@ -116,6 +116,8 @@ const adminFeaturedLoading = computed(
 const featuredSubmitting = computed(
   () => transportationStore.featuredSubmitting,
 )
+const reorderLoading = ref(false)
+const draggingFeaturedId = ref<string | null>(null)
 
 const featuredTypeLabels: Record<RailwayFeaturedItem['type'], string> = {
   route: '线路',
@@ -219,6 +221,39 @@ function stopStationRouteMapPolling() {
   stationRouteMapLoading.value = false
 }
 
+function handleDragStart(featuredId: string) {
+  draggingFeaturedId.value = featuredId
+}
+
+function handleDragEnd() {
+  draggingFeaturedId.value = null
+}
+
+async function handleDrop(targetId: string) {
+  if (!draggingFeaturedId.value || draggingFeaturedId.value === targetId) {
+    draggingFeaturedId.value = null
+    return
+  }
+  const list = [...adminFeatured.value]
+  const fromIndex = list.findIndex(
+    (item) => item.id === draggingFeaturedId.value,
+  )
+  const toIndex = list.findIndex((item) => item.id === targetId)
+  if (fromIndex === -1 || toIndex === -1) {
+    draggingFeaturedId.value = null
+    return
+  }
+  const [moved] = list.splice(fromIndex, 1)
+  list.splice(toIndex, 0, moved)
+  transportationStore.adminFeatured = list
+  reorderLoading.value = true
+  try {
+    await transportationStore.reorderFeaturedItems(list.map((item) => item.id))
+  } finally {
+    reorderLoading.value = false
+    draggingFeaturedId.value = null
+  }
+}
 async function fetchStationRouteMap(params: {
   id: string
   serverId: string
@@ -1011,6 +1046,19 @@ onBeforeUnmount(() => {
                 v-for="item in adminFeatured"
                 :key="item.id"
                 class="rounded-xl border border-slate-100/80 p-3 text-sm dark:border-slate-800"
+                draggable="true"
+                @dragstart="handleDragStart(item.id)"
+                @dragover.prevent
+                @dragenter.prevent
+                @drop="handleDrop(item.id)"
+                @dragend="handleDragEnd"
+                :class="{
+                  'border-primary': draggingFeaturedId === item.id,
+                  'opacity-80':
+                    reorderLoading && draggingFeaturedId !== item.id,
+                  'cursor-grab': !reorderLoading,
+                  'cursor-not-allowed': reorderLoading,
+                }"
               >
                 <div class="flex items-center justify-between gap-2">
                   <div>
@@ -1032,7 +1080,8 @@ onBeforeUnmount(() => {
                     size="xs"
                     color="neutral"
                     variant="ghost"
-                    :loading="featuredSubmitting"
+                    :loading="featuredSubmitting || reorderLoading"
+                    :disabled="reorderLoading"
                     @click="handleRemoveFeatured(item.id)"
                   >
                     移除

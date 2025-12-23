@@ -298,6 +298,32 @@ export class TransportationRailwayService {
     return results;
   }
 
+  async reorderFeaturedItems(ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids));
+    const rows = await this.prisma.transportationRailwayFeaturedItem.findMany({
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+
+    const existingIds = rows.map((row) => row.id);
+    const remaining = existingIds.filter((id) => !uniqueIds.includes(id));
+    const finalOrder = [
+      ...uniqueIds.filter((id) => existingIds.includes(id)),
+      ...remaining,
+    ];
+
+    await this.prisma.$transaction(
+      finalOrder.map((id, index) =>
+        this.prisma.transportationRailwayFeaturedItem.update({
+          where: { id },
+          data: { displayOrder: index + 1 },
+        }),
+      ),
+    );
+
+    return this.adminListFeaturedItems();
+  }
+
   private async serializeFeaturedItem(
     row: TransportationRailwayFeaturedItem,
     serverMap?: Map<string, BeaconServerRecord>,
