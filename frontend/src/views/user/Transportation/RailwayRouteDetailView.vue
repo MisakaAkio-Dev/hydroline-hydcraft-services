@@ -743,8 +743,18 @@ onMounted(() => {
 
         <div>
           <div>
-            <div class="text-4xl font-semibold text-slate-900 dark:text-white">
-              {{ routeName.title }}
+            <div
+              class="mb-2 flex items-center gap-1 text-4xl font-semibold text-slate-900 dark:text-white"
+            >
+              <span
+                v-if="activeDetail?.route.previewSvg"
+                class="inline-flex h-10 w-fit items-center justify-center rounded-md align-middle overflow-hidden drop-shadow"
+                v-html="activeDetail.route.previewSvg"
+              ></span>
+
+              <span>
+                {{ routeName.title }}
+              </span>
 
               <span class="inline-flex items-center gap-1.5">
                 <UTooltip

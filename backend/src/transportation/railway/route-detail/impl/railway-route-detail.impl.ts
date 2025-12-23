@@ -127,6 +127,14 @@ import {
   extractRouteDisplayName,
   extractRouteVariantLabel,
 } from '../../utils/route-name';
+import {
+  buildPreviewSvg,
+  computeBoundsFromPoints,
+  mergeBounds,
+  parseSnapshotBounds,
+  type RoutePreviewBounds,
+  type RoutePreviewPath,
+} from '../../utils/route-preview';
 import { DEFAULT_RAILWAY_TYPE } from '../../config/railway-type.config';
 import {
   BlockPosition,
@@ -198,6 +206,13 @@ export class TransportationRailwayRouteDetailService {
       query.dimension ?? null,
       server.railwayMod,
     );
+
+    normalizedRoute.previewSvg = await this.buildRoutePreviewSvg({
+      server,
+      dimensionContext: dimensionContextForGeometry,
+      baseKey: this.buildRouteBaseKey(routeRecord),
+      primaryRouteId: normalizeId(routeRecord.id) ?? normalizedRouteId,
+    });
 
     const allPlatforms = await this.fetchPlatformsFromStorage(
       server,
@@ -582,6 +597,162 @@ export class TransportationRailwayRouteDetailService {
     return [...list].sort(
       (a, b) => (b.lastUpdated ?? 0) - (a.lastUpdated ?? 0),
     )[0];
+  }
+
+  private async buildRoutePreviewSvg(input: {
+    server: BeaconServerRecord;
+    dimensionContext: string | null;
+    baseKey: string | null;
+    primaryRouteId: string;
+  }) {
+    if (!input.dimensionContext) return null;
+    const routeRows = await this.fetchStoredRoutesForDimensionRows(
+      input.server,
+      input.dimensionContext,
+    );
+    const candidates = routeRows
+      .map((row) => {
+        if (!row.entityId) return null;
+        const record = this.buildRouteRecordFromEntity(row);
+        if (!record) return null;
+        const key = this.buildRouteBaseKey(record);
+        if (input.baseKey) {
+          if (!key || key !== input.baseKey) return null;
+        } else if (normalizeId(record.id) !== input.primaryRouteId) {
+          return null;
+        }
+        const normalized = this.normalizeStoredRoute(row, input.server);
+        if (!normalized) return null;
+        return {
+          routeId: normalized.id,
+          color: normalized.color ?? null,
+        };
+      })
+      .filter(
+        (
+          item,
+        ): item is {
+          routeId: string;
+          color: number | null;
+        } => Boolean(item),
+      );
+
+    const unique = new Map<string, { routeId: string; color: number | null }>();
+    for (const item of candidates) {
+      unique.set(item.routeId, item);
+    }
+    if (!unique.size) {
+      unique.set(input.primaryRouteId, {
+        routeId: input.primaryRouteId,
+        color: null,
+      });
+    }
+
+    const snapshotRows =
+      await this.prisma.transportationRailwayRouteGeometrySnapshot.findMany({
+        where: {
+          status: 'READY',
+          OR: Array.from(unique.values()).map((item) => ({
+            serverId: input.server.id,
+            railwayMod: input.server.railwayMod,
+            dimensionContext: input.dimensionContext!,
+            routeEntityId: item.routeId,
+          })),
+        },
+        select: {
+          serverId: true,
+          railwayMod: true,
+          dimensionContext: true,
+          routeEntityId: true,
+          geometry2d: true,
+          pathNodes3d: true,
+          bounds: true,
+        },
+      });
+
+    const snapshotMap = new Map<
+      string,
+      {
+        geometry2d: Prisma.JsonValue;
+        pathNodes3d: Prisma.JsonValue;
+        bounds: Prisma.JsonValue | null;
+      }
+    >(
+      snapshotRows.map((row) => [
+        [
+          row.serverId,
+          row.railwayMod,
+          row.dimensionContext,
+          row.routeEntityId,
+        ].join('::'),
+        {
+          geometry2d: row.geometry2d,
+          pathNodes3d: row.pathNodes3d,
+          bounds: row.bounds,
+        },
+      ]),
+    );
+
+    let mergedBounds: RoutePreviewBounds | null = null;
+    const paths: RoutePreviewPath[] = [];
+    for (const item of unique.values()) {
+      const key = [
+        input.server.id,
+        input.server.railwayMod,
+        input.dimensionContext,
+        item.routeId,
+      ].join('::');
+      const snapshot = snapshotMap.get(key);
+      if (!snapshot) continue;
+
+      const nodes = Array.isArray(snapshot.pathNodes3d)
+        ? (snapshot.pathNodes3d as Array<{ x?: unknown; z?: unknown }>)
+        : [];
+      const pointsFromNodes = nodes
+        .map((node) => ({
+          x: Number(node.x),
+          z: Number(node.z),
+        }))
+        .filter(
+          (point): point is { x: number; z: number } =>
+            Number.isFinite(point.x) && Number.isFinite(point.z),
+        );
+      if (pointsFromNodes.length >= 2) {
+        paths.push({ points: pointsFromNodes, color: item.color ?? null });
+        mergedBounds = mergeBounds(
+          mergedBounds,
+          computeBoundsFromPoints([pointsFromNodes]),
+        );
+        continue;
+      }
+
+      const rawPaths = (snapshot.geometry2d as Record<string, unknown>)?.paths;
+      if (Array.isArray(rawPaths)) {
+        for (const raw of rawPaths) {
+          if (!Array.isArray(raw)) continue;
+          const points = raw
+            .map((entry) => ({
+              x: Number((entry as any)?.x),
+              z: Number((entry as any)?.z),
+            }))
+            .filter(
+              (point): point is { x: number; z: number } =>
+                Number.isFinite(point.x) && Number.isFinite(point.z),
+            );
+          if (points.length < 2) continue;
+          paths.push({ points, color: item.color ?? null });
+          mergedBounds = mergeBounds(
+            mergedBounds,
+            computeBoundsFromPoints([points]),
+          );
+        }
+      }
+
+      const snapshotBounds = parseSnapshotBounds(snapshot.bounds);
+      mergedBounds = mergeBounds(mergedBounds, snapshotBounds);
+    }
+
+    return buildPreviewSvg({ paths, bounds: mergedBounds });
   }
 
   private async fetchPlatformsForStationByBounds(

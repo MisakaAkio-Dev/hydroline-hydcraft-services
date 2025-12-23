@@ -332,7 +332,7 @@ onMounted(async () => {
                 >
                   <div
                     v-if="item.previewSvg"
-                    class="h-full w-full"
+                    class="h-full w-full drop-shadow"
                     v-html="item.previewSvg"
                   ></div>
                   <span v-else class="text-xs text-slate-400">—</span>

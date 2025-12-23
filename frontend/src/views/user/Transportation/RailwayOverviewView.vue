@@ -55,6 +55,7 @@ const pagedRecommendations = computed(() => {
 
 const selectedRecommendationId = ref<string | null>(null)
 const activeRecommendation = computed<RailwayFeaturedItem | null>(() => {
+  if (overviewLoading.value) return null
   const selected = recommendations.value.find(
     (item) => item.id === selectedRecommendationId.value,
   )
@@ -435,10 +436,7 @@ watch(
 )
 
 onMounted(async () => {
-  await transportationStore.fetchOverview()
-  if (activeRecommendation.value) {
-    void refreshRecommendationDetail(activeRecommendation.value)
-  }
+  await transportationStore.fetchOverview(true)
 })
 
 onBeforeUnmount(() => {
@@ -460,22 +458,32 @@ onBeforeUnmount(() => {
     </UButton>
 
     <section
-      class="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-slate-950 shadow-lg dark:border-slate-800/60"
+      class="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-slate-950 shadow-lg dark:border-slate-800/60 dark:bg-slate-50"
     >
       <div
-        class="relative flex flex-col gap-6 px-6 py-8 md:flex-row md:items-center md:justify-between md:px-10"
+        class="relative flex flex-col gap-6 px-6 py-8 md:flex-row md:items-center md:justify-between md:px-10 h-64"
       >
-        <div class="max-w-xl">
-          <p class="text-xs uppercase tracking-wide text-slate-300">
-            Beacon Railway Snapshot
+        <div class="max-w-2xl relative z-1 h-full flex flex-col">
+          <p
+            class="text-sm font-semibold uppercase tracking-widest text-white/70 dark:text-slate-950/70"
+          >
+            HYDROLINE 铁路系统
           </p>
-          <h2 class="mt-2 text-3xl font-semibold text-white">铁路网络总览</h2>
-          <p class="mt-3 text-sm text-slate-200">
-            实时拉取各服务端的 Beacon MTR 数据，展示最新上线的线路、车站与车厂。
+          <h2
+            class="mt-4 text-4xl font-semibold leading-tight text-white dark:text-slate-950"
+          >
+            铁路网络总览
+          </h2>
+          <p
+            class="mt-auto text-base font-medium text-white dark:text-slate-950"
+          >
+            实时拉取各服务端的 MTR
+            和机械动力铁路数据，展示最新上线的线路、车站与车厂。
           </p>
         </div>
+
         <div
-          class="h-40 w-full overflow-hidden rounded-2xl border border-white/10 md:h-44 md:w-72"
+          class="absolute inset-0 z-0 h-full w-full overflow-hidden pointer-events-none mask-[linear-gradient(to_bottom,#fff_50%,transparent_125%)] dark:mask-[linear-gradient(to_bottom,#fff_35%,transparent_125%)]"
         >
           <img
             :src="railwayHeroImage"
@@ -486,68 +494,89 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="space-y-4">
-      <div class="grid gap-4 sm:grid-cols-3">
-        <RouterLink
-          :to="{ name: 'transportation.railway.routes' }"
-          class="rounded-2xl border border-slate-200/70 bg-white p-5 text-center text-primary shadow-sm transition hover:border-primary hover:bg-primary/5 active:bg-primary/10 dark:border-slate-800/70 dark:bg-slate-900"
-        >
-          <p
-            class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
-          >
-            全服线路
-          </p>
-          <p class="mt-2 text-xl font-semibold">查看</p>
-        </RouterLink>
-        <RouterLink
-          :to="{ name: 'transportation.railway.stations' }"
-          class="rounded-2xl border border-slate-200/70 bg-white p-5 text-center text-primary shadow-sm transition hover:border-primary hover:bg-primary/5 active:bg-primary/10 dark:border-slate-800/70 dark:bg-slate-900"
-        >
-          <p
-            class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
-          >
-            全服车站
-          </p>
-          <p class="mt-2 text-xl font-semibold">查看</p>
-        </RouterLink>
-        <RouterLink
-          :to="{ name: 'transportation.railway.depots' }"
-          class="rounded-2xl border border-slate-200/70 bg-white p-5 text-center text-primary shadow-sm transition hover:border-primary hover:bg-primary/5 active:bg-primary/10 dark:border-slate-800/70 dark:bg-slate-900"
-        >
-          <p
-            class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
-          >
-            全服车厂
-          </p>
-          <p class="mt-2 text-xl font-semibold">查看</p>
-        </RouterLink>
-      </div>
-      <div class="grid gap-4 sm:grid-cols-3">
+    <UAlert
+      color="neutral"
+      variant="subtle"
+      title="机械动力铁路数据暂未接入"
+      description="机械动力铁路数据的接入相比 MTR 更加复杂，目前仍在开发中，预计最迟将于 2026 年 1 月底至春节前上线。"
+      icon="i-lucide-info"
+    />
+
+    <section class="grid grid-cols-1 sm:grid-cols-4 md:grid-cols-5 gap-4">
+      <RouterLink :to="{ name: 'transportation.railway.routes' }">
         <div
-          class="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900"
+          class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 shadow-[0_4px_16px_var(--color-neutral-50)] dark:shadow-[0_4px_16px_var(--color-neutral-900)] hover:bg-slate-50/60 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250"
         >
-          <p class="text-xs uppercase tracking-wide text-slate-500">登记线路</p>
-          <p class="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">
+          <div class="text-xs text-slate-500 dark:text-slate-500">
+            全服线路数
+          </div>
+          <div
+            class="text-2xl font-semibold text-slate-800 dark:text-slate-300"
+          >
             {{ stats.routes }}
-          </p>
+          </div>
         </div>
+      </RouterLink>
+
+      <RouterLink :to="{ name: 'transportation.railway.stations' }">
         <div
-          class="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900"
+          class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 shadow-[0_4px_16px_var(--color-neutral-50)] dark:shadow-[0_4px_16px_var(--color-neutral-900)] hover:bg-slate-50/60 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250"
         >
-          <p class="text-xs uppercase tracking-wide text-slate-500">有效车站</p>
-          <p class="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">
+          <div class="text-xs text-slate-500 dark:text-slate-500">
+            全服车站数
+          </div>
+          <div
+            class="text-2xl font-semibold text-slate-800 dark:text-slate-300"
+          >
             {{ stats.stations }}
-          </p>
+          </div>
         </div>
+      </RouterLink>
+
+      <RouterLink :to="{ name: 'transportation.railway.depots' }">
         <div
-          class="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900"
+          class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 shadow-[0_4px_16px_var(--color-neutral-50)] dark:shadow-[0_4px_16px_var(--color-neutral-900)] hover:bg-slate-50/60 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250"
         >
-          <p class="text-xs uppercase tracking-wide text-slate-500">车厂/段</p>
-          <p class="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">
+          <div class="text-xs text-slate-500 dark:text-slate-500">
+            全服车厂数
+          </div>
+          <div
+            class="text-2xl font-semibold text-slate-800 dark:text-slate-300"
+          >
             {{ stats.depots }}
-          </p>
+          </div>
         </div>
-      </div>
+      </RouterLink>
+
+      <RouterLink :to="{ name: 'transportation.railway.depots' }">
+        <div
+          class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 shadow-[0_4px_16px_var(--color-neutral-50)] dark:shadow-[0_4px_16px_var(--color-neutral-900)] hover:bg-slate-50/60 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250"
+        >
+          <div class="text-xs text-slate-500 dark:text-slate-500">
+            全服铁路系统数
+          </div>
+          <div
+            class="text-2xl font-semibold text-slate-800 dark:text-slate-300"
+          >
+            0
+          </div>
+        </div>
+      </RouterLink>
+
+      <RouterLink :to="{ name: 'transportation.railway.depots' }">
+        <div
+          class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 shadow-[0_4px_16px_var(--color-neutral-50)] dark:shadow-[0_4px_16px_var(--color-neutral-900)] hover:bg-slate-50/60 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250"
+        >
+          <div class="text-xs text-slate-500 dark:text-slate-500">
+            全服铁路运营单位数
+          </div>
+          <div
+            class="text-2xl font-semibold text-slate-800 dark:text-slate-300"
+          >
+            0
+          </div>
+        </div>
+      </RouterLink>
     </section>
 
     <UAlert
@@ -596,106 +625,113 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="grid gap-4 lg:grid-cols-2">
-        <div class="space-y-4">
-          <div class="space-y-3">
-            <p
+        <div class="h-full">
+          <div class="h-full min-h-108">
+            <div
               v-if="overviewLoading"
-              class="text-sm text-slate-500 text-center"
+              class="flex h-[360px] items-center justify-center"
             >
               <UIcon
                 name="i-lucide-loader-2"
-                class="inline-block h-4 w-4 animate-spin"
+                class="h-8 w-8 animate-spin text-slate-400"
               />
-            </p>
-            <p
-              v-else-if="recommendations.length === 0"
-              class="text-sm text-slate-500 text-center"
-            >
-              暂无设施推荐
-            </p>
-            <label
-              v-for="item in pagedRecommendations"
-              :key="item.id"
-              class="block"
-            >
+            </div>
+            <template v-else>
+              <RailwayMapPanel
+                class="w-full h-full rounded-xl!"
+                v-if="activeRecommendationType === 'route'"
+                :geometry="routeDetail?.geometry ?? null"
+                :stops="routeDetail?.stops ?? []"
+                :color="routeDetail?.route.color ?? null"
+                height="100%"
+                :loading="routeDetailLoading || !routeDetail"
+                :combine-paths="true"
+              />
+              <RailwayStationRoutesMapPanel
+                class="w-full h-full rounded-xl!"
+                v-else-if="activeRecommendationType === 'station'"
+                :bounds="stationDetail?.station.bounds ?? null"
+                :platforms="stationDetail?.platforms ?? []"
+                :station-fill-color="
+                  stationDetail?.station.color ??
+                  stationDetail?.routes[0]?.color ??
+                  null
+                "
+                :route-map="stationRouteMap"
+                height="100%"
+                :loading="stationDetailLoading || !stationDetail"
+                :map-loading="stationRouteMapLoading"
+              />
+              <RailwayDepotMapPanel
+                class="w-full h-full rounded-xl!"
+                v-else-if="activeRecommendationType === 'depot'"
+                :bounds="depotDetail?.depot.bounds ?? null"
+                :color="depotDetail?.depot.color ?? null"
+                height="100%"
+                :loading="depotDetailLoading || !depotDetail"
+              />
               <div
-                class="text-xs text-primary flex flex-col gap-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 duration-250 outline-2 outline-transparent hover:outline-primary md:flex-row md:items-center md:justify-between md:gap-6 cursor-pointer p-4 transition"
-                @click="selectRecommendation(item.id)"
+                v-else
+                class="flex h-[360px] items-center justify-center text-sm text-slate-500"
               >
-                <div class="space-y-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p
-                      class="text-lg font-semibold text-slate-900 dark:text-white"
-                    >
-                      {{
-                        item.item.name?.split('||')[0].split('|')[0] ||
-                        '未命名设施'
-                      }}
-                    </p>
-                    <UBadge variant="soft" size="sm">
-                      {{ featuredTypeLabels[item.type] }}
-                    </UBadge>
-                  </div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    {{ item.item.server.name }} ·
-                    {{ getDimensionName(item.item.dimension) || '未知维度' }}
-                  </p>
-                </div>
-                <UButton
-                  size="sm"
-                  color="neutral"
-                  variant="ghost"
-                  :to="buildDetailLink(item)"
-                  @click.stop
-                >
-                  查看
-                </UButton>
+                暂无预览
               </div>
-            </label>
+            </template>
           </div>
         </div>
-        <div class="h-full">
-          <div class="h-full">
-            <RailwayMapPanel
-              class="w-full h-full rounded-xl!"
-              v-if="activeRecommendationType === 'route'"
-              :geometry="routeDetail?.geometry ?? null"
-              :stops="routeDetail?.stops ?? []"
-              :color="routeDetail?.route.color ?? null"
-              height="100%"
-              :loading="routeDetailLoading || !routeDetail"
-              :combine-paths="true"
+
+        <div class="space-y-4">
+          <p v-if="overviewLoading" class="text-sm text-slate-500 text-center">
+            <UIcon
+              name="i-lucide-loader-2"
+              class="inline-block h-4 w-4 animate-spin"
             />
-            <RailwayStationRoutesMapPanel
-              class="w-full h-full rounded-xl!"
-              v-else-if="activeRecommendationType === 'station'"
-              :bounds="stationDetail?.station.bounds ?? null"
-              :platforms="stationDetail?.platforms ?? []"
-              :station-fill-color="
-                stationDetail?.station.color ??
-                stationDetail?.routes[0]?.color ??
-                null
-              "
-              :route-map="stationRouteMap"
-              height="100%"
-              :loading="stationDetailLoading || !stationDetail"
-              :map-loading="stationRouteMapLoading"
-            />
-            <RailwayDepotMapPanel
-              class="w-full h-full rounded-xl!"
-              v-else-if="activeRecommendationType === 'depot'"
-              :bounds="depotDetail?.depot.bounds ?? null"
-              :color="depotDetail?.depot.color ?? null"
-              height="100%"
-              :loading="depotDetailLoading || !depotDetail"
-            />
+          </p>
+          <p
+            v-else-if="recommendations.length === 0"
+            class="text-sm text-slate-500 text-center"
+          >
+            暂无设施推荐
+          </p>
+          <label
+            v-for="item in pagedRecommendations"
+            :key="item.id"
+            class="block"
+          >
             <div
-              v-else
-              class="flex h-[360px] items-center justify-center text-sm text-slate-500"
+              class="text-xs text-primary flex flex-col gap-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 duration-250 outline-2 outline-transparent hover:outline-primary md:flex-row md:items-center md:justify-between md:gap-6 cursor-pointer p-4 transition"
+              @click="selectRecommendation(item.id)"
             >
-              暂无预览
+              <div class="space-y-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p
+                    class="text-lg font-semibold text-slate-900 dark:text-white"
+                  >
+                    {{
+                      item.item.name?.split('||')[0].split('|')[0] ||
+                      '未命名设施'
+                    }}
+                  </p>
+                  <UBadge variant="soft" size="sm">
+                    {{ featuredTypeLabels[item.type] }}
+                  </UBadge>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ item.item.server.name }} ·
+                  {{ getDimensionName(item.item.dimension) || '未知维度' }}
+                </p>
+              </div>
+              <UButton
+                size="sm"
+                color="neutral"
+                variant="ghost"
+                :to="buildDetailLink(item)"
+                @click.stop
+              >
+                查看
+              </UButton>
             </div>
-          </div>
+          </label>
         </div>
       </div>
     </section>
