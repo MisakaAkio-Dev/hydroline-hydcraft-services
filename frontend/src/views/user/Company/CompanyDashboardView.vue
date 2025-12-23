@@ -4,8 +4,7 @@ import { useAuthStore } from '@/stores/user/auth'
 import { useCompanyStore } from '@/stores/user/companies'
 import CompanyStatusBadge from '@/components/company/CompanyStatusBadge.vue'
 import CompanyApplicationForm from '@/components/company/CompanyApplicationForm.vue'
-import CompanyProfileForm from '@/components/company/CompanyProfileForm.vue'
-import CompanyTimeline from '@/components/company/CompanyTimeline.vue'
+import CompanyDetailDialog from '@/components/company/CompanyDetailDialog.vue'
 import type {
   CompanyMemberUserRef,
   CompanyModel,
@@ -17,6 +16,7 @@ const companyStore = useCompanyStore()
 const authStore = useAuthStore()
 const toast = useToast()
 const selectedCompanyId = ref<string | null>(null)
+const detailModalOpen = ref(false)
 const canManage = computed(() => authStore.isAuthenticated)
 
 const refreshDashboard = async () => {
@@ -111,6 +111,15 @@ watch(
 )
 
 watch(
+  () => selectedCompany.value,
+  (company) => {
+    if (!company) {
+      detailModalOpen.value = false
+    }
+  },
+)
+
+watch(
   () => inviteKeyword.value,
   (value) => {
     if (!value.trim()) {
@@ -148,6 +157,15 @@ const openJoinModal = (company: CompanyModel) => {
   joinPositionCode.value = metaPositions.value[0]?.code ?? null
   joinTitle.value = ''
   joinModalOpen.value = true
+}
+
+const openCompanyDetail = (company: CompanyModel) => {
+  selectedCompanyId.value = company.id
+  detailModalOpen.value = true
+}
+
+const closeCompanyDetail = () => {
+  detailModalOpen.value = false
 }
 
 const handleInvite = async () => {
@@ -265,16 +283,25 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="space-y-6 mx-auto w-full max-w-6xl p-6">
+  <section class="space-y-6 mx-auto w-full max-w-6xl p-6 relative">
     <div class="flex">
       <UButton color="primary" variant="ghost" to="/company">
         <UIcon name="i-lucide-arrow-left" />
         返回概览
       </UButton>
+
+      <UButton
+        color="primary"
+        @click="applicationModalOpen = true"
+        variant="soft"
+        class="absolute top-6 right-6"
+      >
+        提交注册申请
+      </UButton>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div class="rounded-3xl border border-slate-200 bg-white/90 px-5 py-4">
+      <div class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4">
         <p
           class="text-xs font-semibold uppercase tracking-widest text-slate-500"
         >
@@ -285,7 +312,7 @@ onBeforeUnmount(() => {
         </p>
         <p class="text-xs text-slate-500">跨公司、个体工商等主体数量总和。</p>
       </div>
-      <div class="rounded-3xl border border-slate-200 bg-white/90 px-5 py-4">
+      <div class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4">
         <p
           class="text-xs font-semibold uppercase tracking-widest text-slate-500"
         >
@@ -296,7 +323,7 @@ onBeforeUnmount(() => {
         </p>
         <p class="text-xs text-slate-500">登记为个体工商户的条目。</p>
       </div>
-      <div class="rounded-3xl border border-slate-200 bg-white/90 px-5 py-4">
+      <div class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4">
         <p
           class="text-xs font-semibold uppercase tracking-widest text-slate-500"
         >
@@ -309,8 +336,8 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="grid gap-6 lg:grid-cols-3">
-      <UCard class="lg:col-span-2">
+    <div>
+      <UCard class="lg:col-span-2 rounded-xl">
         <template #header>
           <div class="flex items-center justify-between">
             <div>
@@ -336,13 +363,13 @@ onBeforeUnmount(() => {
             v-for="company in companyStore.dashboard"
             :key="company.id"
             type="button"
-            class="rounded-2xl border p-4 text-left transition-all"
+            class="rounded-xl border p-4 text-left transition-all"
             :class="[
               company.id === selectedCompanyId
                 ? 'border-primary-200 bg-primary-50/70 dark:border-primary-800/50 dark:bg-primary-950/30'
                 : 'border-slate-200 hover:border-primary-200 dark:border-slate-800',
             ]"
-            @click="selectedCompanyId = company.id"
+            @click="openCompanyDetail(company)"
           >
             <div class="flex items-center justify-between">
               <p class="text-sm font-semibold text-slate-900 dark:text-white">
@@ -359,153 +386,17 @@ onBeforeUnmount(() => {
           </button>
           <div
             v-if="companyStore.dashboard.length === 0"
-            class="col-span-full rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800"
+            class="col-span-full rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800"
           >
             还没有公司，先在右侧提交申请吧。
           </div>
         </div>
       </UCard>
-
-      <div
-        class="rounded-3xl border border-slate-200/70 bg-white/90 p-6 text-slate-600 dark:border-slate-800/60 dark:bg-slate-900/70"
-      >
-        <div>
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            公司注册
-          </p>
-          <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
-            新主体申请
-          </h3>
-          <p class="mt-2 text-sm text-slate-500">
-            仅需填写名称/类型/行业/法人即可立案，系统会将信息发布至后台审批。
-          </p>
-        </div>
-        <div class="mt-6 flex justify-end">
-          <UButton color="primary" @click="applicationModalOpen = true">
-            提交注册申请
-          </UButton>
-        </div>
-      </div>
     </div>
 
-    <div v-if="selectedCompany" class="grid gap-6 lg:grid-cols-2">
-      <UCard>
-        <template #header>
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-                {{ selectedCompany.name }} · 资料编辑
-              </h3>
-              <p class="text-sm text-slate-500">更新基本信息、联系方式等。</p>
-            </div>
-            <CompanyStatusBadge :status="selectedCompany.status" />
-          </div>
-        </template>
-        <CompanyProfileForm
-          :company="selectedCompany"
-          :industries="industries"
-          :saving="saving"
-          @submit="handleUpdate"
-        />
-        <div
-          class="mt-6 border-t border-dashed border-slate-200/70 pt-5 dark:border-slate-800/60"
-        >
-          <div class="flex items-center justify-between">
-            <div>
-              <p
-                class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
-              >
-                当前职员
-              </p>
-              <h4 class="text-lg font-semibold text-slate-900 dark:text-white">
-                {{ selectedCompany.members.length }} 位成员
-              </h4>
-            </div>
-            <UButton
-              size="sm"
-              color="primary"
-              variant="soft"
-              :disabled="!selectedCompany.permissions.canManageMembers"
-              @click="openInviteModal"
-            >
-              邀请职员
-            </UButton>
-          </div>
-          <div class="mt-4 space-y-3">
-            <div
-              v-for="member in selectedCompany.members"
-              :key="member.id"
-              class="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-300"
-            >
-              <div>
-                <p class="font-semibold text-slate-900 dark:text-white">
-                  {{
-                    member.user?.profile?.displayName ||
-                    member.user?.name ||
-                    '未知用户'
-                  }}
-                </p>
-                <p class="text-xs text-slate-500">
-                  {{ member.position?.name || member.role }}
-                  <span v-if="member.title"> · {{ member.title }}</span>
-                </p>
-              </div>
-              <span
-                class="text-xs font-semibold text-slate-500 dark:text-slate-400"
-                >{{ member.role }}</span
-              >
-            </div>
-            <div
-              v-if="selectedCompany.members.length === 0"
-              class="rounded-2xl border border-dashed border-slate-200/70 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-800/60"
-            >
-              暂无职员数据，邀请成员或申请加入即可扩充团队。
-            </div>
-          </div>
-        </div>
-      </UCard>
-      <UCard>
-        <CompanyTimeline :company="selectedCompany" />
-        <div class="mt-4 border-t border-dashed border-slate-200 pt-4">
-          <h4 class="text-sm font-semibold text-slate-900 dark:text-white">
-            内部制度
-          </h4>
-          <div class="mt-2 space-y-2 text-sm">
-            <div
-              v-for="policy in selectedCompany.policies"
-              :key="policy.id"
-              class="rounded-xl border border-slate-200/70 p-3 dark:border-slate-800"
-            >
-              <div
-                class="flex items-center justify-between text-xs text-slate-500"
-              >
-                <span>v{{ policy.version }}</span>
-                <span>{{
-                  new Date(policy.updatedAt).toLocaleDateString()
-                }}</span>
-              </div>
-              <p class="text-slate-900 dark:text-white">
-                {{ policy.title }}
-              </p>
-              <p class="text-xs text-slate-500">
-                {{ policy.summary || '暂无摘要' }}
-              </p>
-            </div>
-            <p
-              v-if="selectedCompany.policies.length === 0"
-              class="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500"
-            >
-              暂无制度文档，稍后可在后台创建。
-            </p>
-          </div>
-        </div>
-      </UCard>
-    </div>
     <div class="space-y-6">
       <div
-        class="rounded-3xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-800/60 dark:bg-slate-900/70"
+        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-800/60 dark:bg-slate-900/70"
       >
         <div class="flex items-center justify-between">
           <div>
@@ -534,7 +425,7 @@ onBeforeUnmount(() => {
           <div
             v-for="company in recommendedJoinTargets"
             :key="company.id"
-            class="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
+            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:text-slate-300"
           >
             <div class="max-w-[70%]">
               <p class="font-semibold text-slate-900 dark:text-white">
@@ -558,7 +449,7 @@ onBeforeUnmount(() => {
           </div>
           <div
             v-if="recommendedJoinTargets.length === 0"
-            class="rounded-2xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-800/60"
+            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-800/60"
           >
             暂无可申请的推荐主体，稍后再来。
           </div>
@@ -571,8 +462,7 @@ onBeforeUnmount(() => {
     :open="applicationModalOpen"
     @update:open="(value) => (applicationModalOpen = value)"
     :ui="{
-      content:
-        'w-full max-w-3xl w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)]',
+      content: 'w-full max-w-lg w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)]',
     }"
   >
     <template #content>
@@ -587,7 +477,7 @@ onBeforeUnmount(() => {
               自动入库申请
             </p>
             <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-              注册公司 / 个体工商户
+              注册单位
             </h3>
           </div>
           <UButton
@@ -735,4 +625,14 @@ onBeforeUnmount(() => {
       </div>
     </template>
   </UModal>
+
+  <CompanyDetailDialog
+    :model-value="detailModalOpen"
+    :company="selectedCompany"
+    :industries="industries"
+    :saving="saving"
+    @update:modelValue="(value) => (detailModalOpen = value)"
+    @submit="handleUpdate"
+    @invite="openInviteModal"
+  />
 </template>

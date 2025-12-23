@@ -84,9 +84,9 @@ const adminForm = reactive({
   status: undefined as CompanyStatus | undefined,
   visibility: undefined as CompanyVisibility | undefined,
   highlighted: false,
-  recommendationScore: 0,
 })
 const adminSaving = ref(false)
+const detailDialogOpen = ref(false)
 const actionComment = ref('')
 const actionLoading = ref<string | null>(null)
 const pageInput = ref(adminStore.page)
@@ -221,6 +221,15 @@ const handleRowClick = async (company: CompanyModel) => {
   })
 }
 
+const openAdminDetailDialog = async (company: CompanyModel) => {
+  await loadCompanyDetail(company.id)
+  detailDialogOpen.value = true
+}
+
+const closeAdminDetailDialog = () => {
+  detailDialogOpen.value = false
+}
+
 const bootstrap = async () => {
   await companyStore.fetchMeta()
   await fetchCompanies(1)
@@ -244,7 +253,6 @@ watch(
     adminForm.status = company.status
     adminForm.visibility = company.visibility
     adminForm.highlighted = Boolean(company.highlighted)
-    adminForm.recommendationScore = company.recommendationScore ?? 0
   },
   { immediate: true },
 )
@@ -258,6 +266,15 @@ watch(
     const exists = adminStore.items.find((item) => item.id === companyId)
     if (exists) {
       await loadCompanyDetail(companyId)
+    }
+  },
+)
+
+watch(
+  () => selectedCompany.value,
+  (company) => {
+    if (!company) {
+      detailDialogOpen.value = false
     }
   },
 )
@@ -278,7 +295,6 @@ const handleAdminSave = async () => {
       status: adminForm.status,
       visibility: adminForm.visibility,
       highlighted: adminForm.highlighted,
-      recommendationScore: adminForm.recommendationScore,
     })
     toast.add({ title: '公司信息已更新', color: 'primary' })
   } catch (error) {
@@ -339,31 +355,32 @@ const handleAdminCreate = async () => {
         <div class="flex flex-wrap items-center gap-3">
           <USelectMenu
             v-model="filters.status"
-            :options="statusOptions"
+            :items="statusOptions"
+            value-key="value"
             clearable
             placeholder="全部状态"
           />
           <USelectMenu
             v-model="filters.typeId"
-            :options="
-              types.map((type) => ({ label: type.name, value: type.id }))
-            "
+            :items="types.map((type) => ({ label: type.name, value: type.id }))"
+            value-key="value"
             searchable
             clearable
             placeholder="公司类型"
           />
           <USelectMenu
             v-model="filters.industryId"
-            :options="
+            :items="
               industries.map((item) => ({ label: item.name, value: item.id }))
             "
+            value-key="value"
             searchable
             clearable
             placeholder="行业"
           />
           <USelectMenu
             v-model="filters.isIndividualBusiness"
-            :options="isIndividualOptions"
+            :items="isIndividualOptions"
             clearable
             placeholder="主体类型"
           />
@@ -403,7 +420,7 @@ const handleAdminCreate = async () => {
                 <th class="px-4 py-3">行业</th>
                 <th class="px-4 py-3">法人</th>
                 <th class="px-4 py-3">流程</th>
-                <th class="px-4 py-3 text-right">评分</th>
+                <th class="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/70">
@@ -448,8 +465,15 @@ const handleAdminCreate = async () => {
                     {{ company.workflow?.state || '—' }}
                   </p>
                 </td>
-                <td class="px-4 py-3 text-right text-slate-500">
-                  {{ company.recommendationScore ?? 0 }}
+                <td class="px-4 py-3 text-right">
+                  <UButton
+                    size="xs"
+                    color="primary"
+                    variant="soft"
+                    @click.stop="openAdminDetailDialog(company)"
+                  >
+                    查看/审批
+                  </UButton>
                 </td>
               </tr>
               <tr v-if="adminStore.items.length === 0">
@@ -556,7 +580,7 @@ const handleAdminCreate = async () => {
               <label class="text-xs font-semibold text-slate-500">状态</label>
               <USelectMenu
                 v-model="adminForm.status"
-                :options="statusOptions"
+                :items="statusOptions"
                 placeholder="选择状态"
               />
             </div>
@@ -564,7 +588,7 @@ const handleAdminCreate = async () => {
               <label class="text-xs font-semibold text-slate-500">可见性</label>
               <USelectMenu
                 v-model="adminForm.visibility"
-                :options="visibilityOptions"
+                :items="visibilityOptions"
                 placeholder="选择可见性"
               />
             </div>
@@ -685,7 +709,7 @@ const handleAdminCreate = async () => {
                 <label class="text-xs font-semibold text-slate-500">类型</label>
                 <USelectMenu
                   v-model="adminCreateForm.typeId"
-                  :options="
+                  :items="
                     types.map((type) => ({ label: type.name, value: type.id }))
                   "
                   searchable
@@ -697,7 +721,7 @@ const handleAdminCreate = async () => {
               <label class="text-xs font-semibold text-slate-500">行业</label>
               <USelectMenu
                 v-model="adminCreateForm.industryId"
-                :options="
+                :items="
                   industries.map((industry) => ({
                     label: industry.name,
                     value: industry.id,
@@ -722,7 +746,7 @@ const handleAdminCreate = async () => {
               <UInput v-model="adminSearch" placeholder="用户名、邮箱、昵称" />
               <USelectMenu
                 v-model="adminCandidateId"
-                :options="adminLegalOptions"
+                :items="adminLegalOptions"
                 placeholder="选择法人"
                 :clearable="false"
                 :disabled="adminLegalOptions.length === 0"
@@ -746,6 +770,195 @@ const handleAdminCreate = async () => {
             >
               直接创建
             </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+    <UModal
+      :open="detailDialogOpen"
+      @update:open="(value) => (detailDialogOpen = value)"
+      :ui="{
+        content:
+          'w-full max-w-5xl w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)]',
+      }"
+    >
+      <template #content>
+        <div class="flex h-full flex-col">
+          <div
+            class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800"
+          >
+            <div>
+              <p
+                class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                后台编辑字段
+              </p>
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                {{ selectedCompany?.name || '公司详情' }}
+              </h3>
+            </div>
+            <div class="flex items-center gap-3">
+              <CompanyStatusBadge
+                :status="selectedCompany?.status ?? 'DRAFT'"
+              />
+              <UButton
+                variant="ghost"
+                color="neutral"
+                icon="i-lucide-x"
+                size="xs"
+                @click="closeAdminDetailDialog"
+              />
+            </div>
+          </div>
+          <div class="flex-1 overflow-y-auto px-6 py-4">
+            <div
+              class="grid gap-6 lg:grid-cols-[minmax(0,0.65fr)_minmax(0,0.35fr)]"
+            >
+              <div class="space-y-6">
+                <div
+                  class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 dark:border-slate-800/60 dark:bg-slate-900/70"
+                >
+                  <form class="space-y-5" @submit.prevent="handleAdminSave">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div
+                        class="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-3"
+                      >
+                        <label class="text-xs font-semibold text-slate-500"
+                          >状态</label
+                        >
+                        <USelectMenu
+                          v-model="adminForm.status"
+                          :items="statusOptions"
+                          value-key="value"
+                          placeholder="选择状态"
+                        />
+                      </div>
+                      <div
+                        class="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-3"
+                      >
+                        <label class="text-xs font-semibold text-slate-500"
+                          >可见性</label
+                        >
+                        <USelectMenu
+                          v-model="adminForm.visibility"
+                          :items="visibilityOptions"
+                          value-key="value"
+                          placeholder="选择可见性"
+                        />
+                      </div>
+                      <div class="flex items-center justify-end md:col-span-2">
+                        <label
+                          class="text-xs font-semibold text-slate-500 mr-2"
+                        >
+                          推荐显示
+                        </label>
+                        <USwitch v-model="adminForm.highlighted" />
+                      </div>
+                    </div>
+                    <UButton
+                      type="submit"
+                      color="primary"
+                      :loading="adminSaving"
+                    >
+                      保存修改
+                    </UButton>
+                  </form>
+                </div>
+                <div
+                  class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 dark:border-slate-800/60 dark:bg-slate-900/70"
+                >
+                  <div class="flex items-center justify-between">
+                    <h4
+                      class="text-base font-semibold text-slate-900 dark:text-white"
+                    >
+                      流程动作
+                    </h4>
+                    <UButton
+                      variant="ghost"
+                      color="neutral"
+                      icon="i-lucide-refresh-cw"
+                      @click="
+                        selectedCompanyId &&
+                        adminStore.fetchDetail(selectedCompanyId)
+                      "
+                    />
+                  </div>
+                  <p class="text-xs text-slate-500">
+                    仅显示当前节点允许的操作，执行后将写入日志。
+                  </p>
+                  <UTextarea
+                    v-model="actionComment"
+                    rows="3"
+                    placeholder="审批备注（可选）"
+                  />
+                  <div class="flex flex-wrap gap-2">
+                    <UButton
+                      v-for="action in selectedCompany?.availableActions ?? []"
+                      :key="action.key"
+                      color="primary"
+                      variant="soft"
+                      size="sm"
+                      :loading="actionLoading === action.key"
+                      @click="handleAction(action.key)"
+                    >
+                      {{ action.label }}
+                    </UButton>
+                    <p
+                      v-if="
+                        (selectedCompany?.availableActions?.length ?? 0) === 0
+                      "
+                      class="text-xs text-slate-400"
+                    >
+                      当前节点没有可执行动作。
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="space-y-4">
+                <div
+                  class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 dark:border-slate-800/60 dark:bg-slate-900/70"
+                >
+                  <CompanyTimeline :company="selectedCompany" />
+                </div>
+                <div
+                  class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 dark:border-slate-800/60 dark:bg-slate-900/70"
+                >
+                  <h4
+                    class="text-sm font-semibold text-slate-900 dark:text-white"
+                  >
+                    内部制度
+                  </h4>
+                  <div class="mt-2 space-y-2 text-sm">
+                    <div
+                      v-for="policy in selectedCompany?.policies ?? []"
+                      :key="policy.id"
+                      class="rounded-xl border border-slate-200/70 p-3 dark:border-slate-800"
+                    >
+                      <div
+                        class="flex items-center justify-between text-xs text-slate-500"
+                      >
+                        <span>v{{ policy.version }}</span>
+                        <span>{{
+                          new Date(policy.updatedAt).toLocaleDateString()
+                        }}</span>
+                      </div>
+                      <p class="text-slate-900 dark:text-white">
+                        {{ policy.title }}
+                      </p>
+                      <p class="text-xs text-slate-500">
+                        {{ policy.summary || '暂无摘要' }}
+                      </p>
+                    </div>
+                    <div
+                      v-if="(selectedCompany?.policies.length ?? 0) === 0"
+                      class="rounded-xl border border-dashed border-slate-200/70 p-4 text-center text-xs text-slate-500 dark:border-slate-800/60"
+                    >
+                      暂无制度文档，稍后可在后台创建。
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </template>
