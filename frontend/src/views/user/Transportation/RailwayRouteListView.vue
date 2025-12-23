@@ -282,7 +282,7 @@ onMounted(async () => {
       <table class="w-full text-left text-sm">
         <thead class="text-slate-500">
           <tr>
-            <th class="px-4 py-3 w-0">预览</th>
+            <th class="px-4 py-3 w-20 whitespace-nowrap">预览</th>
             <th class="px-4 py-3">线路</th>
             <th class="px-4 py-3">服务端</th>
             <th class="px-4 py-3">维度</th>
@@ -328,7 +328,7 @@ onMounted(async () => {
             >
               <td class="px-4 py-3">
                 <div
-                  class="h-16 w-16 rounded-lg bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-center overflow-hidden"
+                  class="h-16 w-16 rounded-lg bg-slate-50/80 dark:bg-slate-50 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-center overflow-hidden"
                 >
                   <div
                     v-if="item.previewSvg"
