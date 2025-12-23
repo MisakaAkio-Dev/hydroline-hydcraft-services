@@ -41,6 +41,10 @@ export class CreateRailwayBannerDto {
 
   @IsOptional()
   @IsBoolean()
+  ctaIsInternal?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   isPublished?: boolean;
 
   @IsOptional()
@@ -79,6 +83,10 @@ export class UpdateRailwayBannerDto {
   @IsString()
   @MaxLength(300)
   ctaLink?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  ctaIsInternal?: boolean;
 
   @IsOptional()
   @IsBoolean()

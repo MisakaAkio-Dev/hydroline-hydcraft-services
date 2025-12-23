@@ -198,6 +198,7 @@ model TransportationRailwayBanner {
   attachmentId String?
   ctaLabel     String?
   ctaLink      String?
+  ctaIsInternal Boolean @default(false)
   isPublished  Boolean  @default(true)
   displayOrder Int      @default(0)
   createdAt    DateTime @default(now())

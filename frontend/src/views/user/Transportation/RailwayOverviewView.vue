@@ -3,8 +3,11 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import RailwayMapPanel from '@/views/user/Transportation/railway/components/RailwayMapPanel.vue'
+import { formatFolderPathDisplay } from '@/views/admin/Attachments/folderDisplay'
+import { apiFetch } from '@/utils/http/api'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useAuthStore } from '@/stores/user/auth'
+import { useUiStore } from '@/stores/shared/ui'
 import type {
   RailwayBanner,
   RailwayEntity,
@@ -12,10 +15,31 @@ import type {
   RailwayRouteDetail,
 } from '@/types/transportation'
 
+type PortalAttachmentSearchResult = {
+  id: string
+  name: string | null
+  originalName: string
+  size: number
+  isPublic: boolean
+  publicUrl: string | null
+  folder: {
+    id: string
+    name: string
+    path: string
+  } | null
+}
+
+type AttachmentSelectOption = {
+  id: string
+  label: string
+  description: string
+}
+
 dayjs.extend(relativeTime)
 
 const transportationStore = useTransportationRailwayStore()
 const authStore = useAuthStore()
+const uiStore = useUiStore()
 const toast = useToast()
 
 const overview = computed(() => transportationStore.overview)
@@ -45,6 +69,13 @@ const bannerCycleTimer = ref<number | null>(null)
 const activeBanner = computed<RailwayBanner | null>(
   () => banners.value[activeBannerIndex.value] ?? null,
 )
+const activeBannerHasCta = computed(() =>
+  Boolean(
+    activeBanner.value?.ctaLink &&
+      activeBanner.value?.ctaLabel &&
+      activeBanner.value.ctaLabel.trim(),
+  ),
+)
 
 const canManageBanners = computed(() =>
   authStore.permissionKeys.includes('transportation.railway.manage-banners'),
@@ -62,7 +93,24 @@ const bannerForm = reactive({
   ctaLink: '',
   isPublished: true,
   displayOrder: 0,
+  ctaIsInternal: false,
 })
+
+const bannerAttachmentOptions = ref<AttachmentSelectOption[]>([])
+const bannerAttachmentSearchTerm = ref('')
+const bannerAttachmentLoading = ref(false)
+const bannerAttachmentSelectUi = {
+  content: 'z-[250]',
+} as const
+const bannerAttachmentCreateConfig = computed(() => {
+  const term = bannerAttachmentSearchTerm.value.trim()
+  if (!term) {
+    return undefined
+  }
+  return { when: 'always' } as const
+})
+let bannerAttachmentAbort: AbortController | null = null
+let bannerAttachmentSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 const adminBanners = computed(() => transportationStore.adminBanners)
 const adminBannersLoading = computed(
@@ -85,6 +133,83 @@ function resetBannerForm(banner?: RailwayBanner | null) {
   bannerForm.ctaLink = banner?.ctaLink ?? ''
   bannerForm.isPublished = banner?.isPublished ?? true
   bannerForm.displayOrder = banner?.displayOrder ?? 0
+  bannerForm.ctaIsInternal = banner?.ctaIsInternal ?? false
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes.toFixed(0)} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+  }
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
+function buildAttachmentOption(
+  item: PortalAttachmentSearchResult,
+): AttachmentSelectOption {
+  const label = item.name?.trim() || item.originalName || item.id
+  const segments = [`ID: ${item.id}`, formatFileSize(item.size)]
+  if (item.folder?.path) {
+    segments.push(formatFolderPathDisplay(item.folder.path) ?? item.folder.path)
+  }
+  segments.push(item.isPublic ? '公开' : '需设为公开')
+  return {
+    id: item.id,
+    label,
+    description: segments.join(' · '),
+  }
+}
+
+function ensureToken() {
+  if (!authStore.token) {
+    uiStore.openLoginDialog()
+    throw new Error('需要登录后才能执行该操作')
+  }
+  return authStore.token
+}
+
+async function fetchBannerAttachmentOptions(keyword: string) {
+  const token = ensureToken()
+  bannerAttachmentLoading.value = true
+  bannerAttachmentAbort?.abort()
+  const controller = new AbortController()
+  bannerAttachmentAbort = controller
+  const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
+  try {
+    const results = await apiFetch<PortalAttachmentSearchResult[]>(
+      `/portal/attachments/search${query ? `${query}&` : '?'}publicOnly=false`,
+      {
+        token,
+        signal: controller.signal,
+        noDedupe: true,
+      },
+    )
+    if (bannerAttachmentAbort !== controller) {
+      return
+    }
+    bannerAttachmentOptions.value = results.map((item) =>
+      buildAttachmentOption(item),
+    )
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return
+    }
+    if (error instanceof Error && error.message.includes('登录')) {
+      return
+    }
+    console.error(error)
+    toast.add({
+      title: '搜索附件失败',
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  } finally {
+    if (bannerAttachmentAbort === controller) {
+      bannerAttachmentAbort = null
+    }
+    bannerAttachmentLoading.value = false
+  }
 }
 
 function openCreateBanner() {
@@ -300,6 +425,42 @@ watch(
   },
 )
 
+watch(
+  () => bannerAttachmentSearchTerm.value,
+  (keyword) => {
+    if (!bannerFormDialogOpen.value) {
+      return
+    }
+    if (bannerAttachmentSearchTimer) {
+      clearTimeout(bannerAttachmentSearchTimer)
+    }
+    bannerAttachmentSearchTimer = setTimeout(() => {
+      bannerAttachmentSearchTimer = null
+      void fetchBannerAttachmentOptions(keyword.trim())
+    }, 300)
+  },
+)
+
+watch(
+  () => bannerFormDialogOpen.value,
+  (open) => {
+    if (open) {
+      bannerAttachmentOptions.value = []
+      bannerAttachmentSearchTerm.value = ''
+      bannerAttachmentAbort?.abort()
+      bannerAttachmentAbort = null
+      bannerAttachmentLoading.value = false
+      void fetchBannerAttachmentOptions('')
+    } else {
+      bannerAttachmentAbort?.abort()
+      bannerAttachmentAbort = null
+      bannerAttachmentLoading.value = false
+      bannerAttachmentOptions.value = []
+      bannerAttachmentSearchTerm.value = ''
+    }
+  },
+)
+
 onMounted(async () => {
   await transportationStore.fetchOverview()
   startBannerCycle()
@@ -315,6 +476,16 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex flex-col gap-8">
+    <UButton
+      v-if="canManageBanners"
+      color="neutral"
+      class="m-1.5 absolute right-4 top-6 md:top-10 hover:opacity-70 transition duration-200 cursor-pointer"
+      variant="ghost"
+      size="sm"
+      @click="settingsModalOpen = true"
+    >
+      <UIcon name="i-lucide-settings" class="w-4.5 h-4.5" />
+    </UButton>
     <section
       class="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-slate-950/90 shadow-lg dark:border-slate-800/60"
     >
@@ -325,6 +496,7 @@ onBeforeUnmount(() => {
             :key="activeBanner.id"
             class="absolute inset-0"
           >
+            ·
             <img
               v-if="activeBanner.imageUrl"
               :src="activeBanner.imageUrl"
@@ -350,40 +522,40 @@ onBeforeUnmount(() => {
             <p class="mt-3 max-w-2xl text-sm text-slate-200">
               {{
                 activeBanner?.description ||
-                '实时拉取各服务器的 Beacon MTR 数据，展示最新上线的线路、车站与车厂。'
+                '实时拉取各服务端的 Beacon MTR 数据，展示最新上线的线路、车站与车厂。'
               }}
             </p>
-            <div class="mt-4 flex flex-wrap gap-2">
+            <div v-if="activeBannerHasCta" class="mt-4 flex flex-wrap gap-2">
               <UButton
-                v-if="activeBanner?.ctaLink"
                 color="primary"
                 size="sm"
-                :to="activeBanner.ctaLink"
-                target="_blank"
+                :to="
+                  activeBanner.ctaIsInternal ? activeBanner.ctaLink : undefined
+                "
+                :href="
+                  activeBanner.ctaIsInternal ? undefined : activeBanner.ctaLink
+                "
+                :target="activeBanner.ctaIsInternal ? undefined : '_blank'"
               >
-                {{ activeBanner.ctaLabel || '了解更多' }}
-              </UButton>
-              <UButton
-                v-if="canManageBanners"
-                color="neutral"
-                variant="soft"
-                size="sm"
-                icon="i-lucide-settings-2"
-                @click="settingsModalOpen = true"
-              >
-                设置轮播
+                {{ activeBanner.ctaLabel }}
               </UButton>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <button
-              v-for="(banner, index) in banners"
-              :key="banner.id"
-              class="h-1 w-10 rounded-full transition"
-              :class="index === activeBannerIndex ? 'bg-white' : 'bg-white/30'"
-              @click="selectBanner(index)"
-            ></button>
-            <span v-if="banners.length === 0" class="text-xs text-slate-200"
+            <template v-if="banners.length > 1">
+              <button
+                v-for="(banner, index) in banners"
+                :key="banner.id"
+                class="h-2 w-2 rounded-full transition"
+                :class="
+                  index === activeBannerIndex ? 'bg-white' : 'bg-white/30'
+                "
+                @click="selectBanner(index)"
+              ></button>
+            </template>
+            <span
+              v-else-if="banners.length === 0"
+              class="text-xs text-slate-200"
               >暂无轮播配置</span
             >
           </div>
@@ -391,23 +563,67 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="grid gap-4 md:grid-cols-4">
-      <div
-        v-for="card in [
-          { label: '接入服务器', value: stats.serverCount },
-          { label: '登记线路', value: stats.routes },
-          { label: '有效车站', value: stats.stations },
-          { label: '车厂/段', value: stats.depots },
-        ]"
-        :key="card.label"
-        class="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900"
-      >
-        <p class="text-xs uppercase tracking-wide text-slate-500">
-          {{ card.label }}
-        </p>
-        <p class="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">
-          {{ card.value }}
-        </p>
+    <section class="space-y-4">
+      <div class="grid gap-4 sm:grid-cols-3">
+        <RouterLink
+          :to="{ name: 'transportation.railway.routes' }"
+          class="rounded-2xl border border-slate-200/70 bg-white p-5 text-center text-primary shadow-sm transition hover:border-primary hover:bg-primary/5 active:bg-primary/10 dark:border-slate-800/70 dark:bg-slate-900"
+        >
+          <p
+            class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          >
+            全服线路
+          </p>
+          <p class="mt-2 text-xl font-semibold">查看</p>
+        </RouterLink>
+        <RouterLink
+          :to="{ name: 'transportation.railway.stations' }"
+          class="rounded-2xl border border-slate-200/70 bg-white p-5 text-center text-primary shadow-sm transition hover:border-primary hover:bg-primary/5 active:bg-primary/10 dark:border-slate-800/70 dark:bg-slate-900"
+        >
+          <p
+            class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          >
+            全服车站
+          </p>
+          <p class="mt-2 text-xl font-semibold">查看</p>
+        </RouterLink>
+        <RouterLink
+          :to="{ name: 'transportation.railway.depots' }"
+          class="rounded-2xl border border-slate-200/70 bg-white p-5 text-center text-primary shadow-sm transition hover:border-primary hover:bg-primary/5 active:bg-primary/10 dark:border-slate-800/70 dark:bg-slate-900"
+        >
+          <p
+            class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          >
+            全服车厂
+          </p>
+          <p class="mt-2 text-xl font-semibold">查看</p>
+        </RouterLink>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-3">
+        <div
+          class="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900"
+        >
+          <p class="text-xs uppercase tracking-wide text-slate-500">登记线路</p>
+          <p class="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">
+            {{ stats.routes }}
+          </p>
+        </div>
+        <div
+          class="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900"
+        >
+          <p class="text-xs uppercase tracking-wide text-slate-500">有效车站</p>
+          <p class="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">
+            {{ stats.stations }}
+          </p>
+        </div>
+        <div
+          class="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900"
+        >
+          <p class="text-xs uppercase tracking-wide text-slate-500">车厂/段</p>
+          <p class="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">
+            {{ stats.depots }}
+          </p>
+        </div>
       </div>
     </section>
 
@@ -420,111 +636,6 @@ onBeforeUnmount(() => {
         warnings.map((warn) => `#${warn.serverId}: ${warn.message}`).join('\n')
       "
     />
-
-    <section class="space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-          最新更新
-        </h3>
-        <p class="text-xs text-slate-500">
-          基于各 Beacon 数据库的 last_updated 排序
-        </p>
-      </div>
-      <div class="grid gap-4 lg:grid-cols-3">
-        <div
-          v-for="section in [
-            { key: 'depots', label: '车厂/车段', items: latest.depots },
-            { key: 'stations', label: '车站', items: latest.stations },
-            { key: 'routes', label: '线路', items: latest.routes },
-          ]"
-          :key="section.key"
-          class="rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-sm dark:border-slate-800/70 dark:bg-slate-900/80"
-        >
-          <div class="mb-3 flex items-center justify-between">
-            <p class="text-sm font-medium text-slate-700 dark:text-slate-200">
-              {{ section.label }}
-            </p>
-            <div class="flex items-center gap-2">
-              <RouterLink
-                v-if="section.key === 'routes'"
-                class="text-xs text-primary hover:underline"
-                :to="{ name: 'transportation.railway.routes' }"
-              >
-                查看全部 →
-              </RouterLink>
-              <RouterLink
-                v-else-if="section.key === 'stations'"
-                class="text-xs text-primary hover:underline"
-                :to="{ name: 'transportation.railway.stations' }"
-              >
-                查看全部 →
-              </RouterLink>
-              <RouterLink
-                v-else-if="section.key === 'depots'"
-                class="text-xs text-primary hover:underline"
-                :to="{ name: 'transportation.railway.depots' }"
-              >
-                查看全部 →
-              </RouterLink>
-              <UBadge color="neutral" variant="soft" size="xs">
-                {{ section.items.length }} 条
-              </UBadge>
-            </div>
-          </div>
-          <div class="space-y-3">
-            <p v-if="section.items.length === 0" class="text-sm text-slate-500">
-              暂无更新记录
-            </p>
-            <div
-              v-for="item in section.items"
-              :key="item.id + item.server.id"
-              class="rounded-xl border border-slate-100/80 p-3 text-sm transition hover:border-primary-200 hover:bg-primary-50/40 dark:border-slate-800/70 dark:hover:border-primary-400/40 dark:hover:bg-primary-500/10"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <p class="font-medium text-slate-900 dark:text-white">
-                  {{ item.name || '未命名' }}
-                </p>
-                <UBadge color="primary" variant="soft" size="xs">
-                  {{ item.server.name }}
-                </UBadge>
-              </div>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                {{ item.dimension || '未知维度' }} ·
-                {{ formatLastUpdated(item.lastUpdated) }}
-              </p>
-              <div class="mt-2 flex gap-2 text-xs text-slate-500">
-                <span>模式：{{ item.transportMode || '—' }}</span>
-                <span>ID：{{ item.id }}</span>
-              </div>
-              <template v-if="section.key === 'routes'">
-                <RouterLink
-                  class="mt-2 inline-flex text-xs text-primary hover:underline"
-                  :to="buildRouteDetailLink(item as RailwayRoute)"
-                >
-                  查看线路详情 →
-                </RouterLink>
-              </template>
-              <template v-else-if="section.key === 'stations'">
-                <RouterLink
-                  class="mt-2 inline-flex text-xs text-primary hover:underline"
-                  :to="buildStationDetailLink(item as RailwayEntity)"
-                >
-                  查看车站详情 →
-                </RouterLink>
-              </template>
-              <template v-else-if="section.key === 'depots'">
-                <RouterLink
-                  class="mt-2 inline-flex text-xs text-primary hover:underline"
-                  :to="buildDepotDetailLink(item as RailwayEntity)"
-                >
-                  查看车厂详情 →
-                </RouterLink>
-              </template>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <section class="grid gap-6 lg:grid-cols-2">
       <div class="space-y-4">
@@ -613,9 +724,6 @@ onBeforeUnmount(() => {
       :ui="{ width: 'w-full max-w-4xl' }"
     >
       <template #title>铁路轮播配置</template>
-      <template #description>
-        仅管理员可编辑，背景图需先在附件库上传并设置为公开访问。
-      </template>
       <template #body>
         <div class="space-y-4">
           <div
@@ -693,45 +801,108 @@ onBeforeUnmount(() => {
       :ui="{ width: 'w-full max-w-lg' }"
     >
       <template #title>{{ editingBannerId ? '编辑' : '创建' }} Banner</template>
-      <template #description>
-        仅管理员可编辑，背景图需先在附件库上传并设置为公开访问。
-      </template>
       <template #body>
         <div class="mt-3 space-y-3">
-          <UFormField label="附件 ID" required>
-            <UInput
-              v-model="bannerForm.attachmentId"
-              placeholder="示例：att_xxx"
+          <UFormField label="背景图" required class="w-full">
+            <USelectMenu
+              class="w-full"
+              :model-value="bannerForm.attachmentId || undefined"
+              :items="bannerAttachmentOptions"
+              :ui="bannerAttachmentSelectUi"
+              value-key="id"
+              label-key="label"
+              description-key="description"
+              v-model:search-term="bannerAttachmentSearchTerm"
+              :ignore-filter="true"
+              :loading="bannerAttachmentLoading"
+              :search-input="{ placeholder: '输入名称或 ID 搜索附件' }"
+              :create-item="bannerAttachmentCreateConfig"
+              placeholder="选择或搜索附件"
+              @update:model-value="
+                (value: string | undefined) => {
+                  bannerForm.attachmentId = value ?? ''
+                }
+              "
+              @create="
+                (value: string) => {
+                  bannerForm.attachmentId = value?.trim() ?? ''
+                }
+              "
+            >
+              <template #item="{ item }">
+                <div class="space-y-0.5">
+                  <p
+                    class="text-sm font-medium text-slate-800 dark:text-slate-200"
+                  >
+                    {{ item.label }}
+                  </p>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                    {{ item.description }}
+                  </p>
+                </div>
+              </template>
+              <template #empty="{ searchTerm }">
+                <div
+                  class="py-6 text-center text-xs text-slate-500 dark:text-slate-400"
+                >
+                  <span v-if="bannerAttachmentLoading">搜索中…</span>
+                  <span v-else>
+                    {{ searchTerm ? '没有匹配的附件' : '输入关键字开始搜索' }}
+                  </span>
+                </div>
+              </template>
+            </USelectMenu>
+          </UFormField>
+          <UFormField label="标题" class="w-full">
+            <UInput class="w-full" v-model="bannerForm.title" />
+          </UFormField>
+          <UFormField label="副标题" class="w-full">
+            <UInput class="w-full" v-model="bannerForm.subtitle" />
+          </UFormField>
+          <UFormField label="描述" class="w-full">
+            <UTextarea
+              class="w-full"
+              v-model="bannerForm.description"
+              :rows="3"
             />
           </UFormField>
-          <UFormField label="标题">
-            <UInput v-model="bannerForm.title" />
-          </UFormField>
-          <UFormField label="副标题">
-            <UInput v-model="bannerForm.subtitle" />
-          </UFormField>
-          <UFormField label="描述">
-            <UTextarea v-model="bannerForm.description" :rows="3" />
-          </UFormField>
-          <div class="grid gap-3 md:grid-cols-2">
-            <UFormField label="按钮文本">
-              <UInput v-model="bannerForm.ctaLabel" />
+          <div class="grid gap-3 md:grid-cols-2 w-full">
+            <UFormField label="按钮文本" class="w-full">
+              <UInput class="w-full" v-model="bannerForm.ctaLabel" />
             </UFormField>
-            <UFormField label="跳转链接">
-              <UInput v-model="bannerForm.ctaLink" placeholder="https://" />
-            </UFormField>
-          </div>
-          <div class="grid gap-3 md:grid-cols-2">
-            <UFormField label="排序值">
+            <UFormField label="跳转链接" class="w-full">
               <UInput
-                v-model.number="bannerForm.displayOrder"
-                type="number"
-                min="0"
+                class="w-full"
+                v-model="bannerForm.ctaLink"
+                placeholder="https://"
               />
             </UFormField>
-            <UFormField label="发布状态">
-              <USwitch v-model="bannerForm.isPublished" />
-            </UFormField>
+          </div>
+          <div class="flex flex-col gap-2">
+            <p class="text-sm font-medium text-slate-700 dark:text-slate-200">
+              跳转类型
+            </p>
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                size="xs"
+                color="primary"
+                :variant="bannerForm.ctaIsInternal ? 'solid' : 'soft'"
+                @click="bannerForm.ctaIsInternal = true"
+              >
+                站内跳转
+              </UButton>
+              <UButton
+                size="xs"
+                color="primary"
+                :variant="bannerForm.ctaIsInternal ? 'soft' : 'solid'"
+                @click="bannerForm.ctaIsInternal = false"
+              >
+                外部链接
+              </UButton>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              站内跳转会通过 RouterLink 进入站内页面，外部则会新窗口打开。
+            </p>
           </div>
           <div class="flex justify-end gap-2">
             <UButton

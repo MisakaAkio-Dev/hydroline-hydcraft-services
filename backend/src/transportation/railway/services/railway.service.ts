@@ -48,6 +48,7 @@ type SerializedBanner = {
   attachmentId: string | null;
   ctaLabel: string | null;
   ctaLink: string | null;
+  ctaIsInternal: boolean;
   isPublished: boolean;
   displayOrder: number;
   createdAt: Date;
@@ -143,6 +144,7 @@ export class TransportationRailwayService {
         attachmentId: dto.attachmentId,
         ctaLabel: dto.ctaLabel?.trim() || null,
         ctaLink: dto.ctaLink?.trim() || null,
+        ctaIsInternal: dto.ctaIsInternal ?? false,
         isPublished: dto.isPublished ?? true,
         displayOrder: dto.displayOrder ?? 0,
         createdById: userId,
@@ -188,6 +190,10 @@ export class TransportationRailwayService {
           dto.ctaLink !== undefined
             ? dto.ctaLink?.trim() || null
             : existing.ctaLink,
+        ctaIsInternal:
+          dto.ctaIsInternal !== undefined
+            ? dto.ctaIsInternal
+            : existing.ctaIsInternal,
         isPublished:
           dto.isPublished !== undefined
             ? dto.isPublished
@@ -354,6 +360,7 @@ export class TransportationRailwayService {
       attachmentId: row.attachmentId ?? null,
       ctaLabel: row.ctaLabel ?? null,
       ctaLink: row.ctaLink ?? null,
+      ctaIsInternal: row.ctaIsInternal,
       isPublished: row.isPublished,
       displayOrder: row.displayOrder,
       createdAt: row.createdAt,

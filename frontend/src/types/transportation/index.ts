@@ -6,6 +6,7 @@ export interface RailwayBanner {
   attachmentId: string | null
   ctaLabel: string | null
   ctaLink: string | null
+  ctaIsInternal: boolean
   isPublished: boolean
   displayOrder: number
   createdAt: string
@@ -160,6 +161,7 @@ export type RailwayBannerPayload = {
   description?: string | null
   ctaLabel?: string | null
   ctaLink?: string | null
+  ctaIsInternal?: boolean
   isPublished?: boolean
   displayOrder?: number
 }

@@ -47,7 +47,7 @@ function scheduleFetchList(delayMs = 400) {
 
 const servers = computed<RailwayServerOption[]>(() => railwayStore.servers)
 const serverOptions = computed(() => [
-  { id: ALL_OPTION_VALUE, name: '全部服务器', railwayType: ALL_OPTION_VALUE },
+  { id: ALL_OPTION_VALUE, name: '全部服务端', railwayType: ALL_OPTION_VALUE },
   ...servers.value,
 ])
 
@@ -238,7 +238,7 @@ onMounted(async () => {
         <UInput v-model="filters.search" placeholder="车站名 / ID / 模式" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
-        <span class="text-xs text-slate-500">服务器</span>
+        <span class="text-xs text-slate-500">服务端</span>
         <USelectMenu
           v-model="filters.serverId"
           :items="serverOptions"
@@ -283,7 +283,7 @@ onMounted(async () => {
         <thead class="text-slate-500">
           <tr>
             <th class="px-4 py-3">车站</th>
-            <th class="px-4 py-3">服务器</th>
+            <th class="px-4 py-3">服务端</th>
             <th class="px-4 py-3">维度</th>
             <th class="px-4 py-3">模式</th>
             <th class="px-4 py-3">更新时间</th>

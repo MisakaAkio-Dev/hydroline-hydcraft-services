@@ -629,7 +629,7 @@ onUnmounted(() => {
               </dd>
             </div>
             <div class="flex justify-between gap-4">
-              <dt>所属服务器</dt>
+              <dt>所属服务端</dt>
               <dd class="text-slate-900 dark:text-white">
                 {{ detail.server.name }}
               </dd>
