@@ -62,6 +62,10 @@ async function fetchStats() {
   }
 }
 
+function goEditFacilities() {
+  router.push({ name: 'transportation.railway.facilities' })
+}
+
 function goToPage(nextPage: number) {
   const safe = Math.max(1, Math.min(nextPage, pagination.value.pageCount))
   if (safe === page.value) return
@@ -95,7 +99,19 @@ watch(
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 relative">
+    <div class="absolute right-4 top-6 md:top-10 flex items-center gap-2">
+      <UTooltip text="编辑铁路设施">
+        <UButton
+          color="primary"
+          variant="soft"
+          size="xs"
+          class="p-1"
+          icon="i-lucide-edit"
+          @click="goEditFacilities"
+        />
+      </UTooltip>
+    </div>
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">

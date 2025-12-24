@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
@@ -19,7 +19,7 @@ const searchTerm = ref('')
 const searching = ref(false)
 const searchResults = ref<RailwayRoute[]>([])
 const selectedRoutes = ref<RailwayRoute[]>([])
-const baseRouteKey = ref<string | null>(null)
+const lastSearchKeyword = ref('')
 
 function extractBaseKey(name: string | null | undefined) {
   if (!name) return null
@@ -28,26 +28,111 @@ function extractBaseKey(name: string | null | undefined) {
   return first.trim() || null
 }
 
-const filteredResults = computed(() => {
-  if (!baseRouteKey.value) return searchResults.value
-  return searchResults.value.filter((item) => {
-    return extractBaseKey(item.name) === baseRouteKey.value
-  })
+function buildGroupKey(
+  name: string | null | undefined,
+  fallback?: string | null,
+) {
+  return (
+    extractBaseKey(name) ??
+    name ??
+    fallback ??
+    `route-${fallback ?? Math.random().toString(36).slice(2, 8)}`
+  )
+}
+
+function buildGroupName(name: string | null | undefined, fallback?: string) {
+  if (!name) return fallback ?? '未知线路'
+  return name.split('||')[0].split('|')[0].trim() || fallback || name
+}
+
+const groupedSearchResults = computed(() => {
+  const map = new Map<
+    string,
+    { groupKey: string; groupName: string; routes: RailwayRoute[] }
+  >()
+  for (const route of searchResults.value) {
+    const key = buildGroupKey(route.name, route.id)
+    if (!map.has(key)) {
+      map.set(key, {
+        groupKey: key,
+        groupName: buildGroupName(route.name, route.id),
+        routes: [],
+      })
+    }
+    map.get(key)!.routes.push(route)
+  }
+  return Array.from(map.values())
 })
 
+const selectedRouteIds = computed(
+  () => new Set(selectedRoutes.value.map((item) => item.id)),
+)
+
+const selectedGroups = computed(() => {
+  const map = new Map<
+    string,
+    { groupKey: string; groupName: string; routes: RailwayRoute[] }
+  >()
+  for (const route of selectedRoutes.value) {
+    const key = buildGroupKey(route.name, route.id)
+    if (!map.has(key)) {
+      map.set(key, {
+        groupKey: key,
+        groupName: buildGroupName(route.name, route.id),
+        routes: [],
+      })
+    }
+    map.get(key)!.routes.push(route)
+  }
+  const availableCounts = new Map(
+    groupedSearchResults.value.map((group) => [
+      group.groupKey,
+      group.routes.length,
+    ]),
+  )
+  return Array.from(map.values()).map((group) => ({
+    ...group,
+    totalCount: Math.max(
+      availableCounts.get(group.groupKey) ?? 0,
+      group.routes.length,
+    ),
+  }))
+})
+
+const selectedCountByGroup = computed(() => {
+  const map = new Map<string, number>()
+  for (const route of selectedRoutes.value) {
+    const key = buildGroupKey(route.name, route.id)
+    map.set(key, (map.get(key) ?? 0) + 1)
+  }
+  return map
+})
+
+const searchGroupExpanded = ref<Record<string, boolean>>({})
+
+const logoFileInput = ref<HTMLInputElement | null>(null)
+const logoFile = ref<File | null>(null)
+const logoPreviewUrl = ref<string | null>(null)
+const logoObjectUrl = ref<string | null>(null)
+const logoUploading = ref(false)
+const creating = ref(false)
+
 async function searchRoutes() {
-  if (!searchTerm.value.trim()) {
+  const keyword = searchTerm.value.trim()
+  if (!keyword) {
     searchResults.value = []
+    lastSearchKeyword.value = ''
     return
   }
   searching.value = true
   try {
-    const response = await railwayStore.fetchRouteList({
-      search: searchTerm.value.trim(),
+    const response = await railwayStore.searchRoutes({
+      search: keyword,
       page: 1,
       pageSize: 20,
     })
     searchResults.value = response.items
+    lastSearchKeyword.value = keyword
   } catch (error) {
     toast.add({
       title: error instanceof Error ? error.message : '搜索失败',
@@ -59,18 +144,7 @@ async function searchRoutes() {
 }
 
 function addRoute(route: RailwayRoute) {
-  if (selectedRoutes.value.find((item) => item.id === route.id)) return
-  const baseKey = extractBaseKey(route.name)
-  if (!baseRouteKey.value) {
-    baseRouteKey.value = baseKey
-  }
-  if (baseRouteKey.value && baseKey !== baseRouteKey.value) {
-    toast.add({
-      title: '只能选择同名线路',
-      color: 'orange',
-    })
-    return
-  }
+  if (selectedRouteIds.value.has(route.id)) return
   selectedRoutes.value.push(route)
 }
 
@@ -78,12 +152,58 @@ function removeRoute(routeId: string) {
   selectedRoutes.value = selectedRoutes.value.filter(
     (item) => item.id !== routeId,
   )
-  if (selectedRoutes.value.length === 0) {
-    baseRouteKey.value = null
+}
+
+function isRouteSelected(routeId: string) {
+  return selectedRouteIds.value.has(routeId)
+}
+
+function toggleSearchGroup(key: string) {
+  searchGroupExpanded.value = {
+    ...searchGroupExpanded.value,
+    [key]: !searchGroupExpanded.value[key],
+  }
+}
+
+function cleanupLogoPreview() {
+  if (logoObjectUrl.value) {
+    URL.revokeObjectURL(logoObjectUrl.value)
+    logoObjectUrl.value = null
+  }
+  logoPreviewUrl.value = null
+}
+
+function triggerLogoPicker() {
+  logoFileInput.value?.click()
+}
+
+function clearLogoSelection() {
+  logoFile.value = null
+  cleanupLogoPreview()
+  if (logoFileInput.value) {
+    logoFileInput.value.value = ''
+  }
+}
+
+function handleLogoFileChange(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  const file = target?.files?.[0] ?? null
+  if (!file) {
+    clearLogoSelection()
+    return
+  }
+  logoFile.value = file
+  cleanupLogoPreview()
+  const objectUrl = URL.createObjectURL(file)
+  logoObjectUrl.value = objectUrl
+  logoPreviewUrl.value = objectUrl
+  if (target) {
+    target.value = ''
   }
 }
 
 async function createSystem() {
+  if (creating.value) return
   if (!formState.value.name.trim()) {
     toast.add({ title: '请输入线路系统名称', color: 'orange' })
     return
@@ -97,6 +217,7 @@ async function createSystem() {
     return
   }
 
+  creating.value = true
   try {
     const system = await systemsStore.createSystem({
       name: formState.value.name.trim(),
@@ -108,6 +229,21 @@ async function createSystem() {
         dimension: route.dimension ?? null,
       })),
     })
+    if (logoFile.value) {
+      logoUploading.value = true
+      try {
+        await systemsStore.uploadSystemLogo(system.id, logoFile.value)
+      } catch (error) {
+        toast.add({
+          title: 'Logo 上传失败',
+          description:
+            error instanceof Error ? error.message : '请稍后重试上传',
+          color: 'orange',
+        })
+      } finally {
+        logoUploading.value = false
+      }
+    }
     toast.add({ title: '线路系统已创建', color: 'green' })
     router.push({
       name: 'transportation.railway.system.detail',
@@ -118,6 +254,8 @@ async function createSystem() {
       title: error instanceof Error ? error.message : '创建失败',
       color: 'red',
     })
+  } finally {
+    creating.value = false
   }
 }
 
@@ -126,9 +264,28 @@ watch(
   (value) => {
     if (!value.trim()) {
       searchResults.value = []
+      lastSearchKeyword.value = ''
     }
   },
 )
+
+watch(
+  () => groupedSearchResults.value,
+  (groups) => {
+    const prev = { ...searchGroupExpanded.value }
+    const next: Record<string, boolean> = {}
+    for (const group of groups) {
+      next[group.groupKey] =
+        prev[group.groupKey] ?? (group.routes.length > 1 ? true : false)
+    }
+    searchGroupExpanded.value = next
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  cleanupLogoPreview()
+})
 </script>
 
 <template>
@@ -138,7 +295,9 @@ watch(
         <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
           添加线路系统
         </h1>
-        <p class="text-sm text-slate-500">选择同名线路组合成系统</p>
+        <p class="text-sm text-slate-500">
+          按线路 / 方向组合成系统，可单独选择方向
+        </p>
       </div>
       <UButton
         size="sm"
@@ -151,76 +310,380 @@ watch(
       </UButton>
     </div>
 
-    <div
-      class="grid gap-4 rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
-    >
-      <div class="grid gap-4 md:grid-cols-2">
-        <UInput v-model="formState.name" placeholder="线路系统中文名" />
-        <UInput v-model="formState.englishName" placeholder="线路系统英文名" />
+    <div class="space-y-6">
+      <div
+        class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
+      >
+        <div class="grid gap-4 md:grid-cols-2">
+          <UInput v-model="formState.name" placeholder="线路系统中文名" />
+          <UInput
+            v-model="formState.englishName"
+            placeholder="线路系统英文名"
+          />
+        </div>
+        <div
+          class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4"
+        >
+          <UInput
+            v-model="searchTerm"
+            placeholder="搜索线路名称"
+            icon="i-lucide-search"
+            class="flex-1"
+            @keyup.enter="searchRoutes"
+          />
+          <UButton
+            color="primary"
+            :loading="searching"
+            class="flex-shrink-0"
+            @click="searchRoutes"
+          >
+            搜索
+          </UButton>
+          <p class="text-xs text-slate-400">
+            {{
+              lastSearchKeyword
+                ? `当前关键词：${lastSearchKeyword}`
+                : '请输入关键词后开始搜索'
+            }}
+          </p>
+        </div>
       </div>
 
-      <div class="flex items-center gap-2">
-        <UInput
-          v-model="searchTerm"
-          placeholder="搜索线路名称"
-          icon="i-lucide-search"
-          @keyup.enter="searchRoutes"
+      <div
+        class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <h3
+              class="text-base font-semibold text-slate-800 dark:text-slate-200"
+            >
+              线路系统 Logo
+            </h3>
+            <p class="text-xs text-slate-500">
+              支持 PNG/JPG/SVG 格式，建议 120x120 像素。
+            </p>
+          </div>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            class="group relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 text-sm font-medium text-slate-500 transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+            @click="triggerLogoPicker"
+          >
+            <img
+              v-if="logoPreviewUrl"
+              :src="logoPreviewUrl"
+              alt="线路系统 Logo 预览"
+              class="h-full w-full object-cover"
+            />
+            <span
+              v-else
+              class="flex h-full w-full items-center justify-center text-xs font-semibold"
+            >
+              Logo
+            </span>
+            <div
+              class="absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-900/40 text-xs text-white opacity-0 transition group-hover:opacity-100 dark:bg-slate-900/60"
+            >
+              更换图片
+            </div>
+          </button>
+          <div
+            class="flex-1 min-w-[200px] text-sm text-slate-500 dark:text-slate-400"
+          >
+            <p
+              class="text-sm"
+              :class="{
+                'text-slate-900 dark:text-white': logoFile,
+                'text-slate-500 dark:text-slate-400': !logoFile,
+              }"
+            >
+              {{ logoFile?.name || '未选择图片' }}
+            </p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <UButton size="xs" color="primary" @click="triggerLogoPicker">
+                选择图片
+              </UButton>
+              <UButton
+                size="xs"
+                variant="ghost"
+                :disabled="!logoFile"
+                @click="clearLogoSelection"
+              >
+                移除
+              </UButton>
+            </div>
+            <p v-if="logoUploading" class="text-xs text-amber-500 mt-2">
+              正在上传 Logo，请稍候…
+            </p>
+          </div>
+        </div>
+        <input
+          ref="logoFileInput"
+          type="file"
+          accept="image/*,.svg"
+          class="hidden"
+          @change="handleLogoFileChange"
         />
-        <UButton color="primary" :loading="searching" @click="searchRoutes">
-          搜索
-        </UButton>
       </div>
 
-      <div v-if="filteredResults.length" class="space-y-2">
-        <p class="text-xs text-slate-500">可选线路（仅显示同名线路）</p>
-        <div class="grid gap-2 md:grid-cols-2">
+      <div class="grid gap-6 md:grid-cols-2">
+        <div
+          class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
+        >
           <div
-            v-for="route in filteredResults"
-            :key="route.id"
-            class="flex items-center justify-between gap-2 rounded-lg border border-slate-200/60 px-3 py-2 text-sm dark:border-slate-800/60"
+            class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between"
           >
             <div>
-              <p class="text-slate-900 dark:text-white">
-                {{ route.name || route.id }}
-              </p>
+              <h3
+                class="text-base font-semibold text-slate-800 dark:text-slate-200"
+              >
+                可选线路 / 方向
+              </h3>
               <p class="text-xs text-slate-500">
-                {{ route.server.name }} · {{ route.railwayType }}
+                每个折叠卡片展示实际匹配的路线方向，点击即可选择或取消。
               </p>
             </div>
-            <UButton size="2xs" variant="ghost" @click="addRoute(route)">
-              选择
-            </UButton>
+            <span class="text-xs text-slate-400">
+              {{
+                lastSearchKeyword
+                  ? `当前关键词：${lastSearchKeyword}`
+                  : '请先搜索线路'
+              }}
+            </span>
+          </div>
+          <div class="mt-4 space-y-3">
+            <div
+              v-if="groupedSearchResults.length === 0"
+              class="rounded-xl border border-dashed border-slate-200/70 bg-slate-50/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400"
+            >
+              {{
+                searching
+                  ? '搜索中…'
+                  : searchTerm
+                    ? '暂无符合的线路'
+                    : '请输入关键词后开始搜索'
+              }}
+            </div>
+            <div
+              v-else
+              v-for="group in groupedSearchResults"
+              :key="group.groupKey"
+              class="rounded-2xl border border-slate-200/70 bg-white p-0 dark:border-slate-800/70 dark:bg-slate-900"
+            >
+              <template v-if="group.routes.length === 1">
+                <div
+                  class="grid grid-cols-[1fr,auto] items-center gap-3 px-4 py-3"
+                >
+                  <div>
+                    <p
+                      class="text-base font-semibold text-slate-900 dark:text-white"
+                    >
+                      {{ group.groupName }}
+                    </p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                      {{ group.routes[0].server.name }} ·
+                      {{ group.routes[0].railwayType }} ·
+                      {{ group.routes[0].dimension ?? '主世界' }}
+                    </p>
+                  </div>
+                  <UButton
+                    size="2xs"
+                    variant="ghost"
+                    :color="
+                      isRouteSelected(group.routes[0].id)
+                        ? 'neutral'
+                        : 'primary'
+                    "
+                    @click="
+                      isRouteSelected(group.routes[0].id)
+                        ? removeRoute(group.routes[0].id)
+                        : addRoute(group.routes[0])
+                    "
+                  >
+                    {{ isRouteSelected(group.routes[0].id) ? '取消' : '选择' }}
+                  </UButton>
+                </div>
+              </template>
+              <template v-else>
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left"
+                  @click="toggleSearchGroup(group.groupKey)"
+                >
+                  <div>
+                    <p
+                      class="text-base font-semibold text-slate-900 dark:text-white"
+                    >
+                      {{ group.groupName }}
+                    </p>
+                    <p class="text-xs text-slate-500">
+                      {{ group.routes.length }} 个方向 · 已选
+                      {{ selectedCountByGroup[group.groupKey] ?? 0 }}/{{
+                        group.routes.length
+                      }}
+                    </p>
+                  </div>
+                  <div
+                    class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
+                  >
+                    <span>
+                      {{
+                        (selectedCountByGroup[group.groupKey] ?? 0) > 0
+                          ? '部分已选'
+                          : '展开选择'
+                      }}
+                    </span>
+                    <UIcon
+                      name="i-lucide-chevron-down"
+                      class="h-4 w-4 transition-transform"
+                      :class="{
+                        'rotate-180': searchGroupExpanded[group.groupKey],
+                      }"
+                    />
+                  </div>
+                </button>
+                <Transition
+                  enter-active-class="transition-all duration-200"
+                  leave-active-class="transition-all duration-200"
+                >
+                  <div
+                    v-show="searchGroupExpanded[group.groupKey]"
+                    class="border-t border-slate-100 dark:border-slate-800"
+                  >
+                    <div
+                      v-for="route in group.routes"
+                      :key="route.id"
+                      class="grid grid-cols-[1fr,auto] items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800"
+                    >
+                      <div>
+                        <p
+                          class="text-sm font-semibold text-slate-900 dark:text-white"
+                        >
+                          {{ route.name || route.id }}
+                        </p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                          {{ route.server.name }} · {{ route.railwayType }} ·
+                          {{ route.dimension ?? '主世界' }}
+                        </p>
+                      </div>
+                      <div
+                        class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
+                      >
+                        <span
+                          v-if="isRouteSelected(route.id)"
+                          class="rounded-full border border-slate-200 px-2 py-0.5 text-xs dark:border-slate-700"
+                        >
+                          已选
+                        </span>
+                        <UButton
+                          size="2xs"
+                          variant="ghost"
+                          :color="
+                            isRouteSelected(route.id) ? 'neutral' : 'primary'
+                          "
+                          @click="
+                            isRouteSelected(route.id)
+                              ? removeRoute(route.id)
+                              : addRoute(route)
+                          "
+                        >
+                          {{ isRouteSelected(route.id) ? '取消' : '选择' }}
+                        </UButton>
+                      </div>
+                    </div>
+                  </div>
+                </Transition>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <h3
+                class="text-base font-semibold text-slate-800 dark:text-slate-200"
+              >
+                已选择线路
+              </h3>
+              <p class="text-xs text-slate-400">
+                已选择 {{ selectedRoutes.length }} 个方向，涵盖
+                {{ selectedGroups.length }} 条线路
+              </p>
+            </div>
+            <p class="text-xs text-slate-400">方向可单独移除</p>
+          </div>
+          <div class="mt-4 space-y-4">
+            <div
+              v-if="selectedGroups.length === 0"
+              class="rounded-xl border border-dashed border-slate-200/70 bg-slate-50/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400"
+            >
+              暂无选中线路，添加后会在这里显示
+            </div>
+            <div
+              v-else
+              v-for="group in selectedGroups"
+              :key="group.groupKey"
+              class="rounded-2xl border border-slate-100/70 bg-slate-50/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/60"
+            >
+              <div class="flex items-center justify-between">
+                <div>
+                  <p
+                    class="text-sm font-semibold text-slate-900 dark:text-white"
+                  >
+                    {{ group.groupName }}
+                  </p>
+                  <p class="text-xs text-slate-500">
+                    已选 {{ group.routes.length }}/{{ group.totalCount }} 个方向
+                  </p>
+                </div>
+                <span class="text-xs text-slate-400">
+                  {{ group.routes.length }} / {{ group.totalCount }}
+                </span>
+              </div>
+              <div class="mt-3 space-y-2">
+                <div
+                  v-for="route in group.routes"
+                  :key="route.id"
+                  class="flex items-center justify-between gap-3 rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-sm transition hover:border-slate-300 dark:border-slate-800/60 dark:bg-slate-900/60"
+                >
+                  <div>
+                    <p class="text-slate-900 dark:text-white">
+                      {{ route.name || route.id }}
+                    </p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                      {{ route.server.name }} · {{ route.railwayType }} ·
+                      {{ route.dimension ?? '主世界' }}
+                    </p>
+                  </div>
+                  <UButton
+                    size="2xs"
+                    variant="ghost"
+                    color="primary"
+                    @click="removeRoute(route.id)"
+                  >
+                    移除
+                  </UButton>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <div class="space-y-2">
-        <p class="text-xs text-slate-500">已选择线路</p>
-        <div v-if="selectedRoutes.length" class="flex flex-col gap-2">
-          <div
-            v-for="route in selectedRoutes"
-            :key="route.id"
-            class="flex items-center justify-between gap-2 rounded-lg border border-slate-200/60 px-3 py-2 text-sm dark:border-slate-800/60"
-          >
-            <div>
-              <p class="text-slate-900 dark:text-white">
-                {{ route.name || route.id }}
-              </p>
-              <p class="text-xs text-slate-500">
-                {{ route.server.name }} · {{ route.railwayType }}
-              </p>
-            </div>
-            <UButton size="2xs" variant="ghost" @click="removeRoute(route.id)">
-              移除
-            </UButton>
-          </div>
-        </div>
-        <p v-else class="text-xs text-slate-400">暂无选中线路</p>
-      </div>
-
-      <div class="flex justify-end">
-        <UButton color="primary" @click="createSystem">创建系统</UButton>
-      </div>
+    <div class="flex justify-end">
+      <UButton
+        color="primary"
+        :loading="creating"
+        :disabled="creating"
+        @click="createSystem"
+      >
+        创建系统
+      </UButton>
     </div>
   </div>
 </template>

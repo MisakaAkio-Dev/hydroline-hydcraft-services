@@ -23,11 +23,6 @@ const system = ref<RailwaySystemDetail | null>(null)
 const loading = ref(true)
 const routeDetails = ref<RailwayRouteDetail[]>([])
 const fullscreenOpen = ref(false)
-const editMode = ref(false)
-const formState = ref({
-  name: '',
-  englishName: '',
-})
 const bindingPayload = ref({
   operatorCompanyIds: [] as string[],
   builderCompanyIds: [] as string[],
@@ -54,10 +49,6 @@ async function fetchSystemDetail() {
   try {
     const detail = await systemsStore.fetchSystemDetail(systemId.value)
     system.value = detail
-    formState.value = {
-      name: detail.name,
-      englishName: detail.englishName ?? '',
-    }
     await fetchBindings(detail)
     await fetchRouteDetails(detail)
     await fetchRelatedSystems(detail)
@@ -126,55 +117,6 @@ async function fetchRouteDetails(detail: RailwaySystemDetail) {
   routeDetails.value = results
 }
 
-async function updateSystemInfo() {
-  if (!system.value) return
-  if (!formState.value.name.trim()) {
-    toast.add({ title: '请输入线路系统名称', color: 'orange' })
-    return
-  }
-  if (!formState.value.englishName.trim()) {
-    toast.add({ title: '请输入线路系统英文名', color: 'orange' })
-    return
-  }
-  try {
-    const updated = await systemsStore.updateSystem(system.value.id, {
-      name: formState.value.name.trim(),
-      englishName: formState.value.englishName.trim(),
-    })
-    system.value = updated
-    editMode.value = false
-    toast.add({ title: '已更新线路系统信息', color: 'green' })
-  } catch (error) {
-    toast.add({
-      title: error instanceof Error ? error.message : '更新失败',
-      color: 'red',
-    })
-  }
-}
-
-async function uploadLogo(event: Event) {
-  if (!system.value) return
-  const target = event.target as HTMLInputElement | null
-  const file = target?.files?.[0]
-  if (!file) return
-  try {
-    const result = await systemsStore.uploadSystemLogo(system.value.id, file)
-    system.value = {
-      ...system.value,
-      logoAttachmentId: result.logoAttachmentId,
-      logoUrl: result.logoUrl,
-    }
-    toast.add({ title: 'Logo 已更新', color: 'green' })
-  } catch (error) {
-    toast.add({
-      title: error instanceof Error ? error.message : '上传失败',
-      color: 'red',
-    })
-  } finally {
-    target!.value = ''
-  }
-}
-
 watch(
   () => systemId.value,
   () => {
@@ -234,9 +176,7 @@ onMounted(() => {
     <div v-if="loading" class="text-sm text-slate-500">正在加载…</div>
 
     <div v-else-if="system" class="space-y-6">
-      <div
-        class="rounded-3xl border border-slate-200/70 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
-      >
+      <div class="space-y-3">
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-200">
             系统地图
@@ -263,11 +203,22 @@ onMounted(() => {
               >
                 基本信息
               </h3>
-              <UButton size="2xs" variant="ghost" @click="editMode = !editMode">
-                {{ editMode ? '取消' : '编辑' }}
+              <UButton
+                size="2xs"
+                variant="soft"
+                color="primary"
+                icon="i-lucide-edit"
+                @click="
+                  router.push({
+                    name: 'transportation.railway.system.edit',
+                    params: { systemId: system.id },
+                  })
+                "
+              >
+                编辑系统
               </UButton>
             </div>
-            <div v-if="!editMode" class="mt-3 space-y-2 text-sm text-slate-600">
+            <div class="mt-3 space-y-2 text-sm text-slate-600">
               <div class="flex justify-between">
                 <span>中文名</span>
                 <span class="text-slate-900 dark:text-white">{{
@@ -288,29 +239,41 @@ onMounted(() => {
               </div>
               <div class="flex justify-between">
                 <span>维度</span>
-                <span class="text-slate-900 dark:text-white">{{
-                  systemDimension || '—'
-                }}</span>
+                <span class="text-slate-900 dark:text-white">
+                  {{ systemDimension || '—' }}
+                </span>
               </div>
             </div>
-            <div v-else class="mt-3 space-y-3">
-              <UInput v-model="formState.name" placeholder="线路系统中文名" />
-              <UInput
-                v-model="formState.englishName"
-                placeholder="线路系统英文名"
-              />
-              <div class="flex justify-end">
-                <UButton size="sm" color="primary" @click="updateSystemInfo">
-                  保存
-                </UButton>
-              </div>
-            </div>
+          </div>
 
-            <div class="mt-4 space-y-2">
-              <label class="text-xs font-semibold text-slate-500"
-                >系统 Logo</label
+          <div
+            class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+          >
+            <h3
+              class="text-base font-semibold text-slate-800 dark:text-slate-200"
+            >
+              系统 Logo
+            </h3>
+            <div class="mt-3 flex items-center gap-3">
+              <div
+                class="h-16 w-16 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/40"
               >
-              <input type="file" accept="image/*,.svg" @change="uploadLogo" />
+                <img
+                  v-if="system.logoUrl"
+                  :src="system.logoUrl"
+                  :alt="system.name"
+                  class="h-full w-full object-cover"
+                />
+              </div>
+              <div class="text-sm text-slate-500 dark:text-slate-400">
+                <p
+                  v-if="system.logoAttachmentId"
+                  class="text-slate-900 dark:text-white"
+                >
+                  附件 ID：{{ system.logoAttachmentId }}
+                </p>
+                <p v-else>暂无 Logo</p>
+              </div>
             </div>
           </div>
 

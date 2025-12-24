@@ -304,6 +304,29 @@ export const useTransportationRailwayStore = defineStore(
         )
       },
 
+      async searchRoutes(params: {
+        search?: string
+        serverId?: string
+        railwayType?: string
+        dimension?: string
+        transportMode?: string
+        page?: number
+        pageSize?: number
+      }) {
+        const query = new URLSearchParams()
+        if (params.search) query.set('search', params.search)
+        if (params.serverId) query.set('serverId', params.serverId)
+        if (params.railwayType) query.set('railwayType', params.railwayType)
+        if (params.dimension) query.set('dimension', params.dimension)
+        if (params.transportMode)
+          query.set('transportMode', params.transportMode)
+        if (params.page) query.set('page', String(params.page))
+        if (params.pageSize) query.set('pageSize', String(params.pageSize))
+        return await apiFetch<RailwayRouteListResponse>(
+          `/transportation/railway/routes/search?${query.toString()}`,
+        )
+      },
+
       async fetchStationList(params: {
         search?: string
         serverId?: string

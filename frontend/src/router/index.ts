@@ -196,6 +196,12 @@ export const userRoutes: RouteRecordRaw[] = [
               import('@/views/user/Transportation/RailwaySystemDetailView.vue'),
           },
           {
+            path: 'railway/systems/:systemId/edit',
+            name: 'transportation.railway.system.edit',
+            component: () =>
+              import('@/views/user/Transportation/RailwaySystemEditView.vue'),
+          },
+          {
             path: 'railway/companies',
             name: 'transportation.railway.companies',
             component: () =>

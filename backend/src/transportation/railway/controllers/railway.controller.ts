@@ -53,6 +53,20 @@ export class TransportationRailwayController {
     });
   }
 
+  @Get('routes/search')
+  @ApiOperation({ summary: '搜索铁路线路（原始方向数据）' })
+  async searchRoutes(@Query() query: RailwayEntityListQueryDto) {
+    return this.listService.searchRoutes({
+      serverId: query.serverId ?? null,
+      railwayType: query.railwayType ?? null,
+      dimension: query.dimension ?? null,
+      transportMode: query.transportMode ?? null,
+      search: query.search ?? null,
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+  }
+
   @Get('stations')
   @ApiOperation({ summary: '铁路车站列表（分页/筛选）' })
   async listStations(@Query() query: RailwayEntityListQueryDto) {

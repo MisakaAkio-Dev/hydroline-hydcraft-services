@@ -48,9 +48,11 @@ function goToPage(nextPage: number) {
   void loadSystems()
 }
 
-function openSystem(systemId: string) {
+function openSystem(systemId: string, edit = false) {
   router.push({
-    name: 'transportation.railway.system.detail',
+    name: edit
+      ? 'transportation.railway.system.edit'
+      : 'transportation.railway.system.detail',
     params: { systemId },
   })
 }
@@ -61,7 +63,19 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 relative">
+    <div class="absolute right-4 top-6 md:top-10 flex items-center gap-2">
+      <UTooltip text="新建铁路线路系统">
+        <UButton
+          color="primary"
+          variant="soft"
+          size="xs"
+          class="p-1"
+          icon="i-lucide-plus"
+          @click="router.push({ name: 'transportation.railway.system.create' })"
+        />
+      </UTooltip>
+    </div>
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
@@ -144,12 +158,22 @@ onMounted(() => {
                 <td class="px-4 py-3">{{ item.routeCount }}</td>
                 <td class="px-4 py-3">{{ item.updatedAt }}</td>
                 <td class="px-4 py-3">
-                  <UButton
-                    size="2xs"
-                    variant="ghost"
-                    @click="openSystem(item.id)"
-                    >查看</UButton
-                  >
+                  <div class="flex items-center gap-2">
+                    <UButton
+                      size="2xs"
+                      variant="ghost"
+                      @click="openSystem(item.id, true)"
+                    >
+                      编辑
+                    </UButton>
+                    <UButton
+                      size="2xs"
+                      variant="ghost"
+                      @click="openSystem(item.id)"
+                    >
+                      查看
+                    </UButton>
+                  </div>
                 </td>
               </Motion>
             </AnimatePresence>

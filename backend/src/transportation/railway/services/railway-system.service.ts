@@ -373,17 +373,6 @@ export class TransportationRailwaySystemService {
       throw new BadRequestException('Routes must be in the same dimension');
     }
 
-    const baseKeys = Array.from(
-      new Set(
-        resolved
-          .map((item) => this.extractBaseKey(item.name))
-          .filter((item): item is string => Boolean(item)),
-      ),
-    );
-    if (baseKeys.length > 1) {
-      throw new BadRequestException('Routes must share the same base name');
-    }
-
     return {
       serverId: serverIds[0],
       dimensionContext: resolved[0].dimensionContext ?? null,
