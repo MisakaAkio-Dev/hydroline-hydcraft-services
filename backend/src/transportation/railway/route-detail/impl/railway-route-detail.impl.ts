@@ -217,14 +217,11 @@ export class TransportationRailwayRouteDetailService {
       primaryRouteId: normalizeId(routeRecord.id) ?? normalizedRouteId,
     });
 
-    const allPlatforms = await this.fetchPlatformsFromStorage(
+    const selectedPlatforms = await this.fetchPlatformsByIds(
       server,
-      dimensionContextForGeometry,
+      orderedPlatformIds,
     );
-    const platforms = this.buildPlatformsMap(allPlatforms);
-    const selectedPlatforms = orderedPlatformIds
-      .map((platformId) => platforms.get(platformId) ?? null)
-      .filter((item): item is RailwayPlatformRecord => Boolean(item));
+    const platforms = this.buildPlatformsMap(selectedPlatforms);
 
     normalizedRoute.platformCount = orderedPlatformIds.length;
     if (!normalizedRoute.dimension) {
@@ -263,9 +260,17 @@ export class TransportationRailwayRouteDetailService {
 
     const estimatedLengthKm = estimateGeometryLengthKm(geometry);
 
-    const stations = this.buildStationsMap(
-      await this.fetchStationsFromStorage(server, dimensionContextForGeometry),
+    // Collect station IDs from platforms
+    const stationIds = Array.from(
+      new Set(
+        selectedPlatforms
+          .map((p) => normalizeId(p.station_id))
+          .filter((id): id is string => !!id),
+      ),
     );
+    const stationsList = await this.fetchStationsByIds(server, stationIds);
+    const stations = this.buildStationsMap(stationsList);
+
     const stationAssociations = await this.resolvePlatformStations(
       server,
       dimensionContextForGeometry,
@@ -1310,6 +1315,58 @@ export class TransportationRailwayRouteDetailService {
       const payload = this.toJsonRecord(row.payload);
       if (!payload) continue;
       const record = this.buildPlatformRecordFromEntity(row, payload);
+      if (record) {
+        records.push(record);
+      }
+    }
+    return records;
+  }
+
+  private async fetchPlatformsByIds(
+    server: BeaconServerRecord,
+    platformIds: string[],
+  ) {
+    if (!platformIds.length) return [];
+    const rows = await this.prisma.transportationRailwayPlatform.findMany({
+      where: {
+        serverId: server.id,
+        railwayMod: server.railwayMod,
+        entityId: { in: platformIds },
+      },
+    });
+    const records: RailwayPlatformRecord[] = [];
+    for (const row of rows) {
+      const payload = this.toJsonRecord(row.payload);
+      if (!payload) continue;
+      const record = this.buildPlatformRecordFromEntity(row, payload);
+      if (record) {
+        records.push(record);
+      }
+    }
+    // Sort by input order
+    const map = new Map(records.map((r) => [r.id, r]));
+    return platformIds
+      .map((id) => map.get(id))
+      .filter((r): r is RailwayPlatformRecord => !!r);
+  }
+
+  private async fetchStationsByIds(
+    server: BeaconServerRecord,
+    stationIds: string[],
+  ) {
+    if (!stationIds.length) return [];
+    const rows = await this.prisma.transportationRailwayStation.findMany({
+      where: {
+        serverId: server.id,
+        railwayMod: server.railwayMod,
+        entityId: { in: stationIds },
+      },
+    });
+    const records: RailwayStationRecord[] = [];
+    for (const row of rows) {
+      const payload = this.toJsonRecord(row.payload);
+      if (!payload) continue;
+      const record = this.buildStationRecordFromEntity(row.entityId, payload);
       if (record) {
         records.push(record);
       }
@@ -2384,6 +2441,9 @@ export class TransportationRailwayRouteDetailService {
     stations: RailwayStationRecord[];
   }> {
     const resolvedMap = new Map(stationMap);
+    // Optimization: Do not fetch all stations. Rely on the provided stationMap (which should contain stations referenced by ID).
+    // If we need geometry matching for platforms without station_id, we would need to fetch all stations, but that is too slow.
+    /*
     if (dimensionContext) {
       const storedStations = await this.fetchStationsFromStorage(
         server,
@@ -2396,6 +2456,7 @@ export class TransportationRailwayRouteDetailService {
         }
       }
     }
+    */
     const stationList = Array.from(resolvedMap.values()).filter((station) =>
       this.stationHasBounds(station),
     );
