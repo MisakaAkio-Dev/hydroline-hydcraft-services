@@ -213,7 +213,7 @@ watch(
         />
       </div>
 
-      <div v-if="error" class="p-4 text-center text-sm text-red-500">
+      <div v-if="error" class="p-4 text-center text-sm">
         {{ error }}
       </div>
 

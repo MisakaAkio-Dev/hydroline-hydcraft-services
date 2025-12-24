@@ -32,6 +32,14 @@ import {
   normalizeEntity,
   normalizeRouteRow,
 } from '../utils/railway-normalizer';
+import {
+  buildPreviewSvg,
+  computeBoundsFromPoints,
+  mergeBounds,
+  parseSnapshotBounds,
+  type RoutePreviewBounds,
+  type RoutePreviewPath,
+} from '../utils/route-preview';
 import { DEFAULT_RAILWAY_TYPE } from '../config/railway-type.config';
 
 const FEATURED_TYPE_LABELS = {
@@ -193,6 +201,68 @@ export class TransportationRailwayService {
     return { success: true };
   }
 
+  private generatePreviewSvgFromSnapshot(
+    snapshot: {
+      geometry2d: Prisma.JsonValue;
+      pathNodes3d: Prisma.JsonValue;
+      bounds: Prisma.JsonValue | null;
+    },
+    color: number | null,
+  ): string | null {
+    const paths: RoutePreviewPath[] = [];
+    let mergedBounds: RoutePreviewBounds | null = null;
+
+    const nodes = Array.isArray(snapshot.pathNodes3d)
+      ? (snapshot.pathNodes3d as Array<{ x?: unknown; z?: unknown }>)
+      : [];
+    const pointsFromNodes = nodes
+      .map((node) => ({
+        x: Number(node.x),
+        z: Number(node.z),
+      }))
+      .filter(
+        (point): point is { x: number; z: number } =>
+          Number.isFinite(point.x) && Number.isFinite(point.z),
+      );
+
+    if (pointsFromNodes.length >= 2) {
+      paths.push({
+        points: pointsFromNodes,
+        color: color ?? null,
+      });
+      mergedBounds = mergeBounds(
+        mergedBounds,
+        computeBoundsFromPoints([pointsFromNodes]),
+      );
+    } else {
+      const rawPaths = (snapshot.geometry2d as Record<string, unknown>)?.paths;
+      if (Array.isArray(rawPaths)) {
+        for (const raw of rawPaths) {
+          if (!Array.isArray(raw)) continue;
+          const points = raw
+            .map((entry) => ({
+              x: Number((entry as any)?.x),
+              z: Number((entry as any)?.z),
+            }))
+            .filter(
+              (point): point is { x: number; z: number } =>
+                Number.isFinite(point.x) && Number.isFinite(point.z),
+            );
+          if (points.length < 2) continue;
+          paths.push({ points, color: color ?? null });
+          mergedBounds = mergeBounds(
+            mergedBounds,
+            computeBoundsFromPoints([points]),
+          );
+        }
+      }
+      const snapshotBounds = parseSnapshotBounds(snapshot.bounds);
+      mergedBounds = mergeBounds(mergedBounds, snapshotBounds);
+    }
+
+    return buildPreviewSvg({ paths, bounds: mergedBounds });
+  }
+
   private async fetchServerOverview(server: BeaconServerRecord): Promise<{
     server: BeaconServerRecord;
     routeCount: number;
@@ -246,6 +316,60 @@ export class TransportationRailwayService {
     const normalizedRoutes = (routeRows.rows ?? [])
       .map((row) => normalizeRouteRow(row, server))
       .filter((row): row is NormalizedRoute => Boolean(row));
+
+    if (normalizedRoutes.length > 0) {
+      const routeKeys = normalizedRoutes
+        .filter((r) => r.dimensionContext)
+        .map((r) => ({
+          dimensionContext: r.dimensionContext!,
+          routeEntityId: r.id,
+        }));
+
+      if (routeKeys.length > 0) {
+        const snapshots =
+          await this.prisma.transportationRailwayRouteGeometrySnapshot.findMany(
+            {
+              where: {
+                serverId: server.id,
+                railwayMod: server.railwayMod,
+                status: 'READY',
+                OR: routeKeys.map((k) => ({
+                  dimensionContext: k.dimensionContext,
+                  routeEntityId: k.routeEntityId,
+                })),
+              },
+              select: {
+                dimensionContext: true,
+                routeEntityId: true,
+                geometry2d: true,
+                pathNodes3d: true,
+                bounds: true,
+              },
+            },
+          );
+
+        const snapshotMap = new Map(
+          snapshots.map((s) => [
+            `${s.dimensionContext}::${s.routeEntityId}`,
+            s,
+          ]),
+        );
+
+        for (const route of normalizedRoutes) {
+          if (!route.dimensionContext) continue;
+          const snapshot = snapshotMap.get(
+            `${route.dimensionContext}::${route.id}`,
+          );
+          if (!snapshot) continue;
+
+          route.previewSvg = this.generatePreviewSvgFromSnapshot(
+            snapshot,
+            route.color,
+          );
+        }
+      }
+    }
+
     return {
       server,
       routeCount: counts.routes,
@@ -389,6 +513,34 @@ export class TransportationRailwayService {
         this.buildQueryRowFromStoredEntity(route),
         targetServer,
       );
+
+      if (normalized && normalized.dimensionContext) {
+        const snapshot =
+          await this.prisma.transportationRailwayRouteGeometrySnapshot.findFirst(
+            {
+              where: {
+                serverId: row.serverId,
+                railwayMod: row.railwayMod,
+                dimensionContext: normalized.dimensionContext,
+                routeEntityId: normalized.id,
+                status: 'READY',
+              },
+              select: {
+                geometry2d: true,
+                pathNodes3d: true,
+                bounds: true,
+              },
+            },
+          );
+
+        if (snapshot) {
+          normalized.previewSvg = this.generatePreviewSvgFromSnapshot(
+            snapshot,
+            normalized.color,
+          );
+        }
+      }
+
       return normalized;
     }
 

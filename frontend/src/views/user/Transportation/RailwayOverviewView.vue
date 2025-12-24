@@ -890,6 +890,19 @@ onBeforeUnmount(() => {
               >
                 <div class="space-y-1">
                   <div class="flex flex-wrap items-center gap-2">
+                    <div
+                      v-if="item.type === 'route' && item.item.previewSvg"
+                      class="h-7 w-7 shrink-0 overflow-hidden rounded drop-shadow"
+                      v-html="item.item.previewSvg"
+                    ></div>
+                    <div
+                      v-else-if="item.item.color"
+                      class="h-3 w-3 shrink-0 rounded-full"
+                      :style="{
+                        backgroundColor:
+                          '#' + item.item.color.toString(16).padStart(6, '0'),
+                      }"
+                    ></div>
                     <p
                       class="text-lg font-semibold text-slate-900 dark:text-white"
                     >
@@ -1013,6 +1026,19 @@ onBeforeUnmount(() => {
                 >
                   <div class="flex flex-col gap-1">
                     <div class="flex flex-wrap items-center gap-x-2">
+                      <div
+                        v-if="item.type === 'route' && item.item.previewSvg"
+                        class="h-7 w-7 shrink-0 overflow-hidden rounded drop-shadow"
+                        v-html="item.item.previewSvg"
+                      ></div>
+                      <div
+                        v-else-if="item.item.color"
+                        class="h-3 w-3 shrink-0 rounded-full"
+                        :style="{
+                          backgroundColor:
+                            '#' + item.item.color.toString(16).padStart(6, '0'),
+                        }"
+                      ></div>
                       <p
                         class="text-lg font-semibold text-slate-900 dark:text-white"
                       >

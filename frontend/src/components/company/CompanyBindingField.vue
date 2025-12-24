@@ -117,7 +117,12 @@ const bindingTypeQuery = computed(() => {
         </UButton>
       </span>
       <span class="text-slate-900 dark:text-white">
-        <span v-if="orderedCompanyIds.length === 0"> 暂无绑定</span>
+        <span
+          v-if="orderedCompanyIds.length === 0"
+          class="text-slate-400 dark:text-slate-500"
+        >
+          暂无绑定</span
+        >
 
         <div v-else class="flex flex-wrap gap-2 text-xs">
           <div
