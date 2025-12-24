@@ -71,6 +71,10 @@ model User {
   transportationRailwayFeaturedCreated TransportationRailwayFeaturedItem[] @relation("TransportationRailwayFeaturedCreatedBy")
   transportationRailwayFeaturedUpdated TransportationRailwayFeaturedItem[] @relation("TransportationRailwayFeaturedUpdatedBy")
   transportationRailwaySyncJobs TransportationRailwaySyncJob[] @relation("TransportationRailwaySyncInitiator")
+  transportationRailwaySystemsCreated TransportationRailwaySystem[] @relation("TransportationRailwaySystemCreatedBy")
+  transportationRailwaySystemsUpdated TransportationRailwaySystem[] @relation("TransportationRailwaySystemUpdatedBy")
+  transportationRailwayCompanyBindingsCreated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingCreatedBy")
+  transportationRailwayCompanyBindingsUpdated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingUpdatedBy")
 
   @@map("users")
 }
@@ -224,6 +228,7 @@ model TransportationRailwayRoute {
   syncedAt            DateTime
   createdAt           DateTime                   @default(now())
   updatedAt           DateTime                   @updatedAt
+  systemRoutes        TransportationRailwaySystemRoute[]
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_route")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_route_scope")
@@ -291,6 +296,63 @@ model TransportationRailwayDepot {
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_depot")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_depot_scope")
   @@map("transportation_railway_depots")
+}
+
+model TransportationRailwaySystem {
+  id               String                      @id @default(uuid())
+  name             String
+  englishName      String?
+  logoAttachmentId String?
+  serverId         String
+  dimensionContext String?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  createdById      String?
+  updatedById      String?
+  createdBy        User?                       @relation("TransportationRailwaySystemCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?                       @relation("TransportationRailwaySystemUpdatedBy", fields: [updatedById], references: [id])
+  logoAttachment   Attachment?                 @relation("TransportationRailwaySystemLogo", fields: [logoAttachmentId], references: [id])
+  routes           TransportationRailwaySystemRoute[]
+
+  @@index([serverId, dimensionContext], map: "idx_transportation_railway_system_scope")
+  @@map("transportation_railway_systems")
+}
+
+model TransportationRailwaySystemRoute {
+  id        String                     @id @default(uuid())
+  systemId  String
+  routeId   String
+  createdAt DateTime                   @default(now())
+  system    TransportationRailwaySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  route     TransportationRailwayRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([systemId, routeId], map: "uq_transportation_railway_system_route")
+  @@index([routeId], map: "idx_transportation_railway_system_route_route")
+  @@map("transportation_railway_system_routes")
+}
+
+model TransportationRailwayCompanyBinding {
+  id               String                               @id @default(uuid())
+  bindingType      TransportationRailwayCompanyBindingType
+  entityType       TransportationRailwayBindingEntityType
+  entityId         String
+  serverId         String?
+  railwayMod       TransportationRailwayMod?
+  dimensionContext String?
+  companyId        String
+  createdAt        DateTime                             @default(now())
+  updatedAt        DateTime                             @updatedAt
+  createdById      String?
+  updatedById      String?
+  company          Company                              @relation(fields: [companyId], references: [id])
+  createdBy        User?                                @relation("TransportationRailwayCompanyBindingCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?                                @relation("TransportationRailwayCompanyBindingUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([bindingType, entityType, entityId, companyId], map: "uq_transportation_railway_company_binding")
+  @@index([companyId], map: "idx_transportation_railway_company_binding_company")
+  @@index([entityType, entityId], map: "idx_transportation_railway_company_binding_entity")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_company_binding_scope")
+  @@map("transportation_railway_company_bindings")
 }
 
 model TransportationRailwayRail {
@@ -1000,6 +1062,7 @@ model Attachment {
   tags                  AttachmentTagging[]
   folder                AttachmentFolder?        @relation(fields: [folderId], references: [id])
   owner                 User?                    @relation("AttachmentUploader", fields: [ownerId], references: [id])
+  transportationRailwaySystemLogos TransportationRailwaySystem[] @relation("TransportationRailwaySystemLogo")
 
   @@index([folderId], map: "idx_attachments_folder")
   @@index([ownerId], map: "idx_attachments_owner")
@@ -1177,6 +1240,7 @@ model Company {
   policies                CompanyPolicy[]
   applications            CompanyApplication[]
   auditRecords            CompanyAuditRecord[]
+  transportationRailwayCompanyBindings TransportationRailwayCompanyBinding[]
 
   @@index([status, createdAt], map: "idx_companies_status_created")
   @@index([industryId], map: "idx_companies_industry")
@@ -1502,6 +1566,18 @@ enum TransportationRailwayFeaturedType {
   ROUTE
   STATION
   DEPOT
+}
+
+enum TransportationRailwayBindingEntityType {
+  ROUTE
+  STATION
+  DEPOT
+  SYSTEM
+}
+
+enum TransportationRailwayCompanyBindingType {
+  OPERATOR
+  BUILDER
 }
 
 enum TransportationRailwaySyncStatus {

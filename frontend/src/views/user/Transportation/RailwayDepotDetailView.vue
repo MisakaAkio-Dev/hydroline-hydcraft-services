@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import RailwayDepotMapPanel from '@/views/user/Transportation/railway/components/RailwayDepotMapPanel.vue'
+import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type { RailwayDepotDetail } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
@@ -378,6 +379,16 @@ onMounted(() => {
               </dd>
             </div>
           </dl>
+
+          <RailwayCompanyBindingSection
+            entity-type="DEPOT"
+            :entity-id="detail.depot.id"
+            :server-id="detail.server.id"
+            :railway-type="detail.railwayType"
+            :dimension="detail.depot.dimension ?? params.dimension ?? null"
+            :operator-company-ids="detail.operatorCompanyIds"
+            :builder-company-ids="detail.builderCompanyIds"
+          />
 
           <div class="mt-6 space-y-3">
             <div

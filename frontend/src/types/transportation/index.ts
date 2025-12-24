@@ -41,6 +41,7 @@ export interface RailwayOverviewStats {
   routes: number
   stations: number
   depots: number
+  operatorCompanies: number
 }
 
 export interface RailwayOverview {
@@ -132,6 +133,9 @@ export interface RailwayRouteDetail {
     }
   >
   depots: RailwayEntity[]
+  operatorCompanyIds: string[]
+  builderCompanyIds: string[]
+  systems?: RailwaySystemRef[]
   geometry: {
     source: 'rails' | 'platform-centers' | 'station-bounds'
     points: RailwayGeometryPoint[]
@@ -166,6 +170,8 @@ export interface RailwayStationDetail {
   >
   routes: RailwayRoute[]
   mergedRoutes?: RailwayRoute[]
+  operatorCompanyIds: string[]
+  builderCompanyIds: string[]
   metadata: {
     lastUpdated: number | null
   }
@@ -215,9 +221,86 @@ export interface RailwayDepotDetail {
     frequencies: number[] | null
   }
   routes: RailwayRoute[]
+  operatorCompanyIds: string[]
+  builderCompanyIds: string[]
   metadata: {
     lastUpdated: number | null
   }
+}
+
+export interface RailwaySystemRef {
+  id: string
+  name: string
+  englishName: string | null
+  logoAttachmentId: string | null
+  logoUrl: string | null
+}
+
+export interface RailwaySystemRouteSummary {
+  entityId: string
+  name: string | null
+  color: number | null
+  transportMode: string | null
+  previewSvg?: string | null
+  dimension: string | null
+  dimensionContext: string | null
+  server: { id: string; name: string }
+  railwayType: string
+}
+
+export interface RailwaySystemDetail {
+  id: string
+  name: string
+  englishName: string | null
+  logoAttachmentId: string | null
+  logoUrl: string | null
+  serverId: string
+  dimensionContext: string | null
+  routes: RailwaySystemRouteSummary[]
+  updatedAt: string
+}
+
+export interface RailwaySystemListResponse {
+  total: number
+  page: number
+  pageSize: number
+  pageCount: number
+  items: Array<{
+    id: string
+    name: string
+    englishName: string | null
+    logoAttachmentId: string | null
+    logoUrl: string | null
+    serverId: string
+    dimensionContext: string | null
+    routeCount: number
+    updatedAt: string
+  }>
+}
+
+export interface RailwayCompanyBindingPayload {
+  operatorCompanyIds: string[]
+  builderCompanyIds: string[]
+}
+
+export interface RailwayCompanyBindingStatItem {
+  companyId: string
+  total: number
+  routes: number
+  stations: number
+  depots: number
+  systems: number
+}
+
+export interface RailwayCompanyBindingEntry {
+  id: string
+  bindingType: string
+  entityType: string
+  entityId: string
+  serverId: string | null
+  railwayMod: string | null
+  dimensionContext: string | null
+  createdAt: string
 }
 
 export interface RailwayRouteLogEntry {

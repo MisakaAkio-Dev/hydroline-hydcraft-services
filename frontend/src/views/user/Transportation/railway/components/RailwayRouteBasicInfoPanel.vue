@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import type { RailwayRouteDetail } from '@/types/transportation'
+import type {
+  RailwayRouteDetail,
+  RailwaySystemRef,
+} from '@/types/transportation'
+import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
 
 defineProps<{
   detail: RailwayRouteDetail
   routeColorHex: string | null
   modpackLabel: string
   modpackImage: string | null
+  operatorCompanyIds: string[]
+  builderCompanyIds: string[]
+  systems?: RailwaySystemRef[]
 }>()
 </script>
 
@@ -77,6 +84,41 @@ defineProps<{
           <span class="text-slate-900 dark:text-white">
             {{ detail.geometry.points.length }}
           </span>
+        </div>
+      </div>
+
+      <RailwayCompanyBindingSection
+        entity-type="ROUTE"
+        :entity-id="detail.route.id"
+        :server-id="detail.server.id"
+        :railway-type="detail.railwayType"
+        :dimension="detail.dimension"
+        :operator-company-ids="operatorCompanyIds"
+        :builder-company-ids="builderCompanyIds"
+      />
+
+      <div v-if="systems?.length" class="pt-2 border-t border-slate-200/70">
+        <p class="text-xs font-semibold text-slate-500 uppercase">
+          所属线路系统
+        </p>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <RouterLink
+            v-for="system in systems"
+            :key="system.id"
+            :to="{
+              name: 'transportation.railway.system.detail',
+              params: { systemId: system.id },
+            }"
+            class="flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-800/70 dark:bg-slate-700/60 dark:text-slate-200"
+          >
+            <img
+              v-if="system.logoUrl"
+              :src="system.logoUrl"
+              :alt="system.name"
+              class="h-4 w-4 rounded-full object-cover"
+            />
+            <span>{{ system.name }}</span>
+          </RouterLink>
         </div>
       </div>
     </div>

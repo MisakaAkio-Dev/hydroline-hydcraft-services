@@ -178,6 +178,42 @@ export const userRoutes: RouteRecordRaw[] = [
               import('@/views/user/Transportation/RailwayDepotListView.vue'),
           },
           {
+            path: 'railway/systems/new',
+            name: 'transportation.railway.system.create',
+            component: () =>
+              import('@/views/user/Transportation/RailwaySystemCreateView.vue'),
+          },
+          {
+            path: 'railway/systems/:systemId',
+            name: 'transportation.railway.system.detail',
+            component: () =>
+              import('@/views/user/Transportation/RailwaySystemDetailView.vue'),
+          },
+          {
+            path: 'railway/companies',
+            name: 'transportation.railway.companies',
+            component: () =>
+              import(
+                '@/views/user/Transportation/RailwayCompanyStatisticsView.vue'
+              ),
+          },
+          {
+            path: 'railway/companies/:companyId',
+            name: 'transportation.railway.company',
+            component: () =>
+              import(
+                '@/views/user/Transportation/RailwayCompanyDetailView.vue'
+              ),
+          },
+          {
+            path: 'railway/facilities',
+            name: 'transportation.railway.facilities',
+            component: () =>
+              import(
+                '@/views/user/Transportation/RailwayFacilityEditorView.vue'
+              ),
+          },
+          {
             path: 'aviation',
             name: 'transportation.aviation',
             component: () =>

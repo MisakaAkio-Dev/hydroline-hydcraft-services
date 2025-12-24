@@ -364,6 +364,12 @@ export class CompanyDirectoryQueryDto {
   pageSize?: number;
 }
 
+export class CompanyResolveDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  ids!: string[];
+}
+
 export class CompanySettingsDto {
   @IsIn(['AUTO', 'REVIEW'])
   joinPolicy!: 'AUTO' | 'REVIEW';

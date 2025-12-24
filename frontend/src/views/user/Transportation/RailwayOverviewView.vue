@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import RailwayMapPanel from '@/views/user/Transportation/railway/components/RailwayMapPanel.vue'
@@ -28,6 +29,7 @@ const transportationStore = useTransportationRailwayStore()
 const authStore = useAuthStore()
 const uiStore = useUiStore()
 const toast = useToast()
+const router = useRouter()
 
 const overview = computed(() => transportationStore.overview)
 const overviewLoading = computed(() => transportationStore.overviewLoading)
@@ -38,6 +40,7 @@ const stats = computed(
       routes: 0,
       stations: 0,
       depots: 0,
+      operatorCompanies: 0,
     },
 )
 const recommendations = computed(() => overview.value?.recommendations ?? [])
@@ -104,6 +107,7 @@ const canManageFeatured = computed(() =>
 )
 
 const settingsModalOpen = ref(false)
+const quickActionOpen = ref(false)
 const activeFeaturedTab = ref<'route' | 'station' | 'depot'>('route')
 const searchTerm = ref('')
 const searchLoading = ref(false)
@@ -204,6 +208,16 @@ function buildRecentDetailLink(item: RailwayRecentUpdateItem) {
     return buildStationDetailLink(item.item as RailwayEntity)
   }
   return buildDepotDetailLink(item.item as RailwayEntity)
+}
+
+function goCreateSystem() {
+  router.push({ name: 'transportation.railway.system.create' })
+  quickActionOpen.value = false
+}
+
+function goEditFacilities() {
+  router.push({ name: 'transportation.railway.facilities' })
+  quickActionOpen.value = false
 }
 
 function getRoutePlatformCount(item: RailwayFeaturedItem) {
@@ -591,16 +605,27 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="space-y-8">
-    <UButton
-      v-if="canManageFeatured"
-      color="neutral"
-      class="m-1.5 absolute right-4 top-6 md:top-10 hover:opacity-70 transition duration-200 cursor-pointer"
-      variant="ghost"
-      size="sm"
-      @click="settingsModalOpen = true"
-    >
-      <UIcon name="i-lucide-settings" class="w-4.5 h-4.5" />
-    </UButton>
+    <div class="absolute right-4 top-6 md:top-10 flex items-center gap-2 z-10">
+      <UButton
+        color="primary"
+        variant="solid"
+        size="sm"
+        class="shadow-md"
+        @click="quickActionOpen = true"
+      >
+        <UIcon name="i-lucide-plus" class="w-4.5 h-4.5" />
+      </UButton>
+      <UButton
+        v-if="canManageFeatured"
+        color="neutral"
+        class="hover:opacity-70 transition duration-200 cursor-pointer"
+        variant="ghost"
+        size="sm"
+        @click="settingsModalOpen = true"
+      >
+        <UIcon name="i-lucide-settings" class="w-4.5 h-4.5" />
+      </UButton>
+    </div>
 
     <section class="space-y-4">
       <section
@@ -699,7 +724,7 @@ onBeforeUnmount(() => {
             class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 shadow-[0_4px_16px_var(--color-neutral-50)] dark:shadow-[0_4px_16px_var(--color-neutral-900)] hover:bg-slate-50/60 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250"
           >
             <div class="text-xs text-slate-500 dark:text-slate-500">
-              全服铁路系统数
+              全服铁路线路系统数
             </div>
             <div
               class="text-2xl font-semibold text-slate-800 dark:text-slate-300"
@@ -709,17 +734,17 @@ onBeforeUnmount(() => {
           </div>
         </RouterLink>
 
-        <RouterLink :to="{ name: 'transportation.railway.depots' }">
+        <RouterLink :to="{ name: 'transportation.railway.companies' }">
           <div
             class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 shadow-[0_4px_16px_var(--color-neutral-50)] dark:shadow-[0_4px_16px_var(--color-neutral-900)] hover:bg-slate-50/60 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250"
           >
             <div class="text-xs text-slate-500 dark:text-slate-500">
-              全服铁路运营单位数
+              铁路运营单位数
             </div>
             <div
               class="text-2xl font-semibold text-slate-800 dark:text-slate-300"
             >
-              0
+              {{ stats.operatorCompanies }}
             </div>
           </div>
         </RouterLink>
@@ -1023,6 +1048,34 @@ onBeforeUnmount(() => {
         </Transition>
       </div>
     </section>
+
+    <UModal
+      :open="quickActionOpen"
+      @update:open="(value: boolean) => (quickActionOpen = value)"
+      :ui="{ width: 'w-full max-w-sm' }"
+    >
+      <template #title>添加信息</template>
+      <template #body>
+        <div class="space-y-3">
+          <UButton
+            color="primary"
+            variant="soft"
+            class="w-full"
+            @click="goCreateSystem"
+          >
+            添加信息（新建线路系统）
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="soft"
+            class="w-full"
+            @click="goEditFacilities"
+          >
+            编辑设施
+          </UButton>
+        </div>
+      </template>
+    </UModal>
 
     <UModal
       :open="settingsModalOpen"

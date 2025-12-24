@@ -972,6 +972,9 @@ onMounted(() => {
                 :route-color-hex="routeColorHex"
                 :modpack-label="modpackInfo.label"
                 :modpack-image="modpackInfo.image"
+                :operator-company-ids="activeDetail?.operatorCompanyIds ?? []"
+                :builder-company-ids="activeDetail?.builderCompanyIds ?? []"
+                :systems="detail?.systems ?? []"
               />
             </section>
 

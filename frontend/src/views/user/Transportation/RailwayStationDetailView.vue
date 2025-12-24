@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import RailwayStationMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwayStationMapFullscreenOverlay.vue'
 import RailwayStationRoutesMapPanel from '@/views/user/Transportation/railway/components/RailwayStationRoutesMapPanel.vue'
+import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type { RailwayStationDetail } from '@/types/transportation'
 import type {
@@ -663,6 +664,16 @@ onUnmounted(() => {
               </dd>
             </div>
           </dl>
+
+          <RailwayCompanyBindingSection
+            entity-type="STATION"
+            :entity-id="detail.station.id"
+            :server-id="detail.server.id"
+            :railway-type="detail.railwayType"
+            :dimension="detail.station.dimension ?? params.dimension ?? null"
+            :operator-company-ids="detail.operatorCompanyIds"
+            :builder-company-ids="detail.builderCompanyIds"
+          />
 
           <div class="mt-6 space-y-3">
             <div

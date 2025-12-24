@@ -118,6 +118,7 @@ export type OverviewStats = {
   routes: number;
   stations: number;
   depots: number;
+  operatorCompanies: number;
 };
 
 export type OverviewLatest = {
@@ -163,6 +164,15 @@ export type RouteDetailResult = {
     }
   >;
   depots: NormalizedEntity[];
+  operatorCompanyIds: string[];
+  builderCompanyIds: string[];
+  systems?: Array<{
+    id: string;
+    name: string;
+    englishName: string | null;
+    logoAttachmentId: string | null;
+    logoUrl: string | null;
+  }>;
   geometry: {
     source: 'rails' | 'platform-centers' | 'station-bounds';
     points: Array<{ x: number; z: number }>;
@@ -209,6 +219,8 @@ export type RailwayStationDetailResult = {
   >;
   routes: NormalizedRoute[];
   mergedRoutes?: NormalizedRoute[];
+  operatorCompanyIds: string[];
+  builderCompanyIds: string[];
   metadata: {
     lastUpdated: number | null;
   };
@@ -231,6 +243,8 @@ export type RailwayDepotDetailResult = {
     frequencies: number[] | null;
   };
   routes: NormalizedRoute[];
+  operatorCompanyIds: string[];
+  builderCompanyIds: string[];
   metadata: {
     lastUpdated: number | null;
   };

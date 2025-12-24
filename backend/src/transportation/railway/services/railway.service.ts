@@ -4,6 +4,8 @@ import {
   TransportationRailwayFeaturedItem,
   TransportationRailwayFeaturedType,
   TransportationRailwayMod,
+  TransportationRailwayBindingEntityType,
+  TransportationRailwayCompanyBindingType,
 } from '@prisma/client';
 import { HydrolineBeaconPoolService } from '../../../lib/hydroline-beacon';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -60,6 +62,7 @@ export class TransportationRailwayService {
       routes: 0,
       stations: 0,
       depots: 0,
+      operatorCompanies: 0,
     };
     const latest: OverviewLatest = {
       depots: [],
@@ -118,6 +121,17 @@ export class TransportationRailwayService {
     latest.stations.splice(8);
     latest.routes.splice(8);
     recentUpdates.sort((a, b) => (b.lastUpdated ?? 0) - (a.lastUpdated ?? 0));
+
+    const operatorCompanies =
+      await this.prisma.transportationRailwayCompanyBinding.findMany({
+        where: {
+          bindingType: TransportationRailwayCompanyBindingType.OPERATOR,
+          entityType: TransportationRailwayBindingEntityType.ROUTE,
+        },
+        distinct: ['companyId'],
+        select: { companyId: true },
+      });
+    stats.operatorCompanies = operatorCompanies.length;
 
     return {
       stats,

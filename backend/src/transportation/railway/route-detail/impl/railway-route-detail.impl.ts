@@ -7,6 +7,8 @@ import {
 import {
   Prisma,
   TransportationRailwayDepot,
+  TransportationRailwayBindingEntityType,
+  TransportationRailwayCompanyBindingType,
   TransportationRailwayMod,
   TransportationRailwayPlatform,
   TransportationRailwayRoute,
@@ -151,6 +153,7 @@ import type {
   PreferredRailCurve,
 } from '../../types/railway-graph.types';
 import { MtrRouteFinder } from '../../../../lib/mtr/mtr-route-finder';
+import { buildPublicUrl } from '../../../../lib/shared/url';
 
 @Injectable()
 export class TransportationRailwayRouteDetailService {
@@ -301,6 +304,8 @@ export class TransportationRailwayRouteDetailService {
       stations: normalizedStations,
       platforms: normalizedPlatforms,
       depots: normalizedDepots,
+      operatorCompanyIds: [],
+      builderCompanyIds: [],
       geometry,
       stops: this.buildStopSequence(
         orderedPlatformIds,
@@ -308,6 +313,19 @@ export class TransportationRailwayRouteDetailService {
         stationAssociations.platformStations,
       ),
     };
+
+    const bindingDimensionContext =
+      normalizedRoute.dimensionContext ?? routeEntity.dimensionContext ?? null;
+    const bindings = await this.fetchCompanyBindingsForEntity({
+      entityType: TransportationRailwayBindingEntityType.ROUTE,
+      entityId: normalizedRouteId,
+      serverId: server.id,
+      railwayMod: server.railwayMod,
+      dimensionContext: bindingDimensionContext,
+    });
+    detail.operatorCompanyIds = bindings.operatorCompanyIds;
+    detail.builderCompanyIds = bindings.builderCompanyIds;
+    detail.systems = await this.fetchRouteSystems(routeEntity.id);
 
     return detail;
   }
@@ -529,6 +547,14 @@ export class TransportationRailwayRouteDetailService {
       }
     }
     const mergedRoutes = this.mergeRoutesForDisplay(routes);
+    const bindings = await this.fetchCompanyBindingsForEntity({
+      entityType: TransportationRailwayBindingEntityType.STATION,
+      entityId: normalizedStationId,
+      serverId: server.id,
+      railwayMod: server.railwayMod,
+      dimensionContext,
+    });
+
     return {
       server: { id: server.id, name: server.displayName },
       railwayType: server.railwayMod,
@@ -536,6 +562,8 @@ export class TransportationRailwayRouteDetailService {
       platforms: platformDetails,
       routes,
       mergedRoutes,
+      operatorCompanyIds: bindings.operatorCompanyIds,
+      builderCompanyIds: bindings.builderCompanyIds,
       metadata: {
         lastUpdated:
           stationRow.lastBeaconUpdatedAt?.getTime() ??
@@ -854,11 +882,21 @@ export class TransportationRailwayRouteDetailService {
       cruisingAltitude: toNumber(depotPayload?.['cruising_altitude']),
       frequencies,
     };
+    const bindings = await this.fetchCompanyBindingsForEntity({
+      entityType: TransportationRailwayBindingEntityType.DEPOT,
+      entityId: normalizedDepotId,
+      serverId: server.id,
+      railwayMod: server.railwayMod,
+      dimensionContext,
+    });
+
     return {
       server: { id: server.id, name: server.displayName },
       railwayType: server.railwayMod,
       depot: depotDetail,
       routes,
+      operatorCompanyIds: bindings.operatorCompanyIds,
+      builderCompanyIds: bindings.builderCompanyIds,
       metadata: {
         lastUpdated:
           depotRow.lastBeaconUpdatedAt?.getTime() ??
@@ -1140,6 +1178,8 @@ export class TransportationRailwayRouteDetailService {
       stations: normalizedStations,
       platforms: normalizedPlatforms,
       depots: normalizedDepots,
+      operatorCompanyIds: [],
+      builderCompanyIds: [],
       geometry,
       stops: this.buildStopSequence(
         orderedPlatformIds,
@@ -3050,5 +3090,66 @@ export class TransportationRailwayRouteDetailService {
       page,
       limit,
     );
+  }
+
+  private async fetchCompanyBindingsForEntity(params: {
+    entityType: TransportationRailwayBindingEntityType;
+    entityId: string;
+    serverId: string;
+    railwayMod: TransportationRailwayMod;
+    dimensionContext: string | null;
+  }) {
+    const bindings =
+      await this.prisma.transportationRailwayCompanyBinding.findMany({
+        where: {
+          entityType: params.entityType,
+          entityId: params.entityId,
+          serverId: params.serverId,
+          railwayMod: params.railwayMod,
+          dimensionContext: params.dimensionContext ?? null,
+        },
+        select: {
+          companyId: true,
+          bindingType: true,
+        },
+      });
+
+    const operatorCompanyIds: string[] = [];
+    const builderCompanyIds: string[] = [];
+
+    for (const binding of bindings) {
+      if (
+        binding.bindingType === TransportationRailwayCompanyBindingType.OPERATOR
+      ) {
+        operatorCompanyIds.push(binding.companyId);
+      } else if (
+        binding.bindingType === TransportationRailwayCompanyBindingType.BUILDER
+      ) {
+        builderCompanyIds.push(binding.companyId);
+      }
+    }
+
+    return {
+      operatorCompanyIds,
+      builderCompanyIds,
+    };
+  }
+
+  private async fetchRouteSystems(routeRecordId: string) {
+    const systemRoutes =
+      await this.prisma.transportationRailwaySystemRoute.findMany({
+        where: { routeId: routeRecordId },
+        include: { system: true },
+      });
+
+    return systemRoutes.map((item) => ({
+      id: item.system.id,
+      name: item.system.name,
+      englishName: item.system.englishName ?? null,
+      logoAttachmentId: item.system.logoAttachmentId ?? null,
+      logoUrl: item.system.logoAttachmentId
+        ? buildPublicUrl(`/attachments/public/${item.system.logoAttachmentId}`)
+        : null,
+    }));
   }
 }

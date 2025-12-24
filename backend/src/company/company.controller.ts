@@ -20,6 +20,7 @@ import { OptionalAuthGuard } from '../auth/optional-auth.guard';
 import { CompanyService } from './company.service';
 import {
   CompanyDirectoryQueryDto,
+  CompanyResolveDto,
   CompanyMemberApprovalDto,
   CompanyMemberRejectDto,
   CompanyMemberUpdateDto,
@@ -84,6 +85,12 @@ export class CompanyController {
   @ApiOperation({ summary: '工商数据库列表' })
   async list(@Query() query: CompanyDirectoryQueryDto) {
     return this.companyService.listDirectory(query);
+  }
+
+  @Post('resolve')
+  @ApiOperation({ summary: '按 ID 查询公司信息' })
+  async resolve(@Body() body: CompanyResolveDto) {
+    return this.companyService.resolveCompanies(body.ids);
   }
 
   @Get('users/search')

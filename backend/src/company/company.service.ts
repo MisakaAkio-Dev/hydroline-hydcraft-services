@@ -615,6 +615,22 @@ export class CompanyService implements OnModuleInit {
     };
   }
 
+  async resolveCompanies(ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids.filter((id) => id?.trim())));
+    if (!uniqueIds.length) {
+      return [];
+    }
+    const companies = await this.prisma.company.findMany({
+      where: {
+        id: { in: uniqueIds },
+        status: CompanyStatus.ACTIVE,
+        visibility: CompanyVisibility.PUBLIC,
+      },
+      include: companyInclude,
+    });
+    return companies.map((company) => this.serializeCompany(company));
+  }
+
   async getCompanyDetail(id: string, viewerId?: string | null) {
     const company = await this.findCompanyOrThrow(id);
     if (!this.canViewCompany(company, viewerId)) {
