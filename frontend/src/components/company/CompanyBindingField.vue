@@ -20,7 +20,7 @@ const modalOpen = ref(false)
 const searchTerm = ref('')
 const searchLoading = ref(false)
 const searchOptions = ref<CompanyModel[]>([])
-const selectedCompanyId = ref<string | null>(null)
+const selectedCompanyIds = ref<string[]>([])
 const companyMap = ref<Record<string, CompanyModel>>({})
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -42,7 +42,7 @@ watch(
   (open) => {
     if (!open) return
     searchTerm.value = ''
-    selectedCompanyId.value = null
+    selectedCompanyIds.value = []
     void fetchOptions('')
   },
 )
@@ -73,10 +73,12 @@ function removeCompany(companyId: string) {
 }
 
 function addSelectedCompany() {
-  if (!selectedCompanyId.value) return
+  if (selectedCompanyIds.value.length === 0) return
   const next = [...orderedCompanyIds.value]
-  if (!next.includes(selectedCompanyId.value)) {
-    next.push(selectedCompanyId.value)
+  for (const id of selectedCompanyIds.value) {
+    if (!next.includes(id)) {
+      next.push(id)
+    }
   }
   emit('update', next)
   modalOpen.value = false
@@ -89,6 +91,13 @@ function resolveCompanyName(companyId: string) {
 function resolveCompanyLogo(companyId: string) {
   return companyMap.value[companyId]?.logoUrl ?? null
 }
+
+const bindingTypeQuery = computed(() => {
+  if (props.label.includes('运营')) return 'OPERATOR'
+  if (props.label.includes('建筑') || props.label.includes('建设'))
+    return 'BUILDER'
+  return undefined
+})
 </script>
 
 <template>
@@ -116,13 +125,22 @@ function resolveCompanyLogo(companyId: string) {
             :key="companyId"
             class="flex items-center gap-0.5 text-sm"
           >
-            <img
-              v-if="resolveCompanyLogo(companyId)"
-              :src="resolveCompanyLogo(companyId) ?? undefined"
-              :alt="resolveCompanyName(companyId)"
-              class="h-fit w-4 rounded-full object-cover"
-            />
-            <span>{{ resolveCompanyName(companyId) }}</span>
+            <RouterLink
+              :to="{
+                name: 'transportation.railway.company',
+                params: { companyId },
+                query: { bindingType: bindingTypeQuery },
+              }"
+              class="flex items-center gap-0.5 hover:opacity-80 transition-opacity hover:underline decoration-slate-400/50 underline-offset-2"
+            >
+              <img
+                v-if="resolveCompanyLogo(companyId)"
+                :src="resolveCompanyLogo(companyId) ?? undefined"
+                :alt="resolveCompanyName(companyId)"
+                class="h-fit w-4 rounded-full object-cover"
+              />
+              <span>{{ resolveCompanyName(companyId) }}</span>
+            </RouterLink>
             <UButton
               v-if="allowEdit"
               variant="link"
@@ -150,11 +168,12 @@ function resolveCompanyLogo(companyId: string) {
           </div>
 
           <USelectMenu
-            v-model="selectedCompanyId"
+            v-model="selectedCompanyIds"
             v-model:search-term="searchTerm"
             :items="searchOptions"
             :loading="searchLoading"
             searchable
+            multiple
             value-key="id"
             label-key="name"
             placeholder="搜索公司"
@@ -173,7 +192,7 @@ function resolveCompanyLogo(companyId: string) {
           <div class="flex justify-end">
             <UButton
               color="primary"
-              :disabled="!selectedCompanyId"
+              :disabled="selectedCompanyIds.length === 0"
               @click="addSelectedCompany"
             >
               添加

@@ -99,25 +99,19 @@ watch(
 </script>
 
 <template>
-  <div class="space-y-6 relative">
-    <div class="absolute right-4 top-6 md:top-10 flex items-center gap-2">
+  <div class="space-y-6">
+    <div>
       <UTooltip text="编辑铁路设施">
         <UButton
           color="primary"
           variant="soft"
           size="xs"
-          class="p-1"
+          class="absolute right-4 top-6 md:top-10 p-1"
           icon="i-lucide-edit"
           @click="goEditFacilities"
         />
       </UTooltip>
-    </div>
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
-          铁路运营 / 建设单位统计
-        </h1>
-      </div>
+
       <UButton
         size="sm"
         class="absolute left-4 top-6 md:top-10"
@@ -127,6 +121,13 @@ watch(
       >
         返回概览
       </UButton>
+    </div>
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
+          铁路运营 / 建设单位统计
+        </h1>
+      </div>
     </div>
 
     <div class="flex items-center gap-2">
