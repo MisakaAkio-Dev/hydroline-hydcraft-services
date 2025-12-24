@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import dayjs from 'dayjs'
 import RailwaySystemMapPanel from '@/views/user/Transportation/railway/components/RailwaySystemMapPanel.vue'
 import RailwaySystemMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwaySystemMapFullscreenOverlay.vue'
 import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
@@ -10,6 +11,7 @@ import { useTransportationRailwayBindingsStore } from '@/stores/transportation/r
 import type {
   RailwayRouteDetail,
   RailwaySystemDetail,
+  RailwaySystemLogResponse,
 } from '@/types/transportation'
 
 const route = useRoute()
@@ -28,6 +30,28 @@ const bindingPayload = ref({
   builderCompanyIds: [] as string[],
 })
 const relatedSystems = ref<Array<{ id: string; name: string }>>([])
+
+const deleteLoading = ref(false)
+const deleteModalOpen = ref(false)
+
+const logs = ref<RailwaySystemLogResponse | null>(null)
+const logLoading = ref(false)
+const logError = ref<string | null>(null)
+const logPage = ref(1)
+const logPageSize = 8
+const logContentRef = ref<HTMLElement | null>(null)
+let lastLogContentHeight: number | null = null
+
+const logPageCount = computed(() => {
+  const total = logs.value?.total ?? 0
+  const pageSize = logs.value?.pageSize ?? logPageSize
+  return Math.max(1, Math.ceil(total / pageSize))
+})
+
+const canGoLogPrev = computed(() => (logs.value?.page ?? logPage.value) > 1)
+const canGoLogNext = computed(
+  () => (logs.value?.page ?? logPage.value) < logPageCount.value,
+)
 
 const systemId = computed(() => route.params.systemId as string)
 
@@ -73,6 +97,7 @@ async function fetchSystemDetail() {
     }
 
     await fetchRelatedSystems(detail)
+    await fetchLogs()
   } catch (error) {
     toast.add({
       title: error instanceof Error ? error.message : '加载失败',
@@ -82,6 +107,82 @@ async function fetchSystemDetail() {
     loading.value = false
   }
 }
+
+async function fetchLogs() {
+  if (!systemId.value) return
+  logLoading.value = true
+  logError.value = null
+  try {
+    const result = await systemsStore.fetchSystemLogs(
+      systemId.value,
+      logPage.value,
+      logPageSize,
+    )
+    logs.value = result
+    logPage.value = result.page
+  } catch (error) {
+    logError.value = error instanceof Error ? error.message : '加载日志失败'
+  } finally {
+    logLoading.value = false
+  }
+}
+
+function goLogPrev() {
+  if (!canGoLogPrev.value) return
+  logPage.value--
+  void fetchLogs()
+}
+
+function goLogNext() {
+  if (!canGoLogNext.value) return
+  logPage.value++
+  void fetchLogs()
+}
+
+function formatLogTimestamp(ts: string) {
+  if (!ts) return '—'
+  const d = dayjs(ts)
+  if (!d.isValid()) return ts
+  return d.format('YYYY-MM-DD HH:mm')
+}
+
+function goPlayerProfile(name: string | null) {
+  if (!name) return
+  router.push({ name: 'profile.detail', params: { name } })
+}
+
+watch(
+  () => [logs.value?.page, logs.value?.entries.length] as const,
+  async () => {
+    await nextTick()
+    const el = logContentRef.value
+    if (!el) return
+
+    const nextHeight = el.getBoundingClientRect().height
+    if (lastLogContentHeight == null) {
+      lastLogContentHeight = nextHeight
+      return
+    }
+    if (Math.abs(nextHeight - lastLogContentHeight) < 1) return
+
+    el.style.height = `${lastLogContentHeight}px`
+    el.style.overflow = 'hidden'
+    // force reflow
+    void el.getBoundingClientRect()
+    el.style.transition = 'height 200ms ease'
+    el.style.height = `${nextHeight}px`
+
+    window.setTimeout(() => {
+      if (el !== logContentRef.value) return
+      el.style.transition = ''
+      el.style.height = ''
+      el.style.overflow = ''
+    }, 220)
+
+    lastLogContentHeight = nextHeight
+  },
+  { flush: 'post' },
+)
 
 async function fetchRelatedSystems(detail: RailwaySystemDetail) {
   try {
@@ -114,6 +215,26 @@ async function fetchBindings(detail: RailwaySystemDetail) {
     }
   } catch {
     bindingPayload.value = { operatorCompanyIds: [], builderCompanyIds: [] }
+  }
+}
+
+async function handleDelete() {
+  deleteLoading.value = true
+  try {
+    await systemsStore.deleteSystem(systemId.value)
+    toast.add({
+      title: '删除成功',
+      color: 'green',
+    })
+    router.push({ name: 'transportation.railway' })
+  } catch (error) {
+    toast.add({
+      title: error instanceof Error ? error.message : '删除失败',
+      color: 'red',
+    })
+  } finally {
+    deleteLoading.value = false
+    deleteModalOpen.value = false
   }
 }
 
@@ -164,11 +285,12 @@ onMounted(() => {
         <div>
           <h1
             class="flex items-center gap-1 text-4xl font-semibold text-slate-900 dark:text-white"
+            v-if="system?.name"
           >
             {{ system?.name }}
           </h1>
-          <p class="text-sm text-slate-500">
-            {{ system?.englishName || '—' }}
+          <p class="text-sm text-slate-500" v-if="system?.englishName">
+            {{ system?.englishName }}
           </p>
           <div v-if="relatedSystems.length" class="mt-2 flex flex-wrap gap-2">
             <span class="text-xs text-slate-400">相关线路系统：</span>
@@ -247,6 +369,7 @@ onMounted(() => {
                 基本信息
               </h3>
               <UButton
+                v-if="system.canEdit"
                 size="xs"
                 variant="link"
                 color="primary"
@@ -258,6 +381,15 @@ onMounted(() => {
                 "
               >
                 编辑
+              </UButton>
+              <UButton
+                v-if="system.canDelete"
+                size="xs"
+                variant="link"
+                color="red"
+                @click="deleteModalOpen = true"
+              >
+                删除
               </UButton>
             </div>
 
@@ -307,25 +439,117 @@ onMounted(() => {
                     system.server?.name || system.serverId
                   }}</span>
                 </div>
+
+                <RailwayCompanyBindingSection
+                  entity-type="SYSTEM"
+                  :entity-id="system.id"
+                  :server-id="system.serverId"
+                  :railway-type="system.routes[0]?.railwayType ?? null"
+                  :dimension="systemDimension"
+                  :operator-company-ids="bindingPayload.operatorCompanyIds"
+                  :builder-company-ids="bindingPayload.builderCompanyIds"
+                />
               </div>
             </div>
           </div>
 
           <div class="space-y-3">
-            <h3 class="text-lg text-slate-600 dark:text-slate-300">有关单位</h3>
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg text-slate-600 dark:text-slate-300">
+                线路系统修改日志
+              </h3>
+              <div class="flex items-center gap-2">
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  icon="i-lucide-chevron-left"
+                  :disabled="logLoading || !canGoLogPrev"
+                  @click="goLogPrev"
+                >
+                  上一页
+                </UButton>
+                <span class="text-xs text-slate-500 dark:text-slate-400">
+                  第 {{ logs?.page ?? logPage }} / {{ logPageCount }} 页
+                </span>
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  icon="i-lucide-chevron-right"
+                  :disabled="logLoading || !canGoLogNext"
+                  @click="goLogNext"
+                >
+                  下一页
+                </UButton>
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  icon="i-lucide-refresh-cw"
+                  :disabled="logLoading"
+                  @click="fetchLogs"
+                >
+                  刷新
+                </UButton>
+              </div>
+            </div>
 
-            <div
-              class="space-y-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-800/60 dark:bg-slate-700/60 dark:text-slate-300"
-            >
-              <RailwayCompanyBindingSection
-                entity-type="SYSTEM"
-                :entity-id="system.id"
-                :server-id="system.serverId"
-                :railway-type="system.routes[0]?.railwayType ?? null"
-                :dimension="systemDimension"
-                :operator-company-ids="bindingPayload.operatorCompanyIds"
-                :builder-company-ids="bindingPayload.builderCompanyIds"
-              />
+            <div ref="logContentRef" class="relative">
+              <p v-if="!logs && logLoading" class="text-sm text-slate-500">
+                <UIcon
+                  name="i-lucide-loader-2"
+                  class="inline-block h-5 w-5 animate-spin text-slate-400"
+                />
+              </p>
+              <p v-else-if="!logs && logError" class="text-sm text-red-500">
+                {{ logError }}
+              </p>
+              <p
+                v-else-if="!logs || logs.entries.length === 0"
+                class="text-sm text-slate-500"
+              >
+                暂无日志记录
+              </p>
+              <div v-else class="space-y-3">
+                <div
+                  v-for="entry in logs.entries"
+                  :key="entry.id"
+                  class="flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250 outline-2 outline-transparent hover:outline-primary"
+                  @click="goPlayerProfile(entry.playerName)"
+                >
+                  <div class="flex items-center gap-3">
+                    <button
+                      type="button"
+                      class="shrink-0"
+                      @click="goPlayerProfile(entry.playerName)"
+                    >
+                      <img
+                        v-if="entry.playerAvatar"
+                        :src="entry.playerAvatar"
+                        class="h-10 w-10 rounded-full border border-slate-200 dark:border-slate-700"
+                        alt="player avatar"
+                      />
+                      <div
+                        v-else
+                        class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                      >
+                        无
+                      </div>
+                    </button>
+                    <div>
+                      <p
+                        class="text-sm font-semibold text-slate-900 dark:text-white"
+                      >
+                        {{ entry.playerName || '未知玩家' }}
+                      </p>
+                      <p class="text-xs text-slate-500">
+                        {{ entry.changeType }} · {{ system?.name }}
+                      </p>
+                      <p class="text-xs text-slate-400">
+                        {{ formatLogTimestamp(entry.timestamp) }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -404,5 +628,62 @@ onMounted(() => {
       :routes="routeDetails"
       :loading="routeDetails.length === 0"
     />
+
+    <UModal v-model:open="deleteModalOpen">
+      <template #content>
+        <UCard
+          :ui="{
+            ring: '',
+            divide: 'divide-y divide-gray-100 dark:divide-gray-800',
+          }"
+        >
+          <template #header>
+            <div class="flex items-center justify-between">
+              <h3
+                class="text-base font-semibold leading-6 text-gray-900 dark:text-white"
+              >
+                确认删除
+              </h3>
+              <UButton
+                color="gray"
+                variant="ghost"
+                icon="i-heroicons-x-mark-20-solid"
+                class="-my-1"
+                @click="deleteModalOpen = false"
+              />
+            </div>
+          </template>
+
+          <div class="p-4">
+            <p class="text-sm text-gray-500">
+              确定要删除线路系统
+              <span class="font-bold text-gray-900 dark:text-white">{{
+                system?.name
+              }}</span>
+              吗？此操作不可撤销。
+            </p>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-end gap-3">
+              <UButton
+                color="gray"
+                variant="ghost"
+                @click="deleteModalOpen = false"
+              >
+                取消
+              </UButton>
+              <UButton
+                color="red"
+                :loading="deleteLoading"
+                @click="handleDelete"
+              >
+                确认删除
+              </UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
   </div>
 </template>

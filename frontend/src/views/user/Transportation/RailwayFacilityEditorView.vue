@@ -257,7 +257,7 @@ onMounted(async () => {
               <td class="px-4 py-3">{{ item.dimension || '—' }}</td>
               <td class="px-4 py-3">
                 <UButton
-                  size="2xs"
+                  size="xs"
                   variant="ghost"
                   @click="openBindingModal(item)"
                 >
@@ -278,7 +278,7 @@ onMounted(async () => {
               {{ selectedItem?.name || selectedItem?.id || '设施绑定' }}
             </h3>
             <UButton
-              size="2xs"
+              size="xs"
               variant="ghost"
               @click="bindingModalOpen = false"
             >

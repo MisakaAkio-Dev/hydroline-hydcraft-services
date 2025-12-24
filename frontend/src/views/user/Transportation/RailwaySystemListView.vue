@@ -11,9 +11,15 @@ const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
 const systemsResponse = ref(
-  null as null | ReturnType<typeof systemsStore.fetchSystems>,
+  null as null | Awaited<ReturnType<typeof systemsStore.fetchSystems>>,
 )
 const renderToken = ref(0)
+
+const deleteLoading = ref(false)
+const deleteModalOpen = ref(false)
+const systemToDelete = ref<
+  NonNullable<typeof systemsResponse.value>['items'][number] | null
+>(null)
 
 const servers = ref<{ id: string; name: string; code: string }[]>([])
 const selectedServer = ref<string>('all')
@@ -68,6 +74,25 @@ function openSystem(systemId: string, edit = false) {
       : 'transportation.railway.system.detail',
     params: { systemId },
   })
+}
+
+function confirmDelete(
+  item: NonNullable<typeof systemsResponse.value>['items'][number],
+) {
+  systemToDelete.value = item
+  deleteModalOpen.value = true
+}
+
+async function handleDelete() {
+  if (!systemToDelete.value) return
+  deleteLoading.value = true
+  try {
+    await systemsStore.deleteSystem(systemToDelete.value.id)
+    void loadSystems()
+    deleteModalOpen.value = false
+  } finally {
+    deleteLoading.value = false
+  }
 }
 
 onMounted(() => {
@@ -208,18 +233,30 @@ onMounted(() => {
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-2">
                     <UButton
-                      size="2xs"
+                      size="xs"
                       variant="ghost"
+                      color="neutral"
+                      @click="openSystem(item.id)"
+                    >
+                      查看
+                    </UButton>
+                    <UButton
+                      v-if="item.canEdit"
+                      size="xs"
+                      variant="ghost"
+                      color="primary"
                       @click="openSystem(item.id, true)"
                     >
                       编辑
                     </UButton>
                     <UButton
-                      size="2xs"
+                      v-if="item.canDelete"
+                      size="xs"
                       variant="ghost"
-                      @click="openSystem(item.id)"
+                      color="red"
+                      @click="confirmDelete(item)"
                     >
-                      查看
+                      删除
                     </UButton>
                   </div>
                 </td>
@@ -294,5 +331,62 @@ onMounted(() => {
         </UButton>
       </div>
     </div>
+
+    <UModal v-model:open="deleteModalOpen">
+      <template #content>
+        <UCard
+          :ui="{
+            ring: '',
+            divide: 'divide-y divide-gray-100 dark:divide-gray-800',
+          }"
+        >
+          <template #header>
+            <div class="flex items-center justify-between">
+              <h3
+                class="text-base font-semibold leading-6 text-gray-900 dark:text-white"
+              >
+                确认删除
+              </h3>
+              <UButton
+                color="gray"
+                variant="ghost"
+                icon="i-heroicons-x-mark-20-solid"
+                class="-my-1"
+                @click="deleteModalOpen = false"
+              />
+            </div>
+          </template>
+
+          <div class="p-4">
+            <p class="text-sm text-gray-500">
+              确定要删除线路系统
+              <span class="font-bold text-gray-900 dark:text-white">{{
+                systemToDelete?.name
+              }}</span>
+              吗？此操作不可撤销。
+            </p>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-end gap-3">
+              <UButton
+                color="gray"
+                variant="ghost"
+                @click="deleteModalOpen = false"
+              >
+                取消
+              </UButton>
+              <UButton
+                color="red"
+                :loading="deleteLoading"
+                @click="handleDelete"
+              >
+                确认删除
+              </UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
   </div>
 </template>

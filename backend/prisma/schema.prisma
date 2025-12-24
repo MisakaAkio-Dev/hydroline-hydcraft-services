@@ -75,6 +75,7 @@ model User {
   transportationRailwaySystemsUpdated TransportationRailwaySystem[] @relation("TransportationRailwaySystemUpdatedBy")
   transportationRailwayCompanyBindingsCreated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingCreatedBy")
   transportationRailwayCompanyBindingsUpdated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingUpdatedBy")
+  transportationRailwaySystemLogs TransportationRailwaySystemLog[] @relation("RailwaySystemLogActor")
 
   @@map("users")
 }
@@ -313,9 +314,23 @@ model TransportationRailwaySystem {
   updatedBy        User?                       @relation("TransportationRailwaySystemUpdatedBy", fields: [updatedById], references: [id])
   logoAttachment   Attachment?                 @relation("TransportationRailwaySystemLogo", fields: [logoAttachmentId], references: [id])
   routes           TransportationRailwaySystemRoute[]
+  logs             TransportationRailwaySystemLog[]
 
   @@index([serverId, dimensionContext], map: "idx_transportation_railway_system_scope")
   @@map("transportation_railway_systems")
+}
+
+model TransportationRailwaySystemLog {
+  id        String   @id @default(uuid())
+  systemId  String
+  userId    String
+  action    String // CREATE, EDIT, DELETE
+  createdAt DateTime @default(now())
+  system    TransportationRailwaySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  user      User     @relation("RailwaySystemLogActor", fields: [userId], references: [id])
+
+  @@index([systemId])
+  @@map("transportation_railway_system_logs")
 }
 
 model TransportationRailwaySystemRoute {

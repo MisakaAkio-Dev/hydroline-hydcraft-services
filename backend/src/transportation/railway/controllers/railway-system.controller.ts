@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -16,6 +17,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { AuthGuard } from '../../../auth/auth.guard';
+import { OptionalAuthGuard } from '../../../auth/optional-auth.guard';
 import type { StoredUploadedFile } from '../../../attachments/uploaded-file.interface';
 import { TransportationRailwaySystemService } from '../services/railway-system.service';
 import {
@@ -33,18 +35,19 @@ export class TransportationRailwaySystemController {
     private readonly railwaySystemService: TransportationRailwaySystemService,
   ) {}
 
-  private requireUserId(req: Request) {
-    const userId = (req.user as { id?: string } | undefined)?.id;
-    if (!userId) {
+  private requireUser(req: Request) {
+    const user = req.user;
+    if (!user) {
       throw new BadRequestException('User session has expired');
     }
-    return userId;
+    return user;
   }
 
   @Get()
+  @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '线路系统列表' })
-  async list(@Query() query: RailwaySystemListQueryDto) {
-    return this.railwaySystemService.listSystems(query);
+  async list(@Req() req: Request, @Query() query: RailwaySystemListQueryDto) {
+    return this.railwaySystemService.listSystems(query, req.user);
   }
 
   @Get('servers')
@@ -54,9 +57,10 @@ export class TransportationRailwaySystemController {
   }
 
   @Get(':id')
+  @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '线路系统详情' })
-  async detail(@Param('id') id: string) {
-    return this.railwaySystemService.getSystemDetail(id);
+  async detail(@Param('id') id: string, @Req() req: Request) {
+    return this.railwaySystemService.getSystemDetail(id, req.user);
   }
 
   @Post()
@@ -64,8 +68,8 @@ export class TransportationRailwaySystemController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建线路系统' })
   async create(@Req() req: Request, @Body() body: RailwaySystemCreateDto) {
-    const userId = this.requireUserId(req);
-    return this.railwaySystemService.createSystem(userId, body);
+    const user = this.requireUser(req);
+    return this.railwaySystemService.createSystem(user, body);
   }
 
   @Patch(':id')
@@ -77,8 +81,8 @@ export class TransportationRailwaySystemController {
     @Req() req: Request,
     @Body() body: RailwaySystemUpdateDto,
   ) {
-    const userId = this.requireUserId(req);
-    return this.railwaySystemService.updateSystem(userId, id, body);
+    const user = this.requireUser(req);
+    return this.railwaySystemService.updateSystem(user, id, body);
   }
 
   @Patch(':id/logo')
@@ -96,7 +100,30 @@ export class TransportationRailwaySystemController {
     @UploadedFile() file: StoredUploadedFile,
     @Req() req: Request,
   ) {
-    const userId = this.requireUserId(req);
-    return this.railwaySystemService.updateSystemLogo(userId, id, file);
+    const user = this.requireUser(req);
+    return this.railwaySystemService.updateSystemLogo(user, id, file);
+  }
+
+  @Delete(':id')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '删除线路系统' })
+  async delete(@Param('id') id: string, @Req() req: Request) {
+    const user = this.requireUser(req);
+    return this.railwaySystemService.deleteSystem(user, id);
+  }
+
+  @Get(':id/logs')
+  @ApiOperation({ summary: '获取线路系统修改日志' })
+  async getLogs(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.railwaySystemService.getSystemLogs(
+      id,
+      page ? parseInt(page) : 1,
+      pageSize ? parseInt(pageSize) : 10,
+    );
   }
 }

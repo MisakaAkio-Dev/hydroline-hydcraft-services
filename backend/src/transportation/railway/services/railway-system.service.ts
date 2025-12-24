@@ -23,6 +23,7 @@ import { buildDimensionContextFromDimension } from '../utils/railway-normalizer'
 import { TransportationRailwayRouteDetailService } from '../route-detail/railway-route-detail.service';
 import { TransportationRailwayCompanyBindingService } from './railway-company-binding.service';
 import { MinecraftServerService } from '../../../minecraft/minecraft-server.service';
+import { PERMISSIONS } from '../../../auth/services/roles.service';
 
 export type RailwaySystemRouteSummary = {
   entityId: string;
@@ -57,7 +58,7 @@ export class TransportationRailwaySystemService {
       }));
   }
 
-  async listSystems(query: RailwaySystemListQueryDto) {
+  async listSystems(query: RailwaySystemListQueryDto, user?: any) {
     const page = Math.max(query.page ?? 1, 1);
     const pageSize = Math.min(Math.max(query.pageSize ?? 20, 5), 50);
     const andFilters: Prisma.TransportationRailwaySystemWhereInput[] = [];
@@ -105,28 +106,41 @@ export class TransportationRailwaySystemService {
       }),
     ]);
 
+    const canManageAll = this.hasPermission(
+      user,
+      PERMISSIONS.TRANSPORTATION_RAILWAY_SYSTEM_MANAGE,
+    );
+
     return {
       total,
       page,
       pageSize,
       pageCount: Math.max(1, Math.ceil(total / pageSize)),
-      items: items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        englishName: item.englishName ?? null,
-        logoAttachmentId: item.logoAttachmentId ?? null,
-        logoUrl: item.logoAttachmentId
-          ? buildPublicUrl(`/attachments/public/${item.logoAttachmentId}`)
-          : null,
-        serverId: item.serverId,
-        dimensionContext: item.dimensionContext ?? null,
-        routeCount: item._count.routes,
-        updatedAt: item.updatedAt,
-      })),
+      items: items.map((item) => {
+        const isOwner = user && item.createdById === user.id;
+        const canEdit = isOwner || canManageAll;
+        const canDelete = isOwner || canManageAll;
+
+        return {
+          id: item.id,
+          name: item.name,
+          englishName: item.englishName ?? null,
+          logoAttachmentId: item.logoAttachmentId ?? null,
+          logoUrl: item.logoAttachmentId
+            ? buildPublicUrl(`/attachments/public/${item.logoAttachmentId}`)
+            : null,
+          serverId: item.serverId,
+          dimensionContext: item.dimensionContext ?? null,
+          routeCount: item._count.routes,
+          updatedAt: item.updatedAt,
+          canEdit: !!canEdit,
+          canDelete: !!canDelete,
+        };
+      }),
     };
   }
 
-  async getSystemDetail(id: string) {
+  async getSystemDetail(id: string, user?: any) {
     const system = await this.prisma.transportationRailwaySystem.findUnique({
       where: { id },
       include: {
@@ -138,6 +152,12 @@ export class TransportationRailwaySystemService {
     if (!system) {
       throw new NotFoundException('Railway system not found');
     }
+
+    const canManage = this.hasPermission(
+      user,
+      PERMISSIONS.TRANSPORTATION_RAILWAY_SYSTEM_MANAGE,
+    );
+    const isOwner = user && system.createdById === user.id;
 
     const serverNameMap = await this.resolveServerNameMap([system.serverId]);
 
@@ -188,10 +208,23 @@ export class TransportationRailwaySystemService {
       routeDetails: routeDetails.filter((item) => item !== null),
       bindings,
       updatedAt: system.updatedAt,
+      canEdit: isOwner || canManage,
+      canDelete: isOwner || canManage,
     };
   }
 
-  async createSystem(userId: string, dto: RailwaySystemCreateDto) {
+  async createSystem(user: any, dto: RailwaySystemCreateDto) {
+    if (
+      !this.hasPermission(
+        user,
+        PERMISSIONS.TRANSPORTATION_RAILWAY_SYSTEM_CREATE,
+      )
+    ) {
+      throw new ForbiddenException(
+        'Insufficient permissions to create railway system',
+      );
+    }
+
     if (!dto.routes?.length) {
       throw new BadRequestException('Railway system must include routes');
     }
@@ -210,8 +243,8 @@ export class TransportationRailwaySystemService {
         logoAttachmentId: dto.logoAttachmentId ?? null,
         serverId,
         dimensionContext,
-        createdById: userId,
-        updatedById: userId,
+        createdById: user.id,
+        updatedById: user.id,
         routes: {
           createMany: {
             data: routeRecords.map((record) => ({ routeId: record.id })),
@@ -222,6 +255,8 @@ export class TransportationRailwaySystemService {
         routes: { include: { route: true } },
       },
     });
+
+    await this.createLog(system.id, user.id, 'CREATE');
 
     const serverNameMap = await this.resolveServerNameMap([serverId]);
     const routes = system.routes
@@ -240,16 +275,30 @@ export class TransportationRailwaySystemService {
       dimensionContext: system.dimensionContext ?? null,
       routes,
       updatedAt: system.updatedAt,
+      canEdit: true,
+      canDelete: true,
     };
   }
 
-  async updateSystem(userId: string, id: string, dto: RailwaySystemUpdateDto) {
+  async updateSystem(user: any, id: string, dto: RailwaySystemUpdateDto) {
     const system = await this.prisma.transportationRailwaySystem.findUnique({
       where: { id },
       include: { routes: true },
     });
     if (!system) {
       throw new NotFoundException('Railway system not found');
+    }
+
+    const isOwner = system.createdById === user.id;
+    const canManage = this.hasPermission(
+      user,
+      PERMISSIONS.TRANSPORTATION_RAILWAY_SYSTEM_MANAGE,
+    );
+
+    if (!isOwner && !canManage) {
+      throw new ForbiddenException(
+        'Insufficient permissions to update this railway system',
+      );
     }
 
     if (dto.logoAttachmentId) {
@@ -289,7 +338,7 @@ export class TransportationRailwaySystemService {
             dto.logoAttachmentId === undefined
               ? undefined
               : dto.logoAttachmentId,
-          updatedById: userId,
+          updatedById: user.id,
         },
       });
 
@@ -308,11 +357,13 @@ export class TransportationRailwaySystemService {
       return updatedSystem;
     });
 
+    await this.createLog(id, user.id, 'EDIT');
+
     const detail = await this.getSystemDetail(updated.id);
     return detail;
   }
 
-  async updateSystemLogo(userId: string, id: string, file: StoredUploadedFile) {
+  async updateSystemLogo(user: any, id: string, file: StoredUploadedFile) {
     if (!file) {
       throw new BadRequestException('Logo file is required');
     }
@@ -321,6 +372,18 @@ export class TransportationRailwaySystemService {
     });
     if (!system) {
       throw new NotFoundException('Railway system not found');
+    }
+
+    const isOwner = system.createdById === user.id;
+    const canManage = this.hasPermission(
+      user,
+      PERMISSIONS.TRANSPORTATION_RAILWAY_SYSTEM_MANAGE,
+    );
+
+    if (!isOwner && !canManage) {
+      throw new ForbiddenException(
+        'Insufficient permissions to update this railway system logo',
+      );
     }
 
     const folderName = '铁路线路系统';
@@ -332,7 +395,7 @@ export class TransportationRailwaySystemService {
     });
 
     if (!folder) {
-      folder = await this.attachmentsService.createFolder(userId, {
+      folder = await this.attachmentsService.createFolder(user.id, {
         name: folderName,
         description: '铁路线路系统相关图片',
         visibilityMode: 'public',
@@ -340,7 +403,7 @@ export class TransportationRailwaySystemService {
     }
 
     const attachment = await this.attachmentsService.uploadAttachment(
-      userId,
+      user.id,
       file,
       {
         name: `${system.name}-logo`,
@@ -357,9 +420,11 @@ export class TransportationRailwaySystemService {
       where: { id },
       data: {
         logoAttachmentId: attachment.id,
-        updatedById: userId,
+        updatedById: user.id,
       },
     });
+
+    await this.createLog(id, user.id, 'EDIT');
 
     if (system.logoAttachmentId && system.logoAttachmentId !== attachment.id) {
       try {
@@ -376,6 +441,34 @@ export class TransportationRailwaySystemService {
         ? buildPublicUrl(`/attachments/public/${updated.logoAttachmentId}`)
         : null,
     };
+  }
+
+  async deleteSystem(user: any, id: string) {
+    const system = await this.prisma.transportationRailwaySystem.findUnique({
+      where: { id },
+    });
+    if (!system) {
+      throw new NotFoundException('Railway system not found');
+    }
+
+    const isOwner = system.createdById === user.id;
+    const canManage = this.hasPermission(
+      user,
+      PERMISSIONS.TRANSPORTATION_RAILWAY_SYSTEM_MANAGE,
+    );
+
+    if (!isOwner && !canManage) {
+      throw new ForbiddenException(
+        'Insufficient permissions to delete this railway system',
+      );
+    }
+
+    // Record log before deletion
+    await this.createLog(id, user.id, 'DELETE');
+
+    await this.prisma.transportationRailwaySystem.delete({
+      where: { id },
+    });
   }
 
   private async resolveRouteRecords(routes: RailwaySystemRouteInputDto[]) {
@@ -521,5 +614,106 @@ export class TransportationRailwaySystemService {
     const first = primary.split('|')[0] ?? '';
     const trimmed = first.trim().toLowerCase();
     return trimmed || null;
+  }
+
+  private hasPermission(user: any, permission: string): boolean {
+    if (!user) return false;
+
+    // Admin bypass - 更加鲁棒的判断
+    const roles = user.roles || [];
+    if (
+      roles.some((r: any) => {
+        const roleKey = r.role?.key;
+        return roleKey === 'admin' || roleKey === 'moderator';
+      })
+    ) {
+      return true;
+    }
+
+    const granted = new Set<string>();
+    const denied = new Set<string>();
+
+    const applyPermission = (p?: { key?: string | null; metadata?: any }) => {
+      const key = p?.key;
+      if (!key) return;
+
+      let effect = 'ALLOW';
+      if (p?.metadata && typeof p.metadata === 'object') {
+        const meta = p.metadata as any;
+        if (meta.effect?.toUpperCase() === 'DENY') {
+          effect = 'DENY';
+        }
+      }
+
+      if (effect === 'DENY') {
+        denied.add(key);
+        granted.delete(key);
+      } else if (!denied.has(key)) {
+        granted.add(key);
+      }
+    };
+
+    for (const roleLink of roles) {
+      const permissionLinks = roleLink.role?.rolePermissions ?? [];
+      for (const link of permissionLinks) {
+        applyPermission(link.permission);
+      }
+    }
+
+    for (const labelLink of user.permissionLabels ?? []) {
+      const labelPermissions = labelLink.label?.permissions ?? [];
+      for (const link of labelPermissions) {
+        applyPermission(link.permission);
+      }
+    }
+
+    return granted.has(permission);
+  }
+
+  private async createLog(systemId: string, userId: string, action: string) {
+    await this.prisma.transportationRailwaySystemLog.create({
+      data: {
+        systemId,
+        userId,
+        action,
+      },
+    });
+  }
+
+  async getSystemLogs(systemId: string, page = 1, pageSize = 10) {
+    const skip = (page - 1) * pageSize;
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.transportationRailwaySystemLog.count({
+        where: { systemId },
+      }),
+      this.prisma.transportationRailwaySystemLog.findMany({
+        where: { systemId },
+        include: {
+          user: {
+            select: {
+              name: true,
+              image: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      total,
+      page,
+      pageSize,
+      pageCount: Math.max(1, Math.ceil(total / pageSize)),
+      entries: items.map((item) => ({
+        id: item.id,
+        timestamp: item.createdAt.toISOString(),
+        playerName: item.user.name,
+        playerAvatar: item.user.image,
+        changeType: item.action,
+      })),
+    };
   }
 }

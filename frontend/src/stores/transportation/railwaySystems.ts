@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/user/auth'
 import type {
   RailwaySystemDetail,
   RailwaySystemListResponse,
+  RailwaySystemLogResponse,
 } from '@/types/transportation'
 
 export type RailwaySystemRouteInput = {
@@ -38,6 +39,7 @@ export const useTransportationRailwaySystemsStore = defineStore(
         page?: number
         pageSize?: number
       }) {
+        const authStore = useAuthStore()
         const query = new URLSearchParams()
         if (params?.search) query.set('search', params.search)
         if (params?.serverId) query.set('serverId', params.serverId)
@@ -47,6 +49,7 @@ export const useTransportationRailwaySystemsStore = defineStore(
 
         return apiFetch<RailwaySystemListResponse>(
           `/transportation/railway/systems?${query.toString()}`,
+          { token: authStore.token },
         )
       },
       async fetchServers() {
@@ -55,8 +58,17 @@ export const useTransportationRailwaySystemsStore = defineStore(
         )
       },
       async fetchSystemDetail(id: string) {
+        const authStore = useAuthStore()
         return apiFetch<RailwaySystemDetail>(
           `/transportation/railway/systems/${id}`,
+          { token: authStore.token },
+        )
+      },
+      async fetchSystemLogs(id: string, page = 1, pageSize = 10) {
+        const authStore = useAuthStore()
+        return apiFetch<RailwaySystemLogResponse>(
+          `/transportation/railway/systems/${id}/logs?page=${page}&pageSize=${pageSize}`,
+          { token: authStore.token },
         )
       },
       async createSystem(payload: RailwaySystemCreatePayload) {
@@ -133,6 +145,16 @@ export const useTransportationRailwaySystemsStore = defineStore(
           xhr.onerror = () => reject(new Error('网络错误'))
           xhr.send(body)
         })
+      },
+      async deleteSystem(id: string) {
+        const authStore = useAuthStore()
+        return apiFetch<{ success: boolean }>(
+          `/transportation/railway/systems/${id}`,
+          {
+            method: 'DELETE',
+            token: authStore.token,
+          },
+        )
       },
     },
   },

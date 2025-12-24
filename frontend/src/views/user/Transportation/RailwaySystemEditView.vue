@@ -710,7 +710,7 @@ onBeforeUnmount(() => {
                           已选
                         </span>
                         <UButton
-                          size="2xs"
+                          size="xs"
                           variant="ghost"
                           :color="
                             isRouteSelected(group.routes[0].id)
@@ -825,7 +825,7 @@ onBeforeUnmount(() => {
                                 已选
                               </span>
                               <UButton
-                                size="2xs"
+                                size="xs"
                                 variant="ghost"
                                 :color="
                                   isRouteSelected(route.id)
@@ -927,7 +927,7 @@ onBeforeUnmount(() => {
                         </p>
                       </div>
                       <UButton
-                        size="2xs"
+                        size="xs"
                         variant="ghost"
                         color="primary"
                         @click="removeRoute(group.routes[0].entityId)"
@@ -1011,7 +1011,7 @@ onBeforeUnmount(() => {
                               </p>
                             </div>
                             <UButton
-                              size="2xs"
+                              size="xs"
                               variant="ghost"
                               color="primary"
                               @click="removeRoute(route.entityId)"

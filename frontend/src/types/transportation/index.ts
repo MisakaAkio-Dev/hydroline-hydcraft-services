@@ -262,6 +262,8 @@ export interface RailwaySystemDetail {
   routeDetails?: RailwayRouteDetail[]
   bindings?: RailwayCompanyBindingPayload
   updatedAt: string
+  canEdit?: boolean
+  canDelete?: boolean
 }
 
 export interface RailwaySystemListResponse {
@@ -279,7 +281,25 @@ export interface RailwaySystemListResponse {
     dimensionContext: string | null
     routeCount: number
     updatedAt: string
+    canEdit?: boolean
+    canDelete?: boolean
   }>
+}
+
+export interface RailwaySystemLogEntry {
+  id: string
+  timestamp: string
+  playerName: string | null
+  playerAvatar: string | null
+  changeType: string
+}
+
+export interface RailwaySystemLogResponse {
+  total: number
+  page: number
+  pageSize: number
+  pageCount: number
+  entries: RailwaySystemLogEntry[]
 }
 
 export interface RailwayCompanyBindingPayload {

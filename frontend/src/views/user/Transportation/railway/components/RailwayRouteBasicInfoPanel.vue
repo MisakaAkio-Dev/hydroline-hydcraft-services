@@ -23,6 +23,35 @@ defineProps<{
       class="grid gap-2 rounded-xl border border-slate-200/60 bg-white px-4 py-3 dark:border-slate-800/60 dark:bg-slate-700/60"
     >
       <div class="grid gap-2 text-sm text-slate-600 dark:text-slate-300">
+        <div class="flex justify-between">
+          <span>所属线路系统</span>
+          <span class="text-slate-900 dark:text-white">
+            <UButton
+              size="xs"
+              variant="link"
+              color="neutral"
+              class="block p-0 text-slate-900 dark:text-white"
+            >
+              <RouterLink
+                v-for="system in systems"
+                :key="system.id"
+                :to="{
+                  name: 'transportation.railway.system.detail',
+                  params: { systemId: system.id },
+                }"
+                class="flex items-center gap-1"
+              >
+                <img
+                  v-if="system.logoUrl"
+                  :src="system.logoUrl"
+                  :alt="system.name"
+                  class="h-fit w-4 rounded-full object-cover"
+                />
+                <span class="text-sm">{{ system.name }}</span>
+              </RouterLink>
+            </UButton>
+          </span>
+        </div>
         <RailwayCompanyBindingSection
           entity-type="ROUTE"
           :entity-id="detail.route.id"
@@ -32,7 +61,6 @@ defineProps<{
           :operator-company-ids="operatorCompanyIds"
           :builder-company-ids="builderCompanyIds"
         />
-
         <div class="flex justify-between">
           <span>线路 ID</span>
           <span class="font-mono text-slate-900 dark:text-white">
@@ -94,31 +122,6 @@ defineProps<{
           <span class="text-slate-900 dark:text-white">
             {{ detail.geometry.points.length }}
           </span>
-        </div>
-      </div>
-
-      <div v-if="systems?.length" class="pt-2 border-t border-slate-200/70">
-        <p class="text-xs font-semibold text-slate-500 uppercase">
-          所属线路系统
-        </p>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <RouterLink
-            v-for="system in systems"
-            :key="system.id"
-            :to="{
-              name: 'transportation.railway.system.detail',
-              params: { systemId: system.id },
-            }"
-            class="flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-800/70 dark:bg-slate-700/60 dark:text-slate-200"
-          >
-            <img
-              v-if="system.logoUrl"
-              :src="system.logoUrl"
-              :alt="system.name"
-              class="h-4 w-4 rounded-full object-cover"
-            />
-            <span>{{ system.name }}</span>
-          </RouterLink>
         </div>
       </div>
     </div>

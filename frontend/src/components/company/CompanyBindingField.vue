@@ -120,7 +120,7 @@ function resolveCompanyLogo(companyId: string) {
               v-if="resolveCompanyLogo(companyId)"
               :src="resolveCompanyLogo(companyId) ?? undefined"
               :alt="resolveCompanyName(companyId)"
-              class="h-4 w-4 rounded-full object-cover"
+              class="h-fit w-4 rounded-full object-cover"
             />
             <span>{{ resolveCompanyName(companyId) }}</span>
             <UButton

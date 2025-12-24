@@ -227,7 +227,7 @@ onMounted(() => {
                 <td class="px-4 py-3">
                   <UButton
                     v-if="buildEntityLink(entry)"
-                    size="2xs"
+                    size="xs"
                     variant="ghost"
                     @click="router.push(buildEntityLink(entry)!)"
                   >
