@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import {
   Prisma,
   TransportationRailwayFeaturedItem,
@@ -555,5 +560,25 @@ export class TransportationRailwayService {
       orderBy: { displayOrder: 'desc' },
     });
     return (row?.displayOrder ?? 0) + 1;
+  }
+
+  async getStationSchedule(serverId: string, stationId: string) {
+    const server = await this.prisma.minecraftServer.findUnique({
+      where: { id: serverId },
+    });
+    if (!server) {
+      throw new NotFoundException('Server not found');
+    }
+    if (!server.beaconEnabled || !server.beaconEndpoint || !server.beaconKey) {
+      throw new BadRequestException('Beacon not enabled for this server');
+    }
+
+    const client = this.beaconPool.getOrCreate({
+      serverId: server.id,
+      endpoint: server.beaconEndpoint,
+      key: server.beaconKey,
+    });
+
+    return client.emit('get_mtr_station_schedule', { stationId });
   }
 }

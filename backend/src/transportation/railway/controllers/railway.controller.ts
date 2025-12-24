@@ -121,6 +121,20 @@ export class TransportationRailwayController {
     );
   }
 
+  @Get('stations/:railwayType/:stationId/schedule')
+  @ApiOperation({ summary: '获取车站时刻表（实时）' })
+  async getStationSchedule(
+    @Param('railwayType') railwayType: string,
+    @Param('stationId') stationId: string,
+    @Query('serverId') serverId: string,
+  ) {
+    if (!serverId) throw new BadRequestException('Missing serverId');
+    return this.transportationRailwayService.getStationSchedule(
+      serverId,
+      stationId,
+    );
+  }
+
   @Get('depots/:railwayType/:depotId')
   @ApiOperation({ summary: '查看单个车厂详情' })
   async getDepotDetail(

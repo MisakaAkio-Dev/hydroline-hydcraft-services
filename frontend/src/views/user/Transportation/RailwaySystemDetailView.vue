@@ -275,7 +275,7 @@ onMounted(() => {
   <div class="space-y-6">
     <div class="flex flex-col gap-1">
       <p class="text-sm uppercase text-slate-500">铁路线路系统信息</p>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
         <img
           v-if="system?.logoUrl"
           :src="system.logoUrl"
@@ -412,7 +412,7 @@ onMounted(() => {
                   <div
                     v-for="(svg, index) in combinedSvgEntries"
                     :key="index"
-                    class="absolute inset-0 flex items-center justify-center opacity-90"
+                    class="absolute inset-0 flex items-center justify-center opacity-90 drop-shadow"
                     v-html="svg"
                   ></div>
                 </div>

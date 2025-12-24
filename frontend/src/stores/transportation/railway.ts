@@ -446,6 +446,34 @@ export const useTransportationRailwayStore = defineStore(
         await this.fetchOverview(true)
         return { success: true }
       },
+      async fetchStationSchedule(params: EntityCacheParams) {
+        const query = new URLSearchParams({
+          serverId: params.serverId,
+        }).toString()
+        const response = await apiFetch<any>(
+          `/transportation/railway/stations/${params.railwayType}/${params.id}/schedule?${query}`,
+        )
+
+        const flatSchedule: any[] = []
+        if (response?.payload?.timetables) {
+          for (const timetable of response.payload.timetables) {
+            if (timetable.platforms) {
+              for (const platform of timetable.platforms) {
+                if (platform.entries) {
+                  for (const entry of platform.entries) {
+                    flatSchedule.push({
+                      ...entry,
+                      platform: platform.platformName,
+                      dimension: timetable.dimension,
+                    })
+                  }
+                }
+              }
+            }
+          }
+        }
+        return flatSchedule
+      },
       clearFeaturedCache() {
         this.adminFeatured = []
       },

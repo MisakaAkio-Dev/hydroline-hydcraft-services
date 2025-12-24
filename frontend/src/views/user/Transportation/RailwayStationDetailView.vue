@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import RailwayStationMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwayStationMapFullscreenOverlay.vue'
 import RailwayStationRoutesMapPanel from '@/views/user/Transportation/railway/components/RailwayStationRoutesMapPanel.vue'
 import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
+import RailwayStationScheduleCard from '@/views/user/Transportation/railway/components/RailwayStationScheduleCard.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type { RailwayStationDetail } from '@/types/transportation'
 import type {
@@ -816,6 +817,13 @@ onUnmounted(() => {
         </div>
 
         <div class="space-y-6">
+          <RailwayStationScheduleCard
+            v-if="detail"
+            :station-id="detail.station.id"
+            :server-id="detail.server.id"
+            :railway-type="detail.railwayType"
+          />
+
           <div>
             <h3
               class="flex items-center justify-between text-lg text-slate-600 dark:text-slate-300"

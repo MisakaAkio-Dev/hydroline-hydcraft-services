@@ -24,6 +24,7 @@ export type HydrolineBeaconEvent =
   | 'add_player_balance'
   | 'query_mtr_entities'
   | 'get_mtr_railway_snapshot'
+  | 'get_mtr_station_schedule'
   | 'execute_sql';
 
 export interface HydrolineBeaconClientOptions {
