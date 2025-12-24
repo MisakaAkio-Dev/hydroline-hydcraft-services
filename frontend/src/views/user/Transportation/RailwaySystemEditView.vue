@@ -5,6 +5,7 @@ import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
 import { useAuthStore } from '@/stores/user/auth'
 import { useUiStore } from '@/stores/shared/ui'
+import AvatarCropperModal from '@/components/common/AvatarCropperModal.vue'
 import type {
   RailwayRoute,
   RailwaySystemDetail,
@@ -45,6 +46,10 @@ const logoFile = ref<File | null>(null)
 const logoPreviewUrl = ref<string | null>(null)
 const logoObjectUrl = ref<string | null>(null)
 const logoUploading = ref(false)
+const logoUploadProgress = ref(0)
+
+const cropperOpen = ref(false)
+const cropperImageUrl = ref<string | null>(null)
 
 function extractBaseKey(name: string | null | undefined) {
   if (!name) return null
@@ -293,14 +298,26 @@ function handleLogoFileChange(event: Event) {
     clearLogoSelection()
     return
   }
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    cropperImageUrl.value = e.target?.result as string
+    cropperOpen.value = true
+  }
+  reader.readAsDataURL(file)
+
+  if (target) {
+    target.value = ''
+  }
+}
+
+function handleCropperConfirm(file: File) {
   logoFile.value = file
   cleanupLogoPreview()
   const objectUrl = URL.createObjectURL(file)
   logoObjectUrl.value = objectUrl
   logoPreviewUrl.value = objectUrl
-  if (target) {
-    target.value = ''
-  }
+  cropperOpen.value = false
 }
 
 async function saveSystem() {
@@ -332,8 +349,20 @@ async function saveSystem() {
     })
     if (logoFile.value) {
       logoUploading.value = true
+      logoUploadProgress.value = 0
       try {
-        await systemsStore.uploadSystemLogo(system.value.id, logoFile.value)
+        await systemsStore.uploadSystemLogo(
+          system.value.id,
+          logoFile.value,
+          (p) => {
+            logoUploadProgress.value = p
+          },
+        )
+        toast.add({
+          title: 'Logo 上传成功',
+          color: 'green',
+          timeout: 2000,
+        })
       } catch (error) {
         toast.add({
           title: 'Logo 上传失败',
@@ -454,7 +483,8 @@ onBeforeUnmount(() => {
           编辑线路系统
         </h1>
         <p class="text-sm text-slate-500">
-          {{ system?.name || '正在加载线路系统...' }}
+          <template v-if="system?.name">{{ system.name }}</template>
+          <UIcon v-else name="i-lucide-loader-2" class="animate-spin" />
         </p>
       </div>
       <div class="flex items-center gap-2">
@@ -485,24 +515,12 @@ onBeforeUnmount(() => {
 
     <div
       v-if="loading"
-      class="rounded-2xl border border-slate-200/70 bg-white/70 p-4 text-sm text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/70"
+      class="flex items-center justify-center rounded-2xl border border-slate-200/70 bg-white/70 p-8 text-sm text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/70"
     >
-      加载中…
+      <UIcon name="i-lucide-loader-2" class="h-6 w-6 animate-spin" />
     </div>
 
     <div v-else class="space-y-6">
-      <div
-        class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
-      >
-        <div class="grid gap-4 md:grid-cols-2">
-          <UInput v-model="formState.name" placeholder="线路系统中文名" />
-          <UInput
-            v-model="formState.englishName"
-            placeholder="线路系统英文名"
-          />
-        </div>
-      </div>
-
       <div
         class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
       >
@@ -513,9 +531,6 @@ onBeforeUnmount(() => {
             >
               线路系统 Logo
             </h3>
-            <p class="text-xs text-slate-500">
-              支持 PNG/JPG/SVG 格式，建议 120x120 像素。
-            </p>
           </div>
         </div>
         <div class="mt-4 flex flex-wrap items-center gap-4">
@@ -570,7 +585,7 @@ onBeforeUnmount(() => {
               </UButton>
             </div>
             <p v-if="logoUploading" class="text-xs text-amber-500 mt-2">
-              正在上传 Logo，请稍候…
+              正在上传 Logo ({{ logoUploadProgress }}%)，请稍候…
             </p>
           </div>
         </div>
@@ -581,6 +596,18 @@ onBeforeUnmount(() => {
           class="hidden"
           @change="handleLogoFileChange"
         />
+      </div>
+
+      <div
+        class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
+      >
+        <div class="grid gap-4 md:grid-cols-2">
+          <UInput v-model="formState.name" placeholder="线路系统中文名" />
+          <UInput
+            v-model="formState.englishName"
+            placeholder="线路系统英文名"
+          />
+        </div>
       </div>
 
       <div class="grid gap-6 md:grid-cols-2 items-start">
@@ -1013,5 +1040,12 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+
+    <AvatarCropperModal
+      v-model:open="cropperOpen"
+      :image-url="cropperImageUrl"
+      title="裁剪线路系统 Logo"
+      @confirm="handleCropperConfirm"
+    />
   </div>
 </template>

@@ -64,7 +64,13 @@ onMounted(() => {
     <div
       class="rounded-2xl border border-slate-200/70 bg-white/90 p-6 dark:border-slate-800/60 dark:bg-slate-900/70"
     >
-      <div v-if="loading" class="text-sm text-slate-500">加载中...</div>
+      <div
+        v-if="loading"
+        class="flex items-center gap-2 text-sm text-slate-500"
+      >
+        <UIcon name="i-lucide-loader-2" class="h-4 w-4 animate-spin" />
+        <span>加载中...</span>
+      </div>
       <div v-else-if="!company" class="text-sm text-slate-500">
         未找到公司信息。
       </div>

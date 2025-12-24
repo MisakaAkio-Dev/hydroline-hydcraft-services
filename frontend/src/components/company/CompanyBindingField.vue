@@ -114,7 +114,7 @@ function resolveCompanyLogo(companyId: string) {
           <div
             v-for="companyId in orderedCompanyIds"
             :key="companyId"
-            class="flex items-center gap-2 text-sm"
+            class="flex items-center gap-0.5 text-sm"
           >
             <img
               v-if="resolveCompanyLogo(companyId)"

@@ -9,6 +9,31 @@ import type { RailwayGeometryPoint } from '@/types/transportation'
 
 const DEFAULT_COLOR = '#0ea5e9'
 
+const LABEL_POSITIONS: Array<{
+  direction: L.Direction
+  offset: L.PointExpression
+}> = [
+  { direction: 'top', offset: L.point(0, -14) },
+  { direction: 'right', offset: L.point(14, 0) },
+  { direction: 'bottom', offset: L.point(0, 14) },
+  { direction: 'left', offset: L.point(-14, 0) },
+]
+
+const PLATFORM_LABEL_POSITIONS: Array<{
+  direction: L.Direction
+  offset: L.PointExpression
+}> = [
+  { direction: 'top', offset: L.point(0, -8) },
+  { direction: 'right', offset: L.point(8, 0) },
+  { direction: 'bottom', offset: L.point(0, 8) },
+  { direction: 'left', offset: L.point(-8, 0) },
+]
+
+function pickLabelPosition(index: number, isPlatform = false) {
+  const positions = isPlatform ? PLATFORM_LABEL_POSITIONS : LABEL_POSITIONS
+  return positions[index % positions.length]
+}
+
 export type SystemRoutePath = {
   id: string
   color?: number | null
@@ -115,7 +140,6 @@ export class RailwaySystemMap {
           color,
           weight: 4,
           opacity: 0.85,
-          className: 'railway-system-route-polyline',
         }).addTo(map)
 
         if (route.label) {
@@ -156,7 +180,7 @@ export class RailwaySystemMap {
   }
 
   private renderStationsLayer(layer: L.LayerGroup, stops: SystemStop[]) {
-    stops.forEach((stop) => {
+    stops.forEach((stop, index) => {
       const latlng = this.controller.toLatLng({
         x: stop.position.x,
         z: stop.position.z,
@@ -190,12 +214,13 @@ export class RailwaySystemMap {
         }),
       })
 
+      const labelPos = pickLabelPosition(index)
       marker.bindTooltip(stop.name, {
         permanent: true,
         // Prevent labels from being clipped by the map container (overflow-hidden)
         // when zoomed out and markers are near the viewport edge.
-        direction: 'auto',
-        offset: L.point(0, -8),
+        direction: labelPos.direction,
+        offset: labelPos.offset,
         className: 'railway-station-label',
       })
 
@@ -207,7 +232,7 @@ export class RailwaySystemMap {
     layer: L.LayerGroup,
     platforms: SystemPlatform[],
   ) {
-    platforms.forEach((platform) => {
+    platforms.forEach((platform, index) => {
       const latlng = this.controller.toLatLng({
         x: platform.position.x,
         z: platform.position.z,
@@ -222,10 +247,11 @@ export class RailwaySystemMap {
         fillOpacity: 0.95,
       })
 
+      const labelPos = pickLabelPosition(index, true)
       marker.bindTooltip(platform.name, {
         permanent: true,
-        direction: 'auto',
-        offset: L.point(0, -5),
+        direction: labelPos.direction,
+        offset: labelPos.offset,
         className: 'railway-station-label-small',
       })
 

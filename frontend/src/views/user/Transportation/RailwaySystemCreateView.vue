@@ -5,6 +5,7 @@ import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
 import { useAuthStore } from '@/stores/user/auth'
 import { useUiStore } from '@/stores/shared/ui'
+import AvatarCropperModal from '@/components/common/AvatarCropperModal.vue'
 import type { RailwayRoute } from '@/types/transportation'
 
 const router = useRouter()
@@ -157,7 +158,11 @@ const logoFile = ref<File | null>(null)
 const logoPreviewUrl = ref<string | null>(null)
 const logoObjectUrl = ref<string | null>(null)
 const logoUploading = ref(false)
+const logoUploadProgress = ref(0)
 const creating = ref(false)
+
+const cropperOpen = ref(false)
+const cropperImageUrl = ref<string | null>(null)
 
 async function searchRoutes() {
   const keyword = searchTerm.value.trim()
@@ -243,14 +248,26 @@ function handleLogoFileChange(event: Event) {
     clearLogoSelection()
     return
   }
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    cropperImageUrl.value = e.target?.result as string
+    cropperOpen.value = true
+  }
+  reader.readAsDataURL(file)
+
+  if (target) {
+    target.value = ''
+  }
+}
+
+function handleCropperConfirm(file: File) {
   logoFile.value = file
   cleanupLogoPreview()
   const objectUrl = URL.createObjectURL(file)
   logoObjectUrl.value = objectUrl
   logoPreviewUrl.value = objectUrl
-  if (target) {
-    target.value = ''
-  }
+  cropperOpen.value = false
 }
 
 async function createSystem() {
@@ -282,8 +299,16 @@ async function createSystem() {
     })
     if (logoFile.value) {
       logoUploading.value = true
+      logoUploadProgress.value = 0
       try {
-        await systemsStore.uploadSystemLogo(system.id, logoFile.value)
+        await systemsStore.uploadSystemLogo(system.id, logoFile.value, (p) => {
+          logoUploadProgress.value = p
+        })
+        toast.add({
+          title: 'Logo 上传成功',
+          color: 'green',
+          timeout: 2000,
+        })
       } catch (error) {
         toast.add({
           title: 'Logo 上传失败',
@@ -389,35 +414,6 @@ onBeforeUnmount(() => {
       <div
         class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
       >
-        <div class="grid gap-4 md:grid-cols-2">
-          <UInput v-model="formState.name" placeholder="线路系统中文名" />
-          <UInput
-            v-model="formState.englishName"
-            placeholder="线路系统英文名"
-          />
-        </div>
-        <div
-          class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4"
-        >
-          <UInput
-            v-model="searchTerm"
-            placeholder="搜索线路名称"
-            icon="i-lucide-search"
-            class="flex-1"
-          />
-          <p class="text-xs text-slate-400">
-            {{
-              lastSearchKeyword
-                ? `当前关键词：${lastSearchKeyword}`
-                : '请输入关键词后开始搜索'
-            }}
-          </p>
-        </div>
-      </div>
-
-      <div
-        class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
-      >
         <div class="flex items-center justify-between">
           <div>
             <h3
@@ -425,9 +421,6 @@ onBeforeUnmount(() => {
             >
               线路系统 Logo
             </h3>
-            <p class="text-xs text-slate-500">
-              支持 PNG/JPG/SVG 格式，建议 120x120 像素。
-            </p>
           </div>
         </div>
         <div class="mt-4 flex flex-wrap items-center gap-4">
@@ -480,7 +473,7 @@ onBeforeUnmount(() => {
               </UButton>
             </div>
             <p v-if="logoUploading" class="text-xs text-amber-500 mt-2">
-              正在上传 Logo，请稍候…
+              正在上传 Logo ({{ logoUploadProgress }}%)，请稍候…
             </p>
           </div>
         </div>
@@ -491,6 +484,35 @@ onBeforeUnmount(() => {
           class="hidden"
           @change="handleLogoFileChange"
         />
+      </div>
+
+      <div
+        class="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-slate-800/70 dark:bg-slate-900"
+      >
+        <div class="grid gap-4 md:grid-cols-2">
+          <UInput v-model="formState.name" placeholder="线路系统中文名" />
+          <UInput
+            v-model="formState.englishName"
+            placeholder="线路系统英文名"
+          />
+        </div>
+        <div
+          class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4"
+        >
+          <UInput
+            v-model="searchTerm"
+            placeholder="搜索线路名称"
+            icon="i-lucide-search"
+            class="flex-1"
+          />
+          <p class="text-xs text-slate-400">
+            {{
+              lastSearchKeyword
+                ? `当前关键词：${lastSearchKeyword}`
+                : '请输入关键词后开始搜索'
+            }}
+          </p>
+        </div>
       </div>
 
       <div class="grid gap-6 md:grid-cols-2">
@@ -899,5 +921,12 @@ onBeforeUnmount(() => {
         创建系统
       </UButton>
     </div>
+
+    <AvatarCropperModal
+      v-model:open="cropperOpen"
+      :image-url="cropperImageUrl"
+      title="裁剪线路系统 Logo"
+      @confirm="handleCropperConfirm"
+    />
   </div>
 </template>

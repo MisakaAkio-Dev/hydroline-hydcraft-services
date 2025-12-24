@@ -16,7 +16,7 @@ const systemsResponse = ref(
 const renderToken = ref(0)
 
 const servers = ref<{ id: string; name: string; code: string }[]>([])
-const selectedServer = ref<string>('')
+const selectedServer = ref<string>('all')
 
 const pageInput = ref('1')
 
@@ -40,7 +40,7 @@ async function loadSystems() {
     systemsResponse.value = await systemsStore.fetchSystems({
       page: page.value,
       pageSize: pageSize.value,
-      serverId: selectedServer.value,
+      serverId: selectedServer.value === 'all' ? '' : selectedServer.value,
     })
     renderToken.value += 1
   } finally {
@@ -50,7 +50,7 @@ async function loadSystems() {
 
 function getServerName(id: string) {
   const server = servers.value.find((s) => s.id === id)
-  return server ? `${server.name} (${server.code})` : id
+  return server ? `${server.name}` : id
 }
 
 function goToPage(nextPage: number) {
@@ -111,7 +111,7 @@ onMounted(() => {
           class="w-full"
           v-model="selectedServer"
           :items="[
-            { label: '全部服务端', value: '' },
+            { label: '全部服务端', value: 'all' },
             ...servers.map((s) => ({ label: s.name, value: s.id })),
           ]"
           placeholder="选择服务端"
@@ -155,7 +155,13 @@ onMounted(() => {
                 class="px-4 py-6 text-center text-sm text-slate-500"
                 colspan="5"
               >
-                {{ loading ? '正在加载…' : '暂无线路系统' }}
+                <div v-if="loading" class="flex items-center justify-center">
+                  <UIcon
+                    name="i-lucide-loader-2"
+                    class="h-5 w-5 animate-spin"
+                  />
+                </div>
+                <template v-else>暂无线路系统</template>
               </td>
             </Motion>
           </tbody>

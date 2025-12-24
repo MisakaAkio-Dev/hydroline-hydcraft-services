@@ -422,9 +422,16 @@ const emit = defineEmits<{
               />
               <div
                 v-else
-                class="flex h-full items-center justify-center text-xs text-slate-500 dark:text-slate-400"
+                class="flex h-full items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400"
               >
-                {{ props.historyLoading ? '加载中...' : '暂无历史数据' }}
+                <UIcon
+                  v-if="props.historyLoading"
+                  name="i-lucide-loader-2"
+                  class="h-4 w-4 animate-spin"
+                />
+                <span>{{
+                  props.historyLoading ? '加载中...' : '暂无历史数据'
+                }}</span>
               </div>
             </div>
           </div>

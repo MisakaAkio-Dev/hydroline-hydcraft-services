@@ -104,7 +104,13 @@ async function handleDelete(messageId: string) {
           </UButton>
         </div>
 
-        <div v-if="loading" class="text-sm text-slate-500">正在加载留言...</div>
+        <div
+          v-if="loading"
+          class="flex items-center gap-2 text-sm text-slate-500"
+        >
+          <UIcon name="i-lucide-loader-2" class="h-4 w-4 animate-spin" />
+          <span>正在加载留言...</span>
+        </div>
         <div v-else class="space-y-3 max-h-[65vh] overflow-y-auto">
           <template v-if="messages.length">
             <div

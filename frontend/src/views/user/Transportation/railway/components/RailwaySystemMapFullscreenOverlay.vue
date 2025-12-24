@@ -150,9 +150,18 @@ onBeforeUnmount(() => {
             :height="mapHeight"
             :rounded="false"
           />
-          <div class="absolute top-3 right-3">
-            <UButton color="neutral" variant="soft" size="sm" @click="close">
-              关闭
+          <div
+            class="pointer-events-none absolute inset-x-4 top-4 flex justify-end z-999"
+          >
+            <UButton
+              size="sm"
+              variant="ghost"
+              color="neutral"
+              class="flex items-center gap-1 pointer-events-auto backdrop-blur-2xl text-white bg-black/20 dark:bg-slate-900/10 hover:bg-white/10 dark:hover:bg-slate-900/20 shadow"
+              @click="close"
+            >
+              <UIcon name="i-lucide-minimize-2" class="h-3.5 w-3.5" />
+              退出全屏
             </UButton>
           </div>
         </div>

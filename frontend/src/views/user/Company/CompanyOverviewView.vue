@@ -269,9 +269,10 @@ onMounted(() => {
             </div>
             <div
               v-else-if="companyStore.dailyRegistrationsLoading"
-              class="mt-2 text-xs text-slate-500 dark:text-slate-400"
+              class="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
             >
-              正在加载注册趋势...
+              <UIcon name="i-lucide-loader-2" class="h-4 w-4 animate-spin" />
+              <span>正在加载注册趋势...</span>
             </div>
           </div>
         </div>

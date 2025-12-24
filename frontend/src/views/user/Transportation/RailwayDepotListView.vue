@@ -299,7 +299,10 @@ onMounted(async () => {
             :transition="{ duration: 0.3 }"
           >
             <td colspan="6" class="p-6 text-center text-slate-500">
-              {{ loading ? '加载中...' : '暂无数据' }}
+              <div v-if="loading" class="flex items-center justify-center">
+                <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
+              </div>
+              <template v-else>暂无数据</template>
             </td>
           </Motion>
         </tbody>

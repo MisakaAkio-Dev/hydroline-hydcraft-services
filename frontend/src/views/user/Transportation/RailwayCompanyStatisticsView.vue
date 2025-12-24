@@ -172,7 +172,13 @@ watch(
                 class="px-4 py-6 text-center text-sm text-slate-500"
                 colspan="6"
               >
-                {{ loading ? '正在加载…' : emptyText }}
+                <div v-if="loading" class="flex items-center justify-center">
+                  <UIcon
+                    name="i-lucide-loader-2"
+                    class="h-5 w-5 animate-spin"
+                  />
+                </div>
+                <template v-else>{{ emptyText }}</template>
               </td>
             </Motion>
           </tbody>

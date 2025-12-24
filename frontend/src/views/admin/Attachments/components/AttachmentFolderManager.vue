@@ -370,9 +370,10 @@ watch(
           </div>
           <div
             v-if="foldersLoading"
-            class="rounded-xl border border-dashed border-slate-200/70 p-4 text-center text-xs text-slate-500 dark:border-slate-800/60 dark:text-slate-400"
+            class="flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200/70 p-4 text-center text-xs text-slate-500 dark:border-slate-800/60 dark:text-slate-400"
           >
-            目录加载中…
+            <UIcon name="i-lucide-loader-2" class="h-4 w-4 animate-spin" />
+            <span>目录加载中…</span>
           </div>
           <div
             v-else-if="folders.length === 0"

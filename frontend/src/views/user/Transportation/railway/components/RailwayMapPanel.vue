@@ -878,7 +878,7 @@ function computeCentroid(paths: RailwayGeometryPoint[][]) {
       class="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/30 text-xs text-slate-200 backdrop-blur transition duration-250"
       :class="props.rounded ? 'rounded-2xl' : 'rounded-none'"
     >
-      加载地图…
+      <UIcon name="i-lucide-loader-2" class="h-6 w-6 animate-spin" />
     </div>
 
     <div class="absolute inset-0 z-998 p-3 pointer-events-none flex items-end">

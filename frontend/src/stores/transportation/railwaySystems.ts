@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { apiFetch } from '@/utils/http/api'
+import { apiFetch, getApiBaseUrl } from '@/utils/http/api'
 import { useAuthStore } from '@/stores/user/auth'
 import type {
   RailwaySystemDetail,
@@ -81,18 +81,57 @@ export const useTransportationRailwaySystemsStore = defineStore(
           },
         )
       },
-      async uploadSystemLogo(id: string, file: File) {
+      async uploadSystemLogo(
+        id: string,
+        file: File,
+        onProgress?: (percent: number) => void,
+      ) {
         const authStore = useAuthStore()
         const body = new FormData()
         body.append('logo', file)
-        return apiFetch<{
+
+        return new Promise<{
           id: string
           logoAttachmentId: string | null
           logoUrl: string | null
-        }>(`/transportation/railway/systems/${id}/logo`, {
-          method: 'PATCH',
-          token: authStore.token,
-          body,
+        }>((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          xhr.open(
+            'PATCH',
+            `${getApiBaseUrl()}/api/transportation/railway/systems/${id}/logo`,
+          )
+
+          if (authStore.token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${authStore.token}`)
+          }
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable && onProgress) {
+              const percent = Math.round((event.loaded / event.total) * 100)
+              onProgress(percent)
+            }
+          }
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const response = JSON.parse(xhr.responseText)
+                resolve(response.data)
+              } catch (e) {
+                reject(new Error('解析响应失败'))
+              }
+            } else {
+              try {
+                const response = JSON.parse(xhr.responseText)
+                reject(new Error(response.message || '上传失败'))
+              } catch (e) {
+                reject(new Error(`上传失败 (${xhr.status})`))
+              }
+            }
+          }
+
+          xhr.onerror = () => reject(new Error('网络错误'))
+          xhr.send(body)
         })
       },
     },

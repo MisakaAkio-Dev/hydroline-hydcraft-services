@@ -229,7 +229,12 @@ onMounted(async () => {
                 class="px-4 py-6 text-center text-sm text-slate-500"
                 colspan="4"
               >
-                正在加载…
+                <div class="flex items-center justify-center">
+                  <UIcon
+                    name="i-lucide-loader-2"
+                    class="h-5 w-5 animate-spin"
+                  />
+                </div>
               </td>
             </tr>
             <tr v-else-if="items.length === 0">

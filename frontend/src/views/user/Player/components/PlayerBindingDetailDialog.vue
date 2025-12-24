@@ -1008,9 +1008,10 @@ async function submitPermissionChange() {
           </label>
           <div
             v-if="permissionDialog.loading"
-            class="text-xs text-slate-500 dark:text-slate-400"
+            class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
           >
-            正在加载可调整的权限组...
+            <UIcon name="i-lucide-loader-2" class="h-4 w-4 animate-spin" />
+            <span>正在加载可调整的权限组...</span>
           </div>
           <div class="flex justify-end gap-2 pt-2">
             <UButton

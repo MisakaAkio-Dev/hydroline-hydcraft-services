@@ -142,7 +142,12 @@ onMounted(() => {
       </UButton>
     </div>
 
-    <div v-if="loading" class="text-sm text-slate-500">正在加载…</div>
+    <div v-if="loading" class="flex items-center justify-center p-8">
+      <UIcon
+        name="i-lucide-loader-2"
+        class="h-6 w-6 animate-spin text-slate-400"
+      />
+    </div>
 
     <div v-else class="flex flex-col gap-6">
       <div

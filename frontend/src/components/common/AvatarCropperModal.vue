@@ -9,6 +9,7 @@ const props = withDefaults(
   defineProps<{
     open: boolean
     imageUrl: string | null
+    title?: string
     fileName?: string | null
     submitting?: boolean
     aspectRatio?: number
@@ -17,6 +18,7 @@ const props = withDefaults(
   }>(),
   {
     imageUrl: null,
+    title: '裁剪图片',
     submitting: false,
     aspectRatio: 1,
     confirmLabel: '保存裁剪',
@@ -208,7 +210,7 @@ function handleConfirm() {
         <template #header>
           <div class="flex flex-col gap-1">
             <p class="text-base font-semibold text-slate-900 dark:text-white">
-              裁剪头像
+              {{ props.title }}
             </p>
           </div>
         </template>
@@ -236,7 +238,7 @@ function handleConfirm() {
                 v-if="!ready"
                 class="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/5 text-sm text-slate-500 dark:bg-slate-900/30 dark:text-slate-300"
               >
-                图片加载中…
+                <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
               </div>
             </div>
             <div

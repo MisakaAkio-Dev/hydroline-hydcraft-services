@@ -300,8 +300,12 @@ onMounted(() => {
           />
         </div>
         <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          <div v-if="detailLoading" class="text-sm text-slate-500">
-            加载中...
+          <div
+            v-if="detailLoading"
+            class="flex items-center gap-2 text-sm text-slate-500"
+          >
+            <UIcon name="i-lucide-loader-2" class="h-4 w-4 animate-spin" />
+            <span>加载中...</span>
           </div>
           <div v-else-if="!detailCompany" class="text-sm text-slate-500">
             未找到公司信息。
