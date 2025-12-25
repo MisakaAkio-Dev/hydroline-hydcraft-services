@@ -4,15 +4,9 @@ on:
   push:
     paths:
       - "backend/**"
-    paths-ignore:
-      - "backend/**/*.md"
-      - "backend/**/*.txt"
   pull_request:
     paths:
       - "backend/**"
-    paths-ignore:
-      - "backend/**/*.md"
-      - "backend/**/*.txt"
 
 permissions:
   contents: read

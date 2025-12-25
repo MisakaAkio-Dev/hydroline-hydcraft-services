@@ -44,10 +44,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Write frontend env file for build
-        if: ${{ secrets.FRONTEND_ENV_VARS != '' }}
+        if: ${{ env.FRONTEND_ENV_VARS != '' }}
         run: |
           set -eo pipefail
-          printf '%s\n' "${{ secrets.FRONTEND_ENV_VARS }}" > frontend/.env.production
+          printf '%s\n' "$FRONTEND_ENV_VARS" > frontend/.env.production
 
       - name: Build frontend
         run: pnpm --filter @hydroline/frontend build
