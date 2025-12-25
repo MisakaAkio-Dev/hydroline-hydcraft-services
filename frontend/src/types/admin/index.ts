@@ -191,17 +191,6 @@ export interface AdminAttachmentSummary {
   hash: string | null
   metadata: unknown
   description: string | null
-  visibilityMode: 'inherit' | 'public' | 'restricted'
-  visibilityRoles: string[]
-  visibilityLabels: string[]
-  resolvedVisibility: {
-    mode: 'public' | 'restricted'
-    roles: string[]
-    labels: string[]
-    source: 'attachment' | 'folder' | 'default'
-    folderId?: string | null
-    folderName?: string | null
-  }
   createdAt: string
   updatedAt: string
   folder: {

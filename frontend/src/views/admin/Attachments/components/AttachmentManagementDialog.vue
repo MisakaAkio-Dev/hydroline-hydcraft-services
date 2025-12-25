@@ -2,7 +2,6 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { apiFetch } from '@/utils/http/api'
 import type { AdminAttachmentSummary } from '@/types/admin'
-import type { VisibilityModeOption } from '@/views/admin/Attachments/types'
 import type { PropType } from 'vue'
 
 const props = defineProps({
@@ -22,22 +21,6 @@ const props = defineProps({
   formatOwner: {
     type: Function as PropType<
       (owner: AdminAttachmentSummary['owner']) => string
-    >,
-    required: true,
-  },
-  roleOptions: {
-    type: Array as PropType<Array<{ label: string; value: string }>>,
-    default: () => [],
-  },
-  permissionLabelOptions: {
-    type: Array as PropType<
-      Array<{ label: string; value: string; color?: string }>
-    >,
-    default: () => [],
-  },
-  visibilityModeOptions: {
-    type: Array as PropType<
-      Array<{ label: string; value: VisibilityModeOption }>
     >,
     required: true,
   },
@@ -64,12 +47,6 @@ const props = defineProps({
     type: Function as PropType<() => Promise<void>>,
     required: true,
   },
-  visibilitySourceLabel: {
-    type: Function as PropType<
-      (resolved: AdminAttachmentSummary['resolvedVisibility']) => string
-    >,
-    required: true,
-  },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -80,10 +57,13 @@ const managementForm = reactive({
   description: '',
   folderId: null as string | null,
   tagKeys: [] as string[],
-  visibilityMode: 'inherit' as VisibilityModeOption,
-  visibilityRoles: [] as string[],
-  visibilityLabels: [] as string[],
+  isPublic: true,
 })
+
+const visibilityOptions = [
+  { label: '公开（所有人可见）', value: true },
+  { label: '私有（归档）', value: false },
+]
 
 const managementSaving = ref(false)
 const managementDeleting = ref(false)
@@ -100,9 +80,7 @@ function resetForm() {
   managementForm.description = ''
   managementForm.folderId = null
   managementForm.tagKeys = []
-  managementForm.visibilityMode = 'inherit'
-  managementForm.visibilityRoles = []
-  managementForm.visibilityLabels = []
+  managementForm.isPublic = true
 }
 
 watch(
@@ -113,9 +91,7 @@ watch(
       managementForm.description = attachment.description ?? ''
       managementForm.folderId = attachment.folder?.id ?? null
       managementForm.tagKeys = attachment.tags.map((tag) => tag.key)
-      managementForm.visibilityMode = attachment.visibilityMode
-      managementForm.visibilityRoles = [...attachment.visibilityRoles]
-      managementForm.visibilityLabels = [...attachment.visibilityLabels]
+      managementForm.isPublic = attachment.isPublic
     } else {
       resetForm()
     }
@@ -153,14 +129,7 @@ async function saveDetails() {
           ? null
           : managementForm.folderId || undefined,
       tagKeys: managementForm.tagKeys,
-      visibilityMode: managementForm.visibilityMode,
-    }
-    if (managementForm.visibilityMode === 'restricted') {
-      payload.visibilityRoles = managementForm.visibilityRoles
-      payload.visibilityLabels = managementForm.visibilityLabels
-    } else {
-      payload.visibilityRoles = []
-      payload.visibilityLabels = []
+      isPublic: managementForm.isPublic,
     }
     await apiFetch(`/attachments/${props.attachment.id}`, {
       method: 'PATCH',
@@ -349,109 +318,43 @@ async function confirmDeleteAttachment() {
               <div
                 class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
               >
-                可见性
+                附件状态
               </div>
-              <div class="w-full space-y-2">
-                <USelectMenu
-                  class="w-full"
-                  :items="visibilityModeOptions"
-                  value-key="value"
-                  label-key="label"
-                  v-model="managementForm.visibilityMode"
-                  :ui="attachmentDialogSelectUi"
-                  :popper="selectPopperFixed"
-                />
-                <div
-                  v-if="managementForm.visibilityMode === 'restricted'"
-                  class="space-y-1 text-xs text-slate-500 dark:text-slate-400"
-                >
-                  <p>允许访问的角色</p>
-                  <USelect
-                    class="w-full"
-                    multiple
-                    :items="roleOptions"
-                    v-model="managementForm.visibilityRoles"
-                    placeholder="选择角色"
-                    :ui="attachmentDialogSelectUi"
-                    :popper="selectPopperFixed"
-                  />
-                  <p>允许访问的权限标签</p>
-                  <USelect
-                    class="w-full"
-                    multiple
-                    :items="permissionLabelOptions"
-                    v-model="managementForm.visibilityLabels"
-                    placeholder="选择标签"
-                    :ui="attachmentDialogSelectUi"
-                    :popper="selectPopperFixed"
-                  />
-                </div>
-              </div>
+              <USelectMenu
+                class="w-full"
+                :items="visibilityOptions"
+                value-key="value"
+                label-key="label"
+                :model-value="managementForm.isPublic"
+                :ui="attachmentDialogSelectUi"
+                :popper="selectPopperFixed"
+                @update:model-value="
+                  (value) => {
+                    if (typeof value === 'boolean') {
+                      managementForm.isPublic = value
+                    }
+                  }
+                "
+              />
             </div>
-            <div class="space-y-1">
+            <div class="space-y-1 md:col-span-2">
               <div
                 class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
               >
-                可见性摘要
+                当前状态
               </div>
-              <div
-                class="rounded-2xl border border-dashed border-slate-300/80 p-2 px-4 text-xs text-slate-500 dark:border-slate-700/60 dark:text-slate-400"
-              >
-                <div class="flex items-center gap-2">
-                  <UBadge
-                    :color="
-                      visibleAttachment.resolvedVisibility.mode === 'public'
-                        ? 'success'
-                        : 'warning'
-                    "
-                    size="xs"
-                  >
-                    {{
-                      visibleAttachment.resolvedVisibility.mode === 'public'
-                        ? '公开'
-                        : '受限'
-                    }}
-                  </UBadge>
-                  <span>{{
-                    visibilitySourceLabel(visibleAttachment.resolvedVisibility)
-                  }}</span>
-                </div>
+              <div>
+                <UBadge
+                  :color="managementForm.isPublic ? 'success' : 'neutral'"
+                  variant="soft"
+                  size="xs"
+                >
+                  {{
+                    managementForm.isPublic ? '公开（可访问）' : '私有（封存）'
+                  }}
+                </UBadge>
               </div>
             </div>
-            <template v-if="managementForm.visibilityMode === 'restricted'">
-              <div class="space-y-1">
-                <div
-                  class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
-                >
-                  允许的角色
-                </div>
-                <USelect
-                  class="w-full"
-                  multiple
-                  :items="roleOptions"
-                  v-model="managementForm.visibilityRoles"
-                  placeholder="选择角色"
-                  :ui="attachmentDialogSelectUi"
-                  :popper="selectPopperFixed"
-                />
-              </div>
-              <div class="space-y-1">
-                <div
-                  class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
-                >
-                  允许的权限标签
-                </div>
-                <USelect
-                  class="w-full"
-                  multiple
-                  :items="permissionLabelOptions"
-                  v-model="managementForm.visibilityLabels"
-                  placeholder="选择权限标签"
-                  :ui="attachmentDialogSelectUi"
-                  :popper="selectPopperFixed"
-                />
-              </div>
-            </template>
           </div>
 
           <div class="flex justify-end gap-2">

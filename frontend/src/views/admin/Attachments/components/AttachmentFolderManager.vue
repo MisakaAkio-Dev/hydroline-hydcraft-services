@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { apiFetch } from '@/utils/http/api'
-import type {
-  AttachmentFolderEntry,
-  VisibilityModeOption,
-} from '@/views/admin/Attachments/types'
+import type { AttachmentFolderEntry } from '@/views/admin/Attachments/types'
 import type { PropType } from 'vue'
 
 const props = defineProps({
@@ -16,22 +13,6 @@ const props = defineProps({
   foldersLoading: Boolean,
   folderOptions: {
     type: Array as PropType<Array<{ label: string; value: string }>>,
-    default: () => [],
-  },
-  folderVisibilityOptions: {
-    type: Array as PropType<
-      Array<{ label: string; value: VisibilityModeOption }>
-    >,
-    required: true,
-  },
-  roleOptions: {
-    type: Array as PropType<Array<{ label: string; value: string }>>,
-    default: () => [],
-  },
-  permissionLabelOptions: {
-    type: Array as PropType<
-      Array<{ label: string; value: string; color?: string }>
-    >,
     default: () => [],
   },
   selectPopperFixed: {
@@ -68,9 +49,6 @@ const folderForm = reactive({
   name: '',
   parentId: '',
   description: '',
-  visibilityMode: 'public' as VisibilityModeOption,
-  visibilityRoles: [] as string[],
-  visibilityLabels: [] as string[],
 })
 
 const filteredFolderOptions = computed(() =>
@@ -83,9 +61,6 @@ function resetFolderForm() {
   folderForm.name = ''
   folderForm.parentId = ''
   folderForm.description = ''
-  folderForm.visibilityMode = 'public'
-  folderForm.visibilityRoles = []
-  folderForm.visibilityLabels = []
 }
 
 function startCreateFolder() {
@@ -98,11 +73,6 @@ function startEditFolder(folder: AttachmentFolderEntry) {
   folderForm.name = folder.name
   folderForm.parentId = folder.parentId ?? ''
   folderForm.description = folder.description ?? ''
-  folderForm.visibilityMode = (folder.visibilityMode ?? 'public')
-    .toString()
-    .toLowerCase() as VisibilityModeOption
-  folderForm.visibilityRoles = folder.visibilityRoles ?? []
-  folderForm.visibilityLabels = folder.visibilityLabels ?? []
 }
 
 function closeDialog() {
@@ -115,13 +85,6 @@ function updateFolderParent(value?: string | null) {
     return
   }
   folderForm.parentId = value
-}
-
-function folderVisibilityLabel(mode?: string | null) {
-  const normalized = (mode || '').toString().toLowerCase()
-  if (normalized === 'restricted') return '受限'
-  if (normalized === 'inherit') return '继承'
-  return '公开'
 }
 
 async function submitFolder() {
@@ -141,14 +104,6 @@ async function submitFolder() {
       name,
       parentId: folderForm.parentId || null,
       description: folderForm.description.trim() || undefined,
-      visibilityMode: folderForm.visibilityMode,
-    }
-    if (folderForm.visibilityMode === 'restricted') {
-      payload.visibilityRoles = folderForm.visibilityRoles
-      payload.visibilityLabels = folderForm.visibilityLabels
-    } else {
-      payload.visibilityRoles = []
-      payload.visibilityLabels = []
     }
     if (editingFolderId.value) {
       await apiFetch(`/attachments/folders/${editingFolderId.value}`, {
@@ -287,47 +242,6 @@ watch(
               placeholder="填写说明，帮助他人理解用途"
             />
           </div>
-          <div class="flex gap-2">
-            <label class="w-32 text-sm text-slate-500 dark:text-slate-300"
-              >可见性</label
-            >
-            <div class="w-full space-y-2">
-              <USelectMenu
-                class="w-full"
-                :items="folderVisibilityOptions"
-                value-key="value"
-                label-key="label"
-                v-model="folderForm.visibilityMode"
-                :ui="attachmentDialogSelectUi"
-                :popper="selectPopperFixed"
-              />
-              <div
-                v-if="folderForm.visibilityMode === 'restricted'"
-                class="space-y-1 text-xs text-slate-500 dark:text-slate-400"
-              >
-                <p>允许访问的角色</p>
-                <USelect
-                  class="w-full"
-                  multiple
-                  :items="roleOptions"
-                  v-model="folderForm.visibilityRoles"
-                  placeholder="选择角色"
-                  :ui="attachmentDialogSelectUi"
-                  :popper="selectPopperFixed"
-                />
-                <p>允许访问的权限标签</p>
-                <USelect
-                  class="w-full"
-                  multiple
-                  :items="permissionLabelOptions"
-                  v-model="folderForm.visibilityLabels"
-                  placeholder="选择标签"
-                  :ui="attachmentDialogSelectUi"
-                  :popper="selectPopperFixed"
-                />
-              </div>
-            </div>
-          </div>
         </div>
         <div class="flex justify-end gap-2">
           <UButton
@@ -393,7 +307,6 @@ watch(
                   class="text-left text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400"
                 >
                   <th class="px-3 py-2">路径</th>
-                  <th class="px-3 py-2">可见性</th>
                   <th class="px-3 py-2">描述</th>
                   <th class="px-3 py-2 text-right">操作</th>
                 </tr>
@@ -408,19 +321,6 @@ watch(
                     class="px-3 py-2 font-mono text-[13px] text-slate-700 dark:text-slate-200"
                   >
                     {{ folder.path || folder.name }}
-                  </td>
-                  <td class="px-3 py-2">
-                    <UBadge
-                      size="xs"
-                      :color="
-                        folderVisibilityLabel(folder.visibilityMode) === '受限'
-                          ? 'warning'
-                          : 'success'
-                      "
-                      variant="soft"
-                    >
-                      {{ folderVisibilityLabel(folder.visibilityMode) }}
-                    </UBadge>
                   </td>
                   <td
                     class="px-3 py-2 text-[11px] text-slate-500 dark:text-slate-400"

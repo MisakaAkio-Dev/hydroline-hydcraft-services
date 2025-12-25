@@ -198,11 +198,8 @@ export class UsersController {
         description: 'User avatar',
         isPublic: true,
         tagKeys: [],
-        visibilityMode: 'public',
-        visibilityRoles: [],
-        visibilityLabels: [],
         metadata: {},
-      } as any,
+      },
     );
 
     await this.usersService.updateCurrentUser(userId, {

@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { apiFetch, ApiError } from '@/utils/http/api'
-import type {
-  BatchUploadRow,
-  VisibilityModeOption,
-} from '@/views/admin/Attachments/types'
+import type { BatchUploadRow } from '@/views/admin/Attachments/types'
 import type { PropType } from 'vue'
 
 const props = defineProps({
@@ -17,24 +14,8 @@ const props = defineProps({
     type: Array as PropType<Array<{ label: string; value: string }>>,
     default: () => [],
   },
-  roleOptions: {
-    type: Array as PropType<Array<{ label: string; value: string }>>,
-    default: () => [],
-  },
-  permissionLabelOptions: {
-    type: Array as PropType<
-      Array<{ label: string; value: string; color?: string }>
-    >,
-    default: () => [],
-  },
   foldersLoading: Boolean,
   tagsLoading: Boolean,
-  visibilityModeOptions: {
-    type: Array as PropType<
-      Array<{ label: string; value: VisibilityModeOption }>
-    >,
-    required: true,
-  },
   rootFolderValue: { type: String, required: true },
   selectPopperFixed: {
     type: Object as PropType<{ strategy: string }>,
@@ -78,6 +59,10 @@ const batchUploading = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const hasBatchFiles = computed(() => batchFiles.value.length > 0)
+const storageStatusOptions = [
+  { label: '公开（所有人可见）', value: true },
+  { label: '私有（归档）', value: false },
+]
 
 function appendFiles(fileList: FileList | File[]) {
   const newRows: BatchUploadRow[] = Array.from(fileList).map((file) =>
@@ -87,9 +72,7 @@ function appendFiles(fileList: FileList | File[]) {
       name: file.name,
       description: '',
       tagKeys: [] as string[],
-      visibilityMode: 'inherit' as VisibilityModeOption,
-      visibilityRoles: [] as string[],
-      visibilityLabels: [] as string[],
+      isPublic: true,
       status: 'pending' as BatchUploadRow['status'],
     }),
   )
@@ -161,13 +144,7 @@ async function uploadBatch() {
       if (batchFolderId.value) {
         formData.append('folderId', batchFolderId.value)
       }
-      formData.append('visibilityMode', row.visibilityMode)
-      if (row.visibilityMode === 'restricted' && row.visibilityRoles.length) {
-        formData.append('visibilityRoles', row.visibilityRoles.join(','))
-      }
-      if (row.visibilityMode === 'restricted' && row.visibilityLabels.length) {
-        formData.append('visibilityLabels', row.visibilityLabels.join(','))
-      }
+      formData.append('isPublic', row.isPublic ? 'true' : 'false')
       if (row.tagKeys.length > 0) {
         formData.append('tagKeys', row.tagKeys.join(','))
       }
@@ -343,8 +320,8 @@ watch(
                   <th class="px-4 py-3 text-left">附件名称</th>
                   <th class="px-4 py-3 text-left">描述</th>
                   <th class="px-4 py-3 text-left">标签</th>
-                  <th class="px-4 py-3 text-left">可见性</th>
-                  <th class="px-4 py-3 text-left">状态</th>
+                  <th class="px-4 py-3 text-left">公开状态</th>
+                  <th class="px-4 py-3 text-left">上传状态</th>
                   <th class="px-4 py-3 text-right">操作</th>
                 </tr>
               </thead>
@@ -387,39 +364,23 @@ watch(
                       "
                     />
                   </td>
-                  <td class="px-4 py-3 space-y-2">
+                  <td class="px-4 py-3">
                     <USelectMenu
                       class="w-full"
-                      :items="visibilityModeOptions"
+                      :items="storageStatusOptions"
                       value-key="value"
                       label-key="label"
-                      v-model="row.visibilityMode"
+                      :ui="attachmentDialogSelectUi"
+                      :popper="selectPopperFixed"
+                      :model-value="row.isPublic"
+                      @update:model-value="
+                        (value) => {
+                          if (typeof value === 'boolean') {
+                            row.isPublic = value
+                          }
+                        }
+                      "
                     />
-                    <div
-                      v-if="row.visibilityMode === 'restricted'"
-                      class="space-y-1 text-xs"
-                    >
-                      <p>允许的角色</p>
-                      <USelect
-                        class="w-full"
-                        multiple
-                        :items="roleOptions"
-                        v-model="row.visibilityRoles"
-                        placeholder="选择角色"
-                        :ui="attachmentDialogSelectUi"
-                        :popper="selectPopperFixed"
-                      />
-                      <p>允许的权限标签</p>
-                      <USelect
-                        class="w-full"
-                        multiple
-                        :items="permissionLabelOptions"
-                        v-model="row.visibilityLabels"
-                        placeholder="选择标签"
-                        :ui="attachmentDialogSelectUi"
-                        :popper="selectPopperFixed"
-                      />
-                    </div>
                   </td>
                   <td
                     class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400"

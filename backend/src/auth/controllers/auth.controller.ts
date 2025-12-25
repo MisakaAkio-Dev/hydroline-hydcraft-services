@@ -827,11 +827,8 @@ export class AuthController {
         description: 'User avatar',
         isPublic: true,
         tagKeys: [],
-        visibilityMode: 'public',
-        visibilityRoles: [],
-        visibilityLabels: [],
         metadata: {},
-      } as any,
+      },
     );
 
     const updated = (await this.usersService.updateCurrentUser(userId, {

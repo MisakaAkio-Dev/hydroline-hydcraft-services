@@ -2,7 +2,6 @@ import { Transform } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
-  IsIn,
   IsObject,
   IsOptional,
   IsString,
@@ -90,22 +89,6 @@ export class CreateAttachmentDto {
   @Transform(({ value }) => toBoolean(value))
   @IsBoolean()
   isPublic?: boolean;
-
-  @IsOptional()
-  @IsIn(['inherit', 'public', 'restricted'])
-  visibilityMode?: 'inherit' | 'public' | 'restricted';
-
-  @IsOptional()
-  @Transform(({ value }) => toStringArray(value))
-  @IsArray()
-  @IsString({ each: true })
-  visibilityRoles?: string[];
-
-  @IsOptional()
-  @Transform(({ value }) => toStringArray(value))
-  @IsArray()
-  @IsString({ each: true })
-  visibilityLabels?: string[];
 
   @IsOptional()
   @Transform(({ value }) => toStringArray(value))

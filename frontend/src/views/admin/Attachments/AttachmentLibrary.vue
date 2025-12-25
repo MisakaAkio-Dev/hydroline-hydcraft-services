@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, watch, onMounted, ref } from 'vue'
 import { useAdminAttachmentsStore } from '@/stores/admin/attachments'
-import { useAdminRbacStore } from '@/stores/admin/rbac'
 import { useUiStore } from '@/stores/shared/ui'
 import { apiFetch, ApiError, getApiBaseUrl } from '@/utils/http/api'
 import { useAuthStore } from '@/stores/user/auth'
@@ -13,14 +12,12 @@ import type { AdminAttachmentSummary } from '@/types/admin'
 import type {
   AttachmentFolderEntry,
   AttachmentTagEntry,
-  VisibilityModeOption,
 } from '@/views/admin/Attachments/types'
 import { formatFolderDisplay } from '@/views/admin/Attachments/folderDisplay'
 
 const uiStore = useUiStore()
 const authStore = useAuthStore()
 const attachmentsStore = useAdminAttachmentsStore()
-const rbacStore = useAdminRbacStore()
 const toast = useToast()
 
 const backendBase = getApiBaseUrl()
@@ -46,6 +43,10 @@ const folderDialogOpen = ref(false)
 const tagDialogOpen = ref(false)
 const managementDialogOpen = ref(false)
 const managementAttachment = ref<AdminAttachmentSummary | null>(null)
+const storageInfoDialogOpen = ref(false)
+const storageInfo = ref<AttachmentStorageInfo | null>(null)
+const storageInfoLoading = ref(false)
+const storageInfoError = ref<string | null>(null)
 
 const ROOT_FOLDER_VALUE = '__ROOT__'
 
@@ -62,34 +63,6 @@ const tagOptions = computed(() =>
     label: `${tag.name} (${tag.key})`,
     value: tag.key,
   })),
-)
-
-const roleOptions = computed(() =>
-  rbacStore.roles.map((role) => ({
-    label: role.name,
-    value: role.key,
-  })),
-)
-
-const permissionLabelOptions = computed(() =>
-  rbacStore.labels.map((label) => ({
-    label: label.name,
-    value: label.key,
-    color: label.color ?? undefined,
-  })),
-)
-
-const visibilityModeOptions: Array<{
-  label: string
-  value: VisibilityModeOption
-}> = [
-  { label: '继承文件夹设置', value: 'inherit' },
-  { label: '公开（所有人可见）', value: 'public' },
-  { label: '受限（指定 RBAC）', value: 'restricted' },
-]
-
-const folderVisibilityOptions = visibilityModeOptions.filter(
-  (option) => option.value !== 'inherit',
 )
 
 const selectPopperFixed = { strategy: 'fixed' } as const
@@ -149,17 +122,30 @@ function folderLabel(id: string | null) {
 
 const folderDisplay = formatFolderDisplay
 
-function visibilitySourceLabel(
-  resolved: AdminAttachmentSummary['resolvedVisibility'],
-) {
-  if (resolved.source === 'folder') {
-    return `继承：${resolved.folderName || '文件夹设置'}`
+type AttachmentStorageInfo = {
+  driver: 'local' | 's3'
+  deliveryMode: 'direct' | 'proxy'
+  attachmentsDir?: string
+  publicBaseUrl?: string
+  s3?: {
+    endpoint: string
+    region: string
+    bucket: string
+    forcePathStyle: boolean
+    keyPrefix?: string
+    publicBaseUrl?: string
   }
-  if (resolved.source === 'attachment') {
-    return '自定义权限'
-  }
-  return '默认公开'
 }
+
+const storageDriverLabels = {
+  local: '本地存储',
+  s3: 'S3 兼容存储',
+} as const
+
+const storageDeliveryLabels = {
+  direct: '直连',
+  proxy: '代理',
+} as const
 
 async function refresh(targetPage?: number) {
   uiStore.startLoading()
@@ -179,6 +165,34 @@ function handleFolderFilterChange(value: string | null) {
   const normalized = !value || value === ROOT_FOLDER_VALUE ? null : value
   selectedFolderId.value = normalized
   void refresh(1)
+}
+
+function openStorageInfoDialog() {
+  storageInfoDialogOpen.value = true
+  if (storageInfo.value || storageInfoLoading.value) {
+    return
+  }
+  void loadStorageInfo()
+}
+
+async function loadStorageInfo() {
+  storageInfoLoading.value = true
+  try {
+    const token = ensureToken()
+    storageInfo.value = await apiFetch<AttachmentStorageInfo>(
+      '/attachments/config',
+      {
+        token,
+      },
+    )
+    storageInfoError.value = null
+  } catch (error) {
+    const fallback = '无法加载附件存储配置'
+    storageInfoError.value =
+      error instanceof ApiError ? error.message || fallback : fallback
+  } finally {
+    storageInfoLoading.value = false
+  }
 }
 
 async function fetchFolders() {
@@ -290,8 +304,6 @@ onMounted(async () => {
   if (authStore.token) {
     void fetchFolders()
     void fetchTags()
-    void rbacStore.fetchRoles()
-    void rbacStore.fetchLabels()
   }
 })
 </script>
@@ -352,6 +364,14 @@ onMounted(async () => {
           >
             刷新
           </UButton>
+          <UButton
+            size="xs"
+            variant="ghost"
+            icon="i-lucide-info"
+            :loading="storageInfoLoading"
+            title="查看附件存储配置"
+            @click="openStorageInfoDialog"
+          />
         </div>
       </div>
     </header>
@@ -427,22 +447,14 @@ onMounted(async () => {
               <div class="flex flex-col gap-1">
                 <div class="flex gap-1">
                   <UBadge
-                    :color="
-                      item.resolvedVisibility.mode === 'public'
-                        ? 'success'
-                        : 'warning'
-                    "
+                    :color="item.isPublic ? 'success' : 'neutral'"
                     variant="soft"
                   >
-                    {{
-                      item.resolvedVisibility.mode === 'public'
-                        ? '公开'
-                        : '受限'
-                    }}
+                    {{ item.isPublic ? '公开' : '私有（封存）' }}
                   </UBadge>
                 </div>
                 <div class="text-slate-400 dark:text-slate-500">
-                  {{ visibilitySourceLabel(item.resolvedVisibility) }}
+                  {{ item.isPublic ? '对外可见' : '仅后台归档' }}
                 </div>
               </div>
             </td>
@@ -543,9 +555,6 @@ onMounted(async () => {
     v-model="managementDialogOpen"
     :attachment="managementAttachment"
     :folder-options="folderOptions"
-    :role-options="roleOptions"
-    :permission-label-options="permissionLabelOptions"
-    :visibility-mode-options="visibilityModeOptions"
     :root-folder-value="ROOT_FOLDER_VALUE"
     :select-popper-fixed="selectPopperFixed"
     :attachment-dialog-select-ui="attachmentDialogSelectUi"
@@ -554,7 +563,6 @@ onMounted(async () => {
     :refresh="refresh"
     :fetch-folders="fetchFolders"
     :fetch-tags="fetchTags"
-    :visibility-source-label="visibilitySourceLabel"
     :format-size="formatSize"
     :format-owner="formatOwner"
   />
@@ -565,7 +573,6 @@ onMounted(async () => {
     :tag-options="tagOptions"
     :folders-loading="foldersLoading"
     :tags-loading="tagsLoading"
-    :visibility-mode-options="visibilityModeOptions"
     :root-folder-value="ROOT_FOLDER_VALUE"
     :select-popper-fixed="selectPopperFixed"
     :attachment-dialog-select-ui="attachmentDialogSelectUi"
@@ -576,8 +583,6 @@ onMounted(async () => {
     :fetch-tags="fetchTags"
     :folder-label="folderLabel"
     :format-size="formatSize"
-    :role-options="roleOptions"
-    :permission-label-options="permissionLabelOptions"
     :open-folder-dialog="openFolderDialog"
   />
 
@@ -586,9 +591,6 @@ onMounted(async () => {
     :folders="folders"
     :folders-loading="foldersLoading"
     :folder-options="folderOptions"
-    :folder-visibility-options="folderVisibilityOptions"
-    :role-options="roleOptions"
-    :permission-label-options="permissionLabelOptions"
     :select-popper-fixed="selectPopperFixed"
     :attachment-dialog-select-ui="attachmentDialogSelectUi"
     :root-folder-value="ROOT_FOLDER_VALUE"
@@ -606,4 +608,110 @@ onMounted(async () => {
     :notify-error="notifyError"
     :fetch-tags="fetchTags"
   />
+
+  <UModal
+    v-model:open="storageInfoDialogOpen"
+    :ui="{ content: 'w-full max-w-lg p-0 z-101', overlay: 'z-100' }"
+  >
+    <template #content>
+      <div class="space-y-4 p-4">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+              附件存储信息
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              展示当前驱动、S3/本地配置与分发模式
+            </p>
+          </div>
+          <UButton
+            size="xs"
+            variant="ghost"
+            icon="i-lucide-x"
+            @click="storageInfoDialogOpen = false"
+          />
+        </div>
+        <div class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+          <div class="flex justify-between">
+            <span class="text-xs text-slate-500">存储驱动</span>
+            <span class="font-medium">
+              {{ storageDriverLabels[storageInfo?.driver ?? 'local'] }}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-xs text-slate-500">分发模式</span>
+            <span class="font-medium">
+              {{ storageDeliveryLabels[storageInfo?.deliveryMode ?? 'direct'] }}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-xs text-slate-500">附件目录</span>
+            <span class="font-medium">
+              {{ storageInfo?.attachmentsDir ?? '未配置' }}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-xs text-slate-500">对外基础地址</span>
+            <span class="font-medium">
+              {{ storageInfo?.publicBaseUrl ?? '未配置' }}
+            </span>
+          </div>
+          <div
+            v-if="storageInfo?.s3"
+            class="space-y-1 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-3 py-2 text-xs text-slate-600 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-300"
+          >
+            <div
+              class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+            >
+              S3 兼容配置
+            </div>
+            <div class="flex justify-between">
+              <span>Endpoint</span>
+              <span class="font-medium">
+                {{ storageInfo.s3.endpoint }}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span>Region</span>
+              <span class="font-medium">{{ storageInfo.s3.region }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Bucket</span>
+              <span class="font-medium">{{ storageInfo.s3.bucket }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Force Path Style</span>
+              <span class="font-medium">
+                {{ storageInfo.s3.forcePathStyle ? '是' : '否' }}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span>Key Prefix</span>
+              <span class="font-medium">
+                {{ storageInfo.s3.keyPrefix || '无' }}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span>自定义公开地址</span>
+              <span class="font-medium">
+                {{ storageInfo.s3.publicBaseUrl ?? '未配置' }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="storageInfoLoading"
+          class="text-xs text-slate-500 dark:text-slate-400"
+        >
+          正在加载…
+        </div>
+        <div
+          v-else-if="storageInfoError"
+          class="text-xs text-rose-500 dark:text-rose-400"
+        >
+          {{ storageInfoError }}
+        </div>
+      </div>
+    </template>
+  </UModal>
 </template>

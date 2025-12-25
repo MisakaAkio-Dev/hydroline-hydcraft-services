@@ -4,11 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  AttachmentVisibilityMode,
-  Prisma,
-  TransportationRailwayMod,
-} from '@prisma/client';
+import { Prisma, TransportationRailwayMod } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AttachmentsService } from '../../../attachments/attachments.service';
 import type { UploadedStreamFile } from '../../../attachments/attachments.service';
@@ -408,7 +404,6 @@ export class TransportationRailwaySystemService {
       folder = await this.attachmentsService.createFolder(user.id, {
         name: folderName,
         description: '铁路线路系统相关图片',
-        visibilityMode: 'public',
       });
     }
 
@@ -553,9 +548,6 @@ export class TransportationRailwaySystemService {
       await this.attachmentsService.getAttachmentOrThrow(attachmentId);
     if (!attachment.isPublic) {
       throw new BadRequestException('Attachment must be public');
-    }
-    if (attachment.visibilityMode === AttachmentVisibilityMode.RESTRICTED) {
-      throw new ForbiddenException('Attachment is not accessible');
     }
   }
 

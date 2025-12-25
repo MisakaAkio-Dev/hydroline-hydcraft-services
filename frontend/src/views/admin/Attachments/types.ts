@@ -1,14 +1,9 @@
-export type VisibilityModeOption = 'inherit' | 'public' | 'restricted'
-
 export type AttachmentFolderEntry = {
   id: string
   name: string
   path: string
   parentId: string | null
   description?: string | null
-  visibilityMode?: VisibilityModeOption | 'PUBLIC' | 'RESTRICTED' | 'INHERIT'
-  visibilityRoles?: string[]
-  visibilityLabels?: string[]
 }
 
 export type AttachmentTagEntry = {
@@ -24,9 +19,7 @@ export type BatchUploadRow = {
   name: string
   description: string
   tagKeys: string[]
-  visibilityMode: VisibilityModeOption
-  visibilityRoles: string[]
-  visibilityLabels: string[]
+  isPublic: boolean
   status: 'pending' | 'uploading' | 'done' | 'error'
   errorMessage?: string
 }

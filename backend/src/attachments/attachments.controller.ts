@@ -47,6 +47,15 @@ export class AttachmentsController {
   }
 
   @UseGuards(AuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.ASSETS_VIEW_ATTACHMENTS)
+  @Get('config')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取附件存储配置 (隐藏敏感信息)' })
+  async config() {
+    return this.attachmentsService.getStorageInfo();
+  }
+
+  @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.ASSETS_MANAGE_ATTACHMENTS)
   @Post()
   @ApiBearerAuth()

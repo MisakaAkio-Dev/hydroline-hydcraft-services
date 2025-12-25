@@ -6,11 +6,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import {
-  AttachmentFolder,
-  AttachmentVisibilityMode,
-  Prisma,
-} from '@prisma/client';
+import { AttachmentFolder, Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { promises as fs } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
@@ -30,7 +26,12 @@ import { GenerateShareTokenDto } from './dto/generate-share-token.dto';
 import type { StoredUploadedFile } from './uploaded-file.interface';
 import { ATTACHMENT_STORAGE } from './storage/attachment-storage.token';
 import type { AttachmentStorage } from './storage/attachment-storage.interface';
-import { readAttachmentsStorageConfig } from './storage/attachments-storage.config';
+import {
+  AttachmentsDeliveryMode,
+  AttachmentsStorageConfig,
+  AttachmentsStorageDriver,
+  readAttachmentsStorageConfig,
+} from './storage/attachments-storage.config';
 import { LocalAttachmentStorage } from './storage/local-attachment.storage';
 
 const ATTACHMENT_RELATIONS = {
@@ -39,9 +40,6 @@ const ATTACHMENT_RELATIONS = {
       id: true,
       name: true,
       path: true,
-      visibilityMode: true,
-      visibilityRoles: true,
-      visibilityLabels: true,
     },
   },
   owner: { select: { id: true, name: true, email: true } },
@@ -55,10 +53,6 @@ type AttachmentWithRelations = Prisma.AttachmentGetPayload<{
   uploaderNameSnapshot: string | null;
   uploaderEmailSnapshot: string | null;
 };
-
-type ClientVisibilityMode = 'inherit' | 'public' | 'restricted';
-type ClientVisibilityResultMode = 'public' | 'restricted';
-
 type AttachmentSummary = {
   id: string;
   name: string;
@@ -69,17 +63,6 @@ type AttachmentSummary = {
   hash: string | null;
   metadata: Prisma.JsonValue | null;
   description: string | null;
-  visibilityMode: ClientVisibilityMode;
-  visibilityRoles: string[];
-  visibilityLabels: string[];
-  resolvedVisibility: {
-    mode: ClientVisibilityResultMode;
-    roles: string[];
-    labels: string[];
-    source: 'attachment' | 'folder' | 'default';
-    folderId?: string | null;
-    folderName?: string | null;
-  };
   createdAt: Date;
   updatedAt: Date;
   folder: {
@@ -95,6 +78,21 @@ type AttachmentSummary = {
   };
   tags: Array<{ id: string; key: string; name: string }>;
   publicUrl: string | null;
+};
+
+type AttachmentStorageInfo = {
+  driver: AttachmentsStorageDriver;
+  deliveryMode: AttachmentsDeliveryMode;
+  attachmentsDir?: string;
+  publicBaseUrl?: string;
+  s3?: {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    forcePathStyle: boolean;
+    keyPrefix?: string;
+    publicBaseUrl?: string;
+  };
 };
 
 export type UploadedStreamFile = {
@@ -230,6 +228,26 @@ export class AttachmentsService implements OnModuleInit {
     return result;
   }
 
+  getStorageInfo(): AttachmentStorageInfo {
+    const config = this.storageConfig;
+    return {
+      driver: config.driver,
+      deliveryMode: config.deliveryMode,
+      attachmentsDir: config.attachmentsDir,
+      publicBaseUrl: config.publicBaseUrl,
+      s3: config.s3
+        ? {
+            endpoint: config.s3.endpoint,
+            region: config.s3.region,
+            bucket: config.s3.bucket,
+            forcePathStyle: config.s3.forcePathStyle,
+            keyPrefix: config.s3.keyPrefix || undefined,
+            publicBaseUrl: config.s3.publicBaseUrl,
+          }
+        : undefined,
+    };
+  }
+
   async listFolders() {
     const folders = await this.prisma.attachmentFolder.findMany({
       orderBy: [{ path: 'asc' }],
@@ -252,14 +270,6 @@ export class AttachmentsService implements OnModuleInit {
 
     await this.ensureUniqueFolder(parent?.id ?? null, dto.name);
 
-    const folderVisibilityMode = this.toFolderVisibilityMode(
-      dto.visibilityMode,
-    );
-    const folderVisibilityRoles = this.normalizeStringList(dto.visibilityRoles);
-    const folderVisibilityLabels = this.normalizeStringList(
-      dto.visibilityLabels,
-    );
-
     const folder = await this.prisma.attachmentFolder.create({
       data: {
         name: dto.name,
@@ -268,9 +278,6 @@ export class AttachmentsService implements OnModuleInit {
         parentId: dto.parentId ?? null,
         path,
         createdById: userId ?? null,
-        visibilityMode: folderVisibilityMode,
-        visibilityRoles: folderVisibilityRoles,
-        visibilityLabels: folderVisibilityLabels,
       },
     });
 
@@ -315,19 +322,6 @@ export class AttachmentsService implements OnModuleInit {
       : (folder.slug ?? this.slugify(folder.name));
     const path: string = parent ? `${parent.path}/${slug}` : slug;
 
-    const nextVisibilityMode =
-      dto.visibilityMode !== undefined
-        ? this.toFolderVisibilityMode(dto.visibilityMode)
-        : folder.visibilityMode;
-    const nextVisibilityRoles =
-      dto.visibilityRoles !== undefined
-        ? this.normalizeStringList(dto.visibilityRoles)
-        : (folder.visibilityRoles ?? []);
-    const nextVisibilityLabels =
-      dto.visibilityLabels !== undefined
-        ? this.normalizeStringList(dto.visibilityLabels)
-        : (folder.visibilityLabels ?? []);
-
     const updated = await this.prisma.$transaction(async (tx) => {
       const record = await tx.attachmentFolder.update({
         where: { id: folderId },
@@ -337,9 +331,6 @@ export class AttachmentsService implements OnModuleInit {
           description: dto.description ?? folder.description,
           parentId: targetParentId,
           path,
-          visibilityMode: nextVisibilityMode,
-          visibilityRoles: nextVisibilityRoles,
-          visibilityLabels: nextVisibilityLabels,
         },
       });
 
@@ -366,7 +357,6 @@ export class AttachmentsService implements OnModuleInit {
     });
 
     await this.ensurePhysicalDirectory(updated.path);
-    await this.refreshFolderInheritedVisibility(updated.id);
     return updated;
   }
 
@@ -689,27 +679,7 @@ export class AttachmentsService implements OnModuleInit {
       throw new NotFoundException('Uploader not found');
     }
 
-    const visibilityInput = this.normalizeAttachmentVisibilityInput(
-      dto.visibilityMode,
-      dto.visibilityRoles,
-      dto.visibilityLabels,
-      dto.isPublic,
-    );
-    const folderContext = folder
-      ? {
-          id: folder.id,
-          name: folder.name,
-          visibilityMode: folder.visibilityMode,
-          visibilityRoles: folder.visibilityRoles ?? [],
-          visibilityLabels: folder.visibilityLabels ?? [],
-        }
-      : null;
-    const resolvedVisibility = this.resolveAttachmentVisibilityState(
-      visibilityInput.mode,
-      visibilityInput.roles,
-      visibilityInput.labels,
-      folderContext,
-    );
+    const isPublic = dto.isPublic ?? true;
 
     const normalizedOriginalName =
       this.normalizeAttachmentName(file.originalName) ||
@@ -745,10 +715,7 @@ export class AttachmentsService implements OnModuleInit {
         size: stored.size,
         storageKey: storageKey.replace(/\\/g, '/'),
         hash: stored.hash,
-        isPublic: resolvedVisibility.isPublic,
-        visibilityMode: visibilityInput.mode,
-        visibilityRoles: visibilityInput.roles,
-        visibilityLabels: visibilityInput.labels,
+        isPublic,
         metadata: this.buildMetadata(dto),
         tags: tagRecords.length
           ? {
@@ -783,9 +750,6 @@ export class AttachmentsService implements OnModuleInit {
             id: true,
             name: true,
             path: true,
-            visibilityMode: true,
-            visibilityRoles: true,
-            visibilityLabels: true,
           },
         },
       },
@@ -819,60 +783,13 @@ export class AttachmentsService implements OnModuleInit {
       tagConnect = tags.map((tag) => ({ tagId: tag.id, assignedById: userId }));
     }
 
-    const targetFolderContext =
-      typeof folderIdInput === 'string'
-        ? folder
-        : folderIdInput === null
-          ? null
-          : attachment.folder;
-
-    const shouldUpdateVisibility =
-      dto.visibilityMode !== undefined ||
-      dto.visibilityRoles !== undefined ||
-      dto.visibilityLabels !== undefined ||
-      dto.isPublic !== undefined;
-
-    const nextVisibilityMode = shouldUpdateVisibility
-      ? this.toAttachmentVisibilityMode(
-          dto.visibilityMode,
-          dto.isPublic ?? undefined,
-        )
-      : (attachment.visibilityMode ?? AttachmentVisibilityMode.INHERIT);
-    const nextVisibilityRoles =
-      dto.visibilityRoles !== undefined
-        ? this.normalizeStringList(dto.visibilityRoles)
-        : (attachment.visibilityRoles ?? []);
-    const nextVisibilityLabels =
-      dto.visibilityLabels !== undefined
-        ? this.normalizeStringList(dto.visibilityLabels)
-        : (attachment.visibilityLabels ?? []);
-
-    const folderContext = targetFolderContext
-      ? {
-          id: targetFolderContext.id,
-          name: targetFolderContext.name,
-          visibilityMode: targetFolderContext.visibilityMode,
-          visibilityRoles: targetFolderContext.visibilityRoles ?? [],
-          visibilityLabels: targetFolderContext.visibilityLabels ?? [],
-        }
-      : null;
-    const resolvedVisibility = this.resolveAttachmentVisibilityState(
-      nextVisibilityMode,
-      nextVisibilityRoles,
-      nextVisibilityLabels,
-      folderContext,
-    );
-
     const updated = await this.prisma.attachment.update({
       where: { id: attachmentId },
       data: {
         name: dto.name ?? attachment.name,
         folderId:
           folderIdInput !== undefined ? folderIdInput : attachment.folderId,
-        isPublic: resolvedVisibility.isPublic,
-        visibilityMode: nextVisibilityMode,
-        visibilityRoles: nextVisibilityRoles,
-        visibilityLabels: nextVisibilityLabels,
+        isPublic: dto.isPublic ?? attachment.isPublic,
         metadata:
           dto.metadata !== undefined
             ? this.buildMetadata(dto)
@@ -1094,12 +1011,6 @@ export class AttachmentsService implements OnModuleInit {
         storageKey: storageKey.replace(/\\/g, '/'),
         hash,
         isPublic: params.isPublic ?? true,
-        visibilityMode:
-          (params.isPublic ?? true)
-            ? AttachmentVisibilityMode.PUBLIC
-            : AttachmentVisibilityMode.RESTRICTED,
-        visibilityRoles: [],
-        visibilityLabels: [],
         metadata: {
           seedKey: params.seedKey,
           description: params.description ?? null,
@@ -1244,47 +1155,16 @@ export class AttachmentsService implements OnModuleInit {
     const normalizedDescription =
       typeof description === 'string' ? description : null;
 
-    const folderContext = attachment.folder
-      ? {
-          id: attachment.folder.id,
-          name: attachment.folder.name,
-          visibilityMode: attachment.folder.visibilityMode,
-          visibilityRoles: attachment.folder.visibilityRoles ?? [],
-          visibilityLabels: attachment.folder.visibilityLabels ?? [],
-        }
-      : null;
-
-    const storedVisibilityMode =
-      attachment.visibilityMode ?? AttachmentVisibilityMode.INHERIT;
-
-    const visibilityState = this.resolveAttachmentVisibilityState(
-      storedVisibilityMode,
-      attachment.visibilityRoles ?? [],
-      attachment.visibilityLabels ?? [],
-      folderContext,
-    );
-
     return {
       id: attachment.id,
       name: this.normalizeAttachmentName(attachment.name),
       originalName: this.normalizeAttachmentName(attachment.originalName),
       mimeType: attachment.mimeType,
       size: attachment.size,
-      isPublic: visibilityState.isPublic,
+      isPublic: attachment.isPublic,
       hash: attachment.hash,
       metadata,
       description: normalizedDescription,
-      visibilityMode: this.toClientVisibilityModeValue(storedVisibilityMode),
-      visibilityRoles: attachment.visibilityRoles ?? [],
-      visibilityLabels: attachment.visibilityLabels ?? [],
-      resolvedVisibility: {
-        mode: this.toClientVisibilityResultMode(visibilityState.resolvedMode),
-        roles: visibilityState.resolvedRoles,
-        labels: visibilityState.resolvedLabels,
-        source: visibilityState.source,
-        folderId: visibilityState.folderId,
-        folderName: visibilityState.folderName,
-      },
       createdAt: attachment.createdAt,
       updatedAt: attachment.updatedAt,
       folder: attachment.folder
@@ -1300,7 +1180,7 @@ export class AttachmentsService implements OnModuleInit {
         key: tag.tag.key,
         name: tag.tag.name,
       })),
-      publicUrl: visibilityState.isPublic
+      publicUrl: attachment.isPublic
         ? (this.buildDirectUrlForKey(attachment.storageKey) ??
           this.buildProxyUrlForAttachmentId(attachment.id))
         : null,
@@ -1376,169 +1256,5 @@ export class AttachmentsService implements OnModuleInit {
     await (this.storage as LocalAttachmentStorage).ensureDirectory(
       pathFragment,
     );
-  }
-
-  private normalizeStringList(input?: string[]): string[] {
-    if (!input || input.length === 0) {
-      return [];
-    }
-    const unique = new Set<string>();
-    for (const value of input) {
-      if (typeof value !== 'string') {
-        continue;
-      }
-      const trimmed = value.trim();
-      if (trimmed.length > 0) {
-        unique.add(trimmed);
-      }
-    }
-    return Array.from(unique);
-  }
-
-  private toAttachmentVisibilityMode(
-    mode: 'inherit' | 'public' | 'restricted' | undefined,
-    booleanFallback?: boolean,
-  ): AttachmentVisibilityMode {
-    if (mode === 'public') {
-      return AttachmentVisibilityMode.PUBLIC;
-    }
-    if (mode === 'restricted') {
-      return AttachmentVisibilityMode.RESTRICTED;
-    }
-    if (mode === 'inherit') {
-      return AttachmentVisibilityMode.INHERIT;
-    }
-    if (typeof booleanFallback === 'boolean') {
-      return booleanFallback
-        ? AttachmentVisibilityMode.PUBLIC
-        : AttachmentVisibilityMode.RESTRICTED;
-    }
-    return AttachmentVisibilityMode.INHERIT;
-  }
-
-  private toFolderVisibilityMode(mode?: 'public' | 'restricted') {
-    return mode === 'restricted'
-      ? AttachmentVisibilityMode.RESTRICTED
-      : AttachmentVisibilityMode.PUBLIC;
-  }
-
-  private resolveAttachmentVisibilityState(
-    storedMode: AttachmentVisibilityMode,
-    storedRoles: string[],
-    storedLabels: string[],
-    folder?: {
-      id: string;
-      name: string;
-      visibilityMode: AttachmentVisibilityMode;
-      visibilityRoles: string[];
-      visibilityLabels: string[];
-    } | null,
-  ) {
-    if (storedMode !== AttachmentVisibilityMode.INHERIT) {
-      const resolvedMode =
-        storedMode === AttachmentVisibilityMode.RESTRICTED
-          ? AttachmentVisibilityMode.RESTRICTED
-          : AttachmentVisibilityMode.PUBLIC;
-      return {
-        resolvedMode,
-        resolvedRoles:
-          resolvedMode === AttachmentVisibilityMode.RESTRICTED
-            ? storedRoles
-            : [],
-        resolvedLabels:
-          resolvedMode === AttachmentVisibilityMode.RESTRICTED
-            ? storedLabels
-            : [],
-        source: 'attachment' as const,
-        folderId: undefined,
-        folderName: undefined,
-        isPublic: resolvedMode === AttachmentVisibilityMode.PUBLIC,
-      };
-    }
-
-    if (folder) {
-      const resolvedMode =
-        folder.visibilityMode === AttachmentVisibilityMode.RESTRICTED
-          ? AttachmentVisibilityMode.RESTRICTED
-          : AttachmentVisibilityMode.PUBLIC;
-      return {
-        resolvedMode,
-        resolvedRoles:
-          resolvedMode === AttachmentVisibilityMode.RESTRICTED
-            ? (folder.visibilityRoles ?? [])
-            : [],
-        resolvedLabels:
-          resolvedMode === AttachmentVisibilityMode.RESTRICTED
-            ? (folder.visibilityLabels ?? [])
-            : [],
-        source: 'folder' as const,
-        folderId: folder.id,
-        folderName: folder.name,
-        isPublic: resolvedMode === AttachmentVisibilityMode.PUBLIC,
-      };
-    }
-
-    return {
-      resolvedMode: AttachmentVisibilityMode.PUBLIC,
-      resolvedRoles: [],
-      resolvedLabels: [],
-      source: 'default' as const,
-      folderId: undefined,
-      folderName: undefined,
-      isPublic: true,
-    };
-  }
-
-  private normalizeAttachmentVisibilityInput(
-    mode: 'inherit' | 'public' | 'restricted' | undefined,
-    roles?: string[],
-    labels?: string[],
-    booleanFallback?: boolean,
-  ) {
-    return {
-      mode: this.toAttachmentVisibilityMode(mode, booleanFallback),
-      roles: this.normalizeStringList(roles),
-      labels: this.normalizeStringList(labels),
-    };
-  }
-
-  private async refreshFolderInheritedVisibility(folderId: string) {
-    const folder = await this.prisma.attachmentFolder.findUnique({
-      where: { id: folderId },
-      select: { id: true, visibilityMode: true },
-    });
-    if (!folder) {
-      return;
-    }
-    await this.prisma.attachment.updateMany({
-      where: {
-        folderId,
-        visibilityMode: AttachmentVisibilityMode.INHERIT,
-      },
-      data: {
-        isPublic: folder.visibilityMode !== AttachmentVisibilityMode.RESTRICTED,
-      },
-    });
-  }
-
-  private toClientVisibilityModeValue(
-    mode: AttachmentVisibilityMode,
-  ): ClientVisibilityMode {
-    switch (mode) {
-      case AttachmentVisibilityMode.PUBLIC:
-        return 'public';
-      case AttachmentVisibilityMode.RESTRICTED:
-        return 'restricted';
-      default:
-        return 'inherit';
-    }
-  }
-
-  private toClientVisibilityResultMode(
-    mode: AttachmentVisibilityMode,
-  ): ClientVisibilityResultMode {
-    return mode === AttachmentVisibilityMode.RESTRICTED
-      ? 'restricted'
-      : 'public';
   }
 }
