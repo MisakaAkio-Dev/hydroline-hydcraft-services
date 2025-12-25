@@ -952,24 +952,28 @@ onUnmounted(() => {
                         查看
                       </UButton>
                     </div>
-                  </div>
-                </div>
 
-                <div
-                  v-if="hasMoreRoutes && !routesExpanded"
-                  class="pt-2 flex justify-center border-t border-slate-100 dark:border-slate-800/60"
-                >
-                  <UButton
-                    size="xs"
-                    variant="ghost"
-                    color="neutral"
-                    class="w-full flex justify-center"
-                    @click="routesExpanded = true"
-                  >
-                    查看剩余
-                    {{ associatedRoutes.length - MAX_VISIBLE_ROUTES }} 条线路
-                    <UIcon name="i-lucide-chevron-down" class="ml-1 h-3 w-3" />
-                  </UButton>
+                    <div
+                      v-if="hasMoreRoutes && !routesExpanded"
+                      class="pt-2 flex justify-center border-t border-slate-100 dark:border-slate-800/60"
+                    >
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        color="neutral"
+                        class="w-full flex justify-center"
+                        @click="routesExpanded = true"
+                      >
+                        查看剩余
+                        {{ associatedRoutes.length - MAX_VISIBLE_ROUTES }}
+                        条线路
+                        <UIcon
+                          name="i-lucide-chevron-down"
+                          class="ml-1 h-3 w-3"
+                        />
+                      </UButton>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

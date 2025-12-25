@@ -31,6 +31,7 @@ defineProps<{
               variant="link"
               color="neutral"
               class="block p-0 text-slate-900 dark:text-white"
+              v-if="systems && systems.length > 0"
             >
               <RouterLink
                 v-for="system in systems"
@@ -50,6 +51,9 @@ defineProps<{
                 <span class="text-sm">{{ system.name }}</span>
               </RouterLink>
             </UButton>
+            <div v-else class="text-slate-400 dark:text-slate-500">
+              暂无绑定
+            </div>
           </span>
         </div>
         <RailwayCompanyBindingSection
