@@ -9,6 +9,10 @@ import type {
   RailwayRouteDetail,
 } from '@/types/transportation'
 
+export type StopWithColor = RailwayRouteDetail['stops'][number] & {
+  color?: number | null
+}
+
 type RouteGroup = {
   color?: number | null
   paths: RailwayGeometryPoint[][]
@@ -21,10 +25,11 @@ type DrawOptions = {
   stationFillOpacity?: number
   routeGroups?: RouteGroup[]
   platformSegments?: RailwayGeometryPoint[][]
-  stops?: RailwayRouteDetail['stops']
+  stops?: StopWithColor[]
   platformStops?: RailwayRouteDetail['stops']
   focusZoom?: number
   autoFocus?: boolean
+  currentStationId?: string | null
 }
 
 const defaultColor = '#0ea5e9'
@@ -54,9 +59,10 @@ export class RailwayStationRoutesMap {
   private stationPolygonLayer: L.Layer | null = null
   private secondaryPolylines: L.Polyline[] = []
   private stopLayer: L.LayerGroup | null = null
-  private stops: RailwayRouteDetail['stops'] = []
+  private stops: StopWithColor[] = []
   private platformStops: RailwayRouteDetail['stops'] = []
   private platformStopVersion = 0
+  private currentStationId: string | null = null
   private platformSegmentByPlatformId = new Map<
     string,
     { a: RailwayGeometryPoint; b: RailwayGeometryPoint }
@@ -119,6 +125,7 @@ export class RailwayStationRoutesMap {
     this.clearStationPolygon()
     this.clearSecondaryPolylines()
 
+    this.currentStationId = options.currentStationId ?? null
     this.stops = options.stops ?? []
     this.stopVersion += 1
 
@@ -228,7 +235,7 @@ export class RailwayStationRoutesMap {
     this.syncSecondaryPolylines()
   }
 
-  setStops(stops: RailwayRouteDetail['stops'] = []) {
+  setStops(stops: StopWithColor[] = []) {
     this.stops = stops ?? []
     this.stopVersion += 1
     this.renderStops()
@@ -376,6 +383,9 @@ export class RailwayStationRoutesMap {
       const currentStationIds = new Set(
         this.platformStops.map((s) => s.stationId).filter(Boolean),
       )
+      if (this.currentStationId) {
+        currentStationIds.add(this.currentStationId)
+      }
       const otherStops = this.stops.filter(
         (s) => !s.stationId || !currentStationIds.has(s.stationId),
       )
@@ -391,7 +401,7 @@ export class RailwayStationRoutesMap {
 
   private renderStopList(
     layer: L.LayerGroup,
-    stops: RailwayRouteDetail['stops'],
+    stops: StopWithColor[],
     isPlatformStyle: boolean,
     map: L.Map,
   ) {
@@ -420,12 +430,14 @@ export class RailwayStationRoutesMap {
         marker = this.createPlatformArrowMarker({ map, stop, center })
       } else {
         if (markerMode === 'circle') {
+          const colorHex = toHexColor(stop.color)
           marker = L.circleMarker(center, {
-            radius: 3,
-            stroke: false,
+            radius: 7,
+            color: colorHex,
+            weight: 3,
             fill: true,
             fillColor: '#ffffff',
-            fillOpacity: 0.95,
+            fillOpacity: 1,
             interactive: false,
           })
         } else {

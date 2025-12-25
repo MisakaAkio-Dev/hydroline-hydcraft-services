@@ -3,7 +3,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import type { LeafletMouseEvent } from 'leaflet'
-import { RailwayStationRoutesMap } from '@/views/user/Transportation/railway/maps/stationRoutesMap'
+import {
+  RailwayStationRoutesMap,
+  type StopWithColor,
+} from '@/views/user/Transportation/railway/maps/stationRoutesMap'
 import type {
   RailwayRouteDetail,
   RailwayStationDetail,
@@ -119,10 +122,10 @@ const routeGroups = computed(() => {
   }))
 })
 
-const routeStops = computed<RailwayRouteDetail['stops']>(() => {
+const routeStops = computed<StopWithColor[]>(() => {
   const groups = props.routeMap?.groups ?? []
   const seen = new Set<string>()
-  const stops: RailwayRouteDetail['stops'] = []
+  const stops: StopWithColor[] = []
   let order = 0
   for (const group of groups) {
     for (const item of group.stops ?? []) {
@@ -140,6 +143,7 @@ const routeStops = computed<RailwayRouteDetail['stops']>(() => {
         dwellTime: null,
         position: { x: item.x, z: item.z },
         bounds: null,
+        color: group.color,
       })
     }
   }
@@ -257,6 +261,7 @@ async function draw() {
     platformStops: stops.value,
     focusZoom: 4,
     autoFocus: props.autoFocus,
+    currentStationId: props.routeMap?.stationId,
   })
 }
 
