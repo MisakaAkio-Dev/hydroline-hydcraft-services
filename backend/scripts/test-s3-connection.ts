@@ -20,31 +20,33 @@ async function main() {
     process.exit(1);
   }
 
+  const s3Config = cfg.s3;
+
   console.log('Configuration found:');
-  console.log(`  Endpoint: ${cfg.s3.endpoint}`);
-  console.log(`  Region: ${cfg.s3.region}`);
-  console.log(`  Bucket: ${cfg.s3.bucket}`);
-  console.log(`  AccessKeyId: ${cfg.s3.accessKeyId ? '***' : 'MISSING'}`);
+  console.log(`  Endpoint: ${s3Config.endpoint}`);
+  console.log(`  Region: ${s3Config.region}`);
+  console.log(`  Bucket: ${s3Config.bucket}`);
+  console.log(`  AccessKeyId: ${s3Config.accessKeyId ? '***' : 'MISSING'}`);
   console.log(
-    `  SecretAccessKey: ${cfg.s3.secretAccessKey ? '***' : 'MISSING'}`,
+    `  SecretAccessKey: ${s3Config.secretAccessKey ? '***' : 'MISSING'}`,
   );
-  console.log(`  ForcePathStyle: ${cfg.s3.forcePathStyle}`);
+  console.log(`  ForcePathStyle: ${s3Config.forcePathStyle}`);
 
   const client = new S3Client({
-    region: cfg.s3.region,
-    endpoint: cfg.s3.endpoint,
-    forcePathStyle: cfg.s3.forcePathStyle,
+    region: s3Config.region,
+    endpoint: s3Config.endpoint,
+    forcePathStyle: s3Config.forcePathStyle,
     credentials: {
-      accessKeyId: cfg.s3.accessKeyId,
-      secretAccessKey: cfg.s3.secretAccessKey,
+      accessKeyId: s3Config.accessKeyId,
+      secretAccessKey: s3Config.secretAccessKey,
     },
   });
 
-  const testKey = `${cfg.s3.keyPrefix}connectivity-test-${Date.now()}.txt`;
+  const testKey = `${s3Config.keyPrefix}connectivity-test-${Date.now()}.txt`;
 
   try {
     console.log('\n1. Testing Bucket Access (HeadBucket)...');
-    await client.send(new HeadBucketCommand({ Bucket: cfg.s3.bucket }));
+    await client.send(new HeadBucketCommand({ Bucket: s3Config.bucket }));
     console.log('   ✅ Success: Bucket exists and is accessible.');
   } catch (err: any) {
     console.error('   ❌ Failed:', err.name, err.$metadata?.httpStatusCode);
@@ -59,7 +61,7 @@ async function main() {
     console.log(`\n2. Testing Write Access (PutObject: ${testKey})...`);
     await client.send(
       new PutObjectCommand({
-        Bucket: cfg.s3.bucket,
+        Bucket: s3Config.bucket,
         Key: testKey,
         Body: 'Hello S3',
       }),
@@ -75,7 +77,7 @@ async function main() {
     console.log(`\n3. Testing Read Access (HeadObject: ${testKey})...`);
     await client.send(
       new HeadObjectCommand({
-        Bucket: cfg.s3.bucket,
+        Bucket: s3Config.bucket,
         Key: testKey,
       }),
     );
@@ -93,7 +95,7 @@ async function main() {
     console.log(`\n4. Testing Delete Access (DeleteObject: ${testKey})...`);
     await client.send(
       new DeleteObjectCommand({
-        Bucket: cfg.s3.bucket,
+        Bucket: s3Config.bucket,
         Key: testKey,
       }),
     );
