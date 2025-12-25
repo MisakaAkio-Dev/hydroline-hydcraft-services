@@ -357,6 +357,24 @@ const shouldForceSeparate = computed(() => {
 
 const showSplitLines = ref(false)
 const skipAutoFocus = ref(false)
+
+const stopsForMap = computed(() => {
+  const stops = props.stops ?? []
+  const useMidline = Boolean(props.combinePaths) && !showSplitLines.value
+  if (!useMidline) return stops
+
+  return stops.map((stop) => {
+    const pos = stop?.position
+    if (!pos) return stop
+    const adjusted = adjustPointWithSecondary(pos)
+    if (adjusted === pos) return stop
+    return {
+      ...stop,
+      position: adjusted,
+    }
+  })
+})
+
 let lastDrawSignature = ''
 let hasInvalidatedSize = false
 let resizeObserver: ResizeObserver | null = null
@@ -602,7 +620,7 @@ function scheduleDraw() {
 
 function syncStops() {
   if (!railwayMap.value) return
-  railwayMap.value.setStops(props.stops ?? [])
+  railwayMap.value.setStops(stopsForMap.value ?? [])
 }
 
 watch(
@@ -612,6 +630,7 @@ watch(
     // 刷新/首屏时 Leaflet 可能在容器尺寸未稳定就计算 bounds，导致不聚焦。
     invalidateMapSize()
     scheduleDraw()
+    syncStops()
   },
   { immediate: true },
 )
@@ -660,6 +679,15 @@ watch(
     skipAutoFocus.value = true
     handleSplitZoom()
     scheduleDraw()
+    syncStops()
+  },
+)
+
+watch(
+  () => showSplitLines.value,
+  () => {
+    // Split/midline mode affects stop position adjustment.
+    syncStops()
   },
 )
 
