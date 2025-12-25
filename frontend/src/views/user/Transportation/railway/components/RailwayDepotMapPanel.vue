@@ -9,10 +9,12 @@ const props = withDefaults(
     color?: number | null
     height?: string | number
     loading?: boolean
+    tileUrl?: string | null
   }>(),
   {
     height: '360px',
     loading: false,
+    tileUrl: null,
   },
 )
 
@@ -53,5 +55,6 @@ const geometry = computed(() => {
     :loading="loading"
     :auto-focus="true"
     :combine-paths="true"
+    :tile-url="tileUrl"
   />
 </template>

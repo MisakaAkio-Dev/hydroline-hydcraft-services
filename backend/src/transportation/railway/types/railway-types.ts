@@ -105,7 +105,7 @@ export type NormalizedEntity = {
   dimensionContext: string | null;
   filePath: string | null;
   payload: Record<string, unknown> | null;
-  server: { id: string; name: string };
+  server: { id: string; name: string; dynmapTileUrl?: string | null };
   railwayType: TransportationRailwayMod;
 };
 
@@ -137,7 +137,7 @@ export type OverviewRecentItem = {
 };
 
 export type RouteDetailResult = {
-  server: { id: string; name: string };
+  server: { id: string; name: string; dynmapTileUrl?: string | null };
   railwayType: TransportationRailwayMod;
   dimension: string | null;
   route: NormalizedRoute & { payload: Record<string, unknown> | null };
@@ -199,7 +199,7 @@ export type RouteDetailResult = {
 };
 
 export type RailwayStationDetailResult = {
-  server: { id: string; name: string };
+  server: { id: string; name: string; dynmapTileUrl?: string | null };
   railwayType: TransportationRailwayMod;
   station: NormalizedEntity & {
     bounds: {
@@ -230,7 +230,7 @@ export type RailwayStationDetailResult = {
 };
 
 export type RailwayDepotDetailResult = {
-  server: { id: string; name: string };
+  server: { id: string; name: string; dynmapTileUrl?: string | null };
   railwayType: TransportationRailwayMod;
   depot: NormalizedEntity & {
     bounds: {
@@ -270,7 +270,7 @@ export type RailwayRouteLogEntry = {
 };
 
 export type RailwayRouteLogResult = {
-  server: { id: string; name: string };
+  server: { id: string; name: string; dynmapTileUrl?: string | null };
   railwayType: TransportationRailwayMod;
   total: number;
   page: number;

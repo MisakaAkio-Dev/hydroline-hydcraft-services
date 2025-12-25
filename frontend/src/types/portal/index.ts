@@ -254,6 +254,7 @@ export interface PlayerGameServerStat {
   serverName: string
   beaconEnabled: boolean
   beaconConfigured: boolean
+  dynmapTileUrl?: string | null
   metrics: PlayerGameServerMetrics | null
   lastMtrLog: PlayerGameMtrLog | null
   mtrBalance: number | null

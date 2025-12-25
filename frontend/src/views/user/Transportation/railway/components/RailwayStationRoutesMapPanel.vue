@@ -12,6 +12,7 @@ import type {
   RailwayStationDetail,
   RailwayStationRouteMapPayload,
 } from '@/types/transportation'
+import { resolveDynmapTileUrl } from '@/utils/map'
 
 const props = withDefaults(
   defineProps<{
@@ -29,6 +30,7 @@ const props = withDefaults(
     mapLoading?: boolean
     autoFocus?: boolean
     rounded?: boolean
+    tileUrl?: string | null
   }>(),
   {
     platforms: () => [],
@@ -337,12 +339,39 @@ const stationFocusKey = computed(() => {
   return `${map.stationId}:${map.serverId}:${map.railwayType}:${map.dimension ?? ''}:${map.generatedAt}`
 })
 
+watch(
+  () => props.tileUrl,
+  (newUrl, oldUrl) => {
+    if (newUrl !== oldUrl && containerRef.value) {
+      mapCursorCleanup.value?.()
+      mapCursorCleanup.value = null
+
+      railwayMap.value?.destroy()
+      railwayMap.value = null
+
+      const map = new RailwayStationRoutesMap({
+        tileBaseUrl: resolveDynmapTileUrl(newUrl),
+      })
+      railwayMap.value = map
+      map.mount({
+        container: containerRef.value,
+        showZoomControl: false,
+      })
+      attachMapCursorTracking()
+      invalidateMapSize()
+      scheduleDraw()
+    }
+  },
+)
+
 onMounted(async () => {
   isMounted.value = true
   await nextTick()
   if (!containerRef.value) return
 
-  const map = new RailwayStationRoutesMap()
+  const map = new RailwayStationRoutesMap({
+    tileBaseUrl: resolveDynmapTileUrl(props.tileUrl),
+  })
   railwayMap.value = map
   map.mount({
     container: containerRef.value,

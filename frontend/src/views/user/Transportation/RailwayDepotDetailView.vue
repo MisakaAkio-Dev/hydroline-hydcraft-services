@@ -62,6 +62,8 @@ const dimensionName = computed(() =>
   getDimensionName(detail.value?.depot.dimension || params.value.dimension),
 )
 
+const tileUrl = computed(() => detail.value?.server?.dynmapTileUrl ?? null)
+
 const associatedRoutes = computed(() => detail.value?.routes ?? [])
 
 const modpackInfo = computed(() => {
@@ -327,6 +329,7 @@ onMounted(() => {
       :color="detail?.depot.color ?? detail?.routes[0]?.color ?? null"
       :loading="loading"
       height="460px"
+      :tile-url="tileUrl"
     />
 
     <div v-if="loading" class="text-sm text-slate-500">

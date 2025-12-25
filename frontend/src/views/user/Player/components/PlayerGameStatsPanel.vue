@@ -14,6 +14,7 @@ import {
   createHydcraftDynmapMap,
   DynmapMapController,
   hydcraftDynmapSource,
+  resolveDynmapTileUrl,
   type DynmapBlockPoint,
 } from '@/utils/map'
 
@@ -246,7 +247,9 @@ const initializeDynmap = async (root?: HTMLElement | null) => {
   mapErrorMessage.value = null
   try {
     teardownMapInstance()
-    const controller = createHydcraftDynmapMap()
+    const controller = createHydcraftDynmapMap({
+      tileBaseUrl: resolveDynmapTileUrl(selectedServer.value?.dynmapTileUrl),
+    })
     controller.mount({
       container,
       center: preferredMapCenter.value,
@@ -398,6 +401,15 @@ watch(
   () => selectedServer.value?.nbtPosition,
   () => {
     updateLastLoginMarker()
+  },
+)
+
+watch(
+  () => selectedServer.value?.dynmapTileUrl,
+  async (newUrl, oldUrl) => {
+    if (newUrl !== oldUrl && mapContainerRef.value) {
+      await initializeDynmap(mapContainerRef.value)
+    }
   },
 )
 

@@ -18,11 +18,13 @@ const props = withDefaults(
     color?: number | null
     height?: string | number
     loading?: boolean
+    tileUrl?: string | null
   }>(),
   {
     platforms: () => [],
     height: '360px',
     loading: false,
+    tileUrl: null,
   },
 )
 
@@ -117,5 +119,6 @@ function computePlatformCenter(
     :loading="loading"
     :auto-focus="true"
     :combine-paths="true"
+    :tile-url="tileUrl"
   />
 </template>

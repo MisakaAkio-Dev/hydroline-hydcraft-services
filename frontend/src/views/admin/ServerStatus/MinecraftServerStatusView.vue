@@ -131,6 +131,7 @@ const form = reactive({
   port: 25565,
   edition: 'JAVA' as MinecraftServerEdition,
   description: '',
+  dynmapTileUrl: '',
   isActive: true,
   displayOrder: 0,
   mcsmPanelUrl: '',
@@ -654,6 +655,7 @@ function populateForm(server: MinecraftServer) {
   form.port = server.port ?? (server.edition === 'BEDROCK' ? 19132 : 25565)
   form.edition = server.edition
   form.description = server.description ?? ''
+  form.dynmapTileUrl = server.dynmapTileUrl ?? ''
   form.isActive = server.isActive
   form.displayOrder = server.displayOrder ?? 0
   form.mcsmPanelUrl = server.mcsmPanelUrl ?? ''
@@ -733,6 +735,7 @@ function buildPayload() {
     port: payloadPort,
     edition: form.edition,
     description: form.description.trim() || undefined,
+    dynmapTileUrl: form.dynmapTileUrl.trim() || undefined,
     isActive: form.isActive,
     displayOrder: form.displayOrder,
     mcsmPanelUrl: form.mcsmPanelUrl.trim() || undefined,

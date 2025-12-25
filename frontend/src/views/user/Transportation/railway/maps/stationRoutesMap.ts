@@ -95,8 +95,8 @@ export class RailwayStationRoutesMap {
     labelClassName: 'railway-station-label-small',
   }
 
-  constructor() {
-    this.controller = createHydcraftDynmapMap()
+  constructor(options?: { tileBaseUrl?: string | null }) {
+    this.controller = createHydcraftDynmapMap(options)
   }
 
   mount(options: DynmapMapInitOptions) {

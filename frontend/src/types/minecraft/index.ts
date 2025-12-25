@@ -22,6 +22,7 @@ export interface MinecraftServer {
   beaconRequestTimeoutMs?: number | null
   beaconMaxRetry?: number | null
   beaconConfigured?: boolean
+  dynmapTileUrl?: string | null
   createdAt: string
   updatedAt: string
 }

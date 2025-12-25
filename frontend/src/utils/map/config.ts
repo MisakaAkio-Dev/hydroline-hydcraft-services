@@ -1,13 +1,16 @@
 import type { DynmapTileSourceConfig } from './types'
 
-const FALLBACK_BASE_URL = 'https://map.nitrogen.hydcraft.cn/tiles'
-
-const normalizeBaseUrl = (value: string | undefined | null) => {
-  if (!value) return FALLBACK_BASE_URL
-  return value.replace(/\/$/, '')
+export const resolveDynmapTileUrl = (
+  value: string | undefined | null,
+): string | null => {
+  if (!value) return null
+  const trimmed = value.trim().replace(/\/$/, '')
+  return trimmed ? trimmed : null
 }
 
-const tileBaseUrl = normalizeBaseUrl(import.meta.env.VITE_DYNMAP_TILE_BASE_URL)
+const tileBaseUrl = resolveDynmapTileUrl(
+  import.meta.env.VITE_DYNMAP_TILE_BASE_URL,
+)
 
 export const hydcraftDynmapSource: DynmapTileSourceConfig = {
   tileBaseUrl,

@@ -91,6 +91,11 @@ export class UpdateMinecraftServerDto {
   beaconKey?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  dynmapTileUrl?: string;
+
+  @IsOptional()
   @IsBoolean()
   beaconEnabled?: boolean;
 

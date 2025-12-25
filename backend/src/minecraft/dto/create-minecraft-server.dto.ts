@@ -94,6 +94,11 @@ export class CreateMinecraftServerDto {
   beaconKey?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  dynmapTileUrl?: string;
+
+  @IsOptional()
   @IsBoolean()
   beaconEnabled?: boolean;
 

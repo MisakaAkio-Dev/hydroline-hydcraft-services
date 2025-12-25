@@ -405,6 +405,7 @@ export class TransportationRailwayService {
         beaconRequestTimeoutMs: true,
         beaconMaxRetry: true,
         transportationRailwayMod: true,
+        dynmapTileUrl: true,
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });

@@ -145,14 +145,14 @@ const noop = () => {
         <div v-if="linkedUser" class="flex justify-between items-center">
           <span class="text-slate-500 dark:text-slate-500">关联用户</span>
           <RouterLink
-            :to="`/user/${linkedUser.id}`"
+            :to="`/player/${linkedUser.id}`"
             class="flex items-center gap-2 text-base font-semibold text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-primary-400"
           >
             <UserAvatar
               :src="linkedUser.avatarUrl"
               :name="linkedUser.displayName"
               size="sm"
-              class="!h-6 !w-6 !text-xs"
+              class="h-6 w-6 text-xs"
             />
             <span>{{ linkedUser.displayName }}</span>
           </RouterLink>

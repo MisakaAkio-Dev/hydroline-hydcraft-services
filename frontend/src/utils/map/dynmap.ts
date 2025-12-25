@@ -95,12 +95,6 @@ export class DynmapMapController {
       this.source.defaultCenter ?? { x: 0, z: 0 }
     const initialZoom = options.zoom ?? this.source.defaultZoom ?? 0
 
-    const tileLayer = new DynmapTileLayer({
-      ...this.source,
-      minZoom,
-      maxZoom,
-    })
-
     const map = L.map(target, {
       crs: L.CRS.Simple,
       minZoom,
@@ -113,9 +107,20 @@ export class DynmapMapController {
       scrollWheelZoom: true,
     })
 
-    tileLayer.addTo(map)
+    const tileBaseUrl = this.source.tileBaseUrl
+    if (typeof tileBaseUrl === 'string' && tileBaseUrl.trim().length > 0) {
+      const tileLayer = new DynmapTileLayer({
+        ...this.source,
+        tileBaseUrl,
+        minZoom,
+        maxZoom,
+      })
+      tileLayer.addTo(map)
+      this.tileLayer = tileLayer
+    } else {
+      this.tileLayer = null
+    }
 
-    this.tileLayer = tileLayer
     this.map = map
     return map
   }

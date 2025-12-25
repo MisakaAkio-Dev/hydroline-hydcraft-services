@@ -12,6 +12,7 @@ import {
   type SystemRoutePath,
   type SystemStop,
 } from '@/views/user/Transportation/railway/maps/systemMap'
+import { resolveDynmapTileUrl } from '@/utils/map'
 
 const props = withDefaults(
   defineProps<{
@@ -241,9 +242,40 @@ watch(
   { deep: true },
 )
 
+const tileUrl = computed(() => {
+  const first = props.routes[0]
+  return resolveDynmapTileUrl(
+    first?.server?.dynmapTileUrl ?? first?.route?.server?.dynmapTileUrl,
+  )
+})
+
+watch(
+  () => tileUrl.value,
+  (newUrl, oldUrl) => {
+    if (newUrl !== oldUrl && containerRef.value) {
+      mapCursorCleanup.value?.()
+      systemMap.value?.destroy()
+
+      const map = new RailwaySystemMap({ tileBaseUrl: newUrl })
+      systemMap.value = map
+      map.mount({
+        container: containerRef.value,
+        showZoomControl: props.showZoomControl,
+      })
+      attachMapCursorTracking()
+      map.drawRoutes(
+        routePaths.value,
+        systemStops.value,
+        systemPlatforms.value,
+        props.autoFocus,
+      )
+    }
+  },
+)
+
 onMounted(() => {
   if (!containerRef.value) return
-  const map = new RailwaySystemMap()
+  const map = new RailwaySystemMap({ tileBaseUrl: tileUrl.value })
   systemMap.value = map
   map.mount({
     container: containerRef.value,

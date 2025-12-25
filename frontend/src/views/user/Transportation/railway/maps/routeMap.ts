@@ -98,8 +98,8 @@ export class RailwayMap {
     options?: DrawOptions
   } | null = null
 
-  constructor() {
-    this.controller = createHydcraftDynmapMap()
+  constructor(options?: { tileBaseUrl?: string | null }) {
+    this.controller = createHydcraftDynmapMap(options)
   }
 
   mount(options: DynmapMapInitOptions) {

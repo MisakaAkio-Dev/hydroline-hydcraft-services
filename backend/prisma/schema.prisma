@@ -988,6 +988,7 @@ model MinecraftServer {
   beaconEnabled          Boolean?                    @default(false)
   beaconEndpoint         String?
   beaconKey              String?
+  dynmapTileUrl          String?
   transportationRailwayMod  TransportationRailwayMod  @default(MTR)
   beaconMaxRetry         Int?
   beaconRequestTimeoutMs Int?

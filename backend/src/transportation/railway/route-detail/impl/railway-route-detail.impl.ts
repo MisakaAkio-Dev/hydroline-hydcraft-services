@@ -365,7 +365,11 @@ export class TransportationRailwayRouteDetailService {
     );
 
     const detail: RouteDetailResult = {
-      server: { id: server.id, name: server.displayName },
+      server: {
+        id: server.id,
+        name: server.displayName,
+        dynmapTileUrl: server.dynmapTileUrl ?? null,
+      },
       railwayType: server.railwayMod,
       dimension:
         normalizedRoute.dimension ??
@@ -682,7 +686,11 @@ export class TransportationRailwayRouteDetailService {
     });
 
     return {
-      server: { id: server.id, name: server.displayName },
+      server: {
+        id: server.id,
+        name: server.displayName,
+        dynmapTileUrl: server.dynmapTileUrl ?? null,
+      },
       railwayType: server.railwayMod,
       station: normalizedStation,
       platforms: platformDetails,
@@ -1018,7 +1026,11 @@ export class TransportationRailwayRouteDetailService {
     });
 
     return {
-      server: { id: server.id, name: server.displayName },
+      server: {
+        id: server.id,
+        name: server.displayName,
+        dynmapTileUrl: server.dynmapTileUrl ?? null,
+      },
       railwayType: server.railwayMod,
       depot: depotDetail,
       routes,
@@ -1038,6 +1050,7 @@ export class TransportationRailwayRouteDetailService {
       select: {
         id: true,
         displayName: true,
+        dynmapTileUrl: true,
         beaconEnabled: true,
         beaconEndpoint: true,
         beaconKey: true,
@@ -1055,6 +1068,7 @@ export class TransportationRailwayRouteDetailService {
     return {
       id: server.id,
       displayName: server.displayName,
+      dynmapTileUrl: server.dynmapTileUrl,
       beaconEndpoint: server.beaconEndpoint,
       beaconKey: server.beaconKey,
       beaconRequestTimeoutMs: server.beaconRequestTimeoutMs,
@@ -1288,7 +1302,11 @@ export class TransportationRailwayRouteDetailService {
     }
 
     return {
-      server: { id: server.id, name: server.displayName },
+      server: {
+        id: server.id,
+        name: server.displayName,
+        dynmapTileUrl: server.dynmapTileUrl ?? null,
+      },
       railwayType: server.railwayMod,
       dimension:
         normalizedRoute.dimension ??
@@ -1816,7 +1834,11 @@ export class TransportationRailwayRouteDetailService {
       this.transformLogRecord(record),
     );
     return {
-      server: { id: server.id, name: server.displayName },
+      server: {
+        id: server.id,
+        name: server.displayName,
+        dynmapTileUrl: server.dynmapTileUrl ?? null,
+      },
       railwayType: server.railwayMod,
       total,
       page,
@@ -3214,7 +3236,11 @@ export class TransportationRailwayRouteDetailService {
       this.transformLogRecord(record ?? {}),
     );
     return {
-      server: { id: server.id, name: server.displayName },
+      server: {
+        id: server.id,
+        name: server.displayName,
+        dynmapTileUrl: server.dynmapTileUrl ?? null,
+      },
       railwayType: server.railwayMod,
       total: response.total ?? entries.length,
       page: response.page ?? page,

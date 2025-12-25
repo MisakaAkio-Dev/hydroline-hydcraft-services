@@ -11,6 +11,7 @@ export interface RailwayEntity {
   server: {
     id: string
     name: string
+    dynmapTileUrl?: string | null
   }
   railwayType: string
 }
@@ -104,7 +105,7 @@ export interface RailwayRouteGeometryPath {
 }
 
 export interface RailwayRouteDetail {
-  server: { id: string; name: string }
+  server: { id: string; name: string; dynmapTileUrl?: string | null }
   dimension: string | null
   railwayType: string
   route: RailwayRoute
@@ -161,7 +162,7 @@ export interface RailwayRouteDetail {
 }
 
 export interface RailwayStationDetail {
-  server: { id: string; name: string }
+  server: { id: string; name: string; dynmapTileUrl?: string | null }
   railwayType: string
   station: RailwayRouteDetail['stations'][number]
   platforms: Array<
@@ -207,7 +208,7 @@ export type RailwayStationRouteMapResponse =
   | { status: 'ready'; data: RailwayStationRouteMapPayload }
 
 export interface RailwayDepotDetail {
-  server: { id: string; name: string }
+  server: { id: string; name: string; dynmapTileUrl?: string | null }
   railwayType: string
   depot: RailwayEntity & {
     bounds: {
@@ -246,7 +247,7 @@ export interface RailwaySystemRouteSummary {
   previewSvg?: string | null
   dimension: string | null
   dimensionContext: string | null
-  server: { id: string; name: string }
+  server: { id: string; name: string; dynmapTileUrl?: string | null }
   railwayType: string
 }
 
@@ -257,7 +258,7 @@ export interface RailwaySystemDetail {
   logoAttachmentId: string | null
   logoUrl: string | null
   serverId: string
-  server?: { id: string; name: string }
+  server?: { id: string; name: string; dynmapTileUrl?: string | null }
   dimensionContext: string | null
   routes: RailwaySystemRouteSummary[]
   routeDetails?: RailwayRouteDetail[]

@@ -81,8 +81,8 @@ export class RailwaySystemMap {
   private stops: SystemStop[] = []
   private platforms: SystemPlatform[] = []
 
-  constructor() {
-    this.controller = createHydcraftDynmapMap()
+  constructor(options?: { tileBaseUrl?: string | null }) {
+    this.controller = createHydcraftDynmapMap(options)
   }
 
   mount(options: DynmapMapInitOptions) {

@@ -348,6 +348,7 @@ export class MinecraftServerService {
       port: dto.port,
       edition: dto.edition ?? MinecraftServerEdition.JAVA,
       description: dto.description ?? null,
+      dynmapTileUrl: dto.dynmapTileUrl ?? null,
       isActive: dto.isActive ?? true,
       displayOrder: dto.displayOrder ?? 0,
       metadata:
@@ -396,6 +397,9 @@ export class MinecraftServerService {
     }
     if (dto.description !== undefined) {
       payload.description = dto.description;
+    }
+    if (dto.dynmapTileUrl !== undefined) {
+      payload.dynmapTileUrl = dto.dynmapTileUrl;
     }
     if (dto.isActive !== undefined) {
       payload.isActive = dto.isActive;

@@ -239,7 +239,11 @@ export function buildFallbackEntity(
     dimensionContext: null,
     filePath: null,
     payload: payload ?? null,
-    server: { id: server.id, name: server.displayName },
+    server: {
+      id: server.id,
+      name: server.displayName,
+      dynmapTileUrl: server.dynmapTileUrl ?? null,
+    },
     railwayType: server.railwayMod,
   };
 }
@@ -273,7 +277,11 @@ export function normalizeEntity(
     ),
     filePath: row.file_path ?? null,
     payload,
-    server: { id: server.id, name: server.displayName },
+    server: {
+      id: server.id,
+      name: server.displayName,
+      dynmapTileUrl: server.dynmapTileUrl ?? null,
+    },
     railwayType: server.railwayMod,
   };
 }

@@ -27,7 +27,7 @@ export interface DynmapProjectionOptions {
 
 export interface DynmapTileSourceConfig extends DynmapProjectionOptions {
   /** 形如 https://map.example.com/tiles */
-  tileBaseUrl: string
+  tileBaseUrl: string | null
   /** Dynmap world 名称 */
   worldName: string
   /** Dynmap map/renderer 名称，例如 flat、surface */

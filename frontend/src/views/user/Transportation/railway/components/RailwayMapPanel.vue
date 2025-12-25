@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import 'leaflet/dist/leaflet.css'
 import type { LeafletMouseEvent } from 'leaflet'
 import { RailwayMap } from '@/views/user/Transportation/railway/maps/routeMap'
+import { resolveDynmapTileUrl } from '@/utils/map'
 import type {
   RailwayCurveParameters,
   RailwayGeometryPoint,
@@ -32,6 +33,7 @@ const props = withDefaults(
     autoFocus?: boolean
     combinePaths?: boolean
     rounded?: boolean
+    tileUrl?: string | null
   }>(),
   {
     zoom: 3,
@@ -489,9 +491,11 @@ function drawGeometry() {
   skipAutoFocus.value = false
 }
 
-function initMap() {
+function initMap(tileBaseUrl: string | null) {
   if (!containerRef.value || railwayMap.value) return
-  const map = new RailwayMap()
+  const map = new RailwayMap({
+    tileBaseUrl,
+  })
   map.mount({
     container: containerRef.value,
     zoom: props.zoom,
@@ -659,8 +663,26 @@ watch(
   },
 )
 
+watch(
+  () => props.tileUrl,
+  (newUrl, oldUrl) => {
+    const nextBaseUrl = resolveDynmapTileUrl(newUrl ?? null)
+    const prevBaseUrl = resolveDynmapTileUrl(oldUrl ?? null)
+    if (nextBaseUrl === prevBaseUrl) return
+
+    destroyMap()
+    initMap(nextBaseUrl)
+
+    void nextTick().then(() => {
+      invalidateMapSize()
+      scheduleDraw()
+      syncStops()
+    })
+  },
+)
+
 onMounted(() => {
-  initMap()
+  initMap(resolveDynmapTileUrl(props.tileUrl ?? null))
   void nextTick().then(() => {
     if (!hasInvalidatedSize) {
       invalidateMapSize()

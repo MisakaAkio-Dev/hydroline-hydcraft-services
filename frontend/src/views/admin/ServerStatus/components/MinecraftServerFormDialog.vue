@@ -18,6 +18,7 @@ interface FormModel {
   port: number | undefined
   edition: MinecraftServerEdition
   description: string
+  dynmapTileUrl: string
   isActive: boolean
   displayOrder: number
   mcsmPanelUrl: string
@@ -180,6 +181,18 @@ const emit = defineEmits<{
                 id="displayOrder"
                 v-model.number="props.form.displayOrder"
                 type="number"
+              />
+            </div>
+            <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
+              <label
+                for="dynmapTileUrl"
+                class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >地图瓦片 URL</label
+              >
+              <UInput
+                id="dynmapTileUrl"
+                v-model="props.form.dynmapTileUrl"
+                placeholder="留空使用默认 (Nitrogen)"
               />
             </div>
 

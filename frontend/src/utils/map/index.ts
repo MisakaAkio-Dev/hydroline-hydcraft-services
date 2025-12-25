@@ -4,7 +4,7 @@ import type { DynmapTileSourceConfig } from './types'
 
 export * from './types'
 export { DynmapMapController } from './dynmap'
-export { hydcraftDynmapSource } from './config'
+export { hydcraftDynmapSource, resolveDynmapTileUrl } from './config'
 
 export function createHydcraftDynmapMap(
   overrides?: Partial<DynmapTileSourceConfig>,

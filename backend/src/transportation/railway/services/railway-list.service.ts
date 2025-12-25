@@ -113,12 +113,21 @@ export class TransportationRailwayListService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async resolveServerNameMap(serverIds: string[]) {
-    if (!serverIds.length) return new Map<string, string>();
+    if (!serverIds.length)
+      return new Map<string, { name: string; dynmapTileUrl: string | null }>();
     const rows = await this.prisma.minecraftServer.findMany({
       where: { id: { in: serverIds } },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, dynmapTileUrl: true },
     });
-    return new Map(rows.map((row) => [row.id, row.displayName] as const));
+    return new Map(
+      rows.map(
+        (row) =>
+          [
+            row.id,
+            { name: row.displayName, dynmapTileUrl: row.dynmapTileUrl },
+          ] as const,
+      ),
+    );
   }
 
   async listServers() {
@@ -211,9 +220,14 @@ export class TransportationRailwayListService {
     const rawItems = rows
       .map((row) => {
         const queryRow = buildQueryRowFromStoredEntity(row);
+        const serverInfo = serverNameMap.get(row.serverId) ?? {
+          name: row.serverId,
+          dynmapTileUrl: null,
+        };
         const normalized = normalizeRouteRow(queryRow, {
           id: row.serverId,
-          displayName: serverNameMap.get(row.serverId) ?? row.serverId,
+          displayName: serverInfo.name,
+          dynmapTileUrl: serverInfo.dynmapTileUrl,
           beaconEndpoint: '',
           beaconKey: '',
           railwayMod: row.railwayMod,
@@ -509,9 +523,14 @@ export class TransportationRailwayListService {
     const items = rows
       .map((row) => {
         const queryRow = buildQueryRowFromStoredEntity(row);
+        const serverInfo = serverNameMap.get(row.serverId) ?? {
+          name: row.serverId,
+          dynmapTileUrl: null,
+        };
         const normalized = normalizeRouteRow(queryRow, {
           id: row.serverId,
-          displayName: serverNameMap.get(row.serverId) ?? row.serverId,
+          displayName: serverInfo.name,
+          dynmapTileUrl: serverInfo.dynmapTileUrl,
           beaconEndpoint: '',
           beaconKey: '',
           railwayMod: row.railwayMod,
@@ -755,9 +774,14 @@ export class TransportationRailwayListService {
     const items = rows
       .map((row) => {
         const queryRow = buildQueryRowFromStoredEntity(row);
+        const serverInfo = serverNameMap.get(row.serverId) ?? {
+          name: row.serverId,
+          dynmapTileUrl: null,
+        };
         return normalizeEntity(queryRow, {
           id: row.serverId,
-          displayName: serverNameMap.get(row.serverId) ?? row.serverId,
+          displayName: serverInfo.name,
+          dynmapTileUrl: serverInfo.dynmapTileUrl,
           beaconEndpoint: '',
           beaconKey: '',
           railwayMod: row.railwayMod,
@@ -848,9 +872,14 @@ export class TransportationRailwayListService {
     const items = rows
       .map((row) => {
         const queryRow = buildQueryRowFromStoredEntity(row);
+        const serverInfo = serverNameMap.get(row.serverId) ?? {
+          name: row.serverId,
+          dynmapTileUrl: null,
+        };
         return normalizeEntity(queryRow, {
           id: row.serverId,
-          displayName: serverNameMap.get(row.serverId) ?? row.serverId,
+          displayName: serverInfo.name,
+          dynmapTileUrl: serverInfo.dynmapTileUrl,
           beaconEndpoint: '',
           beaconKey: '',
           railwayMod: row.railwayMod,

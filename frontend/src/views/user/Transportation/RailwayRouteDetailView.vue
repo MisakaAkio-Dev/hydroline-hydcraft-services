@@ -132,6 +132,16 @@ const activeDetail = computed(() => {
   return found?.detail ?? detail.value
 })
 
+const tileUrl = computed(() => {
+  const d = activeDetail.value ?? detail.value
+  return (
+    d?.server?.dynmapTileUrl ??
+    d?.route?.server?.dynmapTileUrl ??
+    detail.value?.server?.dynmapTileUrl ??
+    null
+  )
+})
+
 const circularRegex = /circular|loop/i
 const isCircularRoute = computed(() => {
   const payload = activeDetail.value?.route.payload ?? {}
@@ -724,6 +734,7 @@ onMounted(() => {
     :loading="!activeDetail"
     :auto-focus="mapAutoFocus"
     :combine-paths="combinePaths"
+    :tile-url="tileUrl"
   />
 
   <div v-show="!fullscreenMapOpen" class="space-y-6">
@@ -814,6 +825,7 @@ onMounted(() => {
         :loading="!activeDetail"
         :auto-focus="mapAutoFocus"
         :combine-paths="combinePaths"
+        :tile-url="tileUrl"
         height="520px"
       />
 

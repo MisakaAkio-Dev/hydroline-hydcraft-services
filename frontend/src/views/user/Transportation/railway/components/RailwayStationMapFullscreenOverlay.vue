@@ -25,6 +25,8 @@ const props = withDefaults(
     mapLoading?: boolean
     routeMap?: RailwayStationRouteMapPayload | null
 
+    tileUrl?: string | null
+
     routeGroupItems?: RouteGroupSelectItem[]
     selectedRouteGroupKeys?: string[]
   }>(),
@@ -37,6 +39,8 @@ const props = withDefaults(
     loading: false,
     mapLoading: false,
     routeMap: null,
+
+    tileUrl: null,
 
     routeGroupItems: () => [] as RouteGroupSelectItem[],
     selectedRouteGroupKeys: () => [] as string[],
@@ -199,6 +203,7 @@ onBeforeUnmount(() => {
             :auto-focus="true"
             :rounded="false"
             :height="mapHeight"
+            :tile-url="props.tileUrl"
           />
 
           <div class="pointer-events-none absolute bottom-4 left-4 z-999">

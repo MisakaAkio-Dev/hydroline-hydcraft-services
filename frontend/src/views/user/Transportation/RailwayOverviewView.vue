@@ -92,6 +92,19 @@ const activeRecommendationType = computed(
   () => activeRecommendation.value?.type ?? null,
 )
 
+const recommendationRouteTileUrl = computed(() => {
+  const d = routeDetail.value
+  return d?.server?.dynmapTileUrl ?? d?.route?.server?.dynmapTileUrl ?? null
+})
+
+const recommendationStationTileUrl = computed(
+  () => stationDetail.value?.server?.dynmapTileUrl ?? null,
+)
+
+const recommendationDepotTileUrl = computed(
+  () => depotDetail.value?.server?.dynmapTileUrl ?? null,
+)
+
 const routeDetail = ref<RailwayRouteDetail | null>(null)
 const stationDetail = ref<RailwayStationDetail | null>(null)
 const depotDetail = ref<RailwayDepotDetail | null>(null)
@@ -831,6 +844,7 @@ onBeforeUnmount(() => {
                 height="100%"
                 :loading="routeDetailLoading || !routeDetail"
                 :combine-paths="true"
+                :tile-url="recommendationRouteTileUrl"
               />
               <RailwayStationRoutesMapPanel
                 class="w-full h-full rounded-xl!"
@@ -846,6 +860,7 @@ onBeforeUnmount(() => {
                 height="100%"
                 :loading="stationDetailLoading || !stationDetail"
                 :map-loading="stationRouteMapLoading"
+                :tile-url="recommendationStationTileUrl"
               />
               <RailwayDepotMapPanel
                 class="w-full h-full rounded-xl!"
@@ -854,6 +869,7 @@ onBeforeUnmount(() => {
                 :color="depotDetail?.depot.color ?? null"
                 height="100%"
                 :loading="depotDetailLoading || !depotDetail"
+                :tile-url="recommendationDepotTileUrl"
               />
               <div
                 v-else

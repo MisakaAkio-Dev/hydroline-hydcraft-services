@@ -83,6 +83,7 @@ type PlayerGameServerDescriptor = {
   serverName: string;
   beaconEnabled: boolean;
   beaconConfigured: boolean;
+  dynmapTileUrl: string | null;
 };
 
 type PlayerGameServerMetrics = {
@@ -401,6 +402,7 @@ export class PlayerService {
         beaconEnabled: true,
         beaconEndpoint: true,
         beaconKey: true,
+        dynmapTileUrl: true,
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });
@@ -946,6 +948,7 @@ export class PlayerService {
             beaconEnabled: true,
             beaconEndpoint: true,
             beaconKey: true,
+            dynmapTileUrl: true,
           },
           orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
         }),
@@ -993,6 +996,7 @@ export class PlayerService {
         beaconEnabled: true,
         beaconEndpoint: true,
         beaconKey: true,
+        dynmapTileUrl: true,
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });
@@ -1296,6 +1300,7 @@ export class PlayerService {
       beaconEnabled: boolean | null;
       beaconEndpoint: string | null;
       beaconKey: string | null;
+      dynmapTileUrl: string | null;
     }>;
   }) {
     const now = Date.now();
@@ -1396,6 +1401,7 @@ export class PlayerService {
       beaconEnabled: boolean | null;
       beaconEndpoint: string | null;
       beaconKey: string | null;
+      dynmapTileUrl: string | null;
     }>,
   ): Promise<PlayerGameStatsPayload> {
     const descriptors: PlayerGameServerDescriptor[] = servers.map((server) => ({
@@ -1405,6 +1411,7 @@ export class PlayerService {
       beaconConfigured: Boolean(
         server.beaconEnabled && server.beaconEndpoint && server.beaconKey,
       ),
+      dynmapTileUrl: server.dynmapTileUrl ?? null,
     }));
 
     const base: PlayerGameStatsPayload = {

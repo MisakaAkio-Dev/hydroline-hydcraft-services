@@ -18,6 +18,7 @@ const props = withDefaults(
     loading?: boolean
     autoFocus?: boolean
     combinePaths?: boolean
+    tileUrl?: string | null
   }>(),
   {
     stops: () => [] as RailwayRouteDetail['stops'],
@@ -29,6 +30,7 @@ const props = withDefaults(
     routeLabel: null,
     lengthKm: null,
     stopCount: null,
+    tileUrl: null,
   },
 )
 
@@ -192,6 +194,7 @@ onBeforeUnmount(() => {
             :combine-paths="props.combinePaths"
             :rounded="false"
             :height="mapHeight"
+            :tile-url="props.tileUrl"
           />
 
           <div class="pointer-events-none absolute bottom-4 left-4 z-999">

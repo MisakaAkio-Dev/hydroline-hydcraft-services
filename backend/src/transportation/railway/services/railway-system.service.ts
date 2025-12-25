@@ -33,7 +33,7 @@ export type RailwaySystemRouteSummary = {
   previewSvg?: string | null;
   dimension: string | null;
   dimensionContext: string | null;
-  server: { id: string; name: string };
+  server: { id: string; name: string; dynmapTileUrl?: string | null };
   railwayType: TransportationRailwayMod;
 };
 
@@ -201,7 +201,9 @@ export class TransportationRailwaySystemService {
       serverId: system.serverId,
       server: {
         id: system.serverId,
-        name: serverNameMap.get(system.serverId) ?? system.serverId,
+        name: serverNameMap.get(system.serverId)?.name ?? system.serverId,
+        dynmapTileUrl:
+          serverNameMap.get(system.serverId)?.dynmapTileUrl ?? null,
       },
       dimensionContext: system.dimensionContext ?? null,
       routes,
@@ -550,12 +552,21 @@ export class TransportationRailwaySystemService {
   }
 
   private async resolveServerNameMap(serverIds: string[]) {
-    if (!serverIds.length) return new Map<string, string>();
+    if (!serverIds.length)
+      return new Map<string, { name: string; dynmapTileUrl: string | null }>();
     const rows = await this.prisma.minecraftServer.findMany({
       where: { id: { in: serverIds } },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, dynmapTileUrl: true },
     });
-    return new Map(rows.map((row) => [row.id, row.displayName] as const));
+    return new Map(
+      rows.map(
+        (row) =>
+          [
+            row.id,
+            { name: row.displayName, dynmapTileUrl: row.dynmapTileUrl },
+          ] as const,
+      ),
+    );
   }
 
   private normalizeRoute(
@@ -572,7 +583,7 @@ export class TransportationRailwaySystemService {
       lastBeaconUpdatedAt: Date | null;
       updatedAt: Date;
     },
-    serverNameMap: Map<string, string>,
+    serverNameMap: Map<string, { name: string; dynmapTileUrl: string | null }>,
   ): RailwaySystemRouteSummary | null {
     if (!route?.entityId) return null;
     const payload =
@@ -586,6 +597,10 @@ export class TransportationRailwaySystemService {
       payload && typeof payload.preview_svg === 'string'
         ? payload.preview_svg
         : null;
+    const serverInfo = serverNameMap.get(route.serverId) ?? {
+      name: route.serverId,
+      dynmapTileUrl: null,
+    };
     return {
       entityId: route.entityId,
       name: route.name ?? null,
@@ -596,7 +611,8 @@ export class TransportationRailwaySystemService {
       dimensionContext: route.dimensionContext ?? null,
       server: {
         id: route.serverId,
-        name: serverNameMap.get(route.serverId) ?? route.serverId,
+        name: serverInfo.name,
+        dynmapTileUrl: serverInfo.dynmapTileUrl,
       },
       railwayType: route.railwayMod,
     };

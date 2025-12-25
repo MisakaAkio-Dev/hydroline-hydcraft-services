@@ -86,6 +86,8 @@ const dimensionName = computed(() =>
   getDimensionName(detail.value?.station.dimension || params.value.dimension),
 )
 
+const tileUrl = computed(() => detail.value?.server?.dynmapTileUrl ?? null)
+
 const associatedRoutes = computed(
   () => detail.value?.mergedRoutes ?? detail.value?.routes ?? [],
 )
@@ -538,6 +540,7 @@ onUnmounted(() => {
     :route-map="filteredStationRouteMap"
     :route-group-items="routeGroupSelectItems"
     v-model:selected-route-group-keys="selectedRouteGroupKeys"
+    :tile-url="tileUrl"
   />
 
   <div v-show="!fullscreenMapOpen" class="space-y-6">
@@ -609,6 +612,7 @@ onUnmounted(() => {
         :route-map="filteredStationRouteMap"
         :loading="loading"
         :map-loading="stationRouteMapLoading"
+        :tile-url="tileUrl"
         height="460px"
       />
 
