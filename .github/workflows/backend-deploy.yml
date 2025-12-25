@@ -1,0 +1,75 @@
+name: Backend Build & Deploy
+
+on:
+  push:
+    paths:
+      - "backend/**"
+    paths-ignore:
+      - "backend/**/*.md"
+      - "backend/**/*.txt"
+  pull_request:
+    paths:
+      - "backend/**"
+    paths-ignore:
+      - "backend/**/*.md"
+      - "backend/**/*.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy-backend:
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: ${{ secrets.BACKEND_DEPLOY_HOST }}
+      SSH_PORT: ${{ secrets.BACKEND_DEPLOY_SSH_PORT || '22' }}
+      SSH_USER: ${{ secrets.BACKEND_DEPLOY_USER }}
+      BACKEND_SSH_KEY: ${{ secrets.BACKEND_DEPLOY_SSH_PRIVATE_KEY }}
+      REMOTE_DEPLOY_PATH: ${{ secrets.BACKEND_REMOTE_DEPLOY_PATH || '/www/wwwroot/hydroline-hydcraft' }}
+      REMOTE_TEMP_DIR: /tmp/backend-deploy-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build backend
+        run: pnpm --filter @hydroline/backend build
+
+      - name: Package dist
+        run: tar -czf backend-dist.tar.gz -C backend dist
+
+      - name: Prepare remote SSH access
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$BACKEND_SSH_KEY" > ~/.ssh/backend_deploy_key
+          chmod 600 ~/.ssh/backend_deploy_key
+          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload backend artifact
+        run: |
+          SSH_OPTIONS="-i ~/.ssh/backend_deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes"
+          scp -P "$SSH_PORT" $SSH_OPTIONS backend-dist.tar.gz "$SSH_USER@$SSH_HOST:~/backend-dist.tar.gz"
+
+      - name: Deploy backend on remote host
+        run: |
+          SSH_OPTIONS="-i ~/.ssh/backend_deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes"
+          ssh -p "$SSH_PORT" $SSH_OPTIONS "$SSH_USER@$SSH_HOST" <<EOF
+            set -euo pipefail
+            mkdir -p "$REMOTE_TEMP_DIR"
+            tar -xzf ~/backend-dist.tar.gz -C "$REMOTE_TEMP_DIR"
+            rsync -a --delete --exclude='.env' "$REMOTE_TEMP_DIR/" "$REMOTE_DEPLOY_PATH/"
+            rm -rf "$REMOTE_TEMP_DIR"
+            rm -f ~/backend-dist.tar.gz
+          EOF
