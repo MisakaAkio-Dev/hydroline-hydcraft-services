@@ -3,15 +3,9 @@ on:
   push:
     paths:
       - "frontend/**"
-    paths-ignore:
-      - "frontend/**/*.md"
-      - "frontend/**/*.txt"
   pull_request:
     paths:
       - "frontend/**"
-    paths-ignore:
-      - "frontend/**/*.md"
-      - "frontend/**/*.txt"
 
 permissions:
   contents: read
