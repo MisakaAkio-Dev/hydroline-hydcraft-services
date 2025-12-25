@@ -967,7 +967,7 @@ onMounted(() => {
                       class="text-[10px] text-slate-500 dark:text-slate-400 font-mono border border-slate-300 dark:border-slate-600 rounded px-1 bg-white dark:bg-slate-900"
                       :class="item.skipped ? 'opacity-40' : ''"
                     >
-                      {{ item.platformLabel }}
+                      {{ item.platformLabel.split('|')[0] }}
                     </div>
                   </div>
                 </div>
@@ -1187,7 +1187,7 @@ onMounted(() => {
                         <div
                           class="rounded border border-slate-200 px-2 py-0.5 text-xl text-slate-600 dark:border-slate-700 dark:text-slate-300"
                         >
-                          {{ item.platformLabel }}
+                          {{ item.platformLabel.split('|')[0] }}
                         </div>
 
                         <div class="flex flex-col items-start">
