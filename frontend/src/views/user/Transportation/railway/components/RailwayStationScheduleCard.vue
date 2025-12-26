@@ -289,9 +289,10 @@ watch(
                     <span
                       class="font-semibold text-slate-900 dark:text-white truncate"
                     >
-                      {{ item.routeNumberDisplay }}
+                      {{ item.routeNumberDisplay || item.destinationDisplay }}
                     </span>
                     <span
+                      v-if="item.routeNumberDisplay"
                       class="text-sm text-slate-600 dark:text-slate-300 truncate"
                     >
                       {{ item.destinationDisplay }}
