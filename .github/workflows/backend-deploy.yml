@@ -26,33 +26,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Activate pnpm
-        run: corepack prepare pnpm@9 --activate
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Prisma generate
+      - name: Build backend in Docker
         env:
           DATABASE_URL: "postgresql://prisma:prisma@127.0.0.1:5432/prisma?schema=public"
-        run: pnpm --filter @hydroline/backend exec prisma generate
-
-      - name: Build backend
-        run: pnpm --filter @hydroline/backend build
-
-      - name: Package backend artifact
         run: |
-          tar -czf backend-dist.tar.gz \
-            -C backend dist prisma package.json .env.sample \
-            -C "$GITHUB_WORKSPACE" pnpm-lock.yaml
+          docker run --rm \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -v "$GITHUB_WORKSPACE":/app \
+            -w /app \
+            node:24-bookworm \
+            bash -lc '
+              corepack enable
+              corepack prepare pnpm@9 --activate
+              pnpm install --frozen-lockfile
+              pnpm --filter @hydroline/backend exec prisma generate
+              pnpm --filter @hydroline/backend build
+              rm -rf /app/backend-deploy
+              pnpm --filter @hydroline/backend deploy --prod /app/backend-deploy
+              cp -R /app/backend/dist /app/backend/prisma /app/backend/.env.sample /app/backend-deploy/
+              tar -czf /app/backend-dist.tar.gz -C /app/backend-deploy dist prisma package.json node_modules .env.sample
+            '
 
       - name: Prepare remote SSH access
         run: |
@@ -76,26 +69,6 @@ jobs:
           envs: REMOTE_DEPLOY_PATH,REMOTE_TEMP_DIR,PM2_APP_NAME
           script: |
             set -euo pipefail
-            if [ -f "$HOME/.bashrc" ]; then
-              . "$HOME/.bashrc"
-            fi
-            if [ -f "$HOME/.profile" ]; then
-              . "$HOME/.profile"
-            fi
-            export PATH="$HOME/.local/share/pnpm:$HOME/.local/bin:/usr/local/bin:/usr/bin:$PATH"
-            if ! command -v pnpm >/dev/null 2>&1; then
-              if command -v corepack >/dev/null 2>&1; then
-                corepack enable
-                corepack prepare pnpm@9 --activate
-              elif command -v npm >/dev/null 2>&1; then
-                export NPM_CONFIG_CACHE="$HOME/.npm"
-                npm install -g pnpm@9 --prefix "$HOME/.local"
-                export PATH="$HOME/.local/bin:$PATH"
-              else
-                echo "pnpm not found and corepack/npm is missing on remote host." >&2
-                exit 1
-              fi
-            fi
             mkdir -p "$REMOTE_TEMP_DIR"
             tar -xzf ~/backend-dist.tar.gz -C "$REMOTE_TEMP_DIR"
             rsync -a --delete --exclude='.env' "$REMOTE_TEMP_DIR/" "$REMOTE_DEPLOY_PATH/"
