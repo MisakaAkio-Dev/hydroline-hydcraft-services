@@ -201,12 +201,12 @@ function handleConfirm() {
     :open="props.open && Boolean(props.imageUrl)"
     :ui="{
       content:
-        'w-full max-w-4xl w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)]',
+        'w-full max-w-4xl w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto',
     }"
     @update:open="updateOpen"
   >
     <template #content>
-      <UCard :ui="{ body: 'space-y-6' }">
+      <UCard :ui="{ body: 'space-y-6 pb-24 sm:pb-6' }">
         <template #header>
           <div class="flex flex-col gap-1">
             <p class="text-base font-semibold text-slate-900 dark:text-white">
@@ -314,7 +314,9 @@ function handleConfirm() {
         </div>
 
         <template #footer>
-          <div class="flex justify-end gap-2">
+          <div
+            class="sticky bottom-0 -mx-6 -mb-6 flex justify-end gap-2 border-t border-slate-200/70 bg-white/95 px-6 py-4 backdrop-blur dark:border-slate-700/70 dark:bg-slate-900/95 sm:static sm:mx-0 sm:mb-0 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-0"
+          >
             <UButton variant="ghost" @click="updateOpen(false)">取消</UButton>
             <UButton
               color="primary"

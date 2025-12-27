@@ -335,11 +335,6 @@ async function handleSave() {
     return
   }
   if (!hasChanges.value) {
-    toast.add({
-      title: '没有检测到改动',
-      description: '您尚未修改任何字段。',
-      color: 'neutral',
-    })
     return
   }
   const payload = buildPayload()

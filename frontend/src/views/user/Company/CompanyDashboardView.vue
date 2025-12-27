@@ -110,52 +110,70 @@ watch(
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4">
+      <div
+        class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/70"
+      >
         <p
-          class="text-xs font-semibold uppercase tracking-widest text-slate-500"
+          class="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400"
         >
           主体数量
         </p>
-        <p class="text-3xl font-semibold text-slate-900">
+        <p class="text-3xl font-semibold text-slate-900 dark:text-white">
           {{ stats.companyCount }}
         </p>
-        <p class="text-xs text-slate-500">名下全部公司与个体工商。</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">
+          名下全部公司与个体工商。
+        </p>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4">
+      <div
+        class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/70"
+      >
         <p
-          class="text-xs font-semibold uppercase tracking-widest text-slate-500"
+          class="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400"
         >
           个体工商
         </p>
-        <p class="text-3xl font-semibold text-slate-900">
+        <p class="text-3xl font-semibold text-slate-900 dark:text-white">
           {{ stats.individualBusinessCount }}
         </p>
-        <p class="text-xs text-slate-500">登记为个体工商户的主体。</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">
+          登记为个体工商户的主体。
+        </p>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4">
+      <div
+        class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/70"
+      >
         <p
-          class="text-xs font-semibold uppercase tracking-widest text-slate-500"
+          class="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400"
         >
           名下职员
         </p>
-        <p class="text-3xl font-semibold text-slate-900">
+        <p class="text-3xl font-semibold text-slate-900 dark:text-white">
           {{ stats.memberCount }}
         </p>
-        <p class="text-xs text-slate-500">当前名下职员数量。</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">
+          当前名下职员数量。
+        </p>
       </div>
     </div>
 
     <div class="grid gap-6 lg:grid-cols-2">
-      <div class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5">
+      <div
+        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
+      >
         <div class="flex items-center justify-between">
           <div>
             <p
-              class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+              class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
             >
               名下公司
             </p>
-            <h3 class="text-lg font-semibold text-slate-900">前 5 概览</h3>
-            <p class="text-sm text-slate-500">法人或所有者拥有的公司。</p>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+              前 5 概览
+            </h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              法人或所有者拥有的公司。
+            </p>
           </div>
           <UButton
             size="sm"
@@ -170,11 +188,13 @@ watch(
           <div
             v-for="company in ownedPreview"
             :key="company.id"
-            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600"
+            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
           >
             <div>
-              <p class="font-semibold text-slate-900">{{ company.name }}</p>
-              <p class="text-xs text-slate-500">
+              <p class="font-semibold text-slate-900 dark:text-white">
+                {{ company.name }}
+              </p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
                 {{ company.type?.name || '未归类类型' }} ·
                 {{ company.industry?.name || '未归类行业' }}
               </p>
@@ -183,23 +203,29 @@ watch(
           </div>
           <div
             v-if="ownedPreview.length === 0"
-            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500"
+            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
           >
             暂无名下公司，先提交注册申请吧。
           </div>
         </div>
       </div>
 
-      <div class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5">
+      <div
+        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
+      >
         <div class="flex items-center justify-between">
           <div>
             <p
-              class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+              class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
             >
               入职公司
             </p>
-            <h3 class="text-lg font-semibold text-slate-900">前 5 概览</h3>
-            <p class="text-sm text-slate-500">已加入或可申请加入的主体。</p>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+              前 5 概览
+            </h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              已加入或可申请加入的主体。
+            </p>
           </div>
           <UButton
             size="sm"
@@ -214,11 +240,13 @@ watch(
           <div
             v-for="company in joinedPreview"
             :key="company.id"
-            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600"
+            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
           >
             <div>
-              <p class="font-semibold text-slate-900">{{ company.name }}</p>
-              <p class="text-xs text-slate-500">
+              <p class="font-semibold text-slate-900 dark:text-white">
+                {{ company.name }}
+              </p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
                 {{ company.type?.name || '未归类类型' }} ·
                 {{ company.industry?.name || '未归类行业' }}
               </p>
@@ -227,13 +255,13 @@ watch(
           </div>
           <div
             v-if="joinedPreview.length === 0 && joinableCompaniesPreview.length"
-            class="rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600"
+            class="rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
           >
             <div>
-              <p class="font-semibold text-slate-900">
+              <p class="font-semibold text-slate-900 dark:text-white">
                 {{ joinableCompaniesPreview[0]?.name }}
               </p>
-              <p class="text-xs text-slate-500">
+              <p class="text-xs text-slate-500 dark:text-slate-400">
                 {{ joinableCompaniesPreview[0]?.summary || '暂无简介' }}
               </p>
             </div>
@@ -242,7 +270,7 @@ watch(
             v-if="
               joinedPreview.length === 0 && !joinableCompaniesPreview.length
             "
-            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500"
+            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
           >
             暂无入职记录，稍后可从入职公司列表申请加入。
           </div>

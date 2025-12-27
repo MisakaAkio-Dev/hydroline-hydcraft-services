@@ -175,7 +175,7 @@ onMounted(() => {
               class="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/60"
             >
               <td class="px-4 py-3">
-                <div class="font-semibold text-slate-900">
+                <div class="font-semibold text-slate-900 dark:text-white">
                   {{ company.name }}
                 </div>
                 <p class="text-xs text-slate-500">
@@ -287,7 +287,7 @@ onMounted(() => {
             <p class="text-xs uppercase tracking-wide text-slate-500">
               工商数据库详情
             </p>
-            <h3 class="text-lg font-semibold text-slate-900">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
               {{ detailCompany?.name || '公司详情' }}
             </h3>
           </div>

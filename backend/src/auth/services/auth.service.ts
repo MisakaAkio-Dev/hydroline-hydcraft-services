@@ -100,7 +100,9 @@ export class AuthService {
 
   async initializeDefaults() {
     await this.rolesService.ensureDefaultRolesAndPermissions();
-    await this.ensureDefaultAdmin();
+    if (process.env.NODE_ENV !== 'production') {
+      await this.ensureDefaultAdmin();
+    }
   }
 
   async register(

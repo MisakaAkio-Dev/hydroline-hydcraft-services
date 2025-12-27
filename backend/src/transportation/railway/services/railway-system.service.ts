@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,7 +17,6 @@ import { buildDimensionContextFromDimension } from '../utils/railway-normalizer'
 import { TransportationRailwayRouteDetailService } from '../route-detail/railway-route-detail.service';
 import { TransportationRailwayCompanyBindingService } from './railway-company-binding.service';
 import { MinecraftServerService } from '../../../minecraft/minecraft-server.service';
-import { PERMISSIONS } from '../../../auth/services/roles.service';
 
 export type RailwaySystemRouteSummary = {
   entityId: string;
@@ -217,17 +215,6 @@ export class TransportationRailwaySystemService {
   }
 
   async createSystem(user: any, dto: RailwaySystemCreateDto) {
-    if (
-      !this.hasPermission(
-        user,
-        PERMISSIONS.TRANSPORTATION_RAILWAY_SYSTEM_CREATE,
-      )
-    ) {
-      throw new ForbiddenException(
-        'Insufficient permissions to create railway system',
-      );
-    }
-
     if (!dto.routes?.length) {
       throw new BadRequestException('Railway system must include routes');
     }
