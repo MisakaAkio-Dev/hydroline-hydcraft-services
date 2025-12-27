@@ -659,7 +659,7 @@ async function confirmForgotReset() {
                   </div>
                   <div class="relative flex justify-center text-sm">
                     <span
-                      class="bg-white px-2 text-slate-500 dark:bg-slate-900/70 dark:text-slate-400"
+                      class="bg-white px-2 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
                       >使用第三方账号快速登录</span
                     >
                   </div>
@@ -853,7 +853,7 @@ async function confirmForgotReset() {
                   </div>
                   <div class="relative flex justify-center text-sm">
                     <span
-                      class="bg-white px-2 text-slate-500 dark:bg-slate-900/70 dark:text-slate-400"
+                      class="bg-white px-2 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
                       >使用第三方账号快速注册</span
                     >
                   </div>

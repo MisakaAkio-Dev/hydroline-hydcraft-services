@@ -227,7 +227,7 @@ const routerPush = (path: string) => {
     >
       <header
         data-user-shell-header
-        class="sticky top-0 z-40000 grid h-16 grid-cols-2 lg:grid-cols-[1fr_auto_1fr] items-center px-4 border-b transition-all duration-300"
+        class="sticky top-0 z-40000 grid h-16 grid-cols-[auto_auto] lg:grid-cols-[1fr_auto_1fr] items-center px-4 border-b transition-all duration-300"
         :class="{
           'backdrop-blur-xl bg-white/60 dark:bg-slate-950/70 border-slate-200 dark:border-slate-800':
             !isMainPage || isScrolled,
@@ -296,7 +296,7 @@ const routerPush = (path: string) => {
           </div>
         </div>
 
-        <div class="flex items-center justify-end gap-2">
+        <div class="flex items-center justify-end space-x-2">
           <AnimatePresence mode="popLayout" :initial="false">
             <Motion
               v-if="authStore.isAuthenticated"
@@ -320,7 +320,7 @@ const routerPush = (path: string) => {
                   color="neutral"
                   variant="ghost"
                   size="xs"
-                  class="flex items-center gap-2 rounded-full px-2 py-1 text-sm hover:bg-accented/70 active:bg-accented/70"
+                  class="flex items-center gap-2 rounded-full px-2 py-2 lg:py-1 text-sm hover:bg-accented/70 active:bg-accented/70"
                 >
                   <span
                     class="hidden text-slate-700 dark:text-slate-200 sm:block"
@@ -381,7 +381,7 @@ const routerPush = (path: string) => {
               <UButton
                 color="neutral"
                 variant="link"
-                class="rounded-full"
+                class="rounded-full leading-[normal]"
                 @click="openLogin"
                 >登录</UButton
               >
@@ -400,7 +400,7 @@ const routerPush = (path: string) => {
                 damping: 24,
                 opacity: { duration: 0.2 },
               }"
-              class="block md:hidden overflow-hidden"
+              class="flex md:hidden overflow-hidden mx-0"
             >
               <UButton
                 color="neutral"
@@ -430,6 +430,7 @@ const routerPush = (path: string) => {
                   </Motion>
                 </AnimatePresence>
               </UButton>
+              <div class="w-2 h-full"></div>
             </Motion>
           </AnimatePresence>
           <UTooltip text="消息中心（开发中）">
@@ -467,7 +468,7 @@ const routerPush = (path: string) => {
         }"
       >
         <div
-          class="w-fit flex justify-center mb-10 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 hover:bg-accented/50 transition select-none"
+          class="w-fit flex justify-center mb-10 rounded-2xl border border-slate-200/50 dark:border-slate-600/50 hover:bg-accented/50 transition select-none"
         >
           <HoverLinkPreview
             url="https://aurlemon.top"
@@ -509,14 +510,14 @@ const routerPush = (path: string) => {
               Hydroline HydCraft
               <span
                 class="rounded px-1 py-0.5 text-[0.625rem] bg-primary-100 text-primary-500 leading-none"
-                >ALPHA</span
+                >BETA</span
               >
             </span>
           </div>
           <div
-            class="flex justify-center flex-wrap gap-y-0.5 gap-x-3 lg:items-end lg:gap-x-0.5"
+            class="flex justify-center flex-wrap gap-y-px gap-x-2 lg:items-end lg:gap-x-0.5"
           >
-            <div class="flex gap-x-3 gap-y-0.5 flex-wrap justify-center">
+            <div class="flex gap-x-2 gap-y-px flex-wrap justify-center">
               <span :key="item.label" v-for="item in siteItems">
                 <a
                   :href="item.link"

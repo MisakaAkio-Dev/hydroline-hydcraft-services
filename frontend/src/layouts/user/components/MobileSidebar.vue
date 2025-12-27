@@ -140,14 +140,12 @@ onUnmounted(() => {
         :animate="{ y: 0 }"
         :exit="{ y: '100%' }"
         :transition="{ type: 'spring', stiffness: 400, damping: 30, mass: 1 }"
-        class="fixed left-0 right-0 overflow-hidden rounded-t-3xl bg-white/90 pt-4 shadow-2xl backdrop-blur-2xl dark:bg-slate-950/90 border-t border-white/20 dark:border-slate-800/50"
+        class="fixed left-0 right-0 overflow-hidden rounded-t-3xl bg-white/90 pt-4 shadow-2xl backdrop-blur-2xl dark:bg-slate-800/90 border-t border-white/20 dark:border-slate-800/50"
         :class="[zIndexClass]"
         style="bottom: -100px; padding-bottom: calc(2rem + 5rem)"
         @click.stop
       >
-        <nav
-          class="flex items-center gap-3 overflow-x-auto px-6 py-2 no-scrollbar"
-        >
+        <nav class="flex items-center gap-3 overflow-x-auto p-2 mx-4">
           <RouterLink
             v-for="item in displayNav"
             :key="item.key ?? item.to"
@@ -185,7 +183,7 @@ onUnmounted(() => {
         </nav>
         <div
           v-if="showBrandHeader"
-          class="text-xs text-center tracking-widest font-semibold text-slate-500 dark:text-slate-400"
+          class="text-xs text-center tracking-widest font-semibold text-slate-500 dark:text-slate-400 mt-2"
         >
           HYDROLINE HYDCRAFT
         </div>

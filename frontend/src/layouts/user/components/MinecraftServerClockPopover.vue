@@ -53,6 +53,16 @@ let toggleTimer: ReturnType<typeof setInterval> | null = null
 
 const displayMode = ref<0 | 1 | 2>(0)
 const serversHeaderContainer = ref<HTMLElement | null>(null)
+const popoverMode = ref<'hover' | 'click'>('hover')
+let hoverMediaQuery: MediaQueryList | null = null
+
+const updatePopoverMode = () => {
+  if (typeof window === 'undefined') return
+  const isTouchOnly = window.matchMedia(
+    '(hover: none), (pointer: coarse)',
+  ).matches
+  popoverMode.value = isTouchOnly ? 'click' : 'hover'
+}
 
 function animateWidthChange(action: () => void) {
   const el = serversHeaderContainer.value
@@ -146,6 +156,10 @@ onMounted(() => {
   startClock()
   startPolling()
 
+  updatePopoverMode()
+  hoverMediaQuery = window.matchMedia('(hover: none), (pointer: coarse)')
+  hoverMediaQuery.addEventListener?.('change', updatePopoverMode)
+
   toggleTimer = setInterval(() => {
     animateWidthChange(() => {
       displayMode.value = ((displayMode.value + 1) % 3) as 0 | 1 | 2
@@ -156,6 +170,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopClock()
   stopPolling()
+  hoverMediaQuery?.removeEventListener?.('change', updatePopoverMode)
+  hoverMediaQuery = null
   if (toggleTimer) {
     clearInterval(toggleTimer)
     toggleTimer = null
@@ -301,7 +317,7 @@ function serverOnlinePercent(item: PublicServerStatusItem) {
 
 <template>
   <UPopover
-    mode="hover"
+    :mode="popoverMode"
     :popper="{ placement: 'bottom-start' }"
     :ui="{ content: 'z-[40000]' }"
   >

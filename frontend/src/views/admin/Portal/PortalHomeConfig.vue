@@ -1373,7 +1373,7 @@ onMounted(() => {
               </p>
               <UInput
                 v-model="heroSubtitle"
-                placeholder="例如：ALPHA 测试阶段"
+                placeholder="例如：BETA 测试阶段"
                 :disabled="isMutating"
               />
             </div>
@@ -1495,7 +1495,7 @@ onMounted(() => {
                 <UInput
                   class="w-full"
                   v-model="heroEditSubtitle"
-                  placeholder="例如：ALPHA 测试阶段"
+                  placeholder="例如：BETA 测试阶段"
                   :disabled="isMutating"
                 />
               </div>

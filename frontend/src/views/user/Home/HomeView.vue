@@ -299,7 +299,7 @@ function handleHeroImageErrored() {
             as="img"
             :src="activeHeroImage as string"
             :alt="activeHeroDescription"
-            class="block h-full w-full object-cover object-top select-none pointer-events-none"
+            class="block h-full w-full object-cover object-top select-none pointer-events-none transition-all duration-600"
             :initial="{
               opacity: 0,
               scale: 1.03,
@@ -335,7 +335,7 @@ function handleHeroImageErrored() {
             as="img"
             :src="fallbackHeroImage"
             :alt="activeHeroDescription || 'Hydroline Portal 背景图'"
-            class="block h-full w-full object-cover object-top select-none pointer-events-none"
+            class="block h-full w-full object-cover object-top select-none pointer-events-none transition-all duration-600"
             :initial="{
               opacity: 0,
               scale: 1.03,
@@ -425,7 +425,7 @@ function handleHeroImageErrored() {
             as="img"
             :src="activeHeroImage as string"
             :alt="activeHeroDescription"
-            class="block h-full w-full object-cover object-top select-none pointer-events-none"
+            class="block h-full w-full object-cover object-top select-none pointer-events-none transition-all duration-600"
             :initial="{
               opacity: 0,
               scale: 1.03,
@@ -456,7 +456,7 @@ function handleHeroImageErrored() {
             as="img"
             :src="fallbackHeroImage"
             :alt="activeHeroDescription || 'Hydroline Portal 背景图'"
-            class="block h-full w-full object-cover object-top select-none pointer-events-none"
+            class="block h-full w-full object-cover object-top select-none pointer-events-none transition-all duration-600"
             :initial="{
               opacity: 0,
               scale: 1.03,
@@ -497,7 +497,7 @@ function handleHeroImageErrored() {
           >
             <h1 class="drop-shadow-sm">
               <HydrolineTextBold
-                class="h-24 lg:h-28 text-slate-600 dark:text-slate-300"
+                class="home-title h-24 lg:h-28 text-slate-600 dark:text-white"
               />
             </h1>
 
@@ -566,6 +566,10 @@ function handleHeroImageErrored() {
 </template>
 
 <style scoped>
+.dark .home-title {
+  filter: drop-shadow(white 0px 8px 24px);
+}
+
 .fade-slide-enter-active,
 .fade-slide-leave-active {
   transition: all 0.35s ease;
