@@ -928,10 +928,10 @@ onBeforeUnmount(() => {
               class="block"
             >
               <div
-                class="text-xs text-primary flex flex-col gap-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 duration-250 outline-2 outline-transparent hover:outline-primary md:flex-row md:items-center md:justify-between md:gap-6 cursor-pointer p-4 transition"
+                class="text-xs text-primary flex rounded-xl bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 duration-250 outline-2 outline-transparent hover:outline-primary cursor-pointer transition overflow-hidden"
                 @click="selectRecommendation(item.id)"
               >
-                <div class="space-y-1">
+                <div class="space-y-1 flex-1 px-4 py-3">
                   <div class="flex flex-wrap items-center gap-2">
                     <div
                       v-if="item.type === 'route' && item.item.previewSvg"
@@ -965,12 +965,13 @@ onBeforeUnmount(() => {
                 </div>
                 <UButton
                   size="sm"
+                  class="shrink-0 flex justify-center items-center w-12 rounded-none bg-slate-200/70 hover:bg-slate-300/70 dark:bg-slate-700/60 dark:hover:bg-slate-900/60"
                   color="neutral"
-                  variant="ghost"
+                  variant="soft"
                   :to="buildDetailLink(item)"
                   @click.stop
                 >
-                  查看
+                  <UIcon name="i-lucide-chevron-right" class="h-4 w-4" />
                 </UButton>
               </div>
             </label>
@@ -1068,28 +1069,30 @@ onBeforeUnmount(() => {
                   class="text-xs text-primary flex h-full rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 duration-250 outline-2 outline-transparent hover:outline-primary cursor-pointer p-4 transition"
                 >
                   <div class="flex flex-col gap-1">
-                    <div class="flex flex-wrap items-center gap-x-2">
-                      <div
+                    <div>
+                      <span
                         v-if="item.type === 'route' && item.item.previewSvg"
-                        class="h-7 w-7 shrink-0 overflow-hidden rounded drop-shadow"
+                        class="inline-block h-7 w-7 shrink-0 overflow-hidden rounded drop-shadow mr-2"
                         v-html="item.item.previewSvg"
-                      ></div>
-                      <div
+                      ></span>
+                      <span
                         v-else-if="item.item.color"
-                        class="h-3 w-3 shrink-0 rounded-full"
+                        class="inline-block h-3 w-3 shrink-0 rounded-full mr-2"
                         :style="{
                           backgroundColor:
                             '#' + item.item.color.toString(16).padStart(6, '0'),
                         }"
-                      ></div>
-                      <p
+                      ></span>
+
+                      <span
                         class="text-lg font-semibold text-slate-900 dark:text-white"
                       >
                         {{
                           item.item.name?.split('||')[0].split('|')[0] ||
                           '未命名设施'
                         }}
-                      </p>
+                      </span>
+
                       <UBadge variant="soft" size="sm">
                         {{ featuredTypeLabels[item.type] }}
                       </UBadge>

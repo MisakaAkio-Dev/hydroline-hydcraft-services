@@ -25,7 +25,7 @@ const wrapperProps = computed(() => (hasLink.value ? { to: props.to } : {}))
   <component
     :is="wrapperComponent"
     v-bind="wrapperProps"
-    class="group relative flex h-50 flex-col justify-end overflow-hidden rounded-3xl border border-slate-700/20 bg-white/20 p-5 text-slate-800 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.4)] backdrop-blur dark:border-slate-200/80 dark:bg-slate-900/70 dark:text-slate-100 hover:outline-primary-600 outline-2 outline-transparent transition duration-200 cursor-pointer group"
+    class="group relative flex h-50 flex-col justify-end overflow-hidden rounded-3xl border border-slate-700/20 bg-white/20 p-5 text-slate-800 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.4)] backdrop-blur dark:bg-slate-900/70 dark:text-slate-100 hover:outline-primary-600 outline-2 outline-transparent transition duration-200 cursor-pointer group"
   >
     <div
       v-if="image"

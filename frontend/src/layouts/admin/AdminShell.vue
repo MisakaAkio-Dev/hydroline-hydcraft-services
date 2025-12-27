@@ -314,7 +314,7 @@ onMounted(() => {
       <transition name="slide-fade">
         <aside
           v-if="sidebarOpen"
-          class="fixed inset-y-0 left-0 z-40000 w-72 bg-white/95 p-4 shadow-xl backdrop-blur-xl dark:bg-slate-950/95 lg:hidden"
+          class="fixed inset-y-0 left-0 z-40000 w-72 bg-white/95 p-4 shadow-xl backdrop-blur-xl dark:bg-slate-950/95 overflow-auto lg:hidden"
         >
           <nav class="space-y-4 text-sm">
             <section

@@ -200,7 +200,7 @@ function handleHeroPanMove(event: TouchEvent) {
   const deltaY = touch.clientY - heroPanStartY.value
   if (Math.abs(deltaX) <= Math.abs(deltaY)) return
   event.preventDefault()
-  const next = heroPanStartPosition.value + deltaX * 0.1
+  const next = heroPanStartPosition.value - deltaX * 0.1
   heroPanPosition.value = Math.max(0, Math.min(100, next))
 }
 
