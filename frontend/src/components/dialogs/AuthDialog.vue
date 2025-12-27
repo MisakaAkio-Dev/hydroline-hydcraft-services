@@ -417,6 +417,8 @@ async function confirmForgotReset() {
             autoplay
             muted
             loop
+            playsinline
+            webkit-playsinline
             class="w-full h-1/2 object-cover"
           ></video>
         </template>

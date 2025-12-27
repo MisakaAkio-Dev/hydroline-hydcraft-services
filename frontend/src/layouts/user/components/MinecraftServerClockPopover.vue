@@ -341,7 +341,9 @@ function serverOnlinePercent(item: PublicServerStatusItem) {
               :transition="{ duration: 0.35, ease: 'easeInOut' }"
             >
               <UIcon :name="headerIcon()" class="h-3 w-3 text-slate-400" />
-              <span class="font-medium text-slate-900 dark:text-white">
+              <span
+                class="font-medium text-slate-900 dark:text-white leading-normal"
+              >
                 {{ item.displayName }}
               </span>
               <span class="font-mono">
