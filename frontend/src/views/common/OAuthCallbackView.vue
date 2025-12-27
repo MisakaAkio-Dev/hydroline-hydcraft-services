@@ -44,6 +44,7 @@ async function handleResult(providerKey: string, state: string) {
       authStore.setToken(result.tokens.accessToken ?? null)
       authStore.setRefreshToken(result.tokens.refreshToken ?? null)
       authStore.setUser(result.user)
+      await authStore.fetchCurrentUser().catch(() => {})
       await portalStore.fetchHome(true)
       status.value = 'SUCCESS'
       message.value = '登录成功，正在跳转…'
