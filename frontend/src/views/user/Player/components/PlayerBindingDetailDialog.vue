@@ -674,7 +674,7 @@ async function submitPermissionChange() {
       <div
         class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-6 py-4 dark:border-gray-800"
       >
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col md:flex-row items-center gap-2">
           <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
             游戏账户
           </h3>

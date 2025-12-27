@@ -23,6 +23,9 @@ const homeLoaded = ref(false)
 const heroParallaxOffset = reactive({ x: 0, y: 0 })
 const parallaxEnabled = ref(true)
 const scrollLockPosition = ref(0)
+const heroViewportHeight = ref<number | null>(null)
+const heroVisualViewport = ref<VisualViewport | null>(null)
+const isMobileViewport = ref(false)
 
 const heroParallaxAnimatedOffset = computed(() => {
   if (uiStore.previewMode || !parallaxEnabled.value) {
@@ -86,6 +89,17 @@ const heroBackdropStyle = computed(() => {
   }
 })
 
+const heroViewportStyle = computed<Record<string, string>>(() => {
+  if (!isMobileViewport.value || heroViewportHeight.value === null) {
+    return {}
+  }
+  return {
+    height: uiStore.previewMode
+      ? `${heroViewportHeight.value}px`
+      : `calc(${heroViewportHeight.value}px - 6rem)`,
+  }
+})
+
 function updateScrollState() {
   scrolled.value = window.scrollY > 80
   uiStore.setHeroInView(!scrolled.value)
@@ -98,6 +112,18 @@ function updateParallaxEnabled() {
     heroParallaxOffset.x = 0
     heroParallaxOffset.y = 0
   }
+}
+
+function updateHeroViewportHeight() {
+  const isMobile = window.innerWidth < 1024
+  isMobileViewport.value = isMobile
+  if (!isMobile) {
+    heroViewportHeight.value = null
+    return
+  }
+  const viewportHeight =
+    window.visualViewport?.height ?? window.innerHeight ?? 0
+  heroViewportHeight.value = Math.round(viewportHeight)
 }
 
 function handleMouseMove(event: MouseEvent) {
@@ -176,6 +202,11 @@ onMounted(async () => {
 
   updateParallaxEnabled()
   window.addEventListener('resize', updateParallaxEnabled)
+
+  updateHeroViewportHeight()
+  window.addEventListener('resize', updateHeroViewportHeight)
+  heroVisualViewport.value = window.visualViewport ?? null
+  heroVisualViewport.value?.addEventListener('resize', updateHeroViewportHeight)
 
   updateScrollState()
   window.addEventListener('scroll', updateScrollState, { passive: true })
@@ -257,6 +288,11 @@ watch([activeHeroDescription, activeHeroSubtitle], () => {
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', updateScrollState)
   window.removeEventListener('resize', updateParallaxEnabled)
+  window.removeEventListener('resize', updateHeroViewportHeight)
+  heroVisualViewport.value?.removeEventListener(
+    'resize',
+    updateHeroViewportHeight,
+  )
   window.removeEventListener('mousemove', handleMouseMove)
   if (observer.value && heroRef.value) {
     observer.value.unobserve(heroRef.value)
@@ -285,9 +321,9 @@ function handleHeroImageErrored() {
     >
       <div
         v-if="homeLoaded && (activeHeroImage || fallbackHeroImage)"
-        class="fixed top-0 left-0 lg:left-16 right-0 bottom-24 z-0 flex flex-col items-center justify-center transition duration-300"
+        class="hero-backdrop fixed top-0 left-0 lg:left-16 right-0 lg:bottom-24 z-0 flex flex-col items-center justify-center transition duration-300"
         :class="{ 'bottom-0!': uiStore.previewMode }"
-        :style="heroBackdropStyle"
+        :style="[heroBackdropStyle, heroViewportStyle]"
       >
         <div
           v-if="!uiStore.previewMode"
@@ -299,7 +335,7 @@ function handleHeroImageErrored() {
             as="img"
             :src="activeHeroImage as string"
             :alt="activeHeroDescription"
-            class="block h-full w-full object-cover object-top select-none pointer-events-none transition-all duration-600"
+            class="block h-full w-full object-cover object-top select-none pointer-events-none"
             :initial="{
               opacity: 0,
               scale: 1.03,
@@ -335,7 +371,7 @@ function handleHeroImageErrored() {
             as="img"
             :src="fallbackHeroImage"
             :alt="activeHeroDescription || 'Hydroline Portal 背景图'"
-            class="block h-full w-full object-cover object-top select-none pointer-events-none transition-all duration-600"
+            class="block h-full w-full object-cover object-top select-none pointer-events-none"
             :initial="{
               opacity: 0,
               scale: 1.03,
@@ -425,7 +461,7 @@ function handleHeroImageErrored() {
             as="img"
             :src="activeHeroImage as string"
             :alt="activeHeroDescription"
-            class="block h-full w-full object-cover object-top select-none pointer-events-none transition-all duration-600"
+            class="block h-full w-full object-cover object-top select-none pointer-events-none"
             :initial="{
               opacity: 0,
               scale: 1.03,
@@ -456,7 +492,7 @@ function handleHeroImageErrored() {
             as="img"
             :src="fallbackHeroImage"
             :alt="activeHeroDescription || 'Hydroline Portal 背景图'"
-            class="block h-full w-full object-cover object-top select-none pointer-events-none transition-all duration-600"
+            class="block h-full w-full object-cover object-top select-none pointer-events-none"
             :initial="{
               opacity: 0,
               scale: 1.03,
@@ -579,6 +615,13 @@ function handleHeroImageErrored() {
 .fade-slide-leave-to {
   opacity: 0;
   transform: translateY(12px);
+}
+
+.hero-backdrop {
+  transition-property: height, opacity, transform, filter;
+  transition-duration: 0.3s;
+  transition-timing-function: ease-out;
+  will-change: height;
 }
 
 .bg-image {
