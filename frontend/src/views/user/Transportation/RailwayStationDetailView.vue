@@ -13,6 +13,8 @@ import type {
   RailwayStationRouteMapResponse,
 } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
+import { setDocumentTitle } from '@/utils/route/document-title'
+import { extractPrimaryRouteName } from '@/utils/route/route-name'
 import modpackCreateImg from '@/assets/resources/modpacks/Create.jpg'
 import modpackMtrImg from '@/assets/resources/modpacks/MTR.png'
 import { translateAuthErrorMessage } from '@/utils/errors/auth-errors'
@@ -78,6 +80,9 @@ const params = computed(() => {
 
 const stationName = computed(
   () => detail.value?.station.name ?? detail.value?.station.id ?? '未知车站',
+)
+const stationTitleName = computed(() =>
+  extractPrimaryRouteName(stationName.value, '未知车站'),
 )
 const serverBadge = computed(
   () => detail.value?.server.name ?? params.value.serverId ?? '—',
@@ -214,6 +219,14 @@ watch(
     selectedRouteGroupKeys.value = selectedRouteGroupKeys.value.filter((k) =>
       keySet.has(k),
     )
+  },
+  { immediate: true },
+)
+
+watch(
+  () => stationTitleName.value,
+  (name) => {
+    setDocumentTitle(name)
   },
   { immediate: true },
 )

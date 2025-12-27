@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/user/auth'
 import { usePlayerPortalStore } from '@/stores/user/playerPortal'
 import { ApiError, apiFetch } from '@/utils/http/api'
 import { translateAuthErrorMessage } from '@/utils/errors/auth-errors'
+import { setDocumentTitle } from '@/utils/route/document-title'
 import PlayerLoginPrompt from './components/PlayerLoginPrompt.vue'
 import PlayerProfileContent from './components/PlayerProfileContent.vue'
 import PlayerAuthmeProfileContent from './components/PlayerAuthmeProfileContent.vue'
@@ -100,6 +101,36 @@ const authmeBindings = computed(() => {
       regIpLocation: authmeProfile.value.regIpLocation,
     },
   ]
+})
+
+const playerDisplayName = computed(() => {
+  const summaryValue = summary.value
+  const displayName = summaryValue?.displayName ?? summaryValue?.name
+  if (displayName?.trim()) return displayName.trim()
+
+  const primaryProfile =
+    summaryValue?.minecraftProfiles?.find((profile) => profile.isPrimary) ??
+    summaryValue?.minecraftProfiles?.[0]
+  if (primaryProfile?.nickname?.trim()) {
+    return primaryProfile.nickname.trim()
+  }
+
+  const authmeValue = authmeProfile.value
+  const authmeName = authmeValue?.realname ?? authmeValue?.username
+  if (authmeName?.trim()) return authmeName.trim()
+
+  const authmeFallback = playerStore.targetAuthmeUsername
+  if (authmeFallback?.trim()) return authmeFallback.trim()
+
+  const routeName = routePlayerNameParam.value
+  if (routeName?.trim()) return routeName.trim()
+
+  return null
+})
+
+const playerTitleParts = computed(() => {
+  const name = playerDisplayName.value
+  return name ? [name] : ['玩家档案']
 })
 
 async function loadServerOptions() {
@@ -254,6 +285,14 @@ watch(
     stopLoggedPolling()
     playerStore.logged = null
   },
+)
+
+watch(
+  () => playerTitleParts.value,
+  (parts) => {
+    setDocumentTitle(...parts)
+  },
+  { immediate: true },
 )
 
 async function submitRestartRequest() {

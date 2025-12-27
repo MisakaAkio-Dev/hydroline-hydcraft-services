@@ -13,6 +13,14 @@ export interface ParsedRouteName {
   badge: string | null
 }
 
+export function extractPrimaryRouteName(raw: NullableString, fallback: string) {
+  if (!raw) return fallback
+  const primary = raw.split('||')[0] ?? ''
+  const firstSegment = primary.split('|')[0] ?? ''
+  const trimmed = firstSegment.trim()
+  return trimmed || fallback
+}
+
 /**
  * Parses a raw MTR route name string in the format
  * "中文名|英文名||额外说明" into structured pieces.

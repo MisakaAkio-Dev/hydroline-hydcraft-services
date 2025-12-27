@@ -8,6 +8,8 @@ import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/co
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useTransportationRailwayBindingsStore } from '@/stores/transportation/railwayBindings'
+import { setDocumentTitle } from '@/utils/route/document-title'
+import { extractPrimaryRouteName } from '@/utils/route/route-name'
 import type {
   RailwayRouteDetail,
   RailwaySystemDetail,
@@ -54,6 +56,9 @@ const canGoLogNext = computed(
 )
 
 const systemId = computed(() => route.params.systemId as string)
+const systemName = computed(() =>
+  extractPrimaryRouteName(system.value?.name ?? null, '线路系统'),
+)
 
 const systemDimension = computed(() => {
   const context = system.value?.dimensionContext
@@ -182,6 +187,14 @@ watch(
     lastLogContentHeight = nextHeight
   },
   { flush: 'post' },
+)
+
+watch(
+  () => systemName.value,
+  (name) => {
+    setDocumentTitle(name)
+  },
+  { immediate: true },
 )
 
 async function fetchRelatedSystems(detail: RailwaySystemDetail) {

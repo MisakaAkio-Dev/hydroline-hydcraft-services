@@ -658,7 +658,7 @@ function handleHeroImageErrored() {
       class="relative z-10 pb-12 px-4 opacity-100"
     >
       <Motion
-        v-if="homeLoaded"
+        v-if="homeLoaded && !uiStore.previewMode"
         as="div"
         :initial="{ opacity: 0, filter: 'blur(8px)', y: 10 }"
         :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"

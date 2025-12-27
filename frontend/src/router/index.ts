@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { registerAuthGuards } from './guards/auth'
+import { setDocumentTitle } from '@/utils/route/document-title'
 
 export const userRoutes: RouteRecordRaw[] = [
   {
@@ -77,6 +78,7 @@ export const userRoutes: RouteRecordRaw[] = [
             name: 'company.overview',
             component: () =>
               import('@/views/user/Company/CompanyOverviewView.vue'),
+            meta: { title: '工商概览' },
           },
           {
             path: 'dashboard',
@@ -85,6 +87,7 @@ export const userRoutes: RouteRecordRaw[] = [
               import('@/views/user/Company/CompanyDashboardView.vue'),
             meta: {
               requiresAuth: true,
+              title: '管理控制台',
             },
           },
           {
@@ -94,6 +97,7 @@ export const userRoutes: RouteRecordRaw[] = [
               import('@/views/user/Company/CompanyOwnedListView.vue'),
             meta: {
               requiresAuth: true,
+              title: '我的公司',
             },
           },
           {
@@ -103,6 +107,7 @@ export const userRoutes: RouteRecordRaw[] = [
               import('@/views/user/Company/CompanyJoinListView.vue'),
             meta: {
               requiresAuth: true,
+              title: '加入公司',
             },
           },
           {
@@ -110,12 +115,14 @@ export const userRoutes: RouteRecordRaw[] = [
             name: 'company.database',
             component: () =>
               import('@/views/user/Company/CompanyDatabaseView.vue'),
+            meta: { title: '公司名录' },
           },
           {
             path: 'database/:companyId',
             name: 'company.database.detail',
             component: () =>
               import('@/views/user/Company/CompanyDatabaseDetailView.vue'),
+            meta: { title: '公司详情' },
           },
         ],
       },
@@ -138,18 +145,21 @@ export const userRoutes: RouteRecordRaw[] = [
             name: 'transportation.railway',
             component: () =>
               import('@/views/user/Transportation/RailwayOverviewView.vue'),
+            meta: { title: '铁路总览' },
           },
           {
             path: 'railway/routes',
             name: 'transportation.railway.routes',
             component: () =>
               import('@/views/user/Transportation/RailwayRouteListView.vue'),
+            meta: { title: '线路列表' },
           },
           {
             path: 'railway/routes/:railwayType/:routeId',
             name: 'transportation.railway.route',
             component: () =>
               import('@/views/user/Transportation/RailwayRouteDetailView.vue'),
+            meta: { title: '线路详情' },
           },
           {
             path: 'railway/stations/:railwayType/:stationId',
@@ -158,48 +168,56 @@ export const userRoutes: RouteRecordRaw[] = [
               import(
                 '@/views/user/Transportation/RailwayStationDetailView.vue'
               ),
+            meta: { title: '车站详情' },
           },
           {
             path: 'railway/stations',
             name: 'transportation.railway.stations',
             component: () =>
               import('@/views/user/Transportation/RailwayStationListView.vue'),
+            meta: { title: '车站列表' },
           },
           {
             path: 'railway/depots/:railwayType/:depotId',
             name: 'transportation.railway.depot',
             component: () =>
               import('@/views/user/Transportation/RailwayDepotDetailView.vue'),
+            meta: { title: '车厂详情' },
           },
           {
             path: 'railway/depots',
             name: 'transportation.railway.depots',
             component: () =>
               import('@/views/user/Transportation/RailwayDepotListView.vue'),
+            meta: { title: '车厂列表' },
           },
           {
             path: 'railway/systems/new',
             name: 'transportation.railway.system.create',
             component: () =>
               import('@/views/user/Transportation/RailwaySystemCreateView.vue'),
+            meta: { title: '新建线路系统' },
           },
           {
             path: 'railway/systems',
             name: 'transportation.railway.systems',
             component: () =>
               import('@/views/user/Transportation/RailwaySystemListView.vue'),
+            meta: { title: '线路系统列表' },
           },
           {
             path: 'railway/systems/:systemId',
             name: 'transportation.railway.system.detail',
             component: () =>
               import('@/views/user/Transportation/RailwaySystemDetailView.vue'),
+            meta: { title: '线路系统详情' },
           },
           {
             path: 'railway/systems/:systemId/edit',
             name: 'transportation.railway.system.edit',
             component: () =>
               import('@/views/user/Transportation/RailwaySystemEditView.vue'),
+            meta: { title: '编辑线路系统' },
           },
           {
             path: 'railway/companies',
@@ -208,6 +226,7 @@ export const userRoutes: RouteRecordRaw[] = [
               import(
                 '@/views/user/Transportation/RailwayCompanyStatisticsView.vue'
               ),
+            meta: { title: '公司统计' },
           },
           {
             path: 'railway/companies/:companyId',
@@ -216,6 +235,7 @@ export const userRoutes: RouteRecordRaw[] = [
               import(
                 '@/views/user/Transportation/RailwayCompanyDetailView.vue'
               ),
+            meta: { title: '公司详情' },
           },
           {
             path: 'railway/facilities',
@@ -224,12 +244,14 @@ export const userRoutes: RouteRecordRaw[] = [
               import(
                 '@/views/user/Transportation/RailwayFacilityEditorView.vue'
               ),
+            meta: { title: '设施编辑' },
           },
           {
             path: 'aviation',
             name: 'transportation.aviation',
             component: () =>
               import('@/views/user/Transportation/AviationPlaceholderView.vue'),
+            meta: { title: '航空系统' },
           },
         ],
       },
@@ -327,6 +349,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['portal.view.admin-dashboard'],
           layout: 'admin',
+          title: '后台总览',
         },
       },
       {
@@ -337,6 +360,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['auth.view.users'],
           layout: 'admin',
+          title: '用户信息',
         },
       },
       {
@@ -347,6 +371,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['auth.view.players'],
           layout: 'admin',
+          title: '玩家信息',
         },
       },
       {
@@ -357,6 +382,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['auth.view.invites'],
           layout: 'admin',
+          title: '邀请码管理',
         },
       },
       {
@@ -368,6 +394,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['assets.view.attachments'],
           layout: 'admin',
+          title: '附件系统',
         },
       },
       {
@@ -378,6 +405,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['config.view.authme'],
           layout: 'admin',
+          title: 'AuthMe 状态',
         },
       },
       {
@@ -389,6 +417,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['config.view.luckperms'],
           layout: 'admin',
+          title: 'LuckPerms 状态',
         },
       },
       {
@@ -400,6 +429,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['minecraft.view.servers'],
           layout: 'admin',
+          title: '服务端状态',
         },
       },
 
@@ -413,6 +443,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresPermissions: ['beacon.view.logs'],
           layout: 'admin',
           section: 'server-info',
+          title: 'MTR 审计日志',
         },
       },
       {
@@ -425,6 +456,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresPermissions: ['beacon.view.logs'],
           layout: 'admin',
           section: 'server-info',
+          title: '玩家成就信息',
         },
       },
       {
@@ -436,6 +468,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresPermissions: ['beacon.view.logs'],
           layout: 'admin',
           section: 'server-info',
+          title: '玩家统计信息',
         },
       },
       {
@@ -446,6 +479,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['auth.view.rbac'],
           layout: 'admin',
+          title: 'RBAC 管理',
         },
       },
       {
@@ -456,6 +490,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['config.view.general'],
           layout: 'admin',
+          title: '配置管理',
         },
       },
       {
@@ -467,6 +502,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['config.view.verification'],
           layout: 'admin',
+          title: '验证管理',
         },
       },
       {
@@ -477,6 +513,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['portal.view.home-config'],
           layout: 'admin',
+          title: '门户首页',
         },
       },
       {
@@ -487,6 +524,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['oauth.view.providers'],
           layout: 'admin',
+          title: 'Provider 管理',
         },
       },
       {
@@ -497,6 +535,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['oauth.view.accounts'],
           layout: 'admin',
+          title: '绑定记录',
         },
       },
       {
@@ -507,6 +546,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['oauth.view.logs'],
           layout: 'admin',
+          title: 'OAuth 日志',
         },
       },
       {
@@ -517,6 +557,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['oauth.view.stats'],
           layout: 'admin',
+          title: 'OAuth 数据统计',
         },
       },
       {
@@ -528,6 +569,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['company.admin.view'],
           layout: 'admin',
+          title: '公司管理',
         },
       },
       {
@@ -539,6 +581,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['company.admin.applications'],
           layout: 'admin',
+          title: '申请审批',
         },
       },
       {
@@ -552,6 +595,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['company.admin.applications'],
           layout: 'admin',
+          title: '注销审批',
         },
       },
       {
@@ -563,6 +607,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['company.admin.config'],
           layout: 'admin',
+          title: '行业配置',
         },
       },
       {
@@ -573,6 +618,7 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresAuth: true,
           requiresPermissions: ['company.admin.config'],
           layout: 'admin',
+          title: '类型配置',
         },
       },
     ],
@@ -608,5 +654,19 @@ const router = createRouter({
 })
 
 registerAuthGuards(router)
+
+router.afterEach((to) => {
+  if (to.name === 'home') {
+    setDocumentTitle(null)
+    return
+  }
+  const matchedTitle = [...to.matched]
+    .map((record) => record.meta?.title)
+    .filter((title): title is string => typeof title === 'string')
+    .map((title) => title.trim())
+    .filter((title) => title.length > 0)
+    .pop()
+  setDocumentTitle(matchedTitle ?? null)
+})
 
 export default router

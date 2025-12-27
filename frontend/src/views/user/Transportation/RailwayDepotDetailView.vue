@@ -7,6 +7,8 @@ import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/co
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import type { RailwayDepotDetail } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
+import { setDocumentTitle } from '@/utils/route/document-title'
+import { extractPrimaryRouteName } from '@/utils/route/route-name'
 import modpackCreateImg from '@/assets/resources/modpacks/Create.jpg'
 import modpackMtrImg from '@/assets/resources/modpacks/MTR.png'
 
@@ -55,6 +57,9 @@ const params = computed(() => {
 const depotName = computed(
   () => detail.value?.depot.name ?? detail.value?.depot.id ?? '未知车厂',
 )
+const depotTitleName = computed(() =>
+  extractPrimaryRouteName(depotName.value, '未知车厂'),
+)
 const serverBadge = computed(
   () => detail.value?.server.name ?? params.value.serverId ?? '—',
 )
@@ -100,6 +105,14 @@ function formatLogTimestamp(value: string | null | undefined) {
   if (!d.isValid()) return value
   return d.format('YYYY-MM-DD HH:mm')
 }
+
+watch(
+  () => depotTitleName.value,
+  (name) => {
+    setDocumentTitle(name)
+  },
+  { immediate: true },
+)
 
 async function fetchDetail() {
   const { depotId, railwayType, serverId, dimension } = params.value

@@ -16,6 +16,7 @@ import type {
 } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
 import { parseRouteName } from '@/utils/route/route-name'
+import { setDocumentTitle } from '@/utils/route/document-title'
 import modpackCreateImg from '@/assets/resources/modpacks/Create.jpg'
 import modpackMtrImg from '@/assets/resources/modpacks/MTR.png'
 
@@ -182,6 +183,8 @@ const routeName = computed(() => {
   return parsed
 })
 
+const routeTitleName = computed(() => routeName.value.title || '线路')
+
 const stations = computed(() => maxStopsDetail.value?.stations ?? [])
 const platforms = computed(() => activeDetail.value?.platforms ?? [])
 const depots = computed(() => activeDetail.value?.depots ?? [])
@@ -189,6 +192,14 @@ const orderedStops = computed(() => {
   const stops = maxStopsDetail.value?.stops ?? []
   return [...stops].sort((a, b) => a.order - b.order)
 })
+
+watch(
+  () => routeTitleName.value,
+  (name) => {
+    setDocumentTitle(name)
+  },
+  { immediate: true },
+)
 
 function resolveStopStationIdForDetail(
   d: RailwayRouteDetail | null | undefined,

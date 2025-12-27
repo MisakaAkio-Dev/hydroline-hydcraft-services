@@ -356,23 +356,23 @@ watch(
                 </Transition>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div
-          v-if="hasMore && !expanded"
-          class="pt-2 flex justify-center border-t border-slate-100 dark:border-slate-800/60"
-        >
-          <UButton
-            size="xs"
-            variant="ghost"
-            color="neutral"
-            class="w-full flex justify-center"
-            @click="expanded = true"
-          >
-            查看剩余 {{ sortedItems.length - MAX_VISIBLE_ITEMS }} 个班次
-            <UIcon name="i-lucide-chevron-down" class="ml-1 h-3 w-3" />
-          </UButton>
+            <div
+              v-if="hasMore && !expanded"
+              class="pt-2 flex justify-center border-t border-slate-100 dark:border-slate-800/60"
+            >
+              <UButton
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                class="w-full flex justify-center"
+                @click="expanded = true"
+              >
+                查看剩余 {{ sortedItems.length - MAX_VISIBLE_ITEMS }} 个班次
+                <UIcon name="i-lucide-chevron-down" class="ml-1 h-3 w-3" />
+              </UButton>
+            </div>
+          </div>
         </div>
       </div>
     </div>
