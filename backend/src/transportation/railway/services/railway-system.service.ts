@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import { buildDimensionContextFromDimension } from '../utils/railway-normalizer'
 import { TransportationRailwayRouteDetailService } from '../route-detail/railway-route-detail.service';
 import { TransportationRailwayCompanyBindingService } from './railway-company-binding.service';
 import { MinecraftServerService } from '../../../minecraft/minecraft-server.service';
+import { PERMISSIONS } from '../../../auth/services/roles.service';
 
 export type RailwaySystemRouteSummary = {
   entityId: string;
