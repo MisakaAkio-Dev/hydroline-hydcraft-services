@@ -58,4 +58,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.COS_SECRET_ACCESS_KEY }}
         run: |
           coscmd config -a "$AWS_ACCESS_KEY_ID" -s "$AWS_SECRET_ACCESS_KEY" -b "$COS_BUCKET" -r "$COS_REGION"
-          printf 'y\n' | coscmd upload -rs --delete frontend/dist/ /
+          coscmd upload -rs --delete --yes frontend/dist/ /
