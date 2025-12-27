@@ -363,13 +363,13 @@ onBeforeUnmount(() => {
           >
             <tr>
               <th
-                class="sticky left-0 z-20 px-4 py-3 text-left text-slate-600 bg-slate-50 dark:text-slate-300 dark:bg-slate-800"
+                class="px-4 py-3 text-left text-slate-600 bg-slate-50 dark:text-slate-300 dark:bg-slate-800 md:sticky md:left-0 md:z-20"
                 style="width: 3.5rem; min-width: 3.5rem"
               >
                 #
               </th>
               <th
-                class="sticky left-14 z-20 px-4 py-3 text-left text-slate-600 bg-slate-50 dark:text-slate-300 dark:bg-slate-800"
+                class="px-4 py-3 text-left text-slate-600 bg-slate-50 dark:text-slate-300 dark:bg-slate-800 md:sticky md:left-14 md:z-20"
                 style="min-width: 14rem"
               >
                 玩家
@@ -524,7 +524,7 @@ onBeforeUnmount(() => {
                 :transition="{ duration: 0.35, ease: 'easeOut' }"
               >
                 <td
-                  class="sticky left-0 z-10 px-4 py-3 text-left font-semibold text-slate-800 dark:text-slate-100"
+                  class="px-4 py-3 text-left font-semibold text-slate-800 dark:text-slate-100 md:sticky md:left-0 md:z-10"
                   style="width: 3.5rem; min-width: 3.5rem"
                   :class="
                     rowIndex % 2 === 0
@@ -535,7 +535,7 @@ onBeforeUnmount(() => {
                   {{ entry.rank }}
                 </td>
                 <td
-                  class="sticky left-14 z-10 px-4 py-3"
+                  class="px-4 py-3 md:sticky md:left-14 md:z-10"
                   style="min-width: 14rem"
                   :class="
                     rowIndex % 2 === 0
