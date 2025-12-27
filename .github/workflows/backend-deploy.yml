@@ -151,7 +151,7 @@ jobs:
           mkdir -p "$REMOTE_TEMP_DIR/extracted"
           tar -xzf "$REMOTE_TEMP_DIR/backend-deploy.tar.gz" -C "$REMOTE_TEMP_DIR/extracted"
 
-          rsync -a --delete --exclude='.env' \
+          rsync -a --no-owner --no-group --delete --exclude='.env' \
             "$REMOTE_TEMP_DIR/extracted/" \
             "$REMOTE_DEPLOY_PATH/"
 
