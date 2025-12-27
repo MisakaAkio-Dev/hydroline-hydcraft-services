@@ -244,8 +244,9 @@ async function fetchLatestRailwaySyncJobRaw(serverId: string) {
 async function openBeaconDialog(server: MinecraftServer) {
   beaconDialogServer.value = server
   beaconDialogOpen.value = true
-  railwaySyncJob.value = await fetchLatestRailwaySyncJobRaw(server.id)
-  if (railwaySyncJob.value) {
+  const latestJob = await fetchLatestRailwaySyncJobRaw(server.id)
+  railwaySyncJob.value = latestJob?.id ? latestJob : null
+  if (railwaySyncJob.value?.id) {
     startRailwaySyncPolling()
   }
   await Promise.all([refreshBeaconConn(), refreshBeaconStatus()])
@@ -278,10 +279,10 @@ function stopRailwaySyncPolling() {
 
 async function pollRailwaySyncJobOnce() {
   const server = beaconDialogServer.value
-  if (!server || !railwaySyncJob.value) return
+  if (!server || !railwaySyncJob.value?.id) return
   try {
     const job = await fetchRailwaySyncJobRaw(server.id, railwaySyncJob.value.id)
-    railwaySyncJob.value = job
+    railwaySyncJob.value = job?.id ? job : null
     if (job.status === 'SUCCEEDED') {
       stopRailwaySyncPolling()
       toast.add({ title: '铁路数据同步完成', color: 'success' })

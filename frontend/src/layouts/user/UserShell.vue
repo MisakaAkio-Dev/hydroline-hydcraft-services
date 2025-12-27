@@ -216,7 +216,8 @@ const routerPush = (path: string) => {
       :menu-open="menuOpen"
       :main-nav="mainNav"
       :current-path="route.path"
-      z-index-class="z-50000"
+      z-index-class="z-[99999]"
+      :z-index="99999"
       @close="menuOpen = false"
     />
 

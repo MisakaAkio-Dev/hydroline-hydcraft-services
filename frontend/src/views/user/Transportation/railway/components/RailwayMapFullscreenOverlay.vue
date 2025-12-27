@@ -172,7 +172,7 @@ onBeforeUnmount(() => {
     >
       <div
         v-if="open"
-        class="fixed"
+        class="fixed z-30000"
         :style="{
           top: `${insetTop}px`,
           left: `${insetLeft}px`,

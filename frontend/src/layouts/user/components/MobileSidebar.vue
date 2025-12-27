@@ -20,11 +20,13 @@ const props = withDefaults(
     currentPath: string
     closeOnNavigate?: boolean
     zIndexClass?: string
+    zIndex?: number
     showBrandHeader?: boolean
   }>(),
   {
     closeOnNavigate: true,
     zIndexClass: 'z-50',
+    zIndex: 50,
     showBrandHeader: true,
   },
 )
@@ -35,10 +37,15 @@ const {
   currentPath,
   closeOnNavigate,
   zIndexClass,
+  zIndex,
   showBrandHeader,
 } = toRefs(props)
 
 const router = useRouter()
+
+const zIndexStyle = computed(() => ({
+  zIndex: zIndex.value ?? 50,
+}))
 
 const isPathActive = (item: NavItem, path: string) => {
   if (item.to === '/') {
@@ -117,79 +124,83 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- Mobile Sidebar (Drawer) -->
-  <AnimatePresence>
-    <template v-if="menuOpen">
-      <!-- Backdrop -->
-      <Motion
-        key="sidebar-backdrop"
-        class="fixed inset-0 bg-black/20 blur-sm"
-        :class="[zIndexClass]"
-        :initial="{ opacity: 0 }"
-        :animate="{ opacity: 1 }"
-        :exit="{ opacity: 0 }"
-        :transition="{ duration: 0.3 }"
-        @click="handleClose"
-      />
+  <Teleport to="body">
+    <!-- Mobile Sidebar (Drawer) -->
+    <AnimatePresence>
+      <template v-if="menuOpen">
+        <!-- Backdrop -->
+        <Motion
+          key="sidebar-backdrop"
+          class="fixed inset-0 bg-black/20 blur-sm"
+          :class="[zIndexClass]"
+          :style="zIndexStyle"
+          :initial="{ opacity: 0 }"
+          :animate="{ opacity: 1 }"
+          :exit="{ opacity: 0 }"
+          :transition="{ duration: 0.3 }"
+          @click="handleClose"
+        />
 
-      <!-- Bottom Sheet -->
-      <Motion
-        key="sidebar-sheet"
-        as="aside"
-        :initial="{ y: '100%' }"
-        :animate="{ y: 0 }"
-        :exit="{ y: '100%' }"
-        :transition="{ type: 'spring', stiffness: 400, damping: 30, mass: 1 }"
-        class="fixed left-0 right-0 overflow-hidden rounded-t-3xl bg-white/90 pt-4 shadow-2xl backdrop-blur-2xl dark:bg-slate-800/90 border-t border-white/20 dark:border-slate-800/50"
-        :class="[zIndexClass]"
-        style="bottom: -100px; padding-bottom: calc(2rem + 5rem)"
-        @click.stop
-      >
-        <nav class="flex items-center gap-3 overflow-x-auto p-2 mx-4">
-          <RouterLink
-            v-for="item in displayNav"
-            :key="item.key ?? item.to"
-            :to="item.to"
-            class="flex shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-xs font-medium transition active:scale-95"
-            :class="[
-              isPathActive(item, currentPath) || item.isFallback
-                ? 'bg-primary-100/80 text-primary-600 dark:bg-primary-500/20 dark:text-primary-100'
-                : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white',
-            ]"
-            @click="handleNavigate"
-          >
-            <Motion
-              v-if="item.isFallback"
-              :key="`${item.icon}-${item.name}`"
-              as="div"
-              :initial="{
-                opacity: 0.7,
-                scale: 0.88,
-                filter: 'drop-shadow(0 0 0 rgba(99, 102, 241, 0))',
-              }"
-              :animate="{
-                opacity: 1,
-                scale: 1,
-                filter: 'drop-shadow(0 0 0.75rem rgba(99, 102, 241, 0.45))',
-              }"
-              :transition="{ type: 'spring', stiffness: 360, damping: 24 }"
-              class="flex h-6 w-6 items-center justify-center"
-            >
-              <UIcon :name="item.icon" class="text-xl text-primary-500" />
-            </Motion>
-            <UIcon v-else :name="item.icon" class="text-xl h-fit" />
-            <span class="whitespace-nowrap">{{ item.name }}</span>
-          </RouterLink>
-        </nav>
-        <div
-          v-if="showBrandHeader"
-          class="text-xs text-center tracking-widest font-semibold text-slate-500 dark:text-slate-400 mt-2"
+        <!-- Bottom Sheet -->
+        <Motion
+          key="sidebar-sheet"
+          as="aside"
+          :initial="{ y: '100%' }"
+          :animate="{ y: 0 }"
+          :exit="{ y: '100%' }"
+          :transition="{ type: 'spring', stiffness: 400, damping: 30, mass: 1 }"
+          class="fixed left-0 right-0 overflow-hidden rounded-t-3xl bg-white/90 pt-4 shadow-2xl backdrop-blur-2xl dark:bg-slate-800/90 border-t border-white/20 dark:border-slate-800/50"
+          :class="[zIndexClass]"
+          :style="zIndexStyle"
+          style="bottom: -100px; padding-bottom: calc(2rem + 5rem)"
+          @click.stop
         >
-          HYDROLINE HYDCRAFT
-        </div>
-      </Motion>
-    </template>
-  </AnimatePresence>
+          <nav class="flex items-center gap-3 overflow-x-auto p-2 mx-4">
+            <RouterLink
+              v-for="item in displayNav"
+              :key="item.key ?? item.to"
+              :to="item.to"
+              class="flex shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-xs font-medium transition active:scale-95"
+              :class="[
+                isPathActive(item, currentPath) || item.isFallback
+                  ? 'bg-primary-100/80 text-primary-600 dark:bg-primary-500/20 dark:text-primary-100'
+                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white',
+              ]"
+              @click="handleNavigate"
+            >
+              <Motion
+                v-if="item.isFallback"
+                :key="`${item.icon}-${item.name}`"
+                as="div"
+                :initial="{
+                  opacity: 0.7,
+                  scale: 0.88,
+                  filter: 'drop-shadow(0 0 0 rgba(99, 102, 241, 0))',
+                }"
+                :animate="{
+                  opacity: 1,
+                  scale: 1,
+                  filter: 'drop-shadow(0 0 0.75rem rgba(99, 102, 241, 0.45))',
+                }"
+                :transition="{ type: 'spring', stiffness: 360, damping: 24 }"
+                class="flex h-6 w-6 items-center justify-center"
+              >
+                <UIcon :name="item.icon" class="text-xl text-primary-500" />
+              </Motion>
+              <UIcon v-else :name="item.icon" class="text-xl h-fit" />
+              <span class="whitespace-nowrap">{{ item.name }}</span>
+            </RouterLink>
+          </nav>
+          <div
+            v-if="showBrandHeader"
+            class="text-xs text-center tracking-widest font-semibold text-slate-500 dark:text-slate-400 mt-2"
+          >
+            HYDROLINE HYDCRAFT
+          </div>
+        </Motion>
+      </template>
+    </AnimatePresence>
+  </Teleport>
 </template>
 
 <style scoped>

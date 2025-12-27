@@ -365,8 +365,15 @@ function serverOnlinePercent(item: PublicServerStatusItem) {
           <UIcon
             name="i-lucide-loader-2"
             class="inline-block h-4 w-4 animate-spin"
-        /></span>
-        <span v-else-if="error" class="text-xs text-rose-500">状态异常</span>
+          />
+        </span>
+        <span
+          v-else-if="error"
+          class="flex items-center gap-1 text-xs text-slate-400"
+        >
+          <UIcon name="i-lucide-alert-circle" class="h-3.5 w-3.5" />
+          <span>状态异常</span>
+        </span>
         <span v-else class="text-xs text-slate-400">暂无服务器</span>
       </div>
     </div>

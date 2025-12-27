@@ -157,6 +157,7 @@ const handleToggle = () => {
               :text="item.name"
               class="outline-0"
               :content="{ side: 'right' }"
+              :ui="{ content: 'z-[60000]' }"
             >
               <Motion
                 v-if="item.isFallback"
