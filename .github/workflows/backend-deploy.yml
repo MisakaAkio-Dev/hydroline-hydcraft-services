@@ -21,7 +21,7 @@ jobs:
       SSH_USER: ${{ secrets.BACKEND_DEPLOY_USER }}
       BACKEND_SSH_KEY: ${{ secrets.BACKEND_DEPLOY_SSH_PRIVATE_KEY }}
       REMOTE_DEPLOY_PATH: ${{ secrets.BACKEND_REMOTE_DEPLOY_PATH || '/www/wwwroot/hydroline-hydcraft' }}
-      REMOTE_TEMP_DIR: /tmp/backend-deploy-${{ github.run_id }}
+      REMOTE_TEMP_DIR: /tmp/backend-deploy-${{ github.run_id }}-${{ github.run_attempt }}
       PM2_APP_NAME: ${{ secrets.BACKEND_PM2_APP_NAME }}
       ARTIFACT_BUCKET: ${{ secrets.ARTIFACT_BUCKET }}
       ARTIFACT_UPLOAD_ENDPOINT: ${{ secrets.ARTIFACT_UPLOAD_ENDPOINT }}
@@ -145,7 +145,8 @@ jobs:
           mkdir -p "$REMOTE_DEPLOY_PATH"
 
           coscmd config -a "$AWS_ACCESS_KEY_ID" -s "$AWS_SECRET_ACCESS_KEY" -b "$ARTIFACT_BUCKET" -e "$ARTIFACT_DOWNLOAD_ENDPOINT" -m 20 --retry 10 --timeout 120
-          coscmd download "backend/backend-deploy-${{ github.run_id }}.tar.gz" "$REMOTE_TEMP_DIR/backend-deploy.tar.gz"
+          rm -f "$REMOTE_TEMP_DIR/backend-deploy.tar.gz"
+          coscmd download -f "backend/backend-deploy-${{ github.run_id }}.tar.gz" "$REMOTE_TEMP_DIR/backend-deploy.tar.gz"
 
           rm -rf "$REMOTE_TEMP_DIR/extracted"
           mkdir -p "$REMOTE_TEMP_DIR/extracted"
