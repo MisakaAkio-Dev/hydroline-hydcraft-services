@@ -47,6 +47,10 @@ const stats = computed(
 const recommendations = computed(() => overview.value?.recommendations ?? [])
 const recentUpdates = computed(() => overview.value?.recentUpdates ?? [])
 const warnings = computed(() => overview.value?.warnings ?? [])
+const warningSignature = computed(() =>
+  warnings.value.map((warn) => `${warn.serverId}:${warn.message}`).join('|'),
+)
+const lastWarningSignature = ref('')
 
 const recommendationPage = ref(1)
 const recommendationPageSize = 5
@@ -605,8 +609,31 @@ watch(
   },
 )
 
+watch(
+  () => warningSignature.value,
+  (signature) => {
+    if (!signature || signature === lastWarningSignature.value) return
+    lastWarningSignature.value = signature
+    toast.add({
+      title: '部分服务端数据拉取失败',
+      description: warnings.value
+        .map((warn) => `#${warn.serverId}: ${warn.message}`)
+        .join('\n'),
+      color: 'warning',
+    })
+  },
+)
+
 onMounted(async () => {
-  await transportationStore.fetchOverview(true)
+  try {
+    await transportationStore.fetchOverview(true)
+  } catch (error) {
+    toast.add({
+      title: '加载铁路概览失败',
+      description: error instanceof Error ? error.message : '请稍后再试',
+      color: 'error',
+    })
+  }
 })
 
 onBeforeUnmount(() => {

@@ -91,42 +91,41 @@ export class TransportationRailwayService {
 
     await Promise.all(
       servers.map(async (server) => {
-        try {
-          const summary = await this.fetchServerOverview(server);
-          stats.routes += summary.routeCount;
-          stats.stations += summary.stationCount;
-          stats.depots += summary.depotCount;
-          latest.depots.push(...summary.latestDepots);
-          latest.stations.push(...summary.latestStations);
-          latest.routes.push(...summary.latestRoutes);
-          recentUpdates.push(
-            ...summary.latestRoutes.map((item) => ({
-              id: `route:${item.server.id}:${item.id}`,
-              type: 'route' as const,
-              item,
-              lastUpdated: item.lastUpdated ?? null,
-            })),
-            ...summary.latestStations.map((item) => ({
-              id: `station:${item.server.id}:${item.id}`,
-              type: 'station' as const,
-              item,
-              lastUpdated: item.lastUpdated ?? null,
-            })),
-            ...summary.latestDepots.map((item) => ({
-              id: `depot:${item.server.id}:${item.id}`,
-              type: 'depot' as const,
-              item,
-              lastUpdated: item.lastUpdated ?? null,
-            })),
-          );
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          warnings.push({ serverId: server.id, message });
+        const { summary, warning } =
+          await this.fetchServerOverviewWithFallback(server);
+        if (warning) {
+          warnings.push({ serverId: server.id, message: warning });
           this.logger.warn(
-            `Failed to fetch railway overview for ${server.displayName}: ${message}`,
+            `Failed to fetch railway overview for ${server.displayName}: ${warning}`,
           );
         }
+
+        stats.routes += summary.routeCount;
+        stats.stations += summary.stationCount;
+        stats.depots += summary.depotCount;
+        latest.depots.push(...summary.latestDepots);
+        latest.stations.push(...summary.latestStations);
+        latest.routes.push(...summary.latestRoutes);
+        recentUpdates.push(
+          ...summary.latestRoutes.map((item) => ({
+            id: `route:${item.server.id}:${item.id}`,
+            type: 'route' as const,
+            item,
+            lastUpdated: item.lastUpdated ?? null,
+          })),
+          ...summary.latestStations.map((item) => ({
+            id: `station:${item.server.id}:${item.id}`,
+            type: 'station' as const,
+            item,
+            lastUpdated: item.lastUpdated ?? null,
+          })),
+          ...summary.latestDepots.map((item) => ({
+            id: `depot:${item.server.id}:${item.id}`,
+            type: 'depot' as const,
+            item,
+            lastUpdated: item.lastUpdated ?? null,
+          })),
+        );
       }),
     );
 
@@ -383,6 +382,208 @@ export class TransportationRailwayService {
         .filter((row): row is NormalizedEntity => Boolean(row)),
       latestRoutes: normalizedRoutes,
     };
+  }
+
+  private async fetchServerOverviewFromCache(
+    server: BeaconServerRecord,
+  ): Promise<{
+    summary: {
+      server: BeaconServerRecord;
+      routeCount: number;
+      stationCount: number;
+      depotCount: number;
+      latestDepots: NormalizedEntity[];
+      latestStations: NormalizedEntity[];
+      latestRoutes: NormalizedRoute[];
+    };
+    cacheHit: boolean;
+  }> {
+    const [
+      routeCount,
+      stationCount,
+      depotCount,
+      routeRows,
+      stationRows,
+      depotRows,
+    ] = await Promise.all([
+      this.prisma.transportationRailwayRoute.count({
+        where: { serverId: server.id, railwayMod: server.railwayMod },
+      }),
+      this.prisma.transportationRailwayStation.count({
+        where: { serverId: server.id, railwayMod: server.railwayMod },
+      }),
+      this.prisma.transportationRailwayDepot.count({
+        where: { serverId: server.id, railwayMod: server.railwayMod },
+      }),
+      this.prisma.transportationRailwayRoute.findMany({
+        where: { serverId: server.id, railwayMod: server.railwayMod },
+        orderBy: [{ lastBeaconUpdatedAt: 'desc' }, { updatedAt: 'desc' }],
+        take: 20,
+        select: {
+          serverId: true,
+          railwayMod: true,
+          entityId: true,
+          dimensionContext: true,
+          transportMode: true,
+          name: true,
+          color: true,
+          filePath: true,
+          payload: true,
+          lastBeaconUpdatedAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.transportationRailwayStation.findMany({
+        where: { serverId: server.id, railwayMod: server.railwayMod },
+        orderBy: [{ lastBeaconUpdatedAt: 'desc' }, { updatedAt: 'desc' }],
+        take: 20,
+        select: {
+          entityId: true,
+          transportMode: true,
+          name: true,
+          color: true,
+          filePath: true,
+          payload: true,
+          lastBeaconUpdatedAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.transportationRailwayDepot.findMany({
+        where: { serverId: server.id, railwayMod: server.railwayMod },
+        orderBy: [{ lastBeaconUpdatedAt: 'desc' }, { updatedAt: 'desc' }],
+        take: 20,
+        select: {
+          entityId: true,
+          transportMode: true,
+          name: true,
+          color: true,
+          filePath: true,
+          payload: true,
+          lastBeaconUpdatedAt: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+    const normalizedRoutes = routeRows
+      .map((row) =>
+        normalizeRouteRow(this.buildQueryRowFromStoredEntity(row), server),
+      )
+      .filter((row): row is NormalizedRoute => Boolean(row));
+
+    if (normalizedRoutes.length > 0) {
+      const routeKeys = normalizedRoutes
+        .map((route) => ({
+          dimensionContext: route.dimensionContext,
+          routeEntityId: route.id,
+        }))
+        .filter(
+          (key): key is { dimensionContext: string; routeEntityId: string } =>
+            Boolean(key.dimensionContext),
+        );
+
+      if (routeKeys.length > 0) {
+        const snapshots =
+          await this.prisma.transportationRailwayRouteGeometrySnapshot.findMany(
+            {
+              where: {
+                serverId: server.id,
+                railwayMod: server.railwayMod,
+                status: 'READY',
+                OR: routeKeys.map((key) => ({
+                  dimensionContext: key.dimensionContext,
+                  routeEntityId: key.routeEntityId,
+                })),
+              },
+              select: {
+                dimensionContext: true,
+                routeEntityId: true,
+                geometry2d: true,
+                pathNodes3d: true,
+                bounds: true,
+              },
+            },
+          );
+
+        const snapshotMap = new Map(
+          snapshots.map((snapshot) => [
+            `${snapshot.dimensionContext}::${snapshot.routeEntityId}`,
+            snapshot,
+          ]),
+        );
+
+        for (const route of normalizedRoutes) {
+          if (!route.dimensionContext) continue;
+          const snapshot = snapshotMap.get(
+            `${route.dimensionContext}::${route.id}`,
+          );
+          if (!snapshot) continue;
+          route.previewSvg = this.generatePreviewSvgFromSnapshot(
+            snapshot,
+            route.color,
+          );
+        }
+      }
+    }
+
+    const latestStations = stationRows
+      .map((row) =>
+        normalizeEntity(this.buildQueryRowFromStoredEntity(row), server),
+      )
+      .filter((row): row is NormalizedEntity => Boolean(row));
+    const latestDepots = depotRows
+      .map((row) =>
+        normalizeEntity(this.buildQueryRowFromStoredEntity(row), server),
+      )
+      .filter((row): row is NormalizedEntity => Boolean(row));
+
+    const cacheHit =
+      routeCount > 0 ||
+      stationCount > 0 ||
+      depotCount > 0 ||
+      normalizedRoutes.length > 0 ||
+      latestStations.length > 0 ||
+      latestDepots.length > 0;
+
+    return {
+      summary: {
+        server,
+        routeCount,
+        stationCount,
+        depotCount,
+        latestRoutes: normalizedRoutes,
+        latestStations,
+        latestDepots,
+      },
+      cacheHit,
+    };
+  }
+
+  private async fetchServerOverviewWithFallback(
+    server: BeaconServerRecord,
+  ): Promise<{
+    summary: {
+      server: BeaconServerRecord;
+      routeCount: number;
+      stationCount: number;
+      depotCount: number;
+      latestDepots: NormalizedEntity[];
+      latestStations: NormalizedEntity[];
+      latestRoutes: NormalizedRoute[];
+    };
+    warning: string | null;
+  }> {
+    try {
+      const summary = await this.fetchServerOverview(server);
+      return { summary, warning: null };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const cached = await this.fetchServerOverviewFromCache(server);
+      const warning = cached.cacheHit
+        ? `${message}（已显示缓存数据）`
+        : message;
+      return { summary: cached.summary, warning };
+    }
   }
 
   private async fetchRailwaySnapshot(server: BeaconServerRecord) {

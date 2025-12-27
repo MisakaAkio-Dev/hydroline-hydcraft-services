@@ -13,6 +13,7 @@ import { getDimensionName } from '@/utils/minecraft/dimension-names'
 const router = useRouter()
 const route = useRoute()
 const railwayStore = useTransportationRailwayStore()
+const toast = useToast()
 
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
@@ -99,8 +100,12 @@ async function fetchList() {
     response.value = data
     renderToken.value += 1
   } catch (error) {
-    console.error(error)
     errorMessage.value = error instanceof Error ? error.message : '加载失败'
+    toast.add({
+      title: '加载车站列表失败',
+      description: errorMessage.value,
+      color: 'error',
+    })
   } finally {
     loading.value = false
   }
@@ -206,7 +211,11 @@ onMounted(async () => {
     try {
       await railwayStore.fetchServers()
     } catch (error) {
-      console.error(error)
+      toast.add({
+        title: '加载服务端列表失败',
+        description: error instanceof Error ? error.message : '请稍后再试',
+        color: 'error',
+      })
     }
   }
   await fetchList()

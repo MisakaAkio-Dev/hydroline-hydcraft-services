@@ -521,6 +521,7 @@ function initMap(tileBaseUrl: string | null) {
   })
   railwayMap.value = map
   attachMapCursorTracking()
+  lastDrawSignature = ''
 
   // 刷新首屏时，路由/布局可能先渲染但容器尺寸仍为 0，Leaflet 会出现“空白直到热更新/重排”。
   // 用 ResizeObserver 监听容器尺寸，首次变为非零后强制 invalidateSize + 重绘。
@@ -533,7 +534,7 @@ function initMap(tileBaseUrl: string | null) {
     if (scheduledResizeRaf != null) return
     scheduledResizeRaf = requestAnimationFrame(() => {
       scheduledResizeRaf = null
-      invalidateMapSize()
+      invalidateMapSize(true)
       scheduleDraw()
     })
   })
@@ -543,11 +544,14 @@ function initMap(tileBaseUrl: string | null) {
   syncStops()
 }
 
-function invalidateMapSize() {
+function invalidateMapSize(forceRedraw = false) {
   const map = railwayMap.value?.getController()?.getLeafletInstance()
   if (!map) return
   map.invalidateSize({ pan: false })
   hasInvalidatedSize = true
+  if (forceRedraw) {
+    lastDrawSignature = ''
+  }
 }
 
 function attachMapCursorTracking() {
@@ -702,7 +706,7 @@ watch(
     initMap(nextBaseUrl)
 
     void nextTick().then(() => {
-      invalidateMapSize()
+      invalidateMapSize(true)
       scheduleDraw()
       syncStops()
     })
@@ -713,7 +717,7 @@ onMounted(() => {
   initMap(resolveDynmapTileUrl(props.tileUrl ?? null))
   void nextTick().then(() => {
     if (!hasInvalidatedSize) {
-      invalidateMapSize()
+      invalidateMapSize(true)
     }
     drawGeometry()
   })
