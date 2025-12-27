@@ -175,6 +175,55 @@ function buildGeometryFromGraph(
   };
 }
 
+function pickExistingGeometry(
+  snapshot: {
+    status?: string | null;
+    geometry2d: Prisma.JsonValue;
+    pathNodes3d: Prisma.JsonValue;
+    pathEdges: Prisma.JsonValue;
+  } | null,
+) {
+  if (!snapshot || snapshot.status !== 'READY') return null;
+  const pathEdges = Array.isArray(snapshot.pathEdges)
+    ? (snapshot.pathEdges as RailGeometrySegment[])
+    : null;
+  const nodes = Array.isArray(snapshot.pathNodes3d)
+    ? (snapshot.pathNodes3d as Array<{ x?: unknown; y?: unknown; z?: unknown }>)
+    : [];
+  let points = nodes
+    .map((node) => ({ x: Number(node.x), z: Number(node.z) }))
+    .filter(
+      (point): point is { x: number; z: number } =>
+        Number.isFinite(point.x) && Number.isFinite(point.z),
+    );
+
+  if (points.length < 2) {
+    const rawPaths = (snapshot.geometry2d as Record<string, unknown>)?.paths;
+    if (Array.isArray(rawPaths) && rawPaths.length) {
+      const first = rawPaths[0];
+      if (Array.isArray(first)) {
+        points = first
+          .map((entry) => ({ x: Number(entry?.x), z: Number(entry?.z) }))
+          .filter(
+            (point): point is { x: number; z: number } =>
+              Number.isFinite(point.x) && Number.isFinite(point.z),
+          );
+      }
+    }
+  }
+
+  const hasGraph = (pathEdges?.length ?? 0) > 0 || nodes.length >= 2;
+  if (!hasGraph || points.length < 2) {
+    return null;
+  }
+
+  return {
+    points,
+    pathNodes3d: nodes.length >= 2 ? nodes : null,
+    pathEdges: pathEdges?.length ? pathEdges : null,
+  };
+}
+
 export async function computeRouteGeometrySnapshots(
   prisma: PrismaService,
   input: RouteGeometryComputeInput,
@@ -196,6 +245,7 @@ export async function computeRouteGeometrySnapshots(
     let points: Array<{ x: number; z: number }> = [];
     let pathNodes3d: any[] | null = null;
     let pathEdges: RailGeometrySegment[] | null = null;
+    let skipPersist = false;
     if (input.graph) {
       const fromGraph = buildGeometryFromGraph(input.graph, routePlatforms);
       if (fromGraph) {
@@ -213,6 +263,31 @@ export async function computeRouteGeometrySnapshots(
       points = fallback.points;
       pathNodes3d = null;
       pathEdges = null;
+
+      const existing =
+        await prisma.transportationRailwayRouteGeometrySnapshot.findUnique({
+          where: {
+            serverId_railwayMod_dimensionContext_routeEntityId: {
+              serverId: input.scope.serverId,
+              railwayMod: input.scope.railwayMod,
+              dimensionContext: input.scope.dimensionContext,
+              routeEntityId: routeId,
+            },
+          },
+          select: {
+            status: true,
+            geometry2d: true,
+            pathNodes3d: true,
+            pathEdges: true,
+          },
+        });
+      const preserved = pickExistingGeometry(existing);
+      if (preserved) {
+        points = preserved.points;
+        pathNodes3d = preserved.pathNodes3d;
+        pathEdges = preserved.pathEdges;
+        skipPersist = true;
+      }
     }
 
     const paths2d: Array<Array<{ x: number; z: number }>> = points.length
@@ -233,6 +308,10 @@ export async function computeRouteGeometrySnapshots(
       pathEdges,
     };
     routeGeometryById.set(routeId, value);
+
+    if (skipPersist) {
+      return;
+    }
 
     await prisma.transportationRailwayRouteGeometrySnapshot.upsert({
       where: {
