@@ -296,6 +296,13 @@ export class MinecraftServerController {
     return this.service.syncRailwayEntities(id, req.user?.id);
   }
 
+  @Post(':id/beacon/railway-logs-sync')
+  @ApiOperation({ summary: '手动触发 MTR 日志同步' })
+  @RequirePermissions(PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE)
+  syncRailwayLogs(@Param('id') id: string) {
+    return this.service.syncRailwayLogs(id);
+  }
+
   @Get(':id/beacon/railway-sync/:jobId')
   @ApiOperation({ summary: '查询铁路同步任务状态' })
   @RequirePermissions(PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE)

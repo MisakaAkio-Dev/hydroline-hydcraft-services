@@ -15,7 +15,9 @@ withDefaults(
 </script>
 
 <template>
-  <div class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 md:grid-cols-3">
+  <div
+    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-x-6 gap-y-2.5 md:grid-cols-3"
+  >
     <FeatureCard
       title="绝赞内测中"
       description="这三个卡片凑数的，后面再抠细节。"

@@ -9,7 +9,7 @@ const contactLinks = [
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-4xl p-8">
+  <div class="mx-auto w-full max-w-4xl px-6 py-8">
     <section
       class="relative mb-10 rounded-3xl bg-linear-to-br from-slate-200 via-primary-500 to-slate-700 px-6 py-10 text-white shadow-xl"
     >

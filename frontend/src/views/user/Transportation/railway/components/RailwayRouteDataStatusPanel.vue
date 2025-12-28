@@ -53,7 +53,7 @@ const lastUpdatedDisplay = computed(() =>
         class="flex justify-between text-sm text-slate-600 dark:text-slate-300"
       >
         <span>运输模式</span>
-        <span class="font-medium text-slate-900 dark:text-white">
+        <span class="text-slate-900 dark:text-white">
           {{ detail.route.transportMode || '—' }}
         </span>
       </div>
@@ -62,7 +62,7 @@ const lastUpdatedDisplay = computed(() =>
         class="flex justify-between text-sm text-slate-600 dark:text-slate-300"
       >
         <span>线路类型</span>
-        <span class="font-medium text-slate-900 dark:text-white">
+        <span class="text-slate-900 dark:text-white">
           {{ routeType }}
         </span>
       </div>
@@ -71,7 +71,7 @@ const lastUpdatedDisplay = computed(() =>
         class="flex justify-between text-sm text-slate-600 dark:text-slate-300"
       >
         <span>环线属性</span>
-        <span class="font-medium text-slate-900 dark:text-white">
+        <span class="text-slate-900 dark:text-white">
           {{ circularState }}
         </span>
       </div>
@@ -80,14 +80,17 @@ const lastUpdatedDisplay = computed(() =>
         class="flex justify-between text-sm text-slate-600 dark:text-slate-300"
       >
         <span>轻轨编号</span>
-        <span class="text-slate-900 dark:text-white">
+        <span class="text-slate-900 dark:text-white flex items-center">
           <span class="font-medium">{{ lightRailNumberPrimary }}</span>
-          <span
+          <UBadge
             v-if="lightRailNumberSecondary"
-            class="ml-1 text-xs text-slate-600 dark:text-slate-400"
+            color="neutral"
+            class="ml-1"
+            variant="soft"
+            size="xs"
           >
             {{ lightRailNumberSecondary }}
-          </span>
+          </UBadge>
         </span>
       </div>
 
@@ -95,7 +98,7 @@ const lastUpdatedDisplay = computed(() =>
         class="flex justify-between text-sm text-slate-600 dark:text-slate-300"
       >
         <span>数据更新</span>
-        <span class="font-medium text-slate-900 dark:text-white">
+        <span class="text-slate-900 dark:text-white">
           {{ lastUpdatedDisplay }}
         </span>
       </div>

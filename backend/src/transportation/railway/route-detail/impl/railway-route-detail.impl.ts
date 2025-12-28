@@ -14,14 +14,12 @@ import {
   TransportationRailwayRoute,
   TransportationRailwayStation,
 } from '@prisma/client';
-import { HydrolineBeaconPoolService } from '../../../../lib/hydroline-beacon';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import {
   RailwayRouteDetailQueryDto,
   RailwayRouteLogQueryDto,
 } from '../../../dto/railway.dto';
 import { BeaconServerRecord } from '../../utils/railway-common';
-import { emitBeacon } from '../../utils/railway-beacon.util';
 import type {
   NormalizedEntity,
   NormalizedRoute,
@@ -45,23 +43,6 @@ type StoredRailwayEntity =
   | TransportationRailwayDepot;
 
 type StoredEntityCategory = 'ROUTE' | 'STATION' | 'DEPOT';
-
-type BeaconMtrLogsResponse = {
-  success?: boolean;
-  error?: string;
-  total?: number;
-  page?: number;
-  page_size?: number;
-  records?: Array<Record<string, unknown>>;
-};
-
-type BeaconExecuteSqlResponse = {
-  success?: boolean;
-  error?: string;
-  columns?: string[];
-  rows?: Array<Record<string, unknown>>;
-  truncated?: boolean;
-};
 
 export type RailwayRouteVariantItem = {
   routeId: string;
@@ -174,7 +155,6 @@ export class TransportationRailwayRouteDetailService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly beaconPool: HydrolineBeaconPoolService,
     private readonly attachmentsService: AttachmentsService,
   ) {}
 
@@ -1683,20 +1663,24 @@ export class TransportationRailwayRouteDetailService {
   private transformLogRecord(
     record: Record<string, unknown>,
   ): RailwayRouteLogEntry {
-    const newData = this.parseLogData(record['new_data']);
-    const oldData = this.parseLogData(record['old_data']);
+    const newData = this.parseLogData(record['newData'] ?? record['new_data']);
+    const oldData = this.parseLogData(record['oldData'] ?? record['old_data']);
     return {
-      id: toNumber(record['id']) ?? 0,
+      id: toNumber(record['beaconLogId'] ?? record['id']) ?? 0,
       timestamp: readString(record['timestamp']) ?? '',
-      playerName: readString(record['player_name']),
-      playerUuid: readString(record['player_uuid']),
-      changeType: readString(record['change_type']),
-      className: readString(record['class_name']),
-      entryId: readString(record['entry_id']),
-      entryName: readString(record['entry_name']),
-      dimensionContext: readString(record['dimension_context']),
-      sourceFilePath: readString(record['source_file_path']),
-      sourceLine: toNumber(record['source_line']),
+      playerName: readString(record['playerName'] ?? record['player_name']),
+      playerUuid: readString(record['playerUuid'] ?? record['player_uuid']),
+      changeType: readString(record['changeType'] ?? record['change_type']),
+      className: readString(record['className'] ?? record['class_name']),
+      entryId: readString(record['entryId'] ?? record['entry_id']),
+      entryName: readString(record['entryName'] ?? record['entry_name']),
+      dimensionContext: readString(
+        record['dimensionContext'] ?? record['dimension_context'],
+      ),
+      sourceFilePath: readString(
+        record['sourceFilePath'] ?? record['source_file_path'],
+      ),
+      sourceLine: toNumber(record['sourceLine'] ?? record['source_line']),
       newData,
       oldData,
     };
@@ -1734,104 +1718,75 @@ export class TransportationRailwayRouteDetailService {
     }
     const likePattern = `%${sanitized}%`;
     const searchColumns = [
-      'CAST(id AS TEXT)',
-      "COALESCE(timestamp, '')",
-      "COALESCE(player_name, '')",
-      "COALESCE(player_uuid, '')",
-      "COALESCE(class_name, '')",
-      "COALESCE(entry_id, '')",
-      "COALESCE(entry_name, '')",
-      "COALESCE(position, '')",
-      "COALESCE(change_type, '')",
-      "COALESCE(old_data, '')",
-      "COALESCE(new_data, '')",
-      "COALESCE(source_file_path, '')",
-      'CAST(source_line AS TEXT)',
-      "COALESCE(dimension_context, '')",
+      Prisma.sql`CAST("beaconLogId" AS TEXT)`,
+      Prisma.sql`COALESCE("timestamp", '')`,
+      Prisma.sql`COALESCE("playerName", '')`,
+      Prisma.sql`COALESCE("playerUuid", '')`,
+      Prisma.sql`COALESCE("className", '')`,
+      Prisma.sql`COALESCE("entryId", '')`,
+      Prisma.sql`COALESCE("entryName", '')`,
+      Prisma.sql`COALESCE("position", '')`,
+      Prisma.sql`COALESCE("changeType", '')`,
+      Prisma.sql`COALESCE("oldData", '')`,
+      Prisma.sql`COALESCE("newData", '')`,
+      Prisma.sql`COALESCE("sourceFilePath", '')`,
+      Prisma.sql`CAST("sourceLine" AS TEXT)`,
+      Prisma.sql`COALESCE("dimensionContext", '')`,
     ];
-    const searchClause = searchColumns
-      .map((column) => `${column} LIKE '${likePattern}'`)
-      .join(' OR ');
-    const conditions: string[] = [];
+    let searchClause = Prisma.sql``;
+    searchColumns.forEach((column, index) => {
+      const condition = Prisma.sql`${column} ILIKE ${likePattern}`;
+      searchClause =
+        index === 0 ? condition : Prisma.sql`${searchClause} OR ${condition}`;
+    });
+    const whereParts: Prisma.Sql[] = [
+      Prisma.sql`"serverId" = ${server.id}`,
+      Prisma.sql`"railwayMod" = ${server.railwayMod}::"TransportationRailwayMod"`,
+      Prisma.sql`(${searchClause})`,
+    ];
     if (dimensionContext) {
-      const escaped = this.escapeSqlLiteral(dimensionContext);
-      conditions.push(
-        `(dimension_context = '${escaped}' OR dimension_context LIKE '${escaped}/%')`,
+      const nestedPattern = `${dimensionContext}/%`;
+      whereParts.push(
+        Prisma.sql`("dimensionContext" = ${dimensionContext} OR "dimensionContext" LIKE ${nestedPattern})`,
       );
     }
-    conditions.push(`(${searchClause})`);
-    const whereClause =
-      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    let whereSql = Prisma.sql``;
+    whereParts.forEach((part, index) => {
+      whereSql = index === 0 ? part : Prisma.sql`${whereSql} AND ${part}`;
+    });
     const offset = (page - 1) * limit;
-    const columnList = [
-      'id',
-      'timestamp',
-      'player_name',
-      'player_uuid',
-      'class_name',
-      'entry_id',
-      'entry_name',
-      'change_type',
-      'dimension_context',
-      'source_file_path',
-      'source_line',
-      'new_data',
-      'old_data',
-    ];
-    const baseSql = `
-      SELECT ${columnList.join(', ')}
-      FROM mtr_logs
-      ${whereClause}
-    `;
-    const dataSql = `
-      ${baseSql}
-      ORDER BY timestamp DESC, id DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-    const countSql = `
+    const countRows = await this.prisma.$queryRaw<
+      Array<{ total: number | string }>
+    >(Prisma.sql`
       SELECT COUNT(*) AS total
-      FROM mtr_logs
-      ${whereClause}
-    `;
-    const countResponse = await emitBeacon<BeaconExecuteSqlResponse>(
-      this.beaconPool,
-      server,
-      'execute_sql',
-      {
-        sql: countSql,
-        maxRows: 1,
-      },
+      FROM "transportation_railway_mtr_logs"
+      WHERE ${whereSql}
+    `);
+    const total = toNumber(countRows?.[0]?.total) ?? 0;
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(
+      Prisma.sql`
+        SELECT
+          "beaconLogId",
+          "timestamp",
+          "playerName",
+          "playerUuid",
+          "className",
+          "entryId",
+          "entryName",
+          "position",
+          "changeType",
+          "oldData",
+          "newData",
+          "sourceFilePath",
+          "sourceLine",
+          "dimensionContext"
+        FROM "transportation_railway_mtr_logs"
+        WHERE ${whereSql}
+        ORDER BY "timestamp" DESC NULLS LAST, "beaconLogId" DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `,
     );
-    if (!countResponse?.success) {
-      const message =
-        typeof countResponse?.error === 'string'
-          ? countResponse.error
-          : 'Failed to fetch route logs';
-      throw new BadRequestException(message);
-    }
-    const total =
-      toNumber(countResponse.rows?.[0]?.['total']) ??
-      toNumber(countResponse.rows?.[0]?.total) ??
-      0;
-    const dataResponse = await emitBeacon<BeaconExecuteSqlResponse>(
-      this.beaconPool,
-      server,
-      'execute_sql',
-      {
-        sql: dataSql,
-        maxRows: limit,
-      },
-    );
-    if (!dataResponse?.success) {
-      const message =
-        typeof dataResponse?.error === 'string'
-          ? dataResponse.error
-          : 'Failed to fetch route logs';
-      throw new BadRequestException(message);
-    }
-    const entries = (dataResponse.rows ?? []).map((record) =>
-      this.transformLogRecord(record),
-    );
+    const entries = rows.map((record) => this.transformLogRecord(record));
     return {
       server: {
         id: server.id,
@@ -1862,16 +1817,6 @@ export class TransportationRailwayRouteDetailService {
       .replace(/'/g, "''")
       .replace(/[%_]/g, ' ');
     return escaped.trim();
-  }
-
-  private escapeSqlLiteral(value: string) {
-    return value
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "''")
-      .replace(/\r?\n/g, ' ')
-      .replace(/\s+/g, ' ')
-      .slice(0, 256)
-      .trim();
   }
 
   private buildIdCandidates(value: string | null | undefined) {
@@ -3199,53 +3144,16 @@ export class TransportationRailwayRouteDetailService {
         ? rawSearch.trim()
         : undefined;
     const effectiveSearch = searchKeyword ?? routeId;
-    if (effectiveSearch) {
-      return this.searchRouteLogsByKeyword(
-        server,
-        dimensionContext,
-        effectiveSearch,
-        page,
-        limit,
-      );
+    if (!effectiveSearch) {
+      throw new BadRequestException('Invalid log keyword');
     }
-    const payload: Record<string, unknown> = {
-      entryId: normalizedRouteId,
-      page,
-      pageSize: limit,
-      order: 'desc',
-      orderColumn: 'timestamp',
-    };
-    if (dimensionContext) {
-      payload.dimensionContext = dimensionContext;
-    }
-    const response = await emitBeacon<BeaconMtrLogsResponse>(
-      this.beaconPool,
+    return this.searchRouteLogsByKeyword(
       server,
-      'get_player_mtr_logs',
-      payload,
+      dimensionContext,
+      effectiveSearch,
+      page,
+      limit,
     );
-    if (!response?.success) {
-      const message =
-        typeof response?.['error'] === 'string'
-          ? response['error']
-          : 'Failed to fetch route logs';
-      throw new BadRequestException(message);
-    }
-    const entries = (response.records ?? []).map((record) =>
-      this.transformLogRecord(record ?? {}),
-    );
-    return {
-      server: {
-        id: server.id,
-        name: server.displayName,
-        dynmapTileUrl: server.dynmapTileUrl ?? null,
-      },
-      railwayType: server.railwayMod,
-      total: response.total ?? entries.length,
-      page: response.page ?? page,
-      pageSize: response.page_size ?? limit,
-      entries,
-    };
   }
 
   async getStationLogs(

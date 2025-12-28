@@ -16,6 +16,7 @@ const props = defineProps<{
   statusLoading: boolean
   checkLoading: boolean
   railwaySyncLoading: boolean
+  railwayLogSyncLoading: boolean
   railwaySyncJob: RailwaySyncJob | null
 }>()
 
@@ -28,6 +29,7 @@ const emit = defineEmits<{
   (e: 'check-connectivity'): void
   (e: 'refresh-conn'): void
   (e: 'sync-railway'): void
+  (e: 'sync-railway-logs'): void
 }>()
 </script>
 
@@ -135,6 +137,17 @@ const emit = defineEmits<{
                 :disabled="!props.server?.id"
                 @click="emit('sync-railway')"
                 >同步 MTR 铁路数据</UButton
+              >
+              <UButton
+                class="flex justify-center items-center"
+                size="sm"
+                variant="soft"
+                color="primary"
+                icon="i-lucide-clipboard-list"
+                :loading="props.railwayLogSyncLoading"
+                :disabled="!props.server?.id"
+                @click="emit('sync-railway-logs')"
+                >同步 MTR 日志</UButton
               >
             </div>
           </div>

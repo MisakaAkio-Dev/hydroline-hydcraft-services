@@ -19,6 +19,6 @@
 
 ## 数据表（Prisma）
 
-- `transportation_railway_route_geometry_snapshots`
-- `transportation_railway_station_map_snapshots`
-- `transportation_railway_compute_scopes`
+- `transportation_railway_mtr_route_geometry_snapshots`
+- `transportation_railway_mtr_station_map_snapshots`
+- `transportation_railway_mtr_compute_scopes`

@@ -4,6 +4,7 @@ import {
   OnModuleInit,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   Prisma,
@@ -24,6 +25,7 @@ import {
 const BEACON_TIMEOUT_MS = 10000;
 const QUERY_LIMIT = 200;
 const UPSERT_BATCH_SIZE = 25;
+const LOG_LOOKBACK_DAYS = 2;
 
 type BeaconServerRecord = {
   id: string;
@@ -41,6 +43,15 @@ type QueryMtrEntitiesResponse = {
   limit?: number;
   offset?: number;
   truncated?: boolean;
+};
+
+type QueryMtrLogsResponse = {
+  success?: boolean;
+  error?: string;
+  total?: number;
+  page?: number;
+  page_size?: number;
+  records?: Array<Record<string, unknown>>;
 };
 
 type StoredJsonValue = Prisma.JsonNullValueInput | Prisma.InputJsonValue;
@@ -139,6 +150,7 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     for (const category of CATEGORY_MAP) {
       await this.syncCategory(server, category.key, category.type, syncMarker);
     }
+    await this.syncLogs(server);
     await this.snapshotService.computeAndPersistAllSnapshotsForServer({
       serverId: server.id,
       railwayMod: server.railwayMod,
@@ -154,6 +166,17 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     this.ensureBeaconClient(target);
     await this.waitForBeaconConnections([target.id]);
     await this.syncServer(target);
+  }
+
+  async syncLogsByServerId(serverId: string) {
+    const servers = await this.listBeaconServers();
+    const target = servers.find((server) => server.id === serverId);
+    if (!target) {
+      throw new NotFoundException('Beacon-enabled server not found');
+    }
+    this.ensureBeaconClient(target);
+    await this.waitForBeaconConnections([target.id]);
+    return await this.syncLogs(target);
   }
 
   async enqueueSyncJob(
@@ -231,6 +254,43 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     await this.deleteStaleEntities(entityType, server, syncMarker);
   }
 
+  private async syncLogs(server: BeaconServerRecord) {
+    const existing = await this.prisma.transportationRailwayLog.findFirst({
+      where: { serverId: server.id },
+      select: { id: true },
+    });
+    const shouldFullSync = !existing;
+    const payload: Record<string, unknown> = {
+      orderColumn: 'id',
+      order: 'asc',
+    };
+    if (shouldFullSync) {
+      payload.all = true;
+    } else {
+      const { startDate, endDate } = this.getLogSyncDateRange();
+      payload.startDate = startDate;
+      payload.endDate = endDate;
+    }
+    const response = await this.emitBeacon<QueryMtrLogsResponse>(
+      server,
+      'get_player_mtr_logs',
+      payload,
+    );
+    if (!response?.success) {
+      const message =
+        typeof response?.error === 'string'
+          ? response.error
+          : 'Failed to sync MTR logs';
+      throw new Error(message);
+    }
+    const rows = Array.isArray(response?.records) ? response.records : [];
+    if (!rows.length) {
+      return { mode: shouldFullSync ? 'full' : 'diff', total: 0 };
+    }
+    await this.upsertLogRowsInBatches(server, rows);
+    return { mode: shouldFullSync ? 'full' : 'diff', total: rows.length };
+  }
+
   private async upsertEntity(
     server: BeaconServerRecord,
     category: RailwayEntityCategory,
@@ -304,6 +364,92 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     if (pending.length) {
       await Promise.all(pending);
     }
+  }
+
+  private async upsertLogRowsInBatches(
+    server: BeaconServerRecord,
+    rows: Array<Record<string, unknown>>,
+  ) {
+    const pending: Array<Promise<void>> = [];
+    for (const row of rows) {
+      const mapped = this.mapLogRecord(server, row);
+      if (!mapped) {
+        continue;
+      }
+      pending.push(
+        this.prisma.transportationRailwayLog
+          .upsert({
+            where: {
+              serverId_beaconLogId: {
+                serverId: server.id,
+                beaconLogId: mapped.beaconLogId,
+              },
+            },
+            update: {
+              ...mapped,
+            },
+            create: {
+              id: randomUUID(),
+              ...mapped,
+            },
+          })
+          .then(() => undefined),
+      );
+      if (pending.length >= UPSERT_BATCH_SIZE) {
+        await Promise.all(pending);
+        pending.length = 0;
+      }
+    }
+    if (pending.length) {
+      await Promise.all(pending);
+    }
+  }
+
+  private mapLogRecord(
+    server: BeaconServerRecord,
+    row: Record<string, unknown>,
+  ) {
+    const beaconLogId = this.readNumber(row.id);
+    if (beaconLogId == null) {
+      return null;
+    }
+    const railwayMod = this.resolveRailwayMod(server.railwayMod);
+    return {
+      serverId: server.id,
+      railwayMod,
+      beaconLogId,
+      timestamp: this.readString(row.timestamp),
+      playerName: this.readString(row.player_name),
+      playerUuid: this.readString(row.player_uuid),
+      className: this.readString(row.class_name),
+      entryId: this.readString(row.entry_id),
+      entryName: this.readString(row.entry_name),
+      position: this.readString(row.position),
+      changeType: this.readString(row.change_type),
+      oldData: this.readString(row.old_data),
+      newData: this.readString(row.new_data),
+      sourceFilePath: this.readString(row.source_file_path),
+      sourceLine: this.readNumber(row.source_line),
+      dimensionContext: this.readString(row.dimension_context),
+      syncedAt: new Date(),
+    };
+  }
+
+  private getLogSyncDateRange() {
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - LOG_LOOKBACK_DAYS);
+    return {
+      startDate: this.formatDateForBeacon(start),
+      endDate: this.formatDateForBeacon(end),
+    };
+  }
+
+  private formatDateForBeacon(value: Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private normalizePayload(value: unknown): StoredJsonValue {

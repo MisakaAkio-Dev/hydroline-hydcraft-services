@@ -55,7 +55,7 @@ function handleTabClick(name: string, disabled: boolean) {
 
 <template>
   <div
-    class="relative mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6 md:py-10"
+    class="relative mx-auto flex w-full max-w-7xl flex-col gap-5 px-6 py-6 md:py-10"
   >
     <header>
       <div class="flex justify-center gap-4">

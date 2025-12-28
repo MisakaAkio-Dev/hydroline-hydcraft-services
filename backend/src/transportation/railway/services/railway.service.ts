@@ -580,7 +580,7 @@ export class TransportationRailwayService {
       const message = error instanceof Error ? error.message : String(error);
       const cached = await this.fetchServerOverviewFromCache(server);
       const warning = cached.cacheHit
-        ? `${message}（已显示缓存数据）`
+        ? `${message} (cached data shown)`
         : message;
       return { summary: cached.summary, warning };
     }

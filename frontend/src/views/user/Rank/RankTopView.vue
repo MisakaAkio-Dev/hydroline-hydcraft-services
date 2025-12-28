@@ -331,7 +331,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="mx-auto w-full max-w-5xl px-4 py-10">
+  <section class="mx-auto w-full max-w-5xl px-6 py-10">
     <header class="flex flex-col items-start gap-4">
       <RouterLink
         :to="{
@@ -412,38 +412,43 @@ onMounted(() => {
             :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
             :transition="{ duration: 0.35, ease: 'easeOut' }"
           >
-            <div
-              class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
-            >
-              {{ entry.rank }}
+            <div class="flex flex-col md:flex-row md:items-center gap-x-3">
+              <div
+                class="flex h-6 w-6 md:h-8 md:w-8 items-center justify-center rounded-full border border-slate-200 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200 mb-1 md:mb-0"
+              >
+                {{ entry.rank }}
+              </div>
+              <component
+                :is="entry.playerName ? RouterLink : 'div'"
+                v-bind="
+                  entry.playerName
+                    ? { to: playerProfileLink(entry.playerName) }
+                    : undefined
+                "
+                class="flex flex-col gap-0 md:gap-0.5 text-left focus-visible:outline-none"
+                :class="
+                  entry.playerName
+                    ? 'rounded px-1 transition-colors hover:text-primary focus-visible:ring-1 focus-visible:ring-primary'
+                    : ''
+                "
+              >
+                <span
+                  class="break-all text-base md:text-sm font-medium text-slate-800 dark:text-white"
+                >
+                  {{ entry.playerName ?? entry.playerUuid ?? '未知玩家' }}
+                </span>
+                <span class="text-xs text-slate-500 dark:text-slate-400">
+                  <template v-if="entry.bindingId">
+                    {{ entry.displayName ?? '未知用户' }}
+                  </template>
+                  <template v-else>未绑定</template>
+                </span>
+              </component>
             </div>
-            <component
-              :is="entry.playerName ? RouterLink : 'div'"
-              v-bind="
-                entry.playerName
-                  ? { to: playerProfileLink(entry.playerName) }
-                  : undefined
-              "
-              class="flex flex-col gap-0.5 text-left focus-visible:outline-none"
-              :class="
-                entry.playerName
-                  ? 'rounded px-1 transition-colors hover:text-primary focus-visible:ring-1 focus-visible:ring-primary'
-                  : ''
-              "
-            >
-              <span class="text-sm font-medium text-slate-800 dark:text-white">
-                {{ entry.playerName ?? entry.playerUuid ?? '未知玩家' }}
-              </span>
-              <span class="text-xs text-slate-500 dark:text-slate-400">
-                <template v-if="entry.bindingId">
-                  {{ entry.displayName ?? '未知用户' }}
-                </template>
-                <template v-else>未绑定</template>
-              </span>
-            </component>
+
             <div class="ml-auto text-right">
               <div
-                class="text-base font-semibold text-slate-900 dark:text-white"
+                class="whitespace-nowrap text-base font-semibold text-slate-900 dark:text-white"
               >
                 {{
                   formatLeaderboardValue(

@@ -517,7 +517,7 @@ onMounted(() => {
               </p>
               <p
                 v-else-if="!logs || logs.entries.length === 0"
-                class="text-sm text-slate-500"
+                class="relative rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 overflow-hidden text-sm text-center text-slate-500"
               >
                 暂无日志记录
               </p>

@@ -797,13 +797,16 @@ onUnmounted(() => {
                 <p v-else-if="!logs && logError" class="text-sm text-red-500">
                   {{ logError }}
                 </p>
-                <p v-else-if="!logs" class="text-sm text-slate-500">
+                <p
+                  v-else-if="!logs"
+                  class="relative rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 overflow-hidden text-sm text-center text-slate-500"
+                >
                   暂无日志记录
                 </p>
                 <div v-else>
                   <p
                     v-if="logs.entries.length === 0"
-                    class="text-sm text-slate-500"
+                    class="relative rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 overflow-hidden text-sm text-center text-slate-500"
                   >
                     暂无日志记录
                   </p>
@@ -841,7 +844,7 @@ onUnmounted(() => {
                           >
                             {{ entry.playerName || '未知玩家' }}
                           </p>
-                          <p class="text-xs text-slate-500">
+                          <p class="text-xs text-slate-500 break-all">
                             {{ entry.changeType || '—' }} ·
                             {{
                               entry.entryName ||

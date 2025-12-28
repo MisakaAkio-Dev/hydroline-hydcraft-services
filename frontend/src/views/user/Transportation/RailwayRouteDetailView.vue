@@ -1052,13 +1052,16 @@ onMounted(() => {
                   <p v-else-if="!logs && logError" class="text-sm text-red-500">
                     {{ logError }}
                   </p>
-                  <p v-else-if="!logs" class="text-sm text-slate-500">
+                  <p
+                    v-else-if="!logs"
+                    class="relative rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 overflow-hidden text-sm text-center text-slate-500"
+                  >
                     暂无日志记录
                   </p>
                   <div v-else>
                     <p
                       v-if="logs.entries.length === 0"
-                      class="text-sm text-slate-500"
+                      class="relative rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 overflow-hidden text-sm text-center text-slate-500"
                     >
                       暂无日志记录
                     </p>
@@ -1191,9 +1194,7 @@ onMounted(() => {
                     :key="`station-card-${item.stop.platformId ?? item.stop.stationId ?? item.stop.order}`"
                     class="py-3 first:pt-0 last:pb-0"
                   >
-                    <div
-                      class="flex flex-wrap items-center justify-between gap-3"
-                    >
+                    <div class="flex items-center justify-between gap-3">
                       <button type="button" class="flex items-center gap-3">
                         <div
                           class="rounded border border-slate-200 px-2 py-0.5 text-xl text-slate-600 dark:border-slate-700 dark:text-slate-300"
@@ -1201,7 +1202,7 @@ onMounted(() => {
                           {{ item.platformLabel.split('|')[0] }}
                         </div>
 
-                        <div class="flex flex-col items-start">
+                        <div class="flex flex-col items-start break-all">
                           <div
                             class="flex items-center gap-1 text-base font-semibold text-slate-900 dark:text-white hover:underline underline-offset-2 cursor-pointer"
                             @click="goStationDetail(item.stationId)"
@@ -1217,13 +1218,13 @@ onMounted(() => {
                               "
                             ></span>
                           </div>
-                          <div class="text-xs text-slate-500">
+                          <div class="text-left text-xs text-slate-500">
                             {{ item.subtitle || '—' }}
                           </div>
                         </div>
                       </button>
                       <div
-                        class="text-right text-lg font-semibold text-slate-600 dark:text-slate-300"
+                        class="whitespace-nowrap text-right text-lg font-semibold text-slate-600 dark:text-slate-300"
                       >
                         <div>
                           <span class="text-xs font-normal mr-1">停站时间</span>

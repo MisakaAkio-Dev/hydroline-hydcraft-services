@@ -211,6 +211,7 @@ const snapshotError = ref<string | null>(null)
 const railwaySyncJob = ref<RailwaySyncJob | null>(null)
 const railwaySyncPolling = ref<ReturnType<typeof setInterval> | null>(null)
 const railwaySyncLoading = ref(false)
+const railwayLogSyncLoading = ref(false)
 async function fetchRailwaySyncJobRaw(serverId: string, jobId: string) {
   const action = (serverStore as Record<string, unknown>).getRailwaySyncJob
   if (typeof action === 'function') {
@@ -327,6 +328,30 @@ async function syncRailwayEntities() {
     })
   } finally {
     railwaySyncLoading.value = false
+  }
+}
+
+async function syncRailwayLogs() {
+  const id = beaconDialogServer.value?.id
+  if (!id) return
+  railwayLogSyncLoading.value = true
+  try {
+    const result = await serverStore.syncRailwayLogs(id)
+    toast.add({
+      title: '已触发 MTR 日志同步',
+      description: result?.mode
+        ? `同步模式: ${result.mode}，记录数: ${result.total ?? 0}`
+        : undefined,
+      color: 'success',
+    })
+  } catch (error) {
+    toast.add({
+      title: '同步日志失败',
+      description: error instanceof Error ? error.message : '请稍后再试',
+      color: 'error',
+    })
+  } finally {
+    railwayLogSyncLoading.value = false
   }
 }
 async function refreshBeaconConn() {
@@ -1547,6 +1572,7 @@ async function controlMcsm(
       :status-loading="beaconStatusLoading"
       :check-loading="beaconCheckLoading"
       :railway-sync-loading="railwaySyncLoading"
+      :railway-log-sync-loading="railwayLogSyncLoading"
       :railway-sync-job="railwaySyncJob"
       @update:open="beaconDialogOpen = $event"
       @edit="
@@ -1560,6 +1586,7 @@ async function controlMcsm(
       @check-connectivity="checkBeaconConnectivity"
       @refresh-conn="refreshBeaconConn"
       @sync-railway="syncRailwayEntities"
+      @sync-railway-logs="syncRailwayLogs"
     />
   </div>
 </template>

@@ -234,6 +234,14 @@ export const useMinecraftServerStore = defineStore('minecraft-servers', {
       )
     },
 
+    async syncRailwayLogs(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch<{ mode: string; total: number }>(
+        `/admin/minecraft/servers/${id}/beacon/railway-logs-sync`,
+        { method: 'POST', token },
+      )
+    },
+
     async getRailwaySyncJob(id: string, jobId: string) {
       const token = this.authHeaders()
       return await apiFetch<RailwaySyncJob>(

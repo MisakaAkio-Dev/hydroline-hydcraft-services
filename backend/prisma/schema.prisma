@@ -229,7 +229,7 @@ model TransportationRailwayFeaturedItem {
 
   @@unique([entityType, serverId, railwayMod, entityId], map: "uq_transportation_railway_featured_scope")
   @@index([displayOrder, createdAt], map: "idx_transportation_railway_featured_order")
-  @@map("transportation_railway_featured_items")
+  @@map("transportation_railway_mtr_featured_items")
 }
 
 model TransportationRailwayRoute {
@@ -272,7 +272,7 @@ model TransportationRailwayStation {
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_station")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_station_scope")
-  @@map("transportation_railway_stations")
+  @@map("transportation_railway_mtr_stations")
 }
 
 model TransportationRailwayPlatform {
@@ -293,7 +293,7 @@ model TransportationRailwayPlatform {
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_platform")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_platform_scope")
-  @@map("transportation_railway_platforms")
+  @@map("transportation_railway_mtr_platforms")
 }
 
 model TransportationRailwayDepot {
@@ -314,7 +314,7 @@ model TransportationRailwayDepot {
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_depot")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_depot_scope")
-  @@map("transportation_railway_depots")
+  @@map("transportation_railway_mtr_depots")
 }
 
 model TransportationRailwaySystem {
@@ -385,7 +385,7 @@ model TransportationRailwayCompanyBinding {
   @@index([companyId], map: "idx_transportation_railway_company_binding_company")
   @@index([entityType, entityId], map: "idx_transportation_railway_company_binding_entity")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_company_binding_scope")
-  @@map("transportation_railway_company_bindings")
+  @@map("transportation_railway_mtr_company_bindings")
 }
 
 model TransportationRailwayRail {
@@ -406,7 +406,7 @@ model TransportationRailwayRail {
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_rail")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_rail_scope")
-  @@map("transportation_railway_rails")
+  @@map("transportation_railway_mtr_rails")
 }
 
 model TransportationRailwaySignalBlock {
@@ -427,7 +427,7 @@ model TransportationRailwaySignalBlock {
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_signal_block")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_signal_scope")
-  @@map("transportation_railway_signal_blocks")
+  @@map("transportation_railway_mtr_signal_blocks")
 }
 
 model TransportationRailwayDimension {
@@ -442,7 +442,7 @@ model TransportationRailwayDimension {
   updatedAt        DateTime                 @updatedAt
 
   @@unique([serverId, railwayMod, dimensionContext], map: "uq_transportation_railway_dimension")
-  @@map("transportation_railway_dimensions")
+  @@map("transportation_railway_mtr_dimensions")
 }
 
 model TransportationRailwaySyncJob {
@@ -459,7 +459,7 @@ model TransportationRailwaySyncJob {
   initiator User?           @relation("TransportationRailwaySyncInitiator", fields: [initiatedById], references: [id])
 
   @@index([serverId, status], map: "idx_transportation_railway_sync_jobs")
-  @@map("transportation_railway_sync_jobs")
+  @@map("transportation_railway_mtr_sync_jobs")
 }
 
 model TransportationRailwayRouteGeometrySnapshot {
@@ -482,7 +482,7 @@ model TransportationRailwayRouteGeometrySnapshot {
 
   @@unique([serverId, railwayMod, dimensionContext, routeEntityId], map: "uq_transportation_railway_route_geometry_snapshot")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_route_geometry_scope")
-  @@map("transportation_railway_route_geometry_snapshots")
+  @@map("transportation_railway_mtr_route_geometry_snapshots")
 }
 
 model TransportationRailwayStationMapSnapshot {
@@ -499,7 +499,7 @@ model TransportationRailwayStationMapSnapshot {
 
   @@unique([serverId, railwayMod, dimensionContext, stationEntityId], map: "uq_transportation_railway_station_map_snapshot")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_station_map_scope")
-  @@map("transportation_railway_station_map_snapshots")
+  @@map("transportation_railway_mtr_station_map_snapshots")
 }
 
 model TransportationRailwayComputeScope {
@@ -516,7 +516,35 @@ model TransportationRailwayComputeScope {
 
   @@unique([serverId, railwayMod, dimensionContext], map: "uq_transportation_railway_compute_scope")
   @@index([serverId, railwayMod, fingerprint], map: "idx_transportation_railway_compute_scope_fingerprint")
-  @@map("transportation_railway_compute_scopes")
+  @@map("transportation_railway_mtr_compute_scopes")
+}
+
+model TransportationRailwayLog {
+  id               String                   @id @default(uuid())
+  serverId         String
+  railwayMod       TransportationRailwayMod @default(MTR)
+  beaconLogId      Int
+  timestamp        String?
+  playerName       String?
+  playerUuid       String?
+  className        String?
+  entryId          String?
+  entryName        String?
+  position         String?
+  changeType       String?
+  oldData          String?
+  newData          String?
+  sourceFilePath   String?
+  sourceLine       Int?
+  dimensionContext String?
+  syncedAt         DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@unique([serverId, beaconLogId], map: "uq_transportation_railway_mtr_log_beacon")
+  @@index([serverId, railwayMod, entryId], map: "idx_transportation_railway_mtr_log_entry")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_mtr_log_dimension")
+  @@index([serverId, railwayMod, beaconLogId], map: "idx_transportation_railway_mtr_log_beacon")
+  @@map("transportation_railway_mtr_logs")
 }
 
 model UserPiicHistory {

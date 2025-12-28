@@ -655,7 +655,7 @@ function handleHeroImageErrored() {
 
     <section
       v-show="!uiStore.previewMode"
-      class="relative z-10 pb-12 px-4 opacity-100"
+      class="relative z-10 pb-12 px-6 opacity-100"
     >
       <Motion
         v-if="homeLoaded && !uiStore.previewMode"

@@ -369,7 +369,7 @@ function formatIpLocation(location: string | null | undefined) {
     </div>
   </Transition>
 
-  <section class="relative z-0 mx-auto w-full max-w-6xl px-8 pb-16 pt-8">
+  <section class="relative z-0 mx-auto w-full max-w-6xl px-6 pb-16 pt-8">
     <PlayerLoginPrompt
       v-if="!canViewProfile"
       :can-view-profile="canViewProfile"

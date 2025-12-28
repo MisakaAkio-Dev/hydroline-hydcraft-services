@@ -46,11 +46,6 @@ const stats = computed(
 )
 const recommendations = computed(() => overview.value?.recommendations ?? [])
 const recentUpdates = computed(() => overview.value?.recentUpdates ?? [])
-const warnings = computed(() => overview.value?.warnings ?? [])
-const warningSignature = computed(() =>
-  warnings.value.map((warn) => `${warn.serverId}:${warn.message}`).join('|'),
-)
-const lastWarningSignature = ref('')
 
 const recommendationPage = ref(1)
 const recommendationPageSize = 5
@@ -609,21 +604,6 @@ watch(
   },
 )
 
-watch(
-  () => warningSignature.value,
-  (signature) => {
-    if (!signature || signature === lastWarningSignature.value) return
-    lastWarningSignature.value = signature
-    toast.add({
-      title: '部分服务端数据拉取失败',
-      description: warnings.value
-        .map((warn) => `#${warn.serverId}: ${warn.message}`)
-        .join('\n'),
-      color: 'warning',
-    })
-  },
-)
-
 onMounted(async () => {
   try {
     await transportationStore.fetchOverview(true)
@@ -643,7 +623,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="space-y-8">
-    <div class="absolute right-4 top-6 md:top-10 flex items-center gap-2 z-10">
+    <div class="absolute right-4 top-6 md:top-10 flex items-center gap-1 z-10">
       <UButton
         v-if="canManageFeatured"
         color="primary"
@@ -726,7 +706,9 @@ onBeforeUnmount(() => {
         icon="i-lucide-info"
       />
 
-      <section class="grid grid-cols-1 sm:grid-cols-4 md:grid-cols-5 gap-4">
+      <section
+        class="grid grid-cols-1 sm:grid-cols-4 md:grid-cols-5 gap-4 gap-y-2.5"
+      >
         <RouterLink :to="{ name: 'transportation.railway.routes' }">
           <div
             class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 shadow-[0_4px_16px_var(--color-neutral-50)] dark:shadow-[0_4px_16px_var(--color-neutral-900)] hover:bg-slate-50/60 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250"
@@ -804,16 +786,6 @@ onBeforeUnmount(() => {
       </section>
     </section>
 
-    <UAlert
-      v-if="warnings.length"
-      color="warning"
-      variant="soft"
-      title="部分服务端数据拉取失败"
-      :description="
-        warnings.map((warn) => `#${warn.serverId}: ${warn.message}`).join('\n')
-      "
-    />
-
     <section>
       <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
         <div>
@@ -849,7 +821,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="grid gap-4 lg:grid-cols-2">
+      <div class="grid gap-4 gap-y-2.5 lg:grid-cols-2">
         <div class="h-full">
           <div class="h-full min-h-108">
             <div
@@ -921,7 +893,10 @@ onBeforeUnmount(() => {
           >
             暂无设施推荐
           </p>
-          <div ref="recommendationContentRef" class="relative space-y-4">
+          <div
+            ref="recommendationContentRef"
+            class="relative space-y-2.5 md:space-y-4"
+          >
             <label
               v-for="item in pagedRecommendations"
               :key="item.id"
@@ -1037,7 +1012,7 @@ onBeforeUnmount(() => {
       <div class="relative">
         <div
           ref="recentUpdateContentRef"
-          class="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+          class="grid gap-4 gap-y-2.5 md:grid-cols-2 lg:grid-cols-4"
           style="grid-auto-rows: 1fr"
         >
           <div
@@ -1066,24 +1041,32 @@ onBeforeUnmount(() => {
                 :to="buildRecentDetailLink(item)"
               >
                 <div
-                  class="text-xs text-primary flex h-full rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 duration-250 outline-2 outline-transparent hover:outline-primary cursor-pointer p-4 transition"
+                  class="text-xs text-primary flex flex-col gap-1 h-full rounded-xl px-4 py-2.5 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 duration-250 outline-2 outline-transparent hover:outline-primary cursor-pointer p-4 transition"
                 >
-                  <div class="flex flex-col gap-1">
-                    <div>
-                      <span
-                        v-if="item.type === 'route' && item.item.previewSvg"
-                        class="inline-block h-7 w-7 shrink-0 overflow-hidden rounded drop-shadow mr-2"
+                  <div class="flex gap-2">
+                    <div
+                      v-if="item.type === 'route' && item.item.previewSvg"
+                      class="flex justify-center items-center"
+                    >
+                      <div
+                        class="block h-5 shrink-0 overflow-hidden rounded drop-shadow"
                         v-html="item.item.previewSvg"
-                      ></span>
-                      <span
-                        v-else-if="item.item.color"
-                        class="inline-block h-3 w-3 shrink-0 rounded-full mr-2"
+                      ></div>
+                    </div>
+                    <div
+                      v-else-if="item.item.color"
+                      class="flex justify-center items-center"
+                    >
+                      <div
+                        class="block h-3 w-3 shrink-0 rounded-full"
                         :style="{
                           backgroundColor:
                             '#' + item.item.color.toString(16).padStart(6, '0'),
                         }"
-                      ></span>
+                      ></div>
+                    </div>
 
+                    <span>
                       <span
                         class="text-lg font-semibold text-slate-900 dark:text-white"
                       >
@@ -1093,20 +1076,22 @@ onBeforeUnmount(() => {
                         }}
                       </span>
 
-                      <UBadge variant="soft" size="sm">
+                      <UBadge
+                        variant="soft"
+                        size="xs"
+                        class="ml-1 -translate-y-1/4"
+                      >
                         {{ featuredTypeLabels[item.type] }}
                       </UBadge>
-                    </div>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">
-                      {{ item.item.server.name }} ·
-                      {{ getDimensionName(item.item.dimension) || '未知维度' }}
-                    </p>
-                    <p
-                      class="mt-auto text-xs text-slate-500 dark:text-slate-400"
-                    >
-                      {{ formatLastUpdated(item.lastUpdated) }}
-                    </p>
+                    </span>
                   </div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ item.item.server.name }} ·
+                    {{ getDimensionName(item.item.dimension) || '未知维度' }}
+                  </p>
+                  <p class="mt-auto text-xs text-slate-500 dark:text-slate-400">
+                    {{ formatLastUpdated(item.lastUpdated) }}
+                  </p>
                 </div>
               </RouterLink>
             </label>

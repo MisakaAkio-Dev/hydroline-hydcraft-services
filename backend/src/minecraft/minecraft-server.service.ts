@@ -716,6 +716,11 @@ export class MinecraftServerService {
     return this.railwaySyncService.enqueueSyncJob(id, initiatedById ?? null);
   }
 
+  async syncRailwayLogs(id: string) {
+    await this.getServerById(id);
+    return this.railwaySyncService.syncLogsByServerId(id);
+  }
+
   async getRailwaySyncJob(jobId: string) {
     return this.railwaySyncService.getSyncJob(jobId);
   }

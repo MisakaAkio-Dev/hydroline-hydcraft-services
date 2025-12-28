@@ -290,7 +290,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="mx-auto w-full max-w-5xl px-4 py-10">
+  <section class="mx-auto w-full max-w-5xl px-6 py-10">
     <header
       class="mb-8 flex flex-col justify-center items-center gap-5 text-center"
     >
