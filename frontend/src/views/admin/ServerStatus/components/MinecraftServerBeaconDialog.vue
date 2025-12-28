@@ -5,6 +5,7 @@ import type {
   BeaconStatusResponse,
   MinecraftServer,
   RailwaySyncJob,
+  RailwayLogSyncJob,
 } from '@/types/minecraft'
 
 const props = defineProps<{
@@ -18,6 +19,7 @@ const props = defineProps<{
   railwaySyncLoading: boolean
   railwayLogSyncLoading: boolean
   railwaySyncJob: RailwaySyncJob | null
+  railwayLogSyncJob: RailwayLogSyncJob | null
 }>()
 
 const emit = defineEmits<{
@@ -179,6 +181,36 @@ const emit = defineEmits<{
             </UBadge>
             <span v-if="props.railwaySyncJob.message" class="ml-2">
               {{ props.railwaySyncJob.message }}
+            </span>
+          </div>
+          <div
+            v-if="props.railwayLogSyncJob"
+            class="mt-2 rounded-lg border border-slate-100 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300"
+          >
+            <span class="mr-2">日志同步状态:</span>
+            <UBadge
+              size="xs"
+              class="py-0.5"
+              :color="
+                props.railwayLogSyncJob.status === 'SUCCEEDED'
+                  ? 'success'
+                  : props.railwayLogSyncJob.status === 'FAILED'
+                    ? 'error'
+                    : 'primary'
+              "
+            >
+              {{
+                props.railwayLogSyncJob.status === 'PENDING'
+                  ? '排队中'
+                  : props.railwayLogSyncJob.status === 'RUNNING'
+                    ? '运行中'
+                    : props.railwayLogSyncJob.status === 'SUCCEEDED'
+                      ? '已完成'
+                      : '失败'
+              }}
+            </UBadge>
+            <span v-if="props.railwayLogSyncJob.message" class="ml-2">
+              {{ props.railwayLogSyncJob.message }}
             </span>
           </div>
         </template>

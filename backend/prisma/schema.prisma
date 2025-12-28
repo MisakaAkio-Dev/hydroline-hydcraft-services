@@ -251,7 +251,7 @@ model TransportationRailwayRoute {
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_route")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_route_scope")
-  @@map("transportation_railway_routes")
+  @@map("transportation_railway_mtr_routes")
 }
 
 model TransportationRailwayStation {
@@ -545,6 +545,20 @@ model TransportationRailwayLog {
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_mtr_log_dimension")
   @@index([serverId, railwayMod, beaconLogId], map: "idx_transportation_railway_mtr_log_beacon")
   @@map("transportation_railway_mtr_logs")
+}
+
+model TransportationRailwayLogSyncJob {
+  id          String                          @id @default(uuid())
+  serverId    String
+  mode        String
+  status      TransportationRailwaySyncStatus @default(PENDING)
+  message     String?
+  createdAt   DateTime                        @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  @@index([serverId, status], map: "idx_transportation_railway_mtr_log_sync_jobs")
+  @@map("transportation_railway_mtr_log_sync_jobs")
 }
 
 model UserPiicHistory {

@@ -9,6 +9,7 @@ import type {
   MinecraftPingHistoryItem,
   MinecraftPingSettings,
   McsmInstanceDetail,
+  RailwayLogSyncJob,
   RailwaySyncJob,
 } from '@/types/minecraft'
 
@@ -234,11 +235,28 @@ export const useMinecraftServerStore = defineStore('minecraft-servers', {
       )
     },
 
-    async syncRailwayLogs(id: string) {
+    async syncRailwayLogs(id: string, mode: 'full' | 'diff' = 'diff') {
       const token = this.authHeaders()
-      return await apiFetch<{ mode: string; total: number }>(
-        `/admin/minecraft/servers/${id}/beacon/railway-logs-sync`,
+      const params = new URLSearchParams({ mode })
+      return await apiFetch<RailwayLogSyncJob>(
+        `/admin/minecraft/servers/${id}/beacon/railway-logs-sync?${params.toString()}`,
         { method: 'POST', token },
+      )
+    },
+
+    async getRailwayLogSyncJob(id: string, jobId: string) {
+      const token = this.authHeaders()
+      return await apiFetch<RailwayLogSyncJob>(
+        `/admin/minecraft/servers/${id}/beacon/railway-logs-sync/${jobId}`,
+        { token },
+      )
+    },
+
+    async getLatestRailwayLogSyncJob(id: string) {
+      const token = this.authHeaders()
+      return await apiFetch<RailwayLogSyncJob | null>(
+        `/admin/minecraft/servers/${id}/beacon/railway-logs-sync`,
+        { token },
       )
     },
 

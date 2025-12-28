@@ -716,9 +716,18 @@ export class MinecraftServerService {
     return this.railwaySyncService.enqueueSyncJob(id, initiatedById ?? null);
   }
 
-  async syncRailwayLogs(id: string) {
+  async syncRailwayLogs(id: string, mode: 'full' | 'diff' = 'diff') {
     await this.getServerById(id);
-    return this.railwaySyncService.syncLogsByServerId(id);
+    return this.railwaySyncService.enqueueLogSyncJob(id, mode);
+  }
+
+  async getRailwayLogSyncJob(jobId: string) {
+    return this.railwaySyncService.getLogSyncJob(jobId);
+  }
+
+  async getLatestRailwayLogSyncJob(serverId: string) {
+    await this.getServerById(serverId);
+    return this.railwaySyncService.getLatestActiveLogJob(serverId);
   }
 
   async getRailwaySyncJob(jobId: string) {

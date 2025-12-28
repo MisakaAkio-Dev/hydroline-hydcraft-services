@@ -299,8 +299,23 @@ export class MinecraftServerController {
   @Post(':id/beacon/railway-logs-sync')
   @ApiOperation({ summary: '手动触发 MTR 日志同步' })
   @RequirePermissions(PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE)
-  syncRailwayLogs(@Param('id') id: string) {
-    return this.service.syncRailwayLogs(id);
+  syncRailwayLogs(@Param('id') id: string, @Query('mode') mode?: string) {
+    const normalized = mode === 'full' ? 'full' : 'diff';
+    return this.service.syncRailwayLogs(id, normalized);
+  }
+
+  @Get(':id/beacon/railway-logs-sync/:jobId')
+  @ApiOperation({ summary: '查询日志同步任务状态' })
+  @RequirePermissions(PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE)
+  getRailwayLogSyncJob(@Param('jobId') jobId: string) {
+    return this.service.getRailwayLogSyncJob(jobId);
+  }
+
+  @Get(':id/beacon/railway-logs-sync')
+  @ApiOperation({ summary: '获取当前日志同步任务（若存在）' })
+  @RequirePermissions(PERMISSIONS.BEACON_ADMIN_FORCE_UPDATE)
+  getLatestRailwayLogSyncJob(@Param('id') id: string) {
+    return this.service.getLatestRailwayLogSyncJob(id);
   }
 
   @Get(':id/beacon/railway-sync/:jobId')

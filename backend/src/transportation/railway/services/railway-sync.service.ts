@@ -25,7 +25,7 @@ import {
 const BEACON_TIMEOUT_MS = 10000;
 const QUERY_LIMIT = 200;
 const UPSERT_BATCH_SIZE = 25;
-const LOG_LOOKBACK_DAYS = 2;
+const LOG_LOOKBACK_DAYS = 7;
 
 type BeaconServerRecord = {
   id: string;
@@ -66,6 +66,17 @@ type RailwaySyncJobStatus = {
   completedAt: string | null;
 };
 
+type RailwayLogSyncJobStatus = {
+  id: string;
+  serverId: string;
+  mode: string;
+  status: TransportationRailwaySyncStatus;
+  message: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
 type RailwayEntityCategory =
   | 'DEPOT'
   | 'PLATFORM'
@@ -97,6 +108,7 @@ export class TransportationRailwaySyncService implements OnModuleInit {
   private readonly logger = new Logger(TransportationRailwaySyncService.name);
   private syncing = false;
   private runningServerJobs = new Set<string>();
+  private runningServerLogJobs = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -108,7 +120,7 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     void this.ensureInitialSync();
   }
 
-  @Cron(CronExpression.EVERY_30_MINUTES)
+  @Cron('15,45 * * * *')
   async handleScheduledSync() {
     await this.runSync();
   }
@@ -168,7 +180,10 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     await this.syncServer(target);
   }
 
-  async syncLogsByServerId(serverId: string) {
+  async syncLogsByServerId(
+    serverId: string,
+    options?: { mode?: 'full' | 'diff' },
+  ) {
     const servers = await this.listBeaconServers();
     const target = servers.find((server) => server.id === serverId);
     if (!target) {
@@ -176,7 +191,7 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     }
     this.ensureBeaconClient(target);
     await this.waitForBeaconConnections([target.id]);
-    return await this.syncLogs(target);
+    return await this.syncLogs(target, options);
   }
 
   async enqueueSyncJob(
@@ -198,6 +213,25 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     return this.buildJobStatus(job);
   }
 
+  async enqueueLogSyncJob(
+    serverId: string,
+    mode: 'full' | 'diff' = 'diff',
+  ): Promise<RailwayLogSyncJobStatus> {
+    const job = await this.prisma.transportationRailwayLogSyncJob.create({
+      data: {
+        serverId,
+        mode,
+        status: TransportationRailwaySyncStatus.PENDING,
+      },
+    });
+    void this.executeLogSyncJob(job.id).catch((error) =>
+      this.logger.error(
+        `Railway log sync job ${job.id} failed to start: ${this.extractMessage(error)}`,
+      ),
+    );
+    return this.buildLogJobStatus(job);
+  }
+
   async getSyncJob(jobId: string): Promise<RailwaySyncJobStatus> {
     const job = await this.prisma.transportationRailwaySyncJob.findUnique({
       where: { id: jobId },
@@ -206,6 +240,16 @@ export class TransportationRailwaySyncService implements OnModuleInit {
       throw new NotFoundException('Sync task not found');
     }
     return this.buildJobStatus(job);
+  }
+
+  async getLogSyncJob(jobId: string): Promise<RailwayLogSyncJobStatus> {
+    const job = await this.prisma.transportationRailwayLogSyncJob.findUnique({
+      where: { id: jobId },
+    });
+    if (!job) {
+      throw new NotFoundException('Log sync task not found');
+    }
+    return this.buildLogJobStatus(job);
   }
 
   async getLatestActiveJob(serverId: string) {
@@ -222,6 +266,22 @@ export class TransportationRailwaySyncService implements OnModuleInit {
       orderBy: { createdAt: 'desc' },
     });
     return job ? this.buildJobStatus(job) : null;
+  }
+
+  async getLatestActiveLogJob(serverId: string) {
+    const job = await this.prisma.transportationRailwayLogSyncJob.findFirst({
+      where: {
+        serverId,
+        status: {
+          in: [
+            TransportationRailwaySyncStatus.PENDING,
+            TransportationRailwaySyncStatus.RUNNING,
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return job ? this.buildLogJobStatus(job) : null;
   }
 
   private async syncCategory(
@@ -254,17 +314,24 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     await this.deleteStaleEntities(entityType, server, syncMarker);
   }
 
-  private async syncLogs(server: BeaconServerRecord) {
+  private async syncLogs(
+    server: BeaconServerRecord,
+    options?: { mode?: 'full' | 'diff' },
+  ) {
     const existing = await this.prisma.transportationRailwayLog.findFirst({
       where: { serverId: server.id },
       select: { id: true },
     });
-    const shouldFullSync = !existing;
+    const shouldFullSync =
+      options?.mode === 'full' || (!existing && options?.mode !== 'diff');
     const payload: Record<string, unknown> = {
       orderColumn: 'id',
       order: 'asc',
     };
     if (shouldFullSync) {
+      await this.prisma.transportationRailwayLog.deleteMany({
+        where: { serverId: server.id },
+      });
       payload.all = true;
     } else {
       const { startDate, endDate } = this.getLogSyncDateRange();
@@ -802,12 +869,88 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     }
   }
 
+  private async executeLogSyncJob(jobId: string) {
+    const job = await this.prisma.transportationRailwayLogSyncJob.findUnique({
+      where: { id: jobId },
+    });
+    if (!job) {
+      return;
+    }
+    if (this.runningServerLogJobs.has(job.serverId)) {
+      await this.prisma.transportationRailwayLogSyncJob.update({
+        where: { id: jobId },
+        data: {
+          status: TransportationRailwaySyncStatus.FAILED,
+          completedAt: new Date(),
+          message:
+            'Another log sync job is already running for this server. Please try again later.',
+        },
+      });
+      return;
+    }
+    this.runningServerLogJobs.add(job.serverId);
+    try {
+      await this.prisma.transportationRailwayLogSyncJob.update({
+        where: { id: jobId },
+        data: {
+          status: TransportationRailwaySyncStatus.RUNNING,
+          startedAt: new Date(),
+          message: null,
+        },
+      });
+      const result = await this.syncLogsByServerId(job.serverId, {
+        mode: job.mode === 'full' ? 'full' : 'diff',
+      });
+      await this.prisma.transportationRailwayLogSyncJob.update({
+        where: { id: jobId },
+        data: {
+          status: TransportationRailwaySyncStatus.SUCCEEDED,
+          completedAt: new Date(),
+          message: `Synced ${result.total ?? 0} logs (${result.mode})`,
+        },
+      });
+    } catch (error) {
+      await this.prisma.transportationRailwayLogSyncJob.update({
+        where: { id: jobId },
+        data: {
+          status: TransportationRailwaySyncStatus.FAILED,
+          completedAt: new Date(),
+          message: this.extractMessage(error),
+        },
+      });
+    } finally {
+      this.runningServerLogJobs.delete(job.serverId);
+    }
+  }
+
   private buildJobStatus(
     job: TransportationRailwaySyncJob,
   ): RailwaySyncJobStatus {
     return {
       id: job.id,
       serverId: job.serverId,
+      status: job.status,
+      message: job.message ?? null,
+      createdAt: job.createdAt.toISOString(),
+      startedAt: job.startedAt ? job.startedAt.toISOString() : null,
+      completedAt: job.completedAt ? job.completedAt.toISOString() : null,
+    };
+  }
+
+  private buildLogJobStatus(job: {
+    id: string;
+    serverId: string;
+    mode: string;
+    status: TransportationRailwaySyncStatus;
+    message: string | null;
+    createdAt: Date;
+    startedAt: Date | null;
+    completedAt: Date | null;
+  }): RailwayLogSyncJobStatus {
+    return {
+      id: job.id,
+      serverId: job.serverId,
+      mode: job.mode,
       status: job.status,
       message: job.message ?? null,
       createdAt: job.createdAt.toISOString(),

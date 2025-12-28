@@ -93,6 +93,17 @@ export interface RailwaySyncJob {
   completedAt: string | null
 }
 
+export interface RailwayLogSyncJob {
+  id: string
+  serverId: string
+  mode: string
+  status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  message: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
 export interface BeaconPlayerAdvancementsResult {
   success?: boolean
   player_uuid?: string

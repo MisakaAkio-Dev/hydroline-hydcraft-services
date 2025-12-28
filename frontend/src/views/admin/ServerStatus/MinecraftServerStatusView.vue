@@ -16,6 +16,7 @@ import type {
   MinecraftPingHistoryItem,
   MinecraftPingSettings,
   McsmInstanceDetail,
+  RailwayLogSyncJob,
   RailwaySyncJob,
 } from '@/types/minecraft'
 import VChart from 'vue-echarts'
@@ -212,6 +213,8 @@ const railwaySyncJob = ref<RailwaySyncJob | null>(null)
 const railwaySyncPolling = ref<ReturnType<typeof setInterval> | null>(null)
 const railwaySyncLoading = ref(false)
 const railwayLogSyncLoading = ref(false)
+const railwayLogSyncJob = ref<RailwayLogSyncJob | null>(null)
+const railwayLogSyncPolling = ref<ReturnType<typeof setInterval> | null>(null)
 async function fetchRailwaySyncJobRaw(serverId: string, jobId: string) {
   const action = (serverStore as Record<string, unknown>).getRailwaySyncJob
   if (typeof action === 'function') {
@@ -241,6 +244,35 @@ async function fetchLatestRailwaySyncJobRaw(serverId: string) {
   )
 }
 
+async function fetchRailwayLogSyncJobRaw(serverId: string, jobId: string) {
+  const action = (serverStore as Record<string, unknown>).getRailwayLogSyncJob
+  if (typeof action === 'function') {
+    return await action.call(serverStore, serverId, jobId)
+  }
+  if (!authStore.token) {
+    throw new Error('未登录，无法获取日志同步状态')
+  }
+  return await apiFetch<RailwayLogSyncJob>(
+    `/admin/minecraft/servers/${serverId}/beacon/railway-logs-sync/${jobId}`,
+    { token: authStore.token },
+  )
+}
+
+async function fetchLatestRailwayLogSyncJobRaw(serverId: string) {
+  const action = (serverStore as Record<string, unknown>)
+    .getLatestRailwayLogSyncJob
+  if (typeof action === 'function') {
+    return await action.call(serverStore, serverId)
+  }
+  if (!authStore.token) {
+    throw new Error('未登录，无法获取日志同步状态')
+  }
+  return await apiFetch<RailwayLogSyncJob | null>(
+    `/admin/minecraft/servers/${serverId}/beacon/railway-logs-sync`,
+    { token: authStore.token },
+  )
+}
+
 async function openBeaconDialog(server: MinecraftServer) {
   beaconDialogServer.value = server
   beaconDialogOpen.value = true
@@ -248,6 +280,11 @@ async function openBeaconDialog(server: MinecraftServer) {
   railwaySyncJob.value = latestJob?.id ? latestJob : null
   if (railwaySyncJob.value?.id) {
     startRailwaySyncPolling()
+  }
+  const latestLogJob = await fetchLatestRailwayLogSyncJobRaw(server.id)
+  railwayLogSyncJob.value = latestLogJob?.id ? latestLogJob : null
+  if (railwayLogSyncJob.value?.id) {
+    startRailwayLogSyncPolling()
   }
   await Promise.all([refreshBeaconConn(), refreshBeaconStatus()])
 }
@@ -274,6 +311,13 @@ function stopRailwaySyncPolling() {
   if (railwaySyncPolling.value) {
     clearInterval(railwaySyncPolling.value)
     railwaySyncPolling.value = null
+  }
+}
+
+function stopRailwayLogSyncPolling() {
+  if (railwayLogSyncPolling.value) {
+    clearInterval(railwayLogSyncPolling.value)
+    railwayLogSyncPolling.value = null
   }
 }
 
@@ -312,6 +356,44 @@ function startRailwaySyncPolling() {
   }, 2000)
 }
 
+async function pollRailwayLogSyncJobOnce() {
+  const server = beaconDialogServer.value
+  if (!server || !railwayLogSyncJob.value?.id) return
+  try {
+    const job = await fetchRailwayLogSyncJobRaw(
+      server.id,
+      railwayLogSyncJob.value.id,
+    )
+    railwayLogSyncJob.value = job?.id ? job : null
+    if (job.status === 'SUCCEEDED') {
+      stopRailwayLogSyncPolling()
+      toast.add({ title: '日志同步完成', color: 'success' })
+    } else if (job.status === 'FAILED') {
+      stopRailwayLogSyncPolling()
+      toast.add({
+        title: '日志同步失败',
+        description: job.message || '请检查 Beacon 状态后重试',
+        color: 'error',
+      })
+    }
+  } catch (error) {
+    stopRailwayLogSyncPolling()
+    toast.add({
+      title: '获取日志同步状态失败',
+      description: error instanceof Error ? error.message : '请稍后再试',
+      color: 'error',
+    })
+  }
+}
+
+function startRailwayLogSyncPolling() {
+  stopRailwayLogSyncPolling()
+  void pollRailwayLogSyncJobOnce()
+  railwayLogSyncPolling.value = setInterval(() => {
+    void pollRailwayLogSyncJobOnce()
+  }, 2000)
+}
+
 async function syncRailwayEntities() {
   const id = beaconDialogServer.value?.id
   if (!id) return
@@ -336,14 +418,15 @@ async function syncRailwayLogs() {
   if (!id) return
   railwayLogSyncLoading.value = true
   try {
-    const result = await serverStore.syncRailwayLogs(id)
+    railwayLogSyncJob.value = await serverStore.syncRailwayLogs(id, 'full')
     toast.add({
       title: '已触发 MTR 日志同步',
-      description: result?.mode
-        ? `同步模式: ${result.mode}，记录数: ${result.total ?? 0}`
+      description: railwayLogSyncJob.value?.mode
+        ? `同步模式: ${railwayLogSyncJob.value.mode}`
         : undefined,
       color: 'success',
     })
+    startRailwayLogSyncPolling()
   } catch (error) {
     toast.add({
       title: '同步日志失败',
@@ -1574,6 +1657,7 @@ async function controlMcsm(
       :railway-sync-loading="railwaySyncLoading"
       :railway-log-sync-loading="railwayLogSyncLoading"
       :railway-sync-job="railwaySyncJob"
+      :railway-log-sync-job="railwayLogSyncJob"
       @update:open="beaconDialogOpen = $event"
       @edit="
         beaconDialogServer
@@ -1591,4 +1675,5 @@ async function controlMcsm(
   </div>
 </template>
 watch( () => beaconDialogServer.value?.id, () => { stopRailwaySyncPolling()
-railwaySyncJob.value = null }, )
+stopRailwayLogSyncPolling() railwaySyncJob.value = null railwayLogSyncJob.value
+= null }, )
