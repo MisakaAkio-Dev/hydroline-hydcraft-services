@@ -153,7 +153,6 @@ export class MinecraftServerService {
       endpoint: server.beaconEndpoint!,
       key: server.beaconKey!,
       timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
-      maxRetry: server.beaconMaxRetry ?? undefined,
     });
     return { server, client };
   }
@@ -364,7 +363,6 @@ export class MinecraftServerService {
       beaconKey: dto.beaconKey,
       beaconEnabled: dto.beaconEnabled ?? false,
       beaconRequestTimeoutMs: dto.beaconRequestTimeoutMs,
-      beaconMaxRetry: dto.beaconMaxRetry,
       createdBy: actorId ? { connect: { id: actorId } } : undefined,
       updatedBy: actorId ? { connect: { id: actorId } } : undefined,
     };
@@ -437,9 +435,6 @@ export class MinecraftServerService {
     if (dto.beaconRequestTimeoutMs !== undefined) {
       payload.beaconRequestTimeoutMs = dto.beaconRequestTimeoutMs;
     }
-    if (dto.beaconMaxRetry !== undefined) {
-      payload.beaconMaxRetry = dto.beaconMaxRetry;
-    }
     return payload;
   }
 
@@ -506,7 +501,6 @@ export class MinecraftServerService {
       endpoint: server.beaconEndpoint!,
       key: server.beaconKey!,
       timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
-      maxRetry: server.beaconMaxRetry ?? undefined,
     });
     return { server, client };
   }
@@ -529,7 +523,6 @@ export class MinecraftServerService {
         enabled: !!server.beaconEnabled,
         configured: !!server.beaconKey,
         timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
-        maxRetry: server.beaconMaxRetry ?? undefined,
       },
     } as unknown;
   }
@@ -750,7 +743,6 @@ export class MinecraftServerService {
         enabled: !!server.beaconEnabled,
         configured: !!server.beaconKey,
         timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
-        maxRetry: server.beaconMaxRetry ?? undefined,
       },
     } as unknown;
   }

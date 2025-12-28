@@ -102,8 +102,4 @@ export class UpdateMinecraftServerDto {
   @IsOptional()
   @IsInt()
   beaconRequestTimeoutMs?: number;
-
-  @IsOptional()
-  @IsInt()
-  beaconMaxRetry?: number;
 }

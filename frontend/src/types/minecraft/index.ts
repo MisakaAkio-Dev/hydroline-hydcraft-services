@@ -20,7 +20,6 @@ export interface MinecraftServer {
   beaconEndpoint?: string | null
   beaconEnabled?: boolean | null
   beaconRequestTimeoutMs?: number | null
-  beaconMaxRetry?: number | null
   beaconConfigured?: boolean
   dynmapTileUrl?: string | null
   createdAt: string
@@ -155,7 +154,6 @@ export interface BeaconConnectionStatusResponse {
     enabled?: boolean
     configured?: boolean
     timeoutMs?: number
-    maxRetry?: number
   }
 }
 

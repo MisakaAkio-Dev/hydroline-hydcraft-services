@@ -7,7 +7,6 @@ interface BeaconPoolEntry {
   endpoint: string;
   key: string;
   timeoutMs?: number;
-  maxRetry?: number;
   attempts: number;
   retryTimer?: NodeJS.Timeout | null;
   lastAttemptAt?: number;
@@ -44,17 +43,10 @@ export class HydrolineBeaconPoolService {
   }
 
   private scheduleNextAttempt(entry: BeaconPoolEntry) {
-    if (entry.attempts >= (entry.maxRetry ?? 10)) {
-      this.logger.warn(
-        `Max retry attempts (${entry.maxRetry ?? 10}) reached for ${entry.serverId}, stopping reconnection`,
-      );
-      return;
-    }
-
     const nextAttemptIndex = entry.attempts + 1;
     const delay = this.computeDelayMsForAttempt(nextAttemptIndex);
     this.logger.log(
-      `Scheduling reconnection attempt ${nextAttemptIndex}/${entry.maxRetry ?? 10} for ${entry.serverId} in ${delay}ms`,
+      `Scheduling reconnection attempt ${nextAttemptIndex} for ${entry.serverId} in ${delay}ms`,
     );
 
     entry.retryTimer = setTimeout(() => {
@@ -66,7 +58,7 @@ export class HydrolineBeaconPoolService {
       entry.attempts = nextAttemptIndex;
       entry.lastAttemptAt = Date.now();
       this.logger.debug(
-        `Attempting reconnection (${nextAttemptIndex}/10) for ${entry.serverId} to ${entry.endpoint}`,
+        `Attempting reconnection (${nextAttemptIndex}) for ${entry.serverId} to ${entry.endpoint}`,
       );
       entry.client.forceReconnect();
       this.scheduleNextAttempt(entry);
@@ -78,7 +70,6 @@ export class HydrolineBeaconPoolService {
     endpoint: string;
     key: string;
     timeoutMs?: number;
-    maxRetry?: number;
   }): HydrolineBeaconClient {
     const existing = this.pool.get(opts.serverId);
     if (existing) {
@@ -105,7 +96,6 @@ export class HydrolineBeaconPoolService {
       endpoint: opts.endpoint,
       key: opts.key,
       timeoutMs: opts.timeoutMs,
-      maxRetry: opts.maxRetry,
     });
 
     client.forceReconnect();
@@ -115,7 +105,6 @@ export class HydrolineBeaconPoolService {
       endpoint: opts.endpoint,
       key: opts.key,
       timeoutMs: opts.timeoutMs,
-      maxRetry: opts.maxRetry,
       attempts: 0,
       retryTimer: null,
     });

@@ -8,7 +8,6 @@ export type BeaconServerRecord = {
   beaconEndpoint: string;
   beaconKey: string;
   beaconRequestTimeoutMs?: number | null;
-  beaconMaxRetry?: number | null;
   railwayMod: TransportationRailwayMod;
   dynmapTileUrl?: string | null;
 };

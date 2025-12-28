@@ -1008,7 +1008,6 @@ model MinecraftServer {
   beaconKey              String?
   dynmapTileUrl          String?
   transportationRailwayMod  TransportationRailwayMod  @default(MTR)
-  beaconMaxRetry         Int?
   beaconRequestTimeoutMs Int?
   pingRecords            MinecraftServerPingRecord[]
   createdBy              User?                       @relation("MinecraftServerCreatedBy", fields: [createdById], references: [id])

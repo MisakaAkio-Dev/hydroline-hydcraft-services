@@ -41,7 +41,6 @@ export async function emitBeacon<TResponse = unknown>(
       endpoint: server.beaconEndpoint,
       key: server.beaconKey,
       timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
-      maxRetry: server.beaconMaxRetry ?? undefined,
     });
   return client.emit<TResponse>(event, payload, {
     timeoutMs: server.beaconRequestTimeoutMs ?? BEACON_TIMEOUT_MS,

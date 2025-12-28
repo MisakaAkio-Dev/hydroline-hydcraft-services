@@ -1056,7 +1056,6 @@ export class TransportationRailwayRouteDetailService {
         beaconEndpoint: true,
         beaconKey: true,
         beaconRequestTimeoutMs: true,
-        beaconMaxRetry: true,
         transportationRailwayMod: true,
       },
     });
@@ -1073,7 +1072,6 @@ export class TransportationRailwayRouteDetailService {
       beaconEndpoint: server.beaconEndpoint,
       beaconKey: server.beaconKey,
       beaconRequestTimeoutMs: server.beaconRequestTimeoutMs,
-      beaconMaxRetry: server.beaconMaxRetry,
       railwayMod: server.transportationRailwayMod ?? DEFAULT_RAILWAY_TYPE,
     };
   }

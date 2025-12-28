@@ -105,8 +105,4 @@ export class CreateMinecraftServerDto {
   @IsOptional()
   @IsInt()
   beaconRequestTimeoutMs?: number;
-
-  @IsOptional()
-  @IsInt()
-  beaconMaxRetry?: number;
 }

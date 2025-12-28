@@ -288,13 +288,12 @@ const emit = defineEmits<{
               <p
                 class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500"
               >
-                超时 / 最大重试
+                超时
               </p>
               <p
                 class="text-base font-semibold text-slate-800 dark:text-slate-300"
               >
-                {{ props.connectionDetail?.config?.timeoutMs ?? '默认' }} /
-                {{ props.connectionDetail?.config?.maxRetry ?? '默认' }}
+                {{ props.connectionDetail?.config?.timeoutMs ?? '默认' }}
               </p>
             </div>
           </div>

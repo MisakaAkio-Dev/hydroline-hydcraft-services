@@ -8,7 +8,6 @@ interface BeaconServerRecord {
   beaconEndpoint?: string | null;
   beaconKey?: string | null;
   beaconRequestTimeoutMs?: number | null;
-  beaconMaxRetry?: number | null;
   updatedAt: Date | string;
 }
 
@@ -33,7 +32,6 @@ export class BeaconLibService implements OnModuleInit {
         beaconEndpoint: true,
         beaconKey: true,
         beaconRequestTimeoutMs: true,
-        beaconMaxRetry: true,
         updatedAt: true,
       },
     });
@@ -45,7 +43,6 @@ export class BeaconLibService implements OnModuleInit {
           endpoint: s.beaconEndpoint!,
           key: s.beaconKey!,
           timeoutMs: s.beaconRequestTimeoutMs ?? undefined,
-          maxRetry: s.beaconMaxRetry ?? undefined,
         });
         created += 1;
       }
@@ -62,7 +59,6 @@ export class BeaconLibService implements OnModuleInit {
         beaconEndpoint: true,
         beaconKey: true,
         beaconRequestTimeoutMs: true,
-        beaconMaxRetry: true,
         updatedAt: true,
       },
     });
@@ -79,7 +75,6 @@ export class BeaconLibService implements OnModuleInit {
       endpoint: s.beaconEndpoint!,
       key: s.beaconKey!,
       timeoutMs: s.beaconRequestTimeoutMs ?? undefined,
-      maxRetry: s.beaconMaxRetry ?? undefined,
     });
     this.logger.log(`Beacon connection ensured serverId=${s.id}`);
   }

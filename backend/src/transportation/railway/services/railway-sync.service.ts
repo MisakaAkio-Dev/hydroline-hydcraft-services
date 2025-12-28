@@ -31,7 +31,6 @@ type BeaconServerRecord = {
   beaconEndpoint: string;
   beaconKey: string;
   beaconRequestTimeoutMs?: number | null;
-  beaconMaxRetry?: number | null;
   railwayMod: TransportationRailwayMod;
 };
 
@@ -566,7 +565,6 @@ export class TransportationRailwaySyncService implements OnModuleInit {
       endpoint: server.beaconEndpoint,
       key: server.beaconKey,
       timeoutMs: server.beaconRequestTimeoutMs ?? undefined,
-      maxRetry: server.beaconMaxRetry ?? undefined,
     });
   }
 
@@ -601,7 +599,6 @@ export class TransportationRailwaySyncService implements OnModuleInit {
       endpoint: server.beaconEndpoint,
       key: server.beaconKey,
       timeoutMs: server.beaconRequestTimeoutMs ?? BEACON_TIMEOUT_MS,
-      maxRetry: server.beaconMaxRetry ?? undefined,
     });
     return client.emit<T>(event, payload, {
       timeoutMs: server.beaconRequestTimeoutMs ?? BEACON_TIMEOUT_MS,
@@ -697,7 +694,6 @@ export class TransportationRailwaySyncService implements OnModuleInit {
         beaconEndpoint: true,
         beaconKey: true,
         beaconRequestTimeoutMs: true,
-        beaconMaxRetry: true,
         transportationRailwayMod: true,
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
@@ -710,7 +706,6 @@ export class TransportationRailwaySyncService implements OnModuleInit {
         beaconEndpoint: row.beaconEndpoint!,
         beaconKey: row.beaconKey!,
         beaconRequestTimeoutMs: row.beaconRequestTimeoutMs,
-        beaconMaxRetry: row.beaconMaxRetry,
         railwayMod: row.transportationRailwayMod ?? DEFAULT_RAILWAY_TYPE,
         railwayType: row.transportationRailwayMod ?? DEFAULT_RAILWAY_TYPE,
       }));

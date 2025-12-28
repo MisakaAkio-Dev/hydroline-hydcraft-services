@@ -144,7 +144,6 @@ const form = reactive({
   beaconKey: '',
   beaconEnabled: false,
   beaconRequestTimeoutMs: undefined as number | undefined,
-  beaconMaxRetry: undefined as number | undefined,
 })
 
 const tableRows = computed(() =>
@@ -686,7 +685,6 @@ function populateForm(server: MinecraftServer) {
     server.beaconEnabled ?? server.beaconConfigured ?? false,
   )
   form.beaconRequestTimeoutMs = server.beaconRequestTimeoutMs ?? undefined
-  form.beaconMaxRetry = server.beaconMaxRetry ?? undefined
 }
 
 function resetForm() {
@@ -709,7 +707,6 @@ function resetForm() {
   form.beaconKey = ''
   form.beaconEnabled = false
   form.beaconRequestTimeoutMs = undefined
-  form.beaconMaxRetry = undefined
 }
 
 function buildPayload() {
@@ -748,7 +745,6 @@ function buildPayload() {
     beaconKey: form.beaconKey.trim() || undefined,
     beaconEnabled: form.beaconEnabled,
     beaconRequestTimeoutMs: form.beaconRequestTimeoutMs,
-    beaconMaxRetry: form.beaconMaxRetry,
   }
 }
 

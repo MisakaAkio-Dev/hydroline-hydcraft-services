@@ -31,7 +31,6 @@ interface FormModel {
   beaconKey: string
   beaconEnabled: boolean
   beaconRequestTimeoutMs: number | undefined
-  beaconMaxRetry: number | undefined
 }
 
 const props = defineProps<{
@@ -358,20 +357,6 @@ const emit = defineEmits<{
                     type="number"
                     min="1000"
                     placeholder="默认 10000"
-                  />
-                </div>
-                <div class="grid grid-cols-[7rem,1fr] items-center gap-2">
-                  <label
-                    for="beaconMaxRetry"
-                    class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
-                    >最大重试</label
-                  >
-                  <UInput
-                    id="beaconMaxRetry"
-                    v-model.number="props.form.beaconMaxRetry"
-                    type="number"
-                    min="0"
-                    placeholder="默认 3"
                   />
                 </div>
               </div>

@@ -32,7 +32,6 @@ type CreateServerPayload = {
   beaconKey?: string
   beaconEnabled?: boolean
   beaconRequestTimeoutMs?: number
-  beaconMaxRetry?: number
 }
 
 type UpdateServerPayload = Partial<CreateServerPayload>

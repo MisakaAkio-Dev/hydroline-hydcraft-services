@@ -31,7 +31,6 @@ export interface HydrolineBeaconClientOptions {
   endpoint: string;
   key: string;
   timeoutMs?: number;
-  maxRetry?: number;
 }
 
 export interface EmitOptions {

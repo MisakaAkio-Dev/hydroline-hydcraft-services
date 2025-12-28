@@ -604,7 +604,6 @@ export class TransportationRailwayService {
         beaconEndpoint: true,
         beaconKey: true,
         beaconRequestTimeoutMs: true,
-        beaconMaxRetry: true,
         transportationRailwayMod: true,
         dynmapTileUrl: true,
       },
@@ -618,7 +617,6 @@ export class TransportationRailwayService {
         beaconEndpoint: row.beaconEndpoint!,
         beaconKey: row.beaconKey!,
         beaconRequestTimeoutMs: row.beaconRequestTimeoutMs,
-        beaconMaxRetry: row.beaconMaxRetry,
         railwayMod: row.transportationRailwayMod ?? DEFAULT_RAILWAY_TYPE,
         railwayType: row.transportationRailwayMod ?? DEFAULT_RAILWAY_TYPE,
       }));
@@ -818,7 +816,6 @@ export class TransportationRailwayService {
         beaconEndpoint: true,
         beaconKey: true,
         beaconRequestTimeoutMs: true,
-        beaconMaxRetry: true,
         transportationRailwayMod: true,
       },
     });
@@ -831,7 +828,6 @@ export class TransportationRailwayService {
         beaconEndpoint: row.beaconEndpoint ?? '',
         beaconKey: row.beaconKey ?? '',
         beaconRequestTimeoutMs: row.beaconRequestTimeoutMs,
-        beaconMaxRetry: row.beaconMaxRetry,
         railwayMod: row.transportationRailwayMod ?? DEFAULT_RAILWAY_TYPE,
       });
     }
@@ -848,7 +844,6 @@ export class TransportationRailwayService {
       beaconEndpoint: '',
       beaconKey: '',
       beaconRequestTimeoutMs: null,
-      beaconMaxRetry: null,
       railwayMod,
     };
   }
