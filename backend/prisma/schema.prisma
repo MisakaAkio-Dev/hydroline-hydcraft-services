@@ -8,76 +8,76 @@ datasource db {
 }
 
 model User {
-  id                      String                 @id @default(uuid())
-  name                    String?
-  email                   String                 @unique
-  password                String?
-  image                   String?
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  emailVerified           Boolean                @default(false)
-  nameChangedAt           DateTime?
-  joinDate                DateTime?
-  lastLoginAt             DateTime?
-  lastLoginIp             String?
-  passwordNeedsReset      Boolean                @default(false)
-  passwordUpdatedAt       DateTime?
-  avatarAttachmentId      String?
-  accounts                Account[]
-  adminAuditLogs          AdminAuditLog[]        @relation("AdminAuditActor")
-  createdFolders          AttachmentFolder[]     @relation("AttachmentFolderCreator")
-  shareTokens             AttachmentShareToken[] @relation("AttachmentShareCreator")
-  tagAssignments          AttachmentTagging[]    @relation("AttachmentTaggingAssignee")
-  createdTags             AttachmentTag[]        @relation("AttachmentTagCreator")
-  uploadedAttachments     Attachment[]           @relation("AttachmentUploader")
-  authmeBindingHistoryOps AuthmeBindingHistory[] @relation("AuthmeBindingHistoryOperator")
-  authmeBindingHistory    AuthmeBindingHistory[] @relation("AuthmeBindingHistoryUser")
-  updatedConfigEntries    ConfigEntry[]          @relation("ConfigEntryUpdater")
-  createdMinecraftServers MinecraftServer[]      @relation("MinecraftServerCreatedBy")
-  updatedMinecraftServers MinecraftServer[]      @relation("MinecraftServerUpdatedBy")
-  oauthLogs               OAuthLog[]
-  sessions                Session[]
-  authmeBindingOperations UserAuthmeBinding[]    @relation("AuthmeBindingOperator")
-  authmeBindings          UserAuthmeBinding[]
-  contacts                UserContact[]
-  lifecycle               UserLifecycleEvent[]
-  minecraftIds            UserMinecraftProfile[]
-  permissionLabelOps      UserPermissionLabel[]  @relation("PermissionLabelOperator")
-  permissionLabels        UserPermissionLabel[]
-  piicHistory             UserPiicHistory[]
-  profile                 UserProfile?
-  biography               PlayerBiography?       @relation("PlayerBiographyOwner")
-  biographyUpdates        PlayerBiography[]      @relation("PlayerBiographyUpdater")
-  roles                   UserRole[]
-  messagesSent            PlayerMessage[]        @relation("PlayerMessagesAuthor")
-  messagesReceived        PlayerMessage[]        @relation("PlayerMessagesReceived")
-  messageReactions        PlayerMessageReaction[]
-  statusEvents            UserStatusEvent[]
-  statusSnapshot          UserStatusSnapshot?
-  likesGiven              PlayerLike[]           @relation("PlayerLikesGiven")
-  likesReceived           PlayerLike[]           @relation("PlayerLikesReceived")
-  rankPlayerSnapshots     RankPlayerSnapshot[]   @relation("RankSnapshotsForUser")
-  rankSyncJobs            RankSyncJob[]          @relation("RankSyncJobsInitiated")
-  companyMemberships      CompanyMember[]        @relation("CompanyMemberUser")
-  companyApplications     CompanyApplication[]   @relation("CompanyApplicationApplicant")
-  companyAuditRecords     CompanyAuditRecord[]   @relation("CompanyAuditActor")
-  companyPoliciesAuthored CompanyPolicy[]        @relation("CompanyPolicyAuthor")
-  companyPoliciesUpdated  CompanyPolicy[]        @relation("CompanyPolicyEditor")
-  workflowActions         WorkflowAction[]       @relation("WorkflowActionActor")
-  companiesCreated        Company[]              @relation("CompanyCreatedBy")
-  companiesUpdated        Company[]              @relation("CompanyUpdatedBy")
-  legalRepresentativeCompanies Company[]        @relation("CompanyLegalRepresentative")
-  workflowInstancesCreated WorkflowInstance[]    @relation("WorkflowInstanceCreator")
-  transportationRailwayFeaturedCreated TransportationRailwayFeaturedItem[] @relation("TransportationRailwayFeaturedCreatedBy")
-  transportationRailwayFeaturedUpdated TransportationRailwayFeaturedItem[] @relation("TransportationRailwayFeaturedUpdatedBy")
-  transportationRailwaySyncJobs TransportationRailwaySyncJob[] @relation("TransportationRailwaySyncInitiator")
-  transportationRailwaySystemsCreated TransportationRailwaySystem[] @relation("TransportationRailwaySystemCreatedBy")
-  transportationRailwaySystemsUpdated TransportationRailwaySystem[] @relation("TransportationRailwaySystemUpdatedBy")
+  id                                          String                                @id @default(uuid())
+  name                                        String?
+  email                                       String                                @unique
+  password                                    String?
+  image                                       String?
+  createdAt                                   DateTime                              @default(now())
+  updatedAt                                   DateTime                              @updatedAt
+  emailVerified                               Boolean                               @default(false)
+  nameChangedAt                               DateTime?
+  joinDate                                    DateTime?
+  lastLoginAt                                 DateTime?
+  lastLoginIp                                 String?
+  passwordNeedsReset                          Boolean                               @default(false)
+  passwordUpdatedAt                           DateTime?
+  avatarAttachmentId                          String?
+  accounts                                    Account[]
+  adminAuditLogs                              AdminAuditLog[]                       @relation("AdminAuditActor")
+  createdFolders                              AttachmentFolder[]                    @relation("AttachmentFolderCreator")
+  shareTokens                                 AttachmentShareToken[]                @relation("AttachmentShareCreator")
+  tagAssignments                              AttachmentTagging[]                   @relation("AttachmentTaggingAssignee")
+  createdTags                                 AttachmentTag[]                       @relation("AttachmentTagCreator")
+  uploadedAttachments                         Attachment[]                          @relation("AttachmentUploader")
+  authmeBindingHistoryOps                     AuthmeBindingHistory[]                @relation("AuthmeBindingHistoryOperator")
+  authmeBindingHistory                        AuthmeBindingHistory[]                @relation("AuthmeBindingHistoryUser")
+  updatedConfigEntries                        ConfigEntry[]                         @relation("ConfigEntryUpdater")
+  createdMinecraftServers                     MinecraftServer[]                     @relation("MinecraftServerCreatedBy")
+  updatedMinecraftServers                     MinecraftServer[]                     @relation("MinecraftServerUpdatedBy")
+  oauthLogs                                   OAuthLog[]
+  sessions                                    Session[]
+  authmeBindingOperations                     UserAuthmeBinding[]                   @relation("AuthmeBindingOperator")
+  authmeBindings                              UserAuthmeBinding[]
+  contacts                                    UserContact[]
+  lifecycle                                   UserLifecycleEvent[]
+  minecraftIds                                UserMinecraftProfile[]
+  permissionLabelOps                          UserPermissionLabel[]                 @relation("PermissionLabelOperator")
+  permissionLabels                            UserPermissionLabel[]
+  piicHistory                                 UserPiicHistory[]
+  profile                                     UserProfile?
+  biography                                   PlayerBiography?                      @relation("PlayerBiographyOwner")
+  biographyUpdates                            PlayerBiography[]                     @relation("PlayerBiographyUpdater")
+  roles                                       UserRole[]
+  messagesSent                                PlayerMessage[]                       @relation("PlayerMessagesAuthor")
+  messagesReceived                            PlayerMessage[]                       @relation("PlayerMessagesReceived")
+  messageReactions                            PlayerMessageReaction[]
+  statusEvents                                UserStatusEvent[]
+  statusSnapshot                              UserStatusSnapshot?
+  likesGiven                                  PlayerLike[]                          @relation("PlayerLikesGiven")
+  likesReceived                               PlayerLike[]                          @relation("PlayerLikesReceived")
+  rankPlayerSnapshots                         RankPlayerSnapshot[]                  @relation("RankSnapshotsForUser")
+  rankSyncJobs                                RankSyncJob[]                         @relation("RankSyncJobsInitiated")
+  companyMemberships                          CompanyMember[]                       @relation("CompanyMemberUser")
+  companyApplications                         CompanyApplication[]                  @relation("CompanyApplicationApplicant")
+  companyAuditRecords                         CompanyAuditRecord[]                  @relation("CompanyAuditActor")
+  companyPoliciesAuthored                     CompanyPolicy[]                       @relation("CompanyPolicyAuthor")
+  companyPoliciesUpdated                      CompanyPolicy[]                       @relation("CompanyPolicyEditor")
+  workflowActions                             WorkflowAction[]                      @relation("WorkflowActionActor")
+  companiesCreated                            Company[]                             @relation("CompanyCreatedBy")
+  companiesUpdated                            Company[]                             @relation("CompanyUpdatedBy")
+  legalRepresentativeCompanies                Company[]                             @relation("CompanyLegalRepresentative")
+  workflowInstancesCreated                    WorkflowInstance[]                    @relation("WorkflowInstanceCreator")
+  transportationRailwayFeaturedCreated        TransportationRailwayFeaturedItem[]   @relation("TransportationRailwayFeaturedCreatedBy")
+  transportationRailwayFeaturedUpdated        TransportationRailwayFeaturedItem[]   @relation("TransportationRailwayFeaturedUpdatedBy")
+  transportationRailwaySyncJobs               TransportationRailwaySyncJob[]        @relation("TransportationRailwaySyncInitiator")
+  transportationRailwaySystemsCreated         TransportationRailwaySystem[]         @relation("TransportationRailwaySystemCreatedBy")
+  transportationRailwaySystemsUpdated         TransportationRailwaySystem[]         @relation("TransportationRailwaySystemUpdatedBy")
   transportationRailwayCompanyBindingsCreated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingCreatedBy")
   transportationRailwayCompanyBindingsUpdated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingUpdatedBy")
-  transportationRailwaySystemLogs TransportationRailwaySystemLog[] @relation("RailwaySystemLogActor")
-  invitesCreated InviteCode[] @relation("InviteCreatedBy")
-  invitesUsed InviteCode[] @relation("InviteUsedBy")
+  transportationRailwaySystemLogs             TransportationRailwaySystemLog[]      @relation("RailwaySystemLogActor")
+  invitesCreated                              InviteCode[]                          @relation("InviteCreatedBy")
+  invitesUsed                                 InviteCode[]                          @relation("InviteUsedBy")
 
   @@map("users")
 }
@@ -170,43 +170,43 @@ model PlayerBiography {
 }
 
 model PlayerMessage {
-  id           String                      @id @default(uuid())
+  id           String                  @id @default(uuid())
   targetUserId String
   authorId     String
   content      String
-  createdAt    DateTime                    @default(now())
-  updatedAt    DateTime                    @updatedAt
-  targetUser   User                        @relation("PlayerMessagesReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
-  author       User                        @relation("PlayerMessagesAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  targetUser   User                    @relation("PlayerMessagesReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
+  author       User                    @relation("PlayerMessagesAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   reactions    PlayerMessageReaction[]
 
   @@map("player_messages")
 }
 
 model PlayerMessageReaction {
-  id        String                        @id @default(uuid())
+  id        String                    @id @default(uuid())
   messageId String
   userId    String
   reaction  PlayerMessageReactionType
-  createdAt DateTime                      @default(now())
-  updatedAt DateTime                      @updatedAt
-  message   PlayerMessage                 @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user      User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+  message   PlayerMessage             @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId], name: "uq_player_message_reaction_user")
   @@map("player_message_reactions")
 }
 
 model InviteCode {
-  id          String   @id @default(uuid())
-  code        String   @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String    @id @default(uuid())
+  code        String    @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   createdById String?
   usedById    String?
   usedAt      DateTime?
-  createdBy   User?    @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  usedBy      User?    @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
+  createdBy   User?     @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  usedBy      User?     @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
 
   @@index([createdById])
   @@index([usedById])
@@ -214,18 +214,18 @@ model InviteCode {
 }
 
 model TransportationRailwayFeaturedItem {
-  id          String                         @id @default(uuid())
-  entityType  TransportationRailwayFeaturedType
-  serverId    String
-  railwayMod  TransportationRailwayMod       @default(MTR)
-  entityId    String
-  displayOrder Int                           @default(0)
-  createdAt   DateTime                       @default(now())
-  updatedAt   DateTime                       @updatedAt
-  createdById String?
-  updatedById String?
-  createdBy   User?                          @relation("TransportationRailwayFeaturedCreatedBy", fields: [createdById], references: [id])
-  updatedBy   User?                          @relation("TransportationRailwayFeaturedUpdatedBy", fields: [updatedById], references: [id])
+  id           String                            @id @default(uuid())
+  entityType   TransportationRailwayFeaturedType
+  serverId     String
+  railwayMod   TransportationRailwayMod          @default(MTR)
+  entityId     String
+  displayOrder Int                               @default(0)
+  createdAt    DateTime                          @default(now())
+  updatedAt    DateTime                          @updatedAt
+  createdById  String?
+  updatedById  String?
+  createdBy    User?                             @relation("TransportationRailwayFeaturedCreatedBy", fields: [createdById], references: [id])
+  updatedBy    User?                             @relation("TransportationRailwayFeaturedUpdatedBy", fields: [updatedById], references: [id])
 
   @@unique([entityType, serverId, railwayMod, entityId], map: "uq_transportation_railway_featured_scope")
   @@index([displayOrder, createdAt], map: "idx_transportation_railway_featured_order")
@@ -233,9 +233,9 @@ model TransportationRailwayFeaturedItem {
 }
 
 model TransportationRailwayRoute {
-  id                  String                     @id @default(uuid())
+  id                  String                             @id @default(uuid())
   serverId            String
-  railwayMod          TransportationRailwayMod   @default(MTR)
+  railwayMod          TransportationRailwayMod           @default(MTR)
   entityId            String
   dimensionContext    String?
   transportMode       String?
@@ -245,8 +245,8 @@ model TransportationRailwayRoute {
   payload             Json
   lastBeaconUpdatedAt DateTime?
   syncedAt            DateTime
-  createdAt           DateTime                   @default(now())
-  updatedAt           DateTime                   @updatedAt
+  createdAt           DateTime                           @default(now())
+  updatedAt           DateTime                           @updatedAt
   systemRoutes        TransportationRailwaySystemRoute[]
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_route")
@@ -255,9 +255,9 @@ model TransportationRailwayRoute {
 }
 
 model TransportationRailwayStation {
-  id                  String                     @id @default(uuid())
+  id                  String                   @id @default(uuid())
   serverId            String
-  railwayMod          TransportationRailwayMod   @default(MTR)
+  railwayMod          TransportationRailwayMod @default(MTR)
   entityId            String
   dimensionContext    String?
   transportMode       String?
@@ -267,8 +267,8 @@ model TransportationRailwayStation {
   payload             Json
   lastBeaconUpdatedAt DateTime?
   syncedAt            DateTime
-  createdAt           DateTime                   @default(now())
-  updatedAt           DateTime                   @updatedAt
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_station")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_station_scope")
@@ -276,9 +276,9 @@ model TransportationRailwayStation {
 }
 
 model TransportationRailwayPlatform {
-  id                  String                     @id @default(uuid())
+  id                  String                   @id @default(uuid())
   serverId            String
-  railwayMod          TransportationRailwayMod   @default(MTR)
+  railwayMod          TransportationRailwayMod @default(MTR)
   entityId            String
   dimensionContext    String?
   transportMode       String?
@@ -288,8 +288,8 @@ model TransportationRailwayPlatform {
   payload             Json
   lastBeaconUpdatedAt DateTime?
   syncedAt            DateTime
-  createdAt           DateTime                   @default(now())
-  updatedAt           DateTime                   @updatedAt
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_platform")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_platform_scope")
@@ -297,9 +297,9 @@ model TransportationRailwayPlatform {
 }
 
 model TransportationRailwayDepot {
-  id                  String                     @id @default(uuid())
+  id                  String                   @id @default(uuid())
   serverId            String
-  railwayMod          TransportationRailwayMod   @default(MTR)
+  railwayMod          TransportationRailwayMod @default(MTR)
   entityId            String
   dimensionContext    String?
   transportMode       String?
@@ -309,8 +309,8 @@ model TransportationRailwayDepot {
   payload             Json
   lastBeaconUpdatedAt DateTime?
   syncedAt            DateTime
-  createdAt           DateTime                   @default(now())
-  updatedAt           DateTime                   @updatedAt
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_depot")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_depot_scope")
@@ -318,19 +318,19 @@ model TransportationRailwayDepot {
 }
 
 model TransportationRailwaySystem {
-  id               String                      @id @default(uuid())
+  id               String                             @id @default(uuid())
   name             String
   englishName      String?
   logoAttachmentId String?
   serverId         String
   dimensionContext String?
-  createdAt        DateTime                    @default(now())
-  updatedAt        DateTime                    @updatedAt
+  createdAt        DateTime                           @default(now())
+  updatedAt        DateTime                           @updatedAt
   createdById      String?
   updatedById      String?
-  createdBy        User?                       @relation("TransportationRailwaySystemCreatedBy", fields: [createdById], references: [id])
-  updatedBy        User?                       @relation("TransportationRailwaySystemUpdatedBy", fields: [updatedById], references: [id])
-  logoAttachment   Attachment?                 @relation("TransportationRailwaySystemLogo", fields: [logoAttachmentId], references: [id])
+  createdBy        User?                              @relation("TransportationRailwaySystemCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?                              @relation("TransportationRailwaySystemUpdatedBy", fields: [updatedById], references: [id])
+  logoAttachment   Attachment?                        @relation("TransportationRailwaySystemLogo", fields: [logoAttachmentId], references: [id])
   routes           TransportationRailwaySystemRoute[]
   logs             TransportationRailwaySystemLog[]
 
@@ -339,25 +339,25 @@ model TransportationRailwaySystem {
 }
 
 model TransportationRailwaySystemLog {
-  id        String   @id @default(uuid())
+  id        String                      @id @default(uuid())
   systemId  String
   userId    String
   action    String // CREATE, EDIT, DELETE
-  createdAt DateTime @default(now())
+  createdAt DateTime                    @default(now())
   system    TransportationRailwaySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
-  user      User     @relation("RailwaySystemLogActor", fields: [userId], references: [id])
+  user      User                        @relation("RailwaySystemLogActor", fields: [userId], references: [id])
 
   @@index([systemId])
   @@map("transportation_railway_system_logs")
 }
 
 model TransportationRailwaySystemRoute {
-  id        String                     @id @default(uuid())
+  id        String                      @id @default(uuid())
   systemId  String
   routeId   String
-  createdAt DateTime                   @default(now())
+  createdAt DateTime                    @default(now())
   system    TransportationRailwaySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
-  route     TransportationRailwayRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  route     TransportationRailwayRoute  @relation(fields: [routeId], references: [id], onDelete: Cascade)
 
   @@unique([systemId, routeId], map: "uq_transportation_railway_system_route")
   @@index([routeId], map: "idx_transportation_railway_system_route_route")
@@ -365,7 +365,7 @@ model TransportationRailwaySystemRoute {
 }
 
 model TransportationRailwayCompanyBinding {
-  id               String                               @id @default(uuid())
+  id               String                                  @id @default(uuid())
   bindingType      TransportationRailwayCompanyBindingType
   entityType       TransportationRailwayBindingEntityType
   entityId         String
@@ -373,13 +373,13 @@ model TransportationRailwayCompanyBinding {
   railwayMod       TransportationRailwayMod?
   dimensionContext String?
   companyId        String
-  createdAt        DateTime                             @default(now())
-  updatedAt        DateTime                             @updatedAt
+  createdAt        DateTime                                @default(now())
+  updatedAt        DateTime                                @updatedAt
   createdById      String?
   updatedById      String?
-  company          Company                              @relation(fields: [companyId], references: [id])
-  createdBy        User?                                @relation("TransportationRailwayCompanyBindingCreatedBy", fields: [createdById], references: [id])
-  updatedBy        User?                                @relation("TransportationRailwayCompanyBindingUpdatedBy", fields: [updatedById], references: [id])
+  company          Company                                 @relation(fields: [companyId], references: [id])
+  createdBy        User?                                   @relation("TransportationRailwayCompanyBindingCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?                                   @relation("TransportationRailwayCompanyBindingUpdatedBy", fields: [updatedById], references: [id])
 
   @@unique([bindingType, entityType, entityId, companyId], map: "uq_transportation_railway_company_binding")
   @@index([companyId], map: "idx_transportation_railway_company_binding_company")
@@ -389,9 +389,9 @@ model TransportationRailwayCompanyBinding {
 }
 
 model TransportationRailwayRail {
-  id                  String                     @id @default(uuid())
+  id                  String                   @id @default(uuid())
   serverId            String
-  railwayMod          TransportationRailwayMod   @default(MTR)
+  railwayMod          TransportationRailwayMod @default(MTR)
   entityId            String
   dimensionContext    String?
   transportMode       String?
@@ -401,8 +401,8 @@ model TransportationRailwayRail {
   payload             Json
   lastBeaconUpdatedAt DateTime?
   syncedAt            DateTime
-  createdAt           DateTime                   @default(now())
-  updatedAt           DateTime                   @updatedAt
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_rail")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_rail_scope")
@@ -410,9 +410,9 @@ model TransportationRailwayRail {
 }
 
 model TransportationRailwaySignalBlock {
-  id                  String                     @id @default(uuid())
+  id                  String                   @id @default(uuid())
   serverId            String
-  railwayMod          TransportationRailwayMod   @default(MTR)
+  railwayMod          TransportationRailwayMod @default(MTR)
   entityId            String
   dimensionContext    String?
   transportMode       String?
@@ -422,8 +422,8 @@ model TransportationRailwaySignalBlock {
   payload             Json
   lastBeaconUpdatedAt DateTime?
   syncedAt            DateTime
-  createdAt           DateTime                   @default(now())
-  updatedAt           DateTime                   @updatedAt
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
   @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_signal_block")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_signal_scope")
@@ -431,27 +431,27 @@ model TransportationRailwaySignalBlock {
 }
 
 model TransportationRailwayDimension {
-  id               String   @id @default(uuid())
+  id               String                   @id @default(uuid())
   serverId         String
   railwayMod       TransportationRailwayMod @default(MTR)
   dimensionContext String
   namespace        String?
   dimension        String?
   lastUpdated      DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
 
   @@unique([serverId, railwayMod, dimensionContext], map: "uq_transportation_railway_dimension")
   @@map("transportation_railway_dimensions")
 }
 
 model TransportationRailwaySyncJob {
-  id            String                             @id @default(uuid())
+  id            String                          @id @default(uuid())
   serverId      String
-  status        TransportationRailwaySyncStatus    @default(PENDING)
+  status        TransportationRailwaySyncStatus @default(PENDING)
   message       String?
   initiatedById String?
-  createdAt     DateTime                           @default(now())
+  createdAt     DateTime                        @default(now())
   startedAt     DateTime?
   completedAt   DateTime?
 
@@ -463,22 +463,22 @@ model TransportationRailwaySyncJob {
 }
 
 model TransportationRailwayRouteGeometrySnapshot {
-  id               String                   @id @default(uuid())
-  serverId         String
-  railwayMod       TransportationRailwayMod @default(MTR)
-  dimensionContext String
-  routeEntityId    String
+  id                String                   @id @default(uuid())
+  serverId          String
+  railwayMod        TransportationRailwayMod @default(MTR)
+  dimensionContext  String
+  routeEntityId     String
   sourceFingerprint String
-  status           String
-  errorMessage     String?
-  geometry2d       Json
-  bounds           Json?
-  stops            Json?
-  pathNodes3d      Json?
-  pathEdges        Json?
-  generatedAt      DateTime
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  status            String
+  errorMessage      String?
+  geometry2d        Json
+  bounds            Json?
+  stops             Json?
+  pathNodes3d       Json?
+  pathEdges         Json?
+  generatedAt       DateTime
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
 
   @@unique([serverId, railwayMod, dimensionContext, routeEntityId], map: "uq_transportation_railway_route_geometry_snapshot")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_route_geometry_scope")
@@ -486,16 +486,16 @@ model TransportationRailwayRouteGeometrySnapshot {
 }
 
 model TransportationRailwayStationMapSnapshot {
-  id               String                   @id @default(uuid())
-  serverId         String
-  railwayMod       TransportationRailwayMod @default(MTR)
-  dimensionContext String
-  stationEntityId  String
+  id                String                   @id @default(uuid())
+  serverId          String
+  railwayMod        TransportationRailwayMod @default(MTR)
+  dimensionContext  String
+  stationEntityId   String
   sourceFingerprint String
-  payload          Json
-  generatedAt      DateTime
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  payload           Json
+  generatedAt       DateTime
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
 
   @@unique([serverId, railwayMod, dimensionContext, stationEntityId], map: "uq_transportation_railway_station_map_snapshot")
   @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_station_map_scope")
@@ -605,47 +605,47 @@ model UserLifecycleEvent {
 }
 
 model RankPlayerSnapshot {
-  id             String   @id @default(uuid())
-  serverId       String
-  playerUuid     String?
-  playerName     String?
-  bindingId      String?
-  userId         String?
-  displayName    String?
-  lastLoginAt    DateTime?
-  registeredAt   DateTime?
-  walkDistanceKm Float?
-  flyDistanceKm  Float?
-  swimDistanceKm Float?
-  achievements   Int?
-  deaths         Int?
+  id                  String             @id @default(uuid())
+  serverId            String
+  playerUuid          String?
+  playerName          String?
+  bindingId           String?
+  userId              String?
+  displayName         String?
+  lastLoginAt         DateTime?
+  registeredAt        DateTime?
+  walkDistanceKm      Float?
+  flyDistanceKm       Float?
+  swimDistanceKm      Float?
+  achievements        Int?
+  deaths              Int?
   playerKilledByCount Int?
-  jumpCount      Int?
-  playTimeHours  Float?
-  useWandCount   Int?
-  logoutCount    Int?
-  mtrBalance     Int?
-  metrics        Json?
-  stats          Json?
-  updatedAt      DateTime @updatedAt
-  server         MinecraftServer @relation("RankSnapshotsPerServer", fields: [serverId], references: [id], onDelete: Cascade)
-  authmeBinding  UserAuthmeBinding? @relation("RankSnapshotsForBinding", fields: [bindingId], references: [id])
-  user           User?                @relation("RankSnapshotsForUser", fields: [userId], references: [id])
+  jumpCount           Int?
+  playTimeHours       Float?
+  useWandCount        Int?
+  logoutCount         Int?
+  mtrBalance          Int?
+  metrics             Json?
+  stats               Json?
+  updatedAt           DateTime           @updatedAt
+  server              MinecraftServer    @relation("RankSnapshotsPerServer", fields: [serverId], references: [id], onDelete: Cascade)
+  authmeBinding       UserAuthmeBinding? @relation("RankSnapshotsForBinding", fields: [bindingId], references: [id])
+  user                User?              @relation("RankSnapshotsForUser", fields: [userId], references: [id])
 
-  @@index([serverId], map: "idx_rank_snapshot_server")
   @@unique([serverId, playerUuid], map: "uq_rank_snapshot_server_player")
+  @@index([serverId], map: "idx_rank_snapshot_server")
   @@map("rank_player_snapshot")
 }
 
 model RankSyncJob {
-  id            String         @id @default(uuid())
+  id            String           @id @default(uuid())
   serverId      String?
   initiatedById String?
-  status        RankSyncStatus @default(PENDING)
+  status        RankSyncStatus   @default(PENDING)
   startedAt     DateTime
   completedAt   DateTime?
   message       String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime         @default(now())
   server        MinecraftServer? @relation("RankSyncJobsPerServer", fields: [serverId], references: [id])
   user          User?            @relation("RankSyncJobsInitiated", fields: [initiatedById], references: [id])
 
@@ -688,7 +688,7 @@ model LuckpermsPlayerCache {
 }
 
 model PlayerDataCache {
-  id                    String   @id @default(uuid())
+  id                    String    @id @default(uuid())
   serverId              String
   identityType          String
   identityKey           String
@@ -700,8 +700,8 @@ model PlayerDataCache {
   achievementsTotal     Int?
   statsFetchedAt        DateTime?
   advancementsFetchedAt DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@unique([serverId, identityType, identityKey], map: "uq_playerdata_identity")
   @@index([serverId], map: "idx_playerdata_server")
@@ -709,10 +709,10 @@ model PlayerDataCache {
 }
 
 model ScheduledTaskState {
-  taskId       String   @id
+  taskId       String    @id
   lastSyncedAt DateTime?
   lastError    String?
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime  @updatedAt
 
   @@map("scheduled_task_state")
 }
@@ -983,38 +983,38 @@ model AuthmeBindingHistory {
 }
 
 model MinecraftServer {
-  id                     String                      @id @default(uuid())
-  displayName            String
-  internalCodeCn         String                      @unique(map: "uq_minecraft_server_cn")
-  internalCodeEn         String                      @unique
-  host                   String
-  port                   Int                         @default(25565)
-  edition                MinecraftServerEdition      @default(JAVA)
-  description            String?
-  isActive               Boolean                     @default(true)
-  displayOrder           Int                         @default(0)
-  metadata               Json?
-  createdAt              DateTime                    @default(now())
-  updatedAt              DateTime                    @updatedAt
-  createdById            String?
-  updatedById            String?
-  mcsmApiKey             String?
-  mcsmDaemonId           String?
-  mcsmInstanceUuid       String?
-  mcsmPanelUrl           String?
-  mcsmRequestTimeoutMs   Int?
-  beaconEnabled          Boolean?                    @default(false)
-  beaconEndpoint         String?
-  beaconKey              String?
-  dynmapTileUrl          String?
-  transportationRailwayMod  TransportationRailwayMod  @default(MTR)
-  beaconMaxRetry         Int?
-  beaconRequestTimeoutMs Int?
-  pingRecords            MinecraftServerPingRecord[]
-  createdBy              User?                       @relation("MinecraftServerCreatedBy", fields: [createdById], references: [id])
-  updatedBy              User?                       @relation("MinecraftServerUpdatedBy", fields: [updatedById], references: [id])
-  rankPlayerSnapshots    RankPlayerSnapshot[]        @relation("RankSnapshotsPerServer")
-  rankSyncJobs           RankSyncJob[]               @relation("RankSyncJobsPerServer")
+  id                            String                         @id @default(uuid())
+  displayName                   String
+  internalCodeCn                String                         @unique(map: "uq_minecraft_server_cn")
+  internalCodeEn                String                         @unique
+  host                          String
+  port                          Int                            @default(25565)
+  edition                       MinecraftServerEdition         @default(JAVA)
+  description                   String?
+  isActive                      Boolean                        @default(true)
+  displayOrder                  Int                            @default(0)
+  metadata                      Json?
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  createdById                   String?
+  updatedById                   String?
+  mcsmApiKey                    String?
+  mcsmDaemonId                  String?
+  mcsmInstanceUuid              String?
+  mcsmPanelUrl                  String?
+  mcsmRequestTimeoutMs          Int?
+  beaconEnabled                 Boolean?                       @default(false)
+  beaconEndpoint                String?
+  beaconKey                     String?
+  dynmapTileUrl                 String?
+  transportationRailwayMod      TransportationRailwayMod       @default(MTR)
+  beaconMaxRetry                Int?
+  beaconRequestTimeoutMs        Int?
+  pingRecords                   MinecraftServerPingRecord[]
+  createdBy                     User?                          @relation("MinecraftServerCreatedBy", fields: [createdById], references: [id])
+  updatedBy                     User?                          @relation("MinecraftServerUpdatedBy", fields: [updatedById], references: [id])
+  rankPlayerSnapshots           RankPlayerSnapshot[]           @relation("RankSnapshotsPerServer")
+  rankSyncJobs                  RankSyncJob[]                  @relation("RankSyncJobsPerServer")
   transportationRailwaySyncJobs TransportationRailwaySyncJob[] @relation("TransportationRailwaySyncServer")
 
   @@index([displayOrder], map: "idx_minecraft_server_order")
@@ -1071,31 +1071,31 @@ model AttachmentFolder {
 }
 
 model Attachment {
-  id                    String                   @id @default(uuid())
-  folderId              String?
-  ownerId               String?
-  name                  String
-  originalName          String
-  fileName              String
-  mimeType              String?
-  size                  Int
-  storageKey            String
-  hash                  String?
-  isPublic              Boolean                  @default(true)
-  externalUrl           String?
-  metadata              Json?
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
-  deletedAt             DateTime?
-  uploaderNameSnapshot  String?
-  uploaderEmailSnapshot String?
-  visibilityLabels      String[]                 @default([])
-  visibilityMode        AttachmentVisibilityMode @default(INHERIT)
-  visibilityRoles       String[]                 @default([])
-  shareTokens           AttachmentShareToken[]
-  tags                  AttachmentTagging[]
-  folder                AttachmentFolder?        @relation(fields: [folderId], references: [id])
-  owner                 User?                    @relation("AttachmentUploader", fields: [ownerId], references: [id])
+  id                               String                        @id @default(uuid())
+  folderId                         String?
+  ownerId                          String?
+  name                             String
+  originalName                     String
+  fileName                         String
+  mimeType                         String?
+  size                             Int
+  storageKey                       String
+  hash                             String?
+  isPublic                         Boolean                       @default(true)
+  externalUrl                      String?
+  metadata                         Json?
+  createdAt                        DateTime                      @default(now())
+  updatedAt                        DateTime                      @updatedAt
+  deletedAt                        DateTime?
+  uploaderNameSnapshot             String?
+  uploaderEmailSnapshot            String?
+  visibilityLabels                 String[]                      @default([])
+  visibilityMode                   AttachmentVisibilityMode      @default(INHERIT)
+  visibilityRoles                  String[]                      @default([])
+  shareTokens                      AttachmentShareToken[]
+  tags                             AttachmentTagging[]
+  folder                           AttachmentFolder?             @relation(fields: [folderId], references: [id])
+  owner                            User?                         @relation("AttachmentUploader", fields: [ownerId], references: [id])
   transportationRailwaySystemLogos TransportationRailwaySystem[] @relation("TransportationRailwaySystemLogo")
 
   @@index([folderId], map: "idx_attachments_folder")
@@ -1175,105 +1175,105 @@ model ConfigEntry {
 }
 
 model CompanyIndustry {
-  id           String                @id @default(uuid())
-  code         String                @unique
+  id           String               @id @default(uuid())
+  code         String               @unique
   name         String
   description  String?
   icon         String?
   color        String?
   metadata     Json?
   parentId     String?
-  isActive     Boolean               @default(true)
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  parent       CompanyIndustry?      @relation("IndustryHierarchy", fields: [parentId], references: [id])
-  children     CompanyIndustry[]     @relation("IndustryHierarchy")
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  parent       CompanyIndustry?     @relation("IndustryHierarchy", fields: [parentId], references: [id])
+  children     CompanyIndustry[]    @relation("IndustryHierarchy")
   companies    Company[]
-  applications CompanyApplication[]  @relation("IndustryApplications")
+  applications CompanyApplication[] @relation("IndustryApplications")
 
   @@map("company_industries")
 }
 
 model CompanyType {
-  id                 String          @id @default(uuid())
-  code               String          @unique
-  name               String
-  description        String?
-  category           CompanyCategory @default(ENTERPRISE)
-  isDefault          Boolean         @default(false)
-  defaultWorkflow    String?
-  requiredDocuments  String[]        @default([])
-  config             Json?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  companies          Company[]
-  applications       CompanyApplication[]
+  id                String               @id @default(uuid())
+  code              String               @unique
+  name              String
+  description       String?
+  category          CompanyCategory      @default(FOR_PROFIT_LEAGAL_PERSONS)
+  isDefault         Boolean              @default(false)
+  defaultWorkflow   String?
+  requiredDocuments String[]             @default([])
+  config            Json?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  companies         Company[]
+  applications      CompanyApplication[]
 
   @@map("company_types")
 }
 
 model CompanyPosition {
-  code        String             @id
+  code        String            @id
   name        String
   description String?
   role        CompanyMemberRole
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  members     CompanyMember[]    @relation("CompanyMemberPosition")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  members     CompanyMember[]   @relation("CompanyMemberPosition")
 
   @@map("company_positions")
 }
 
 model Company {
-  id                      String                 @id @default(uuid())
-  name                    String
-  slug                    String                 @unique
-  headline                String?
-  summary                 String?
-  description             String?
-  profile                 Json?
-  logoAttachmentId        String?
-  registrationNumber      String?
-  unifiedSocialCreditCode String?
-  legalNameSnapshot       String?
-  legalIdSnapshot         String?
-  category                CompanyCategory        @default(ENTERPRISE)
-  visibility              CompanyVisibility      @default(PRIVATE)
-  status                  CompanyStatus          @default(PENDING_REVIEW)
-  isIndividualBusiness    Boolean                @default(false)
-  typeId                  String?
-  industryId              String?
-  legalRepresentativeId   String?
-  createdById             String?
-  updatedById             String?
-  workflowInstanceId      String?                @unique
-  workflowDefinitionCode  String?
-  workflowState           String?
-  settings                Json?
-  extra                   Json?
-  contactEmail            String?
-  contactPhone            String?
-  contactAddress          String?
-  homepageUrl             String?
-  establishedAt           DateTime?
-  approvedAt              DateTime?
-  activatedAt             DateTime?
-  archivedAt              DateTime?
-  lastActiveAt            DateTime?
-  recommendationScore     Int                    @default(0)
-  highlighted             Boolean                @default(false)
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  type                    CompanyType?           @relation(fields: [typeId], references: [id])
-  industry                CompanyIndustry?       @relation(fields: [industryId], references: [id])
-  createdBy               User?                  @relation("CompanyCreatedBy", fields: [createdById], references: [id])
-  updatedBy               User?                  @relation("CompanyUpdatedBy", fields: [updatedById], references: [id])
-  legalRepresentative     User?                  @relation("CompanyLegalRepresentative", fields: [legalRepresentativeId], references: [id])
-  workflowInstance        WorkflowInstance?      @relation("CompanyWorkflowInstance", fields: [workflowInstanceId], references: [id])
-  members                 CompanyMember[]
-  policies                CompanyPolicy[]
-  applications            CompanyApplication[]
-  auditRecords            CompanyAuditRecord[]
+  id                                   String                                @id @default(uuid())
+  name                                 String
+  slug                                 String                                @unique
+  headline                             String?
+  summary                              String?
+  description                          String?
+  profile                              Json?
+  logoAttachmentId                     String?
+  registrationNumber                   String?
+  unifiedSocialCreditCode              String?
+  legalNameSnapshot                    String?
+  legalIdSnapshot                      String?
+  category                             CompanyCategory                       @default(FOR_PROFIT_LEAGAL_PERSONS)
+  visibility                           CompanyVisibility                     @default(PRIVATE)
+  status                               CompanyStatus                         @default(PENDING_REVIEW)
+  isIndividualBusiness                 Boolean                               @default(false)
+  typeId                               String?
+  industryId                           String?
+  legalRepresentativeId                String?
+  createdById                          String?
+  updatedById                          String?
+  workflowInstanceId                   String?                               @unique
+  workflowDefinitionCode               String?
+  workflowState                        String?
+  settings                             Json?
+  extra                                Json?
+  contactEmail                         String?
+  contactPhone                         String?
+  contactAddress                       String?
+  homepageUrl                          String?
+  establishedAt                        DateTime?
+  approvedAt                           DateTime?
+  activatedAt                          DateTime?
+  archivedAt                           DateTime?
+  lastActiveAt                         DateTime?
+  recommendationScore                  Int                                   @default(0)
+  highlighted                          Boolean                               @default(false)
+  createdAt                            DateTime                              @default(now())
+  updatedAt                            DateTime                              @updatedAt
+  type                                 CompanyType?                          @relation(fields: [typeId], references: [id])
+  industry                             CompanyIndustry?                      @relation(fields: [industryId], references: [id])
+  createdBy                            User?                                 @relation("CompanyCreatedBy", fields: [createdById], references: [id])
+  updatedBy                            User?                                 @relation("CompanyUpdatedBy", fields: [updatedById], references: [id])
+  legalRepresentative                  User?                                 @relation("CompanyLegalRepresentative", fields: [legalRepresentativeId], references: [id])
+  workflowInstance                     WorkflowInstance?                     @relation("CompanyWorkflowInstance", fields: [workflowInstanceId], references: [id])
+  members                              CompanyMember[]
+  policies                             CompanyPolicy[]
+  applications                         CompanyApplication[]
+  auditRecords                         CompanyAuditRecord[]
   transportationRailwayCompanyBindings TransportationRailwayCompanyBinding[]
 
   @@index([status, createdAt], map: "idx_companies_status_created")
@@ -1283,20 +1283,20 @@ model Company {
 }
 
 model CompanyMember {
-  id          String             @id @default(uuid())
-  companyId   String
-  userId      String
-  role        CompanyMemberRole
+  id           String            @id @default(uuid())
+  companyId    String
+  userId       String
+  role         CompanyMemberRole
   positionCode String?
-  title       String?
-  permissions String[]           @default([])
-  isPrimary   Boolean            @default(false)
-  metadata    Json?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  company     Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user        User               @relation("CompanyMemberUser", fields: [userId], references: [id], onDelete: Cascade)
-  position    CompanyPosition?   @relation("CompanyMemberPosition", fields: [positionCode], references: [code])
+  title        String?
+  permissions  String[]          @default([])
+  isPrimary    Boolean           @default(false)
+  metadata     Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user         User              @relation("CompanyMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  position     CompanyPosition?  @relation("CompanyMemberPosition", fields: [positionCode], references: [code])
 
   @@unique([companyId, userId, role], map: "uq_company_member_role")
   @@index([userId], map: "idx_company_member_user")
@@ -1304,26 +1304,26 @@ model CompanyMember {
 }
 
 model CompanyApplication {
-  id                 String                      @id @default(uuid())
+  id                 String                   @id @default(uuid())
   companyId          String?
   applicantId        String
   typeId             String?
   industryId         String?
-  status             CompanyApplicationStatus    @default(SUBMITTED)
+  status             CompanyApplicationStatus @default(SUBMITTED)
   currentStage       String?
   payload            Json?
   attachments        Json?
   notes              String?
   rejectReason       String?
-  submittedAt        DateTime                    @default(now())
+  submittedAt        DateTime                 @default(now())
   resolvedAt         DateTime?
-  updatedAt          DateTime                    @updatedAt
-  workflowInstanceId String?                    @unique
-  company            Company?                    @relation(fields: [companyId], references: [id])
-  applicant          User                        @relation("CompanyApplicationApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
-  workflowInstance   WorkflowInstance?           @relation("ApplicationWorkflowInstance", fields: [workflowInstanceId], references: [id])
-  type               CompanyType?                @relation(fields: [typeId], references: [id])
-  industry           CompanyIndustry?            @relation("IndustryApplications", fields: [industryId], references: [id])
+  updatedAt          DateTime                 @updatedAt
+  workflowInstanceId String?                  @unique
+  company            Company?                 @relation(fields: [companyId], references: [id])
+  applicant          User                     @relation("CompanyApplicationApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  workflowInstance   WorkflowInstance?        @relation("ApplicationWorkflowInstance", fields: [workflowInstanceId], references: [id])
+  type               CompanyType?             @relation(fields: [typeId], references: [id])
+  industry           CompanyIndustry?         @relation("IndustryApplications", fields: [industryId], references: [id])
   auditRecords       CompanyAuditRecord[]
 
   @@index([applicantId], map: "idx_company_applications_applicant")
@@ -1332,7 +1332,7 @@ model CompanyApplication {
 }
 
 model CompanyAuditRecord {
-  id            String               @id @default(uuid())
+  id            String              @id @default(uuid())
   companyId     String
   applicationId String?
   actorId       String?
@@ -1341,10 +1341,10 @@ model CompanyAuditRecord {
   resultState   String?
   comment       String?
   payload       Json?
-  createdAt     DateTime             @default(now())
-  company       Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  application   CompanyApplication?  @relation(fields: [applicationId], references: [id])
-  actor         User?                @relation("CompanyAuditActor", fields: [actorId], references: [id])
+  createdAt     DateTime            @default(now())
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  application   CompanyApplication? @relation(fields: [applicationId], references: [id])
+  actor         User?               @relation("CompanyAuditActor", fields: [actorId], references: [id])
 
   @@index([companyId], map: "idx_company_audit_company")
   @@index([applicationId], map: "idx_company_audit_application")
@@ -1352,44 +1352,44 @@ model CompanyAuditRecord {
 }
 
 model CompanyPolicy {
-  id          String               @id @default(uuid())
+  id          String              @id @default(uuid())
   companyId   String
   code        String?
   title       String
   summary     String?
   content     String
-  status      CompanyPolicyStatus  @default(DRAFT)
-  version     Int                  @default(1)
+  status      CompanyPolicyStatus @default(DRAFT)
+  version     Int                 @default(1)
   effectiveAt DateTime?
   retiredAt   DateTime?
   metadata    Json?
   createdById String?
   updatedById String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdBy   User?                @relation("CompanyPolicyAuthor", fields: [createdById], references: [id])
-  updatedBy   User?                @relation("CompanyPolicyEditor", fields: [updatedById], references: [id])
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User?               @relation("CompanyPolicyAuthor", fields: [createdById], references: [id])
+  updatedBy   User?               @relation("CompanyPolicyEditor", fields: [updatedById], references: [id])
 
   @@index([companyId], map: "idx_company_policies_company")
   @@map("company_policies")
 }
 
 model WorkflowDefinition {
-  id            String               @id @default(uuid())
-  code          String               @unique
-  name          String
-  description   String?
-  version       Int                  @default(1)
-  isActive      Boolean              @default(true)
-  initialState  String
-  states        String[]
-  roles         String[]             @default([])
-  category      String?
-  config        Json?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  instances     WorkflowInstance[]
+  id           String             @id @default(uuid())
+  code         String             @unique
+  name         String
+  description  String?
+  version      Int                @default(1)
+  isActive     Boolean            @default(true)
+  initialState String
+  states       String[]
+  roles        String[]           @default([])
+  category     String?
+  config       Json?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  instances    WorkflowInstance[]
 
   @@map("workflow_definitions")
 }
@@ -1419,7 +1419,7 @@ model WorkflowInstance {
 }
 
 model WorkflowAction {
-  id         String            @id @default(uuid())
+  id         String           @id @default(uuid())
   instanceId String
   state      String
   actionKey  String
@@ -1428,9 +1428,9 @@ model WorkflowAction {
   actorRole  String?
   comment    String?
   payload    Json?
-  createdAt  DateTime          @default(now())
-  instance   WorkflowInstance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  actor      User?             @relation("WorkflowActionActor", fields: [actorId], references: [id])
+  createdAt  DateTime         @default(now())
+  instance   WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  actor      User?            @relation("WorkflowActionActor", fields: [actorId], references: [id])
 
   @@index([instanceId], map: "idx_workflow_actions_instance")
   @@map("workflow_actions")
@@ -1479,9 +1479,11 @@ enum CompanyPolicyStatus {
 }
 
 enum CompanyCategory {
-  ENTERPRISE
+  FOR_PROFIT_LEGAL_PERSONS
+  NON_PROFIT_LEGAL_PERSONS
+  SPECIAL_LEGAL_PERSONS
   INDIVIDUAL
-  ORGANIZATION
+  UNINCORPORATED_ORGANIZATIONS
 }
 
 enum WorkflowInstanceStatus {
