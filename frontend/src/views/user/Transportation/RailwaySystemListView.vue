@@ -104,16 +104,6 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
     <div>
-      <UButton
-        v-if="systemsResponse"
-        size="sm"
-        class="absolute left-4 top-6 md:top-10"
-        variant="ghost"
-        icon="i-lucide-arrow-left"
-        @click="router.push({ name: 'transportation.railway' })"
-      >
-        返回概览
-      </UButton>
       <UTooltip text="新建铁路线路系统">
         <UButton
           color="primary"

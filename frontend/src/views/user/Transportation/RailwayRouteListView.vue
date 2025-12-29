@@ -230,15 +230,6 @@ onMounted(async () => {
           全部线路
         </h1>
       </div>
-      <UButton
-        size="sm"
-        class="absolute left-4 top-6 md:top-10"
-        variant="ghost"
-        icon="i-lucide-arrow-left"
-        @click="router.push({ name: 'transportation.railway' })"
-      >
-        返回概览
-      </UButton>
     </div>
 
     <section class="grid gap-3 rounded-2xl py-4 md:grid-cols-5">

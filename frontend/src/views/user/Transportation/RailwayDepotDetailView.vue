@@ -273,16 +273,6 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <UButton
-      size="sm"
-      class="absolute left-4 top-6 md:top-10"
-      variant="ghost"
-      icon="i-lucide-arrow-left"
-      @click="goBack"
-    >
-      返回概览
-    </UButton>
-
     <div>
       <div class="flex flex-col gap-2">
         <p class="text-sm uppercase text-slate-500">铁路车厂信息</p>
@@ -304,21 +294,25 @@ onMounted(() => {
             </span>
           </p>
           <div class="flex flex-wrap items-center gap-2 text-sm">
-            <UTooltip :text="`线路色 ${routeColorHex}`">
-              <span
-                class="block h-3 w-3 rounded-full"
-                :style="
-                  routeColorHex ? { backgroundColor: routeColorHex } : undefined
-                "
-              ></span>
-            </UTooltip>
+            <div>
+              <UTooltip :text="`线路色 ${routeColorHex}`">
+                <span
+                  class="inline-block h-3 w-3 rounded-full mr-2"
+                  :style="
+                    routeColorHex
+                      ? { backgroundColor: routeColorHex }
+                      : undefined
+                  "
+                ></span>
+              </UTooltip>
 
-            <span
-              class="text-lg font-semibold text-slate-600 dark:text-slate-300"
-              v-if="depotName.split('|')[1]"
-            >
-              {{ depotName.split('|')[1] }}
-            </span>
+              <span
+                class="break-all text-lg font-semibold text-slate-600 dark:text-slate-300"
+                v-if="depotName.split('|')[1]"
+              >
+                {{ depotName.split('|')[1] }}
+              </span>
+            </div>
 
             <UBadge
               v-if="depotName.split('||').length > 1"

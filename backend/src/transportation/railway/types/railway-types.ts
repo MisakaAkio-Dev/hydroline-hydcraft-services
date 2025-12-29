@@ -1,6 +1,7 @@
 import { Prisma, TransportationRailwayMod } from '@prisma/client';
 import type {
   PreferredRailCurve,
+  RailCurveParameters,
   RailGeometrySegment,
 } from './railway-graph.types';
 
@@ -196,6 +197,110 @@ export type RouteDetailResult = {
       zMax: number | null;
     } | null;
   }>;
+  routeGeometryCalculate?: RailwayRouteGeometryCalculate | null;
+};
+
+export type RailwayRouteGeometryReport = {
+  pointCount: number;
+  pathNodeCount: number;
+  pathEdgeCount: number;
+  stopCount: number;
+  bounds: {
+    xMin: number | null;
+    xMax: number | null;
+    zMin: number | null;
+    zMax: number | null;
+  } | null;
+};
+
+export type RailwayRouteGeometrySnapshotInfo = {
+  status: string;
+  errorMessage: string | null;
+  generatedAt: string | null;
+  sourceFingerprint: string;
+  geometryPathCount: number;
+  geometryPointCount: number;
+  stopCount: number;
+  pathNodeCount: number;
+  pathEdgeCount: number;
+  bounds: {
+    xMin: number | null;
+    xMax: number | null;
+    zMin: number | null;
+    zMax: number | null;
+  } | null;
+};
+
+export type RailwayRouteGeometryDataset = {
+  routeCount: number;
+  platformCount: number;
+  stationCount: number;
+  railCount: number;
+};
+
+export type RailwayCurveDiagnostics = {
+  totalSegments: number;
+  segmentsWithPrimaryCurve: number;
+  segmentsWithSecondaryCurve: number;
+  segmentsWithAnyCurve: number;
+  segmentsWithoutCurve: number;
+  segmentsStraight: number;
+  segmentsWithVerticalCurve: number;
+};
+
+export type RailwayRouteFallbackDiagnostics = {
+  source: string | null;
+  graphPresent: boolean;
+  graphNodeCount: number;
+  graphEdgeCount: number;
+  platformCount: number;
+  platformWithNodesCount: number;
+  platformMissingPosCount: number;
+  platformNodeCount: number;
+  snappedPlatformCount: number;
+  snappedNodeCount: number;
+  snappedMissingNodeCount: number;
+  usedPathNodeCount: number;
+  pathSegmentCount: number;
+  graphComponentCount: number;
+  routePlatformCount: number;
+  routePlatformMissingNodes: number;
+  routePlatformComponentCount: number;
+  routePlatformComponents: Array<{
+    platformId: string;
+    nodeIds: string[];
+    componentIds: number[];
+  }>;
+  disconnectedSegments: Array<{
+    fromComponent: number;
+    toComponent: number;
+    fromNodeId: string;
+    toNodeId: string;
+    from: { x: number; y: number; z: number };
+    to: { x: number; y: number; z: number };
+    distance: number;
+  }>;
+  reasons: string[];
+};
+
+export type RailwayRouteGeometryCalculate = {
+  serverId: string;
+  railwayMod: TransportationRailwayMod;
+  dimensionContext: string;
+  dimension: string | null;
+  routeEntityId: string;
+  status: string;
+  errorMessage: string | null;
+  sourceFingerprint: string;
+  pathSource: string;
+  persistedSnapshot: boolean;
+  report: RailwayRouteGeometryReport;
+  snapshot: RailwayRouteGeometrySnapshotInfo | null;
+  dataset: RailwayRouteGeometryDataset;
+  fallbackDiagnostics: RailwayRouteFallbackDiagnostics;
+  curveDiagnostics: RailwayCurveDiagnostics;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type RailwayStationDetailResult = {

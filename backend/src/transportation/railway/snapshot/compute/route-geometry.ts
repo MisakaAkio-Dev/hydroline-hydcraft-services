@@ -229,8 +229,12 @@ export async function computeRouteGeometrySnapshots(
   input: RouteGeometryComputeInput,
   logger: { warn: (msg: string) => void },
   concurrency = 2,
-): Promise<Map<string, RouteGeometrySnapshotValue>> {
+): Promise<{
+  routeGeometryById: Map<string, RouteGeometrySnapshotValue>;
+  fallbackRouteIds: Set<string>;
+}> {
   const routeGeometryById = new Map<string, RouteGeometrySnapshotValue>();
+  const fallbackRouteIds = new Set<string>();
   const stationMap = buildStationsMap(input.dataset.stationRecords);
 
   const handler = async (record: RailwayRouteRecord) => {
@@ -255,6 +259,7 @@ export async function computeRouteGeometrySnapshots(
       }
     }
     if (points.length < 2) {
+      fallbackRouteIds.add(routeId);
       const fallback = buildFallbackGeometry(
         routePlatforms,
         stationMap,
@@ -396,7 +401,7 @@ export async function computeRouteGeometrySnapshots(
     },
   );
 
-  return routeGeometryById;
+  return { routeGeometryById, fallbackRouteIds };
 }
 
 export type RouteGeometrySnapshotReport = {

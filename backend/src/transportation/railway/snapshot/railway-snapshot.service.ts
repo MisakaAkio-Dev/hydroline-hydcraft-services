@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { TransportationRailwayMod } from '@prisma/client';
+import { Prisma, TransportationRailwayMod } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { computeScopeFingerprint } from './compute/fingerprint';
@@ -23,7 +23,7 @@ import {
   snapPlatformNodesToRailGraph,
 } from './compute/rail-graph';
 import { computeStationMapSnapshots } from './compute/station-map';
-import type { ScopeKey } from './compute/types';
+import type { ScopeDataset, ScopeKey } from './compute/types';
 import {
   buildDimensionContextFromDimension,
   normalizeId,
@@ -33,18 +33,13 @@ import {
 import type {
   RailCurveParameters,
   RailGeometrySegment,
+  RailGraph,
 } from '../types/railway-graph.types';
+import type {
+  RailwayCurveDiagnostics,
+  RailwayRouteFallbackDiagnostics,
+} from '../types/railway-types';
 import { encodeBlockPosition } from '../../utils/block-pos.util';
-
-type CurveDiagnostics = {
-  totalSegments: number;
-  segmentsWithPrimaryCurve: number;
-  segmentsWithSecondaryCurve: number;
-  segmentsWithAnyCurve: number;
-  segmentsWithoutCurve: number;
-  segmentsStraight: number;
-  segmentsWithVerticalCurve: number;
-};
 
 type MissingCurveSegment = {
   index: number;
@@ -109,41 +104,6 @@ type RailDiagnosticsCacheEntry = {
   rails: RailDiagnostic[];
 };
 
-type FallbackDiagnostics = {
-  source: string | null;
-  graphPresent: boolean;
-  graphNodeCount: number;
-  graphEdgeCount: number;
-  platformCount: number;
-  platformWithNodesCount: number;
-  platformMissingPosCount: number;
-  platformNodeCount: number;
-  snappedPlatformCount: number;
-  snappedNodeCount: number;
-  snappedMissingNodeCount: number;
-  usedPathNodeCount: number;
-  pathSegmentCount: number;
-  graphComponentCount: number;
-  routePlatformCount: number;
-  routePlatformMissingNodes: number;
-  routePlatformComponentCount: number;
-  routePlatformComponents: Array<{
-    platformId: string;
-    nodeIds: string[];
-    componentIds: number[];
-  }>;
-  disconnectedSegments: Array<{
-    fromComponent: number;
-    toComponent: number;
-    fromNodeId: string;
-    toNodeId: string;
-    from: { x: number; y: number; z: number };
-    to: { x: number; y: number; z: number };
-    distance: number;
-  }>;
-  reasons: string[];
-};
-
 function hasCurveParams(params: RailCurveParameters | null | undefined) {
   if (!params) return false;
   return (
@@ -159,7 +119,10 @@ function hasCurveParams(params: RailCurveParameters | null | undefined) {
 
 function buildCurveDiagnostics(
   pathEdges: RailGeometrySegment[] | null | undefined,
-) {
+): {
+  curveDiagnostics: RailwayCurveDiagnostics;
+  missingCurveSegments: MissingCurveSegment[];
+} {
   const edges = Array.isArray(pathEdges) ? pathEdges : [];
   let segmentsWithPrimaryCurve = 0;
   let segmentsWithSecondaryCurve = 0;
@@ -207,7 +170,7 @@ function buildCurveDiagnostics(
     }
   });
 
-  const curveDiagnostics: CurveDiagnostics = {
+  const curveDiagnostics: RailwayCurveDiagnostics = {
     totalSegments: edges.length,
     segmentsWithPrimaryCurve,
     segmentsWithSecondaryCurve,
@@ -321,14 +284,12 @@ export class TransportationRailwaySnapshotService {
         },
       });
 
-    if (
-      existing?.fingerprint === fingerprint &&
-      existing.status === 'SUCCEEDED'
-    ) {
+    const fingerprintUnchanged =
+      existing?.fingerprint === fingerprint && existing.status === 'SUCCEEDED';
+    if (fingerprintUnchanged) {
       this.logger.log(
-        `Skip compute: ${scope.serverId} ${scope.railwayMod} ${scope.dimensionContext} fingerprint unchanged`,
+        `Fingerprint unchanged: ${scope.serverId} ${scope.railwayMod} ${scope.dimensionContext}`,
       );
-      return;
     }
 
     await this.prisma.transportationRailwayComputeScope.upsert({
@@ -358,12 +319,13 @@ export class TransportationRailwaySnapshotService {
       const dataset = await loadScopeDataset(this.prisma, scope);
       const graph = buildGraphFromRails(dataset.rails);
 
-      const routeGeometryById = await computeRouteGeometrySnapshots(
-        this.prisma,
-        { scope, graph, dataset, fingerprint },
-        this.logger,
-        Number(process.env.RAILWAY_SNAPSHOT_ROUTE_CONCURRENCY ?? 2),
-      );
+      const { routeGeometryById, fallbackRouteIds } =
+        await computeRouteGeometrySnapshots(
+          this.prisma,
+          { scope, graph, dataset, fingerprint },
+          this.logger,
+          Number(process.env.RAILWAY_SNAPSHOT_ROUTE_CONCURRENCY ?? 2),
+        );
 
       await computeStationMapSnapshots(
         this.prisma,
@@ -371,6 +333,14 @@ export class TransportationRailwaySnapshotService {
         this.logger,
         Number(process.env.RAILWAY_SNAPSHOT_STATION_CONCURRENCY ?? 2),
       );
+
+      await this.persistFallbackRouteCalculates({
+        scope,
+        dataset,
+        graph,
+        fingerprint,
+        fallbackRouteIds,
+      });
 
       await this.prisma.transportationRailwayComputeScope.update({
         where: {
@@ -404,6 +374,404 @@ export class TransportationRailwaySnapshotService {
       this.logger.error(
         `Compute scope failed: ${scope.serverId} ${scope.railwayMod} ${scope.dimensionContext}: ${message}`,
       );
+    }
+  }
+
+  private extractDimensionFromContext(
+    dimensionContext: string | null | undefined,
+  ) {
+    const segments = (dimensionContext ?? '').split('/').filter(Boolean);
+    if (segments.length < 2) {
+      return null;
+    }
+    const dimension = segments.pop();
+    const namespace = segments.pop();
+    if (!namespace || !dimension) {
+      return null;
+    }
+    return `${namespace}:${dimension}`;
+  }
+
+  private async resolveDimension(scope: ScopeKey) {
+    const row = await this.prisma.transportationRailwayDimension.findUnique({
+      where: {
+        serverId_railwayMod_dimensionContext: {
+          serverId: scope.serverId,
+          railwayMod: scope.railwayMod,
+          dimensionContext: scope.dimensionContext,
+        },
+      },
+      select: { dimension: true },
+    });
+    return (
+      row?.dimension ?? this.extractDimensionFromContext(scope.dimensionContext)
+    );
+  }
+
+  private buildFallbackDiagnosticsForRoute(input: {
+    graph: RailGraph | null;
+    dataset: ScopeDataset;
+    routePlatformIds: string[];
+    pathEdges: RailGeometrySegment[] | null;
+    source: string | null;
+  }): RailwayRouteFallbackDiagnostics {
+    const { graph, dataset, routePlatformIds, pathEdges, source } = input;
+    const graphNodeCount = graph?.positions?.size ?? 0;
+    let graphEdgeCount = 0;
+    if (graph?.adjacency) {
+      for (const edges of graph.adjacency.values()) {
+        graphEdgeCount += edges.size;
+      }
+      graphEdgeCount = Math.floor(graphEdgeCount / 2);
+    }
+
+    const platformNodes = extractPlatformNodes(dataset.platformRecords);
+    const platformWithNodesCount = platformNodes.length;
+    const platformCount = dataset.platformRecords.length;
+    const platformNodeCount = platformNodes.reduce(
+      (total, entry) => total + entry.nodes.length,
+      0,
+    );
+    const platformMissingPosCount = Math.max(
+      0,
+      platformCount - platformWithNodesCount,
+    );
+
+    const snapped = graph
+      ? snapPlatformNodesToRailGraph(platformNodes, graph)
+      : { nodes: [], missingNodes: 0, snappedNodes: 0 };
+    const snappedPlatformCount = snapped.nodes.length;
+    const snappedNodeCount = snapped.nodes.reduce(
+      (total, entry) => total + entry.nodes.length,
+      0,
+    );
+    const snappedMissingNodeCount = snapped.missingNodes;
+
+    const usedNodeIds = new Set<string>();
+    if (Array.isArray(pathEdges)) {
+      for (const segment of pathEdges) {
+        const startId = encodeBlockPosition(segment.start);
+        const endId = encodeBlockPosition(segment.end);
+        if (startId) usedNodeIds.add(startId);
+        if (endId) usedNodeIds.add(endId);
+      }
+    }
+
+    const pathSegmentCount = Array.isArray(pathEdges) ? pathEdges.length : 0;
+    const usedPathNodeCount = usedNodeIds.size;
+    const reasons: string[] = [];
+    if (!graph || graphNodeCount === 0) reasons.push('graph_empty');
+    if (platformWithNodesCount === 0) reasons.push('platform_nodes_missing');
+    if (graph && snappedPlatformCount === 0) {
+      reasons.push('platform_nodes_not_snapped');
+    }
+    if (graph && snappedPlatformCount > 0 && pathSegmentCount === 0) {
+      reasons.push('path_not_found');
+    }
+
+    let graphComponentCount = 0;
+    const componentByNode = new Map<string, number>();
+    if (graph?.adjacency) {
+      const visited = new Set<string>();
+      for (const nodeId of graph.positions.keys()) {
+        if (visited.has(nodeId)) continue;
+        const queue = [nodeId];
+        visited.add(nodeId);
+        componentByNode.set(nodeId, graphComponentCount);
+        while (queue.length) {
+          const current = queue.shift()!;
+          const edges = graph.adjacency.get(current);
+          if (!edges) continue;
+          for (const next of edges) {
+            if (visited.has(next)) continue;
+            visited.add(next);
+            componentByNode.set(next, graphComponentCount);
+            queue.push(next);
+          }
+        }
+        graphComponentCount += 1;
+      }
+    }
+
+    const snappedByPlatform = new Map<string, string[]>();
+    for (const entry of snapped.nodes) {
+      if (!entry.platformId) continue;
+      snappedByPlatform.set(
+        entry.platformId,
+        entry.nodes.map((node) => node.id),
+      );
+    }
+
+    const routePlatformComponents: RailwayRouteFallbackDiagnostics['routePlatformComponents'] =
+      [];
+    let routePlatformMissingNodes = 0;
+    const routeComponentSet = new Set<number>();
+    for (const platformId of routePlatformIds) {
+      const nodeIds = snappedByPlatform.get(platformId) ?? [];
+      if (!nodeIds.length) {
+        routePlatformMissingNodes += 1;
+      }
+      const componentIds = Array.from(
+        new Set(
+          nodeIds
+            .map((nodeId) => componentByNode.get(nodeId))
+            .filter((value): value is number => typeof value === 'number'),
+        ),
+      );
+      componentIds.forEach((id) => routeComponentSet.add(id));
+      routePlatformComponents.push({
+        platformId,
+        nodeIds,
+        componentIds,
+      });
+    }
+
+    const routePlatformComponentCount = routeComponentSet.size;
+    if (routePlatformComponentCount > 1) {
+      reasons.push('route_platforms_disconnected');
+    }
+
+    const disconnectedSegments: RailwayRouteFallbackDiagnostics['disconnectedSegments'] =
+      [];
+    if (graph && routePlatformComponentCount > 1) {
+      const componentNodeMap = new Map<number, Set<string>>();
+      for (const entry of routePlatformComponents) {
+        for (const componentId of entry.componentIds) {
+          if (!componentNodeMap.has(componentId)) {
+            componentNodeMap.set(componentId, new Set());
+          }
+          const bucket = componentNodeMap.get(componentId)!;
+          for (const nodeId of entry.nodeIds) {
+            bucket.add(nodeId);
+          }
+        }
+      }
+      const componentIds = Array.from(componentNodeMap.keys());
+      for (let i = 0; i < componentIds.length; i += 1) {
+        for (let j = i + 1; j < componentIds.length; j += 1) {
+          const fromComponent = componentIds[i];
+          const toComponent = componentIds[j];
+          const fromNodes = Array.from(
+            componentNodeMap.get(fromComponent) ?? [],
+          );
+          const toNodes = Array.from(componentNodeMap.get(toComponent) ?? []);
+          let best: {
+            fromNodeId: string;
+            toNodeId: string;
+            from: { x: number; y: number; z: number };
+            to: { x: number; y: number; z: number };
+            distance: number;
+          } | null = null;
+          for (const fromNodeId of fromNodes) {
+            const fromPos = graph.positions.get(fromNodeId);
+            if (!fromPos) continue;
+            for (const toNodeId of toNodes) {
+              const toPos = graph.positions.get(toNodeId);
+              if (!toPos) continue;
+              const distance = Math.hypot(
+                fromPos.x - toPos.x,
+                fromPos.y - toPos.y,
+                fromPos.z - toPos.z,
+              );
+              if (!best || distance < best.distance) {
+                best = {
+                  fromNodeId,
+                  toNodeId,
+                  from: { x: fromPos.x, y: fromPos.y, z: fromPos.z },
+                  to: { x: toPos.x, y: toPos.y, z: toPos.z },
+                  distance,
+                };
+              }
+            }
+          }
+          if (best) {
+            disconnectedSegments.push({
+              fromComponent,
+              toComponent,
+              fromNodeId: best.fromNodeId,
+              toNodeId: best.toNodeId,
+              from: best.from,
+              to: best.to,
+              distance: Math.round(best.distance * 100) / 100,
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      source: source ?? null,
+      graphPresent: Boolean(graph),
+      graphNodeCount,
+      graphEdgeCount,
+      platformCount,
+      platformWithNodesCount,
+      platformMissingPosCount,
+      platformNodeCount,
+      snappedPlatformCount,
+      snappedNodeCount,
+      snappedMissingNodeCount,
+      usedPathNodeCount,
+      pathSegmentCount,
+      graphComponentCount,
+      routePlatformCount: routePlatformIds.length,
+      routePlatformMissingNodes,
+      routePlatformComponentCount,
+      routePlatformComponents,
+      disconnectedSegments,
+      reasons,
+    };
+  }
+
+  private async persistFallbackRouteCalculates(input: {
+    scope: ScopeKey;
+    dataset: ScopeDataset;
+    graph: RailGraph | null;
+    fingerprint: string;
+    fallbackRouteIds: Set<string>;
+  }) {
+    const { scope, dataset, graph, fingerprint, fallbackRouteIds } = input;
+    await this.prisma.transportationRailwayRouteCalculate.deleteMany({
+      where: {
+        serverId: scope.serverId,
+        railwayMod: scope.railwayMod,
+        dimensionContext: scope.dimensionContext,
+      },
+    });
+
+    if (!fallbackRouteIds.size) {
+      return;
+    }
+
+    const dimension = await this.resolveDimension(scope);
+    const routeRecordById = new Map<
+      string,
+      (typeof dataset.routeRecords)[number]
+    >();
+    for (const record of dataset.routeRecords) {
+      const routeId = normalizeId(record.id);
+      if (!routeId) continue;
+      routeRecordById.set(routeId, record);
+    }
+
+    const routeIds = Array.from(fallbackRouteIds);
+    const snapshots =
+      await this.prisma.transportationRailwayRouteGeometrySnapshot.findMany({
+        where: {
+          serverId: scope.serverId,
+          railwayMod: scope.railwayMod,
+          dimensionContext: scope.dimensionContext,
+          routeEntityId: { in: routeIds },
+        },
+        select: {
+          routeEntityId: true,
+          status: true,
+          errorMessage: true,
+          geometry2d: true,
+          bounds: true,
+          stops: true,
+          pathNodes3d: true,
+          pathEdges: true,
+          generatedAt: true,
+          sourceFingerprint: true,
+        },
+      });
+    const snapshotByRoute = new Map(
+      snapshots.map((snapshot) => [snapshot.routeEntityId, snapshot]),
+    );
+
+    const data: Prisma.TransportationRailwayRouteCalculateCreateManyInput[] =
+      [];
+
+    for (const routeId of routeIds) {
+      const routeRecord = routeRecordById.get(routeId);
+      const snapshot = snapshotByRoute.get(routeId);
+      if (!routeRecord || !snapshot) continue;
+
+      const geometryPaths = (snapshot.geometry2d as Record<string, unknown>)?.[
+        'paths'
+      ];
+      const geometryPathCount = Array.isArray(geometryPaths)
+        ? geometryPaths.length
+        : 0;
+      const geometryPointCount = Array.isArray(geometryPaths)
+        ? geometryPaths.reduce(
+            (total, entry) => total + (Array.isArray(entry) ? entry.length : 0),
+            0,
+          )
+        : 0;
+      const stopCount = Array.isArray(snapshot.stops)
+        ? snapshot.stops.length
+        : 0;
+      const pathNodeCount = Array.isArray(snapshot.pathNodes3d)
+        ? snapshot.pathNodes3d.length
+        : 0;
+      const pathEdgeCount = Array.isArray(snapshot.pathEdges)
+        ? snapshot.pathEdges.length
+        : 0;
+      const { curveDiagnostics } = buildCurveDiagnostics(
+        Array.isArray(snapshot.pathEdges)
+          ? (snapshot.pathEdges as RailGeometrySegment[])
+          : null,
+      );
+
+      const routePlatformIds = normalizeIdList(routeRecord.platform_ids ?? []);
+      const fallbackDiagnostics = this.buildFallbackDiagnosticsForRoute({
+        graph,
+        dataset,
+        routePlatformIds,
+        pathEdges: Array.isArray(snapshot.pathEdges)
+          ? (snapshot.pathEdges as RailGeometrySegment[])
+          : null,
+        source: 'fallback',
+      });
+
+      data.push({
+        id: randomUUID(),
+        serverId: scope.serverId,
+        railwayMod: scope.railwayMod,
+        dimensionContext: scope.dimensionContext,
+        dimension,
+        routeEntityId: routeId,
+        status: snapshot.status,
+        errorMessage: snapshot.errorMessage ?? null,
+        sourceFingerprint: snapshot.sourceFingerprint,
+        pathSource: 'fallback',
+        persistedSnapshot: snapshot.sourceFingerprint === fingerprint,
+        report: {
+          pointCount: geometryPointCount,
+          pathNodeCount,
+          pathEdgeCount,
+          stopCount,
+          bounds: snapshot.bounds ?? null,
+        } as Prisma.InputJsonValue,
+        snapshot: {
+          status: snapshot.status,
+          errorMessage: snapshot.errorMessage ?? null,
+          generatedAt: snapshot.generatedAt?.toISOString() ?? null,
+          sourceFingerprint: snapshot.sourceFingerprint,
+          geometryPathCount,
+          geometryPointCount,
+          stopCount,
+          pathNodeCount,
+          pathEdgeCount,
+          bounds: snapshot.bounds ?? null,
+        } as Prisma.InputJsonValue,
+        dataset: {
+          routeCount: dataset.routeRecords.length,
+          platformCount: dataset.platformRecords.length,
+          stationCount: dataset.stationRecords.length,
+          railCount: dataset.rails.length,
+        } as Prisma.InputJsonValue,
+        fallbackDiagnostics: fallbackDiagnostics as Prisma.InputJsonValue,
+        curveDiagnostics: curveDiagnostics as Prisma.InputJsonValue,
+      });
+    }
+
+    if (data.length) {
+      await this.prisma.transportationRailwayRouteCalculate.createMany({
+        data,
+      });
     }
   }
 
@@ -795,7 +1163,7 @@ export class TransportationRailwaySnapshotService {
       );
     }
 
-    const routePlatformComponents: FallbackDiagnostics['routePlatformComponents'] =
+    const routePlatformComponents: RailwayRouteFallbackDiagnostics['routePlatformComponents'] =
       [];
     let routePlatformMissingNodes = 0;
     const routeComponentSet = new Set<number>();
@@ -824,7 +1192,7 @@ export class TransportationRailwaySnapshotService {
       reasons.push('route_platforms_disconnected');
     }
 
-    const disconnectedSegments: FallbackDiagnostics['disconnectedSegments'] =
+    const disconnectedSegments: RailwayRouteFallbackDiagnostics['disconnectedSegments'] =
       [];
     if (graph && routePlatformComponentCount > 1) {
       const componentNodeMap = new Map<number, Set<string>>();
@@ -891,7 +1259,7 @@ export class TransportationRailwaySnapshotService {
         }
       }
     }
-    const fallbackDiagnostics: FallbackDiagnostics = {
+    const fallbackDiagnostics: RailwayRouteFallbackDiagnostics = {
       source: report.source ?? null,
       graphPresent: Boolean(graph),
       graphNodeCount,

@@ -485,6 +485,31 @@ model TransportationRailwayRouteGeometrySnapshot {
   @@map("transportation_railway_mtr_route_geometry_snapshots")
 }
 
+model TransportationRailwayRouteCalculate {
+  id                 String                   @id @default(uuid())
+  serverId           String
+  railwayMod         TransportationRailwayMod @default(MTR)
+  dimensionContext   String
+  dimension          String?
+  routeEntityId      String
+  status             String
+  errorMessage       String?
+  sourceFingerprint  String
+  pathSource         String
+  persistedSnapshot  Boolean                  @default(false)
+  report             Json?
+  snapshot           Json?
+  dataset            Json?
+  fallbackDiagnostics Json?
+  curveDiagnostics   Json?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, dimensionContext, routeEntityId], map: "uq_transportation_railway_route_calculate")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_route_calculate_scope")
+  @@map("transportation_railway_mtr_routes_calculate")
+}
+
 model TransportationRailwayStationMapSnapshot {
   id                String                   @id @default(uuid())
   serverId          String

@@ -29,6 +29,12 @@ import type {
   RailwayRouteRecord,
   RailwayRouteLogEntry,
   RailwayRouteLogResult,
+  RailwayRouteGeometryCalculate,
+  RailwayRouteGeometryDataset,
+  RailwayRouteGeometryReport,
+  RailwayRouteGeometrySnapshotInfo,
+  RailwayRouteFallbackDiagnostics,
+  RailwayCurveDiagnostics,
   RailwayStationDetailResult,
   RailwayStationRecord,
   RouteDetailResult,
@@ -345,6 +351,12 @@ export class TransportationRailwayRouteDetailService {
       normalizedRouteId,
     );
 
+    const routeGeometryCalculate = await this.fetchRouteGeometryCalculateRecord(
+      server,
+      dimensionContextForGeometry,
+      normalizedRouteId,
+    );
+
     const detail: RouteDetailResult = {
       server: {
         id: server.id,
@@ -375,6 +387,7 @@ export class TransportationRailwayRouteDetailService {
         platforms,
         stationAssociations.platformStations,
       ),
+      routeGeometryCalculate,
     };
 
     const bindingDimensionContext =
@@ -1280,6 +1293,12 @@ export class TransportationRailwayRouteDetailService {
         routeEntity.dimensionContext ?? dimensionContextForGeometry;
     }
 
+    const routeGeometryCalculate = await this.fetchRouteGeometryCalculateRecord(
+      server,
+      dimensionContextForGeometry,
+      normalizedRouteId,
+    );
+
     return {
       server: {
         id: server.id,
@@ -1310,6 +1329,7 @@ export class TransportationRailwayRouteDetailService {
         platformMap,
         stationAssociations.platformStations,
       ),
+      routeGeometryCalculate,
     };
   }
 
@@ -1467,6 +1487,69 @@ export class TransportationRailwayRouteDetailService {
     return platformIds
       .map((id) => map.get(id))
       .filter((r): r is RailwayPlatformRecord => !!r);
+  }
+
+  private async fetchRouteGeometryCalculateRecord(
+    server: BeaconServerRecord,
+    dimensionContext: string | null,
+    routeId: string,
+  ): Promise<RailwayRouteGeometryCalculate | null> {
+    if (!dimensionContext || !routeId) return null;
+    const row = await this.prisma.transportationRailwayRouteCalculate.findFirst(
+      {
+        where: {
+          serverId: server.id,
+          railwayMod: server.railwayMod,
+          dimensionContext,
+          routeEntityId: routeId,
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          serverId: true,
+          railwayMod: true,
+          dimensionContext: true,
+          dimension: true,
+          routeEntityId: true,
+          status: true,
+          errorMessage: true,
+          sourceFingerprint: true,
+          pathSource: true,
+          persistedSnapshot: true,
+          report: true,
+          snapshot: true,
+          dataset: true,
+          fallbackDiagnostics: true,
+          curveDiagnostics: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+    );
+    if (!row) {
+      return null;
+    }
+    return {
+      serverId: row.serverId,
+      railwayMod: row.railwayMod,
+      dimensionContext: row.dimensionContext,
+      dimension: row.dimension ?? null,
+      routeEntityId: row.routeEntityId,
+      status: row.status,
+      errorMessage: row.errorMessage ?? null,
+      sourceFingerprint: row.sourceFingerprint,
+      pathSource: row.pathSource,
+      persistedSnapshot: row.persistedSnapshot,
+      report: (row.report ?? null) as RailwayRouteGeometryReport,
+      snapshot: (row.snapshot ??
+        null) as RailwayRouteGeometrySnapshotInfo | null,
+      dataset: row.dataset as RailwayRouteGeometryDataset,
+      fallbackDiagnostics: (row.fallbackDiagnostics ??
+        null) as RailwayRouteFallbackDiagnostics,
+      curveDiagnostics: (row.curveDiagnostics ??
+        null) as RailwayCurveDiagnostics,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
   }
 
   private async fetchStationsByIds(

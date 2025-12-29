@@ -111,16 +111,6 @@ watch(
           @click="goEditFacilities"
         />
       </UTooltip>
-
-      <UButton
-        size="sm"
-        class="absolute left-4 top-6 md:top-10"
-        variant="ghost"
-        icon="i-lucide-arrow-left"
-        @click="router.push({ name: 'transportation.railway' })"
-      >
-        返回概览
-      </UButton>
     </div>
     <div class="flex items-center justify-between gap-3">
       <div>

@@ -147,15 +147,6 @@ onMounted(async () => {
         </h1>
         <p class="text-sm text-slate-500">批量查看并绑定运营/建设单位</p>
       </div>
-      <UButton
-        size="sm"
-        class="absolute left-4 top-6 md:top-10"
-        variant="ghost"
-        icon="i-lucide-arrow-left"
-        @click="router.push({ name: 'transportation.railway' })"
-      >
-        返回概览
-      </UButton>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">

@@ -399,15 +399,6 @@ onBeforeUnmount(() => {
           按线路 / 方向组合成系统，可单独选择方向
         </p>
       </div>
-      <UButton
-        size="sm"
-        class="absolute left-4 top-6 md:top-10"
-        variant="ghost"
-        icon="i-lucide-arrow-left"
-        @click="router.push({ name: 'transportation.railway' })"
-      >
-        返回概览
-      </UButton>
     </div>
 
     <div class="space-y-6">
