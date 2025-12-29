@@ -197,7 +197,9 @@ onBeforeUnmount(() => {
             :tile-url="props.tileUrl"
           />
 
-          <div class="pointer-events-none absolute bottom-4 left-4 z-999">
+          <div
+            class="pointer-events-none absolute bottom-4 left-4 right-4 md:right-auto z-999"
+          >
             <div
               class="pointer-events-auto inline-flex items-center gap-5 rounded-lg backdrop-blur-2xl text-white bg-black/20 dark:bg-slate-900/10 shadow px-3 py-2"
               style="text-shadow: 0 0 5px rgba(0, 0, 0, 0.7)"

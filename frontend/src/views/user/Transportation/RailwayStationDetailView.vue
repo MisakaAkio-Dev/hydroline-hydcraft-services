@@ -623,7 +623,9 @@ onUnmounted(() => {
         height="460px"
       />
 
-      <div class="pointer-events-none absolute bottom-4 left-4 z-999">
+      <div
+        class="pointer-events-none absolute bottom-4 left-4 right-4 md:right-auto z-999"
+      >
         <div
           class="pointer-events-auto"
           style="text-shadow: 0 0 5px rgba(0, 0, 0, 0.7)"
