@@ -80,9 +80,19 @@ onMounted(() => {
 <template>
   <div class="w-fit mx-auto flex items-center gap-1 flex-col md:flex-row">
     <div
-      class="flex justify-center items-center gap-1 px-1 text-xs text-slate-600 dark:text-slate-300"
+      class="flex justify-center items-center text-xs text-slate-600 dark:text-slate-300"
     >
       <span>推荐用户</span>
+      <UButton
+        size="xs"
+        class="block md:hidden"
+        variant="link"
+        color="primary"
+        :disabled="!hasMultiplePages || loading"
+        @click="handleSwap"
+      >
+        换一批
+      </UButton>
     </div>
 
     <div class="flex flex-wrap" :class="props.wrapClass">
@@ -155,6 +165,7 @@ onMounted(() => {
 
     <UButton
       size="xs"
+      class="hidden md:block"
       variant="link"
       color="primary"
       :disabled="!hasMultiplePages || loading"
