@@ -28,6 +28,7 @@ const filters = reactive({
   railwayType: ALL_OPTION_VALUE,
   dimension: '',
   transportMode: '',
+  routeStatus: ALL_OPTION_VALUE,
   page: 1,
   pageSize: 20,
 })
@@ -62,6 +63,12 @@ const railwayTypeOptions = computed(() => {
   ]
 })
 
+const routeStatusOptions = [
+  { value: ALL_OPTION_VALUE, label: '全部状态' },
+  { value: 'normal', label: '正常线路' },
+  { value: 'abnormal', label: '异常线路' },
+]
+
 const items = computed<RailwayRoute[]>(() => response.value?.items ?? [])
 const pagination = computed(
   () =>
@@ -94,6 +101,10 @@ async function fetchList() {
           : filters.railwayType,
       dimension: filters.dimension || undefined,
       transportMode: filters.transportMode || undefined,
+      routeStatus:
+        filters.routeStatus === ALL_OPTION_VALUE
+          ? undefined
+          : (filters.routeStatus as 'normal' | 'abnormal'),
       page: filters.page,
       pageSize: filters.pageSize,
     })
@@ -140,6 +151,10 @@ function syncQuery() {
           : filters.railwayType,
       dimension: filters.dimension || undefined,
       transportMode: filters.transportMode || undefined,
+      routeStatus:
+        filters.routeStatus === ALL_OPTION_VALUE
+          ? undefined
+          : filters.routeStatus,
       page: String(filters.page),
       pageSize: String(filters.pageSize),
     },
@@ -156,6 +171,8 @@ function initFiltersFromQuery() {
   const dimension = typeof query.dimension === 'string' ? query.dimension : ''
   const transportMode =
     typeof query.transportMode === 'string' ? query.transportMode : ''
+  const routeStatus =
+    typeof query.routeStatus === 'string' ? query.routeStatus : ''
 
   const page =
     typeof query.page === 'string' ? Number.parseInt(query.page, 10) : 1
@@ -169,6 +186,7 @@ function initFiltersFromQuery() {
   filters.railwayType = railwayType || ALL_OPTION_VALUE
   filters.dimension = dimension
   filters.transportMode = transportMode
+  filters.routeStatus = routeStatus || ALL_OPTION_VALUE
   filters.page = Number.isFinite(page) && page > 0 ? page : 1
   filters.pageSize =
     Number.isFinite(pageSize) && pageSize > 0 ? pageSize : filters.pageSize
@@ -199,7 +217,12 @@ function openDetail(item: RailwayRoute) {
 }
 
 watch(
-  () => [filters.serverId, filters.railwayType, filters.pageSize],
+  () => [
+    filters.serverId,
+    filters.railwayType,
+    filters.routeStatus,
+    filters.pageSize,
+  ],
   () => {
     resetToFirstPageAndFetch()
   },
@@ -232,7 +255,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <section class="grid gap-3 rounded-2xl py-4 md:grid-cols-5">
+    <section class="grid gap-3 rounded-2xl py-4 md:grid-cols-6">
       <label class="flex flex-col gap-1 text-sm">
         <span class="text-xs text-slate-500">关键词</span>
         <UInput v-model="filters.search" placeholder="线路名 / ID / 模式" />
@@ -265,6 +288,15 @@ onMounted(async () => {
       <label class="flex flex-col gap-1 text-sm">
         <span class="text-xs text-slate-500">运输模式</span>
         <UInput v-model="filters.transportMode" placeholder="例如 TRAIN" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="text-xs text-slate-500">线路状态</span>
+        <USelectMenu
+          v-model="filters.routeStatus"
+          :items="routeStatusOptions"
+          value-key="value"
+          label-key="label"
+        />
       </label>
     </section>
 

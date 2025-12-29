@@ -192,7 +192,7 @@ function latencyLabel(item: PublicServerStatusItem) {
 
 function mcsmStatusLabel(item: PublicServerStatusItem) {
   if (isServerFrozen(item)) {
-    return '服卡死了'
+    return '服卡死或重启了'
   }
   const status = item.mcsm?.status
   switch (status) {
@@ -263,7 +263,7 @@ function serverClockDisplay(item: PublicServerStatusItem) {
 
 function displayHeaderLabel(item: PublicServerStatusItem) {
   if (isServerFrozen(item)) {
-    return '服卡死了'
+    return '服卡死或重启了'
   }
   if (displayMode.value === 1) {
     if (item.beacon?.clock?.worldMinutes != null) {
@@ -443,7 +443,9 @@ function serverOnlinePercent(item: PublicServerStatusItem) {
                     ]"
                   />
                   <span>
-                    <template v-if="isServerFrozen(item)"> 服卡死了 </template>
+                    <template v-if="isServerFrozen(item)"
+                      >服卡死或重启了</template
+                    >
                     <template v-else>
                       {{ latencyLabel(item) }} · {{ onlineLabel(item) }} ·
                       {{ mcsmStatusLabel(item) }}

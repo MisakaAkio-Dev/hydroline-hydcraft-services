@@ -8,6 +8,7 @@ import RailwayMapFullscreenOverlay from '@/views/user/Transportation/railway/com
 import RailwayRouteBasicInfoPanel from '@/views/user/Transportation/railway/components/RailwayRouteBasicInfoPanel.vue'
 import RailwayRouteDataStatusPanel from '@/views/user/Transportation/railway/components/RailwayRouteDataStatusPanel.vue'
 import RailwayRouteGeometryDialog from '@/views/user/Transportation/railway/components/RailwayRouteGeometryDialog.vue'
+import RailwayRouteFallbackPopover from '@/views/user/Transportation/railway/components/RailwayRouteFallbackPopover.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useAuthStore } from '@/stores/user/auth'
 import { apiFetch } from '@/utils/http/api'
@@ -214,70 +215,6 @@ const orderedStops = computed(() => {
 const fallbackGeometryCalculate = computed(
   () => activeDetail.value?.routeGeometryCalculate ?? null,
 )
-const fallbackSnapshot = computed(
-  () => fallbackGeometryCalculate.value?.snapshot ?? null,
-)
-const fallbackReasons = computed(
-  () => fallbackGeometryCalculate.value?.fallbackDiagnostics?.reasons ?? [],
-)
-const fallbackSegments = computed(
-  () =>
-    fallbackGeometryCalculate.value?.fallbackDiagnostics
-      ?.disconnectedSegments ?? [],
-)
-const fallbackRawJson = computed(() => {
-  const entry = fallbackGeometryCalculate.value
-  if (!entry) return ''
-  return JSON.stringify(entry, null, 2)
-})
-const fallbackIssueActive = computed(() => {
-  if (!fallbackGeometryCalculate.value) return false
-  if (fallbackGeometryCalculate.value.status !== 'READY') return true
-  return Boolean(fallbackReasons.value.length)
-})
-const fallbackTooltipText = computed(() => {
-  if (!fallbackGeometryCalculate.value) return '线路路径已经正常生成'
-  if (!fallbackReasons.value.length) return '线路使用 fallback 记录'
-  return fallbackReasons.value
-    .map((item) => formatFallbackReason(item))
-    .join('、')
-})
-const fallbackRows = computed(() => {
-  const entry = fallbackGeometryCalculate.value
-  if (!entry) return []
-  const dataset = entry.dataset ?? null
-  return [
-    { label: '状态', value: entry.status },
-    { label: '错误信息', value: entry.errorMessage || '—' },
-    { label: '路径来源', value: entry.pathSource },
-    {
-      label: '是否写入快照',
-      value: entry.persistedSnapshot ? '是' : '否',
-    },
-    { label: '报告: 点数量', value: entry.report.pointCount },
-    { label: '报告: 节点数量', value: entry.report.pathNodeCount },
-    { label: '报告: 片段数量', value: entry.report.pathEdgeCount },
-    { label: '数据集: 线路', value: dataset ? dataset.routeCount : '—' },
-    { label: '数据集: 站台', value: dataset ? dataset.platformCount : '—' },
-    { label: '数据集: 站点', value: dataset ? dataset.stationCount : '—' },
-    { label: '数据集: 轨道', value: dataset ? dataset.railCount : '—' },
-    { label: '快照: 状态', value: fallbackSnapshot.value?.status || '—' },
-    {
-      label: '快照: 生成时间',
-      value: fallbackSnapshot.value?.generatedAt
-        ? dayjs(fallbackSnapshot.value?.generatedAt).format(
-            'YYYY-MM-DD HH:mm:ss',
-          )
-        : '—',
-    },
-    {
-      label: '最后同步',
-      value: entry.createdAt
-        ? dayjs(entry.createdAt).format('YYYY-MM-DD HH:mm:ss')
-        : '—',
-    },
-  ]
-})
 
 watch(
   () => routeTitleName.value,
@@ -856,27 +793,6 @@ function goPlayerProfile(playerName: string | null | undefined) {
   })
 }
 
-function formatFallbackReason(value: string) {
-  switch (value) {
-    case 'graph_empty':
-      return '轨道图为空或未构建'
-    case 'platform_nodes_missing':
-      return '站台节点缺失（缺 pos）'
-    case 'platform_nodes_not_snapped':
-      return '站台节点未吸附到轨道图'
-    case 'path_not_found':
-      return '路径无法连通'
-    case 'route_platforms_disconnected':
-      return '线路连接跨多个连通分量'
-    default:
-      return value
-  }
-}
-
-function formatSegmentPosition(value: { x: number; y: number; z: number }) {
-  return `(${value.x}, ${value.y}, ${value.z})`
-}
-
 const updateFallbackPopoverMode = () => {
   if (typeof window === 'undefined') return
   const isTouchOnly = window.matchMedia(
@@ -948,98 +864,10 @@ onBeforeUnmount(() => {
           <span>铁路线路详情</span>
 
           <div class="flex items-center gap-1">
-            <UPopover
-              v-if="fallbackIssueActive"
-              :mode="fallbackPopoverMode"
-              :popper="{ placement: 'bottom-start' }"
-              :portal="false"
-              :ui="{ content: 'z-[1000]' }"
-            >
-              <span
-                class="inline-flex items-center gap-1 rounded-full border border-rose-200/80 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-600 dark:border-rose-500/50 dark:bg-rose-900/30 dark:text-rose-200 cursor-pointer hover:bg-rose-100 dark:hover:bg-rose-900/50 select-none transition"
-              >
-                <UIcon name="i-lucide-alert-triangle" class="h-3.5 w-3.5" />
-                线路路径异常
-              </span>
-
-              <template #content>
-                <div
-                  class="w-96 max-w-[90vw] space-y-3 p-4 text-xs text-slate-700"
-                >
-                  <div class="space-y-1">
-                    <p
-                      class="text-base font-semibold text-slate-900 dark:text-white"
-                    >
-                      Fallback 详细信息
-                    </p>
-                    <p class="text-xs text-slate-500">
-                      {{ fallbackTooltipText }}
-                    </p>
-                  </div>
-                  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <div
-                      v-for="row in fallbackRows"
-                      :key="row.label"
-                      class="rounded-lg border border-slate-100/80 bg-slate-50/70 px-3 py-2 text-[11px] font-semibold text-slate-600 dark:border-slate-800/80 dark:bg-slate-900/40 dark:text-slate-200"
-                    >
-                      <p class="text-[10px] font-semibold text-slate-500">
-                        {{ row.label }}
-                      </p>
-                      <p
-                        class="mt-1 text-sm font-medium text-slate-900 dark:text-white"
-                      >
-                        {{ row.value }}
-                      </p>
-                    </div>
-                  </div>
-                  <div v-if="fallbackReasons.length" class="space-y-1">
-                    <p class="text-[11px] font-semibold text-slate-500">
-                      诊断原因
-                    </p>
-                    <div class="flex flex-wrap gap-2">
-                      <span
-                        v-for="reason in fallbackReasons"
-                        :key="reason"
-                        class="inline-flex items-center rounded-full border border-rose-200/80 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-600 dark:border-rose-500/50 dark:bg-rose-900/40 dark:text-rose-200"
-                      >
-                        {{ formatFallbackReason(reason) }}
-                      </span>
-                    </div>
-                  </div>
-                  <div v-if="fallbackSegments.length" class="space-y-1">
-                    <p class="text-[11px] font-semibold text-slate-500">
-                      断开段（{{ fallbackSegments.length }}）
-                    </p>
-                    <ul
-                      class="max-h-40 space-y-1 overflow-auto rounded-lg border border-slate-100/80 bg-slate-50/70 px-2 py-1 text-[11px] text-slate-600 dark:border-slate-800/80 dark:bg-slate-900/40 dark:text-slate-200"
-                    >
-                      <li
-                        v-for="segment in fallbackSegments"
-                        :key="`${segment.fromNodeId}-${segment.toNodeId}`"
-                        class="whitespace-nowrap"
-                      >
-                        C{{ segment.fromComponent }} → C{{
-                          segment.toComponent
-                        }}
-                        · {{ formatSegmentPosition(segment.from) }} →
-                        {{ formatSegmentPosition(segment.to) }} ·
-                        {{ segment.distance }}m
-                      </li>
-                    </ul>
-                  </div>
-                  <div v-if="fallbackRawJson" class="space-y-1">
-                    <p class="text-[11px] font-semibold text-slate-500">
-                      原始数据
-                    </p>
-                    <pre
-                      class="max-h-52 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded-lg border border-slate-100/80 bg-slate-50/70 p-2 text-[11px] text-slate-700 dark:border-slate-800/80 dark:bg-slate-900/40 dark:text-slate-200"
-                    >
-                      <code>{{ fallbackRawJson }}</code>
-                    </pre>
-                  </div>
-                </div>
-              </template>
-            </UPopover>
+            <RailwayRouteFallbackPopover
+              :calculate="fallbackGeometryCalculate"
+              :popover-mode="fallbackPopoverMode"
+            />
 
             <UTooltip text="重新生成线路几何数据">
               <UButton

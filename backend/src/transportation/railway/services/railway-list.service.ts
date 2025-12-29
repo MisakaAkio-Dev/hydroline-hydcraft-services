@@ -159,6 +159,7 @@ export class TransportationRailwayListService {
     dimension?: string | null;
     transportMode?: string | null;
     search?: string | null;
+    routeStatus?: 'normal' | 'abnormal' | null;
     page?: number;
     pageSize?: number;
   }): Promise<RailwayListResponse<NormalizedRoute>> {
@@ -212,6 +213,49 @@ export class TransportationRailwayListService {
         updatedAt: true,
       },
     });
+
+    const routeStatus = params.routeStatus ?? null;
+    let calculateKeySet: Set<string> | null = null;
+    if (routeStatus && rows.length) {
+      const routeIds = Array.from(
+        new Set(rows.map((row) => row.entityId).filter(Boolean)),
+      );
+      if (routeIds.length) {
+        const dimensionContext = params.dimension
+          ? buildDimensionContextFromDimension(
+              params.dimension,
+              params.railwayType ?? TransportationRailwayMod.MTR,
+            )
+          : null;
+        const calculateRows =
+          await this.prisma.transportationRailwayRouteCalculate.findMany({
+            where: {
+              ...(params.serverId ? { serverId: params.serverId } : {}),
+              ...(params.railwayType ? { railwayMod: params.railwayType } : {}),
+              ...(dimensionContext ? { dimensionContext } : {}),
+              routeEntityId: { in: routeIds },
+            },
+            select: {
+              serverId: true,
+              railwayMod: true,
+              dimensionContext: true,
+              routeEntityId: true,
+            },
+          });
+        calculateKeySet = new Set(
+          calculateRows.map((row) =>
+            [
+              row.serverId,
+              row.railwayMod,
+              row.dimensionContext ?? '',
+              row.routeEntityId,
+            ].join('::'),
+          ),
+        );
+      } else {
+        calculateKeySet = new Set();
+      }
+    }
 
     const serverNameMap = await this.resolveServerNameMap(
       Array.from(new Set(rows.map((row) => row.serverId))),
@@ -294,9 +338,25 @@ export class TransportationRailwayListService {
         0,
     );
 
-    const total = mergedGroups.length;
+    const filteredGroups =
+      routeStatus && calculateKeySet
+        ? mergedGroups.filter((group) => {
+            const hasAbnormal = group.routes.some((route) => {
+              const key = [
+                route.server.id,
+                route.railwayType,
+                route.dimensionContext ?? '',
+                route.id,
+              ].join('::');
+              return calculateKeySet?.has(key) ?? false;
+            });
+            return routeStatus === 'abnormal' ? hasAbnormal : !hasAbnormal;
+          })
+        : mergedGroups;
+
+    const total = filteredGroups.length;
     const start = (page - 1) * pageSize;
-    const pageGroups = mergedGroups.slice(start, start + pageSize);
+    const pageGroups = filteredGroups.slice(start, start + pageSize);
 
     if (pageGroups.length) {
       const previewGroups = pageGroups.filter(

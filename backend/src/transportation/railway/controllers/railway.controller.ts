@@ -48,6 +48,7 @@ export class TransportationRailwayController {
       dimension: query.dimension ?? null,
       transportMode: query.transportMode ?? null,
       search: query.search ?? null,
+      routeStatus: query.routeStatus ?? null,
       page: query.page,
       pageSize: query.pageSize,
     });

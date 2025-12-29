@@ -92,6 +92,11 @@ export class RailwayEntityListQueryDto {
   railwayType?: TransportationRailwayMod;
 
   @IsOptional()
+  @IsString()
+  @IsIn(['normal', 'abnormal'])
+  routeStatus?: 'normal' | 'abnormal';
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   page?: number;

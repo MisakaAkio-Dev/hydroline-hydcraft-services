@@ -309,6 +309,7 @@ export const useTransportationRailwayStore = defineStore(
         railwayType?: string
         dimension?: string
         transportMode?: string
+        routeStatus?: 'normal' | 'abnormal'
         page?: number
         pageSize?: number
       }) {
@@ -319,6 +320,7 @@ export const useTransportationRailwayStore = defineStore(
         if (params.dimension) query.set('dimension', params.dimension)
         if (params.transportMode)
           query.set('transportMode', params.transportMode)
+        if (params.routeStatus) query.set('routeStatus', params.routeStatus)
         if (params.page) query.set('page', String(params.page))
         if (params.pageSize) query.set('pageSize', String(params.pageSize))
         return await apiFetch<RailwayRouteListResponse>(
