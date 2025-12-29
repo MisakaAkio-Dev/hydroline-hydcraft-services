@@ -8,6 +8,7 @@ import type {
   PlayerGameStatsResponse,
   PlayerLikeSummary,
   PlayerMessageBoardEntry,
+  PlayerMessagePageResponse,
   PlayerMessageReactionType,
   PlayerMinecraftResponse,
   PlayerPortalProfileResponse,
@@ -39,6 +40,14 @@ export const usePlayerPortalStore = defineStore('player-portal', {
     authmeProfile: null as PlayerAuthmeProfileResponse | null,
     targetAuthmeUsername: null as string | null,
     messages: [] as PlayerMessageBoardEntry[],
+    messagePageItems: [] as PlayerMessageBoardEntry[],
+    messagePagination: {
+      total: 0,
+      page: 1,
+      pageSize: 10,
+      pageCount: 1,
+    },
+    messagePageLoading: false,
     logged: null as boolean | null,
     loading: false,
     submitting: false,
@@ -80,6 +89,14 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         this.statusSnapshot = response.statusSnapshot
         this.biography = response.biography
         this.messages = response.messages ?? []
+        this.messagePageItems = []
+        this.messagePagination = {
+          total: 0,
+          page: 1,
+          pageSize: 10,
+          pageCount: 1,
+        }
+        this.messagePageLoading = false
         this.viewerId = response.viewerId
         this.targetUserId = response.targetId
         this.authmeProfile = null
@@ -109,6 +126,14 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         this.likes = null
         this.biography = null
         this.messages = []
+        this.messagePageItems = []
+        this.messagePagination = {
+          total: 0,
+          page: 1,
+          pageSize: 10,
+          pageCount: 1,
+        }
+        this.messagePageLoading = false
         this.viewerId = null
         this.targetUserId = null
         this.targetAuthmeUsername = username
@@ -383,6 +408,44 @@ export const usePlayerPortalStore = defineStore('player-portal', {
       )
       return this.messages
     },
+    async fetchMessagePage(
+      options: { id?: string; page?: number; pageSize?: number } = {},
+    ) {
+      const effectiveId = options.id ?? this.targetUserId
+      if (!effectiveId) {
+        this.messagePageItems = []
+        this.messagePagination = {
+          total: 0,
+          page: 1,
+          pageSize: options.pageSize ?? 10,
+          pageCount: 1,
+        }
+        this.messagePageLoading = false
+        return {
+          items: this.messagePageItems,
+          pagination: this.messagePagination,
+        }
+      }
+      const page = Math.max(1, Math.trunc(options.page ?? 1))
+      const pageSize = Math.max(1, Math.trunc(options.pageSize ?? 10))
+      const params = new URLSearchParams({
+        id: effectiveId,
+        page: String(page),
+        pageSize: String(pageSize),
+      })
+      this.messagePageLoading = true
+      try {
+        const response = await apiFetch<PlayerMessagePageResponse>(
+          `/player/messages/paged?${params.toString()}`,
+          { token: this.authToken() ?? undefined },
+        )
+        this.messagePageItems = response.items ?? []
+        this.messagePagination = response.pagination
+        return response
+      } finally {
+        this.messagePageLoading = false
+      }
+    },
     async postMessage(content: string, options: { id?: string } = {}) {
       const params = new URLSearchParams()
       if (options.id) params.set('id', options.id)
@@ -396,6 +459,11 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         },
       )
       await this.fetchMessages({ id: options.id })
+      await this.fetchMessagePage({
+        id: options.id,
+        page: this.messagePagination.page,
+        pageSize: this.messagePagination.pageSize,
+      })
       return response
     },
     async deleteMessage(messageId: string, options: { id?: string } = {}) {
@@ -404,6 +472,11 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         token: this.authToken() ?? undefined,
       })
       await this.fetchMessages({ id: options.id })
+      await this.fetchMessagePage({
+        id: options.id,
+        page: this.messagePagination.page,
+        pageSize: this.messagePagination.pageSize,
+      })
     },
     async setMessageReaction(
       messageId: string,
@@ -416,6 +489,11 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         token: this.authToken() ?? undefined,
       })
       await this.fetchMessages({ id: options.id })
+      await this.fetchMessagePage({
+        id: options.id,
+        page: this.messagePagination.page,
+        pageSize: this.messagePagination.pageSize,
+      })
     },
     async clearMessageReaction(
       messageId: string,
@@ -426,6 +504,11 @@ export const usePlayerPortalStore = defineStore('player-portal', {
         token: this.authToken() ?? undefined,
       })
       await this.fetchMessages({ id: options.id })
+      await this.fetchMessagePage({
+        id: options.id,
+        page: this.messagePagination.page,
+        pageSize: this.messagePagination.pageSize,
+      })
     },
     async updateBiography(payload: { markdown: string; id?: string }) {
       const params = new URLSearchParams()
@@ -456,6 +539,14 @@ export const usePlayerPortalStore = defineStore('player-portal', {
       this.logged = null
       this.biography = null
       this.messages = []
+      this.messagePageItems = []
+      this.messagePagination = {
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        pageCount: 1,
+      }
+      this.messagePageLoading = false
       this.rankContext = null
       this.leaderboard = null
       this.lifecycleEvents = []

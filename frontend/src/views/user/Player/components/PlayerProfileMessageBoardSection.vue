@@ -29,12 +29,12 @@ const sortedMessages = computed(() => {
     class="relative w-full h-9 overflow-hidden"
   >
     <div
-      class="absolute flex gap-2 overflow-x-auto scrollbar-hide mask-[linear-gradient(to_right,#fff_0%_60%,transparent_80%_90%)]"
+      class="w-full absolute flex gap-2 overflow-x-auto scrollbar-hide mask-[linear-gradient(to_right,#fff_0%_70%,transparent_90%_100%)] md:mask-[linear-gradient(to_right,#fff_0%_80%,transparent_97%_100%)]"
     >
       <div
         v-for="message in sortedMessages"
         :key="message.id"
-        class="shrink-0 cursor-pointer rounded-lg border border-primary-500 bg-primary-200/30 px-3 py-2 hover:shadow-md transition-shadow"
+        class="shrink-0 cursor-pointer rounded-lg border border-slate-300/70 bg-primary-100 px-3 py-2 hover:shadow-md transition-shadow"
         @click="emit('badgeClick', message)"
       >
         <div class="flex items-center gap-3 text-xs">

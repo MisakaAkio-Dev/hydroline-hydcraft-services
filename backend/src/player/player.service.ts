@@ -44,6 +44,8 @@ const PLAYER_STATS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const PLAYER_STATS_CACHE_VERSION = 'v2';
 const PLAYER_PROFILE_CACHE_TTL_MS = 30 * 1000;
 const PLAYER_PROFILE_CACHE_VERSION = 'v1';
+const PLAYER_MESSAGE_PAGE_SIZE_DEFAULT = 10;
+const PLAYER_MESSAGE_PAGE_SIZE_MAX = 50;
 const PLAYER_DATA_CACHE_TTL_MS = 30 * 60 * 1000;
 const PLAYER_GAME_METRIC_KEYS = {
   walkOneCm: 'minecraft:custom:minecraft:walk_one_cm',
@@ -1190,6 +1192,58 @@ export class PlayerService {
     return entries.map((entry) =>
       buildMessageEntry(entry, viewerId, viewerIsAdmin, targetUserId),
     );
+  }
+
+  async getPlayerMessagesPaged(
+    targetUserId: string,
+    viewer: PlayerSessionUser | null,
+    options: { page?: number; pageSize?: number } = {},
+  ): Promise<{
+    pagination: ReturnType<typeof buildPagination>;
+    items: PlayerMessageBoardEntry[];
+  }> {
+    const rawPage = Number.isFinite(options.page) ? options.page! : 1;
+    const rawPageSize = Number.isFinite(options.pageSize)
+      ? options.pageSize!
+      : PLAYER_MESSAGE_PAGE_SIZE_DEFAULT;
+    const page = Math.max(1, Math.trunc(rawPage));
+    const pageSize = Math.max(
+      1,
+      Math.min(Math.trunc(rawPageSize), PLAYER_MESSAGE_PAGE_SIZE_MAX),
+    );
+    const where = { targetUserId };
+    const total = await this.prisma.playerMessage.count({ where });
+    const pagination = buildPagination(total, page, pageSize);
+    const entries = await this.prisma.playerMessage.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (pagination.page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profile: { select: { displayName: true } },
+          },
+        },
+        reactions: {
+          select: {
+            userId: true,
+            reaction: true,
+          },
+        },
+      },
+    });
+    const viewerId = viewer?.id ?? null;
+    const viewerIsAdmin = hasAdminRole(viewer);
+    return {
+      pagination,
+      items: entries.map((entry) =>
+        buildMessageEntry(entry, viewerId, viewerIsAdmin, targetUserId),
+      ),
+    };
   }
 
   async createPlayerMessage(

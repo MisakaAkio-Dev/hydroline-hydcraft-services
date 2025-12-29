@@ -140,7 +140,8 @@ const regAgo = computed(() => {
 
 const lastLoginAgo = computed(() => {
   if (!props.binding?.lastlogin) return null
-  return `${dayjs().diff(dayjs(props.binding.lastlogin), 'day')} 天前登录` as const
+  const days = dayjs().diff(dayjs(props.binding.lastlogin), 'day')
+  return (days <= 0 ? '今天登录过' : `${days} 天前登录`) as const
 })
 
 const formattedRegDate = computed(() => {

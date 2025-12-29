@@ -300,6 +300,25 @@ export class PlayerController {
     return this.playerService.getPlayerMessages(targetId, viewer);
   }
 
+  @Get('messages/paged')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: '获取玩家留言板（分页）' })
+  async playerMessagesPaged(
+    @Req() req: Request,
+    @Query('id') id?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const targetId = this.resolveTargetUserId(req, id);
+    const viewer = (req.user as PlayerSessionUser) ?? null;
+    const parsedPage = page ? Number(page) : undefined;
+    const parsedPageSize = pageSize ? Number(pageSize) : undefined;
+    return this.playerService.getPlayerMessagesPaged(targetId, viewer, {
+      page: Number.isFinite(parsedPage) ? parsedPage : undefined,
+      pageSize: Number.isFinite(parsedPageSize) ? parsedPageSize : undefined,
+    });
+  }
+
   @Post('messages')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()

@@ -166,20 +166,8 @@ const panelMaxHeight = (ready: boolean, collapsedHeight = 180) =>
               所有留言
             </UButton>
 
-            <UTooltip
-              v-if="!isViewerLogged"
-              text="登录后可留言,与他/她分享想法"
-            >
-              <span>
-                <UButton size="xs" variant="soft" :disabled="!isViewerLogged">
-                  <UIcon name="i-lucide-plus" class="h-3 w-3" />
-                  留言
-                </UButton>
-              </span>
-            </UTooltip>
-
             <UButton
-              v-else
+              v-if="isViewerLogged"
               size="xs"
               variant="soft"
               color="primary"
@@ -284,7 +272,9 @@ const panelMaxHeight = (ready: boolean, collapsedHeight = 180) =>
 
     <PlayerAllMessagesDialog
       :open="allMessagesDialogOpen"
-      :messages="playerPortalStore.messages"
+      :messages="playerPortalStore.messagePageItems"
+      :pagination="playerPortalStore.messagePagination"
+      :loading="playerPortalStore.messagePageLoading"
       :is-viewer-logged="isViewerLogged"
       :target-user-id="playerPortalStore.targetUserId"
       :viewer-id="playerPortalStore.viewerId"

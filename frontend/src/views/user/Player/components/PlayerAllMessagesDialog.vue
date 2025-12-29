@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { Motion } from 'motion-v'
 import { usePlayerPortalStore } from '@/stores/user/playerPortal'
@@ -7,11 +7,14 @@ import { translateAuthErrorMessage } from '@/utils/errors/auth-errors'
 import type {
   PlayerMessageBoardEntry,
   PlayerMessageReactionType,
+  PlayerMessagePagination,
 } from '@/types/portal'
 
 const props = defineProps<{
   open: boolean
   messages: PlayerMessageBoardEntry[]
+  pagination: PlayerMessagePagination
+  loading: boolean
   isViewerLogged: boolean
   targetUserId: string | null
   viewerId: string | null
@@ -36,6 +39,18 @@ const reactionProcessing = ref<Record<string, boolean>>({})
 const targetOptions = computed(() => ({
   id: props.targetUserId ?? undefined,
 }))
+
+watch(
+  () => props.open,
+  (value) => {
+    if (!value) return
+    void playerPortalStore.fetchMessagePage({
+      id: props.targetUserId ?? undefined,
+      page: 1,
+      pageSize: props.pagination.pageSize || 10,
+    })
+  },
+)
 
 async function handleDeleteMessage(messageId: string) {
   deleting.value[messageId] = true
@@ -82,6 +97,15 @@ async function toggleReaction(
     reactionProcessing.value[entry.id] = false
   }
 }
+
+function handlePageChange(page: number) {
+  if (props.loading) return
+  void playerPortalStore.fetchMessagePage({
+    id: props.targetUserId ?? undefined,
+    page,
+    pageSize: props.pagination.pageSize || 10,
+  })
+}
 </script>
 
 <template>
@@ -107,7 +131,18 @@ async function toggleReaction(
         </div>
 
         <div
-          v-if="!props.messages.length"
+          v-if="props.loading"
+          class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-xs text-slate-500 dark:text-slate-400 text-center"
+        >
+          <UIcon
+            name="i-lucide-loader-2"
+            class="mx-auto mb-2 h-4 w-4 animate-spin"
+          />
+          加载中...
+        </div>
+
+        <div
+          v-else-if="!props.messages.length"
           class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-4 text-xs text-slate-500 dark:text-slate-400 text-center"
         >
           暂无留言，快来留下第一条评价吧。
@@ -176,6 +211,23 @@ async function toggleReaction(
               v-html="markdown.render(entry.content)"
             />
           </Motion>
+        </div>
+
+        <div
+          v-if="props.pagination.pageCount > 1"
+          class="flex flex-col items-center gap-2 pt-2 text-xs text-slate-500 dark:text-slate-400"
+        >
+          <span>
+            第 {{ props.pagination.page }} / {{ props.pagination.pageCount }} 页
+            · 共 {{ props.pagination.total }} 条
+          </span>
+          <UPagination
+            :page="props.pagination.page"
+            :items-per-page="props.pagination.pageSize"
+            :total="props.pagination.total"
+            :disabled="props.loading"
+            @update:page="handlePageChange"
+          />
         </div>
       </div>
     </template>

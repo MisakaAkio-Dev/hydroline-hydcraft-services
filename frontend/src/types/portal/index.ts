@@ -245,6 +245,18 @@ export interface PlayerMessageBoardEntry {
   viewerCanDelete: boolean
 }
 
+export interface PlayerMessagePagination {
+  total: number
+  page: number
+  pageSize: number
+  pageCount: number
+}
+
+export interface PlayerMessagePageResponse {
+  pagination: PlayerMessagePagination
+  items: PlayerMessageBoardEntry[]
+}
+
 export interface PlayerGameStatsResponse {
   identity: { uuid: string | null; name: string | null }
   identityMissing: boolean
