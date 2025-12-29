@@ -113,6 +113,22 @@ const snapshotWarningText = computed(() => {
   return '快照未写入，预览/地图可能只显示部分路径或不完整。'
 })
 
+const snapshotPersistReasonMap: Record<string, string> = {
+  fingerprint_mismatch:
+    '数据指纹不一致：同步时刻不同或数据变动，导致 fingerprint 变了，快照还是旧的。',
+  snapshot_not_ready: '该线路快照没成功更新：快照状态不是 READY，仍是旧快照。',
+  snapshot_missing:
+    '快照记录不存在：未写入快照表，可能未命中本次 scope 或被跳过。',
+  snapshot_not_persisted:
+    '快照未写入：fallback 记录写入了 calculate 表，但快照表仍旧的或未更新。',
+}
+
+const snapshotPersistReasonText = computed(() => {
+  const reason = calculate.value?.persistReason ?? null
+  if (!reason) return null
+  return snapshotPersistReasonMap[reason] ?? reason
+})
+
 const fallbackRows = computed(() => {
   const entry = calculate.value
   if (!entry) return []
@@ -289,6 +305,17 @@ function formatSegmentPosition(value: { x: number; y: number; z: number }) {
             class="rounded-lg border border-amber-200/80 bg-amber-50 px-2 py-1 text-[11px] text-amber-700 dark:border-amber-500/50 dark:bg-amber-900/40 dark:text-amber-200"
           >
             {{ snapshotWarningText }}
+          </div>
+        </div>
+        <div
+          v-if="snapshotWarningText && snapshotPersistReasonText"
+          class="space-y-1"
+        >
+          <p class="text-[11px] font-semibold text-slate-500">未持久化原因</p>
+          <div
+            class="rounded-lg border border-amber-200/80 bg-amber-50 px-2 py-1 text-[11px] text-amber-700 dark:border-amber-500/50 dark:bg-amber-900/40 dark:text-amber-200"
+          >
+            {{ snapshotPersistReasonText }}
           </div>
         </div>
         <div v-if="fallbackSegments.length" class="space-y-1">

@@ -198,6 +198,7 @@ export interface RailwayRouteGeometryCalculate {
   sourceFingerprint: string
   pathSource: string
   persistedSnapshot: boolean
+  persistReason: string | null
   report: RailwayRouteGeometryReport
   snapshot: RailwayRouteGeometrySnapshotInfo | null
   dataset: RailwayRouteGeometryDataset

@@ -1528,6 +1528,24 @@ export class TransportationRailwayRouteDetailService {
     if (!row) {
       return null;
     }
+    const snapshot = (row.snapshot ??
+      null) as RailwayRouteGeometrySnapshotInfo | null;
+    const persistedSnapshot = row.persistedSnapshot;
+    let persistReason: string | null = null;
+    if (!persistedSnapshot) {
+      if (!snapshot) {
+        persistReason = 'snapshot_missing';
+      } else if (snapshot.status && snapshot.status !== 'READY') {
+        persistReason = 'snapshot_not_ready';
+      } else if (
+        snapshot.sourceFingerprint &&
+        snapshot.sourceFingerprint !== row.sourceFingerprint
+      ) {
+        persistReason = 'fingerprint_mismatch';
+      } else {
+        persistReason = 'snapshot_not_persisted';
+      }
+    }
     return {
       serverId: row.serverId,
       railwayMod: row.railwayMod,
@@ -1538,10 +1556,10 @@ export class TransportationRailwayRouteDetailService {
       errorMessage: row.errorMessage ?? null,
       sourceFingerprint: row.sourceFingerprint,
       pathSource: row.pathSource,
-      persistedSnapshot: row.persistedSnapshot,
+      persistedSnapshot,
+      persistReason,
       report: (row.report ?? null) as RailwayRouteGeometryReport,
-      snapshot: (row.snapshot ??
-        null) as RailwayRouteGeometrySnapshotInfo | null,
+      snapshot,
       dataset: row.dataset as RailwayRouteGeometryDataset,
       fallbackDiagnostics: (row.fallbackDiagnostics ??
         null) as RailwayRouteFallbackDiagnostics,

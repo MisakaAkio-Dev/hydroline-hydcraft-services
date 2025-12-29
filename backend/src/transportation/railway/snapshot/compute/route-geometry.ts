@@ -249,7 +249,6 @@ export async function computeRouteGeometrySnapshots(
     let points: Array<{ x: number; z: number }> = [];
     let pathNodes3d: any[] | null = null;
     let pathEdges: RailGeometrySegment[] | null = null;
-    let skipPersist = false;
     if (input.graph) {
       const fromGraph = buildGeometryFromGraph(input.graph, routePlatforms);
       if (fromGraph) {
@@ -291,7 +290,6 @@ export async function computeRouteGeometrySnapshots(
         points = preserved.points;
         pathNodes3d = preserved.pathNodes3d;
         pathEdges = preserved.pathEdges;
-        skipPersist = true;
       }
     }
 
@@ -313,10 +311,6 @@ export async function computeRouteGeometrySnapshots(
       pathEdges,
     };
     routeGeometryById.set(routeId, value);
-
-    if (skipPersist) {
-      return;
-    }
 
     await prisma.transportationRailwayRouteGeometrySnapshot.upsert({
       where: {
@@ -497,7 +491,6 @@ export async function computeRouteGeometrySnapshotForRoute(
     let points: Array<{ x: number; z: number }> = [];
     let pathNodes3d: any[] | null = null;
     let pathEdges: RailGeometrySegment[] | null = null;
-    let skipPersist = false;
     let source: RouteGeometrySnapshotReport['source'] = null;
 
     if (input.graph) {
@@ -525,7 +518,6 @@ export async function computeRouteGeometrySnapshotForRoute(
         points = preserved.points;
         pathNodes3d = preserved.pathNodes3d;
         pathEdges = preserved.pathEdges;
-        skipPersist = true;
         source = 'preserved';
       }
     }
@@ -540,52 +532,48 @@ export async function computeRouteGeometrySnapshotForRoute(
       stationMap,
     });
 
-    if (!skipPersist) {
-      await prisma.transportationRailwayRouteGeometrySnapshot.upsert({
-        where: {
-          serverId_railwayMod_dimensionContext_routeEntityId: {
-            serverId: input.scope.serverId,
-            railwayMod: input.scope.railwayMod,
-            dimensionContext: input.scope.dimensionContext,
-            routeEntityId: routeId,
-          },
-        },
-        update: {
-          sourceFingerprint: input.fingerprint,
-          status: 'READY',
-          errorMessage: null,
-          geometry2d: { paths: paths2d } as Prisma.InputJsonValue,
-          bounds: bounds as unknown as Prisma.InputJsonValue,
-          stops: stops as unknown as Prisma.InputJsonValue,
-          pathNodes3d: (pathNodes3d ??
-            null) as unknown as Prisma.InputJsonValue,
-          pathEdges: (pathEdges ?? null) as unknown as Prisma.InputJsonValue,
-          generatedAt: new Date(),
-        },
-        create: {
-          id: randomUUID(),
+    await prisma.transportationRailwayRouteGeometrySnapshot.upsert({
+      where: {
+        serverId_railwayMod_dimensionContext_routeEntityId: {
           serverId: input.scope.serverId,
           railwayMod: input.scope.railwayMod,
           dimensionContext: input.scope.dimensionContext,
           routeEntityId: routeId,
-          sourceFingerprint: input.fingerprint,
-          status: 'READY',
-          geometry2d: { paths: paths2d } as Prisma.InputJsonValue,
-          bounds: bounds as unknown as Prisma.InputJsonValue,
-          stops: stops as unknown as Prisma.InputJsonValue,
-          pathNodes3d: (pathNodes3d ??
-            null) as unknown as Prisma.InputJsonValue,
-          pathEdges: (pathEdges ?? null) as unknown as Prisma.InputJsonValue,
-          generatedAt: new Date(),
         },
-      });
-    }
+      },
+      update: {
+        sourceFingerprint: input.fingerprint,
+        status: 'READY',
+        errorMessage: null,
+        geometry2d: { paths: paths2d } as Prisma.InputJsonValue,
+        bounds: bounds as unknown as Prisma.InputJsonValue,
+        stops: stops as unknown as Prisma.InputJsonValue,
+        pathNodes3d: (pathNodes3d ?? null) as unknown as Prisma.InputJsonValue,
+        pathEdges: (pathEdges ?? null) as unknown as Prisma.InputJsonValue,
+        generatedAt: new Date(),
+      },
+      create: {
+        id: randomUUID(),
+        serverId: input.scope.serverId,
+        railwayMod: input.scope.railwayMod,
+        dimensionContext: input.scope.dimensionContext,
+        routeEntityId: routeId,
+        sourceFingerprint: input.fingerprint,
+        status: 'READY',
+        geometry2d: { paths: paths2d } as Prisma.InputJsonValue,
+        bounds: bounds as unknown as Prisma.InputJsonValue,
+        stops: stops as unknown as Prisma.InputJsonValue,
+        pathNodes3d: (pathNodes3d ?? null) as unknown as Prisma.InputJsonValue,
+        pathEdges: (pathEdges ?? null) as unknown as Prisma.InputJsonValue,
+        generatedAt: new Date(),
+      },
+    });
 
     return {
       routeId,
       status: 'READY',
       errorMessage: null,
-      persisted: !skipPersist,
+      persisted: true,
       source,
       pointCount: points.length,
       pathNodeCount: pathNodes3d?.length ?? 0,
