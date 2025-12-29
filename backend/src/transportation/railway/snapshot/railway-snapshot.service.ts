@@ -132,6 +132,15 @@ type FallbackDiagnostics = {
     nodeIds: string[];
     componentIds: number[];
   }>;
+  disconnectedSegments: Array<{
+    fromComponent: number;
+    toComponent: number;
+    fromNodeId: string;
+    toNodeId: string;
+    from: { x: number; y: number; z: number };
+    to: { x: number; y: number; z: number };
+    distance: number;
+  }>;
   reasons: string[];
 };
 
@@ -814,6 +823,74 @@ export class TransportationRailwaySnapshotService {
     if (routePlatformComponentCount > 1) {
       reasons.push('route_platforms_disconnected');
     }
+
+    const disconnectedSegments: FallbackDiagnostics['disconnectedSegments'] =
+      [];
+    if (graph && routePlatformComponentCount > 1) {
+      const componentNodeMap = new Map<number, Set<string>>();
+      for (const entry of routePlatformComponents) {
+        for (const componentId of entry.componentIds) {
+          if (!componentNodeMap.has(componentId)) {
+            componentNodeMap.set(componentId, new Set());
+          }
+          const bucket = componentNodeMap.get(componentId)!;
+          for (const nodeId of entry.nodeIds) {
+            bucket.add(nodeId);
+          }
+        }
+      }
+      const componentIds = Array.from(componentNodeMap.keys());
+      for (let i = 0; i < componentIds.length; i += 1) {
+        for (let j = i + 1; j < componentIds.length; j += 1) {
+          const fromComponent = componentIds[i];
+          const toComponent = componentIds[j];
+          const fromNodes = Array.from(
+            componentNodeMap.get(fromComponent) ?? [],
+          );
+          const toNodes = Array.from(componentNodeMap.get(toComponent) ?? []);
+          let best: {
+            fromNodeId: string;
+            toNodeId: string;
+            from: { x: number; y: number; z: number };
+            to: { x: number; y: number; z: number };
+            distance: number;
+          } | null = null;
+          for (const fromNodeId of fromNodes) {
+            const fromPos = graph.positions.get(fromNodeId);
+            if (!fromPos) continue;
+            for (const toNodeId of toNodes) {
+              const toPos = graph.positions.get(toNodeId);
+              if (!toPos) continue;
+              const distance = Math.hypot(
+                fromPos.x - toPos.x,
+                fromPos.y - toPos.y,
+                fromPos.z - toPos.z,
+              );
+              if (!best || distance < best.distance) {
+                best = {
+                  fromNodeId,
+                  toNodeId,
+                  from: { x: fromPos.x, y: fromPos.y, z: fromPos.z },
+                  to: { x: toPos.x, y: toPos.y, z: toPos.z },
+                  distance,
+                };
+              }
+            }
+          }
+          if (best) {
+            disconnectedSegments.push({
+              fromComponent,
+              toComponent,
+              fromNodeId: best.fromNodeId,
+              toNodeId: best.toNodeId,
+              from: best.from,
+              to: best.to,
+              distance: Math.round(best.distance * 100) / 100,
+            });
+          }
+        }
+      }
+    }
     const fallbackDiagnostics: FallbackDiagnostics = {
       source: report.source ?? null,
       graphPresent: Boolean(graph),
@@ -833,6 +910,7 @@ export class TransportationRailwaySnapshotService {
       routePlatformMissingNodes,
       routePlatformComponentCount,
       routePlatformComponents,
+      disconnectedSegments,
       reasons,
     };
 

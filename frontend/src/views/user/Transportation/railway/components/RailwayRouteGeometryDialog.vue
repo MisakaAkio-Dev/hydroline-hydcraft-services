@@ -422,6 +422,34 @@ function formatFallbackReason(value: string) {
                     </div>
                   </div>
                 </details>
+                <details class="mt-2">
+                  <summary
+                    class="cursor-pointer text-xs text-slate-600 dark:text-slate-300"
+                  >
+                    断开段坐标点（最近节点）
+                  </summary>
+                  <div class="mt-2 max-h-40 overflow-auto space-y-2 font-mono">
+                    <div
+                      v-for="item in fallbackDiagnostics.disconnectedSegments"
+                      :key="`${item.fromComponent}-${item.toComponent}-${item.fromNodeId}-${item.toNodeId}`"
+                      class="text-xs"
+                    >
+                      C{{ item.fromComponent }} → C{{ item.toComponent }} |
+                      {{ item.fromNodeId }} ({{ item.from.x }},
+                      {{ item.from.y }}, {{ item.from.z }}) →
+                      {{ item.toNodeId }} ({{ item.to.x }}, {{ item.to.y }},
+                      {{ item.to.z }}) | 距离 {{ item.distance }}
+                    </div>
+                    <div
+                      v-if="
+                        fallbackDiagnostics.disconnectedSegments.length === 0
+                      "
+                      class="text-xs text-slate-500"
+                    >
+                      暂无断开段坐标点
+                    </div>
+                  </div>
+                </details>
               </div>
               <p v-else class="text-xs text-slate-500">
                 暂无 fallback 诊断信息。
