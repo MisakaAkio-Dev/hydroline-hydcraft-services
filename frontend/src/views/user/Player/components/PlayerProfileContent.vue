@@ -9,6 +9,7 @@ import PlayerProfileBioSection from './PlayerProfileBioSection.vue'
 import PlayerProfileMessageBoardSection from './PlayerProfileMessageBoardSection.vue'
 import PlayerAllMessagesDialog from './PlayerAllMessagesDialog.vue'
 import PlayerComposeMessageDialog from './PlayerComposeMessageDialog.vue'
+import PlayerRecommendationsInline from './PlayerRecommendationsInline.vue'
 import { usePlayerPortalStore } from '@/stores/user/playerPortal'
 import type {
   PlayerMinecraftResponse,
@@ -250,6 +251,10 @@ const panelMaxHeight = (ready: boolean, collapsedHeight = 180) =>
             <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
           </div>
         </div>
+      </section>
+
+      <section class="mt-10">
+        <PlayerRecommendationsInline avatar-size="h-6 w-6" />
       </section>
     </div>
 

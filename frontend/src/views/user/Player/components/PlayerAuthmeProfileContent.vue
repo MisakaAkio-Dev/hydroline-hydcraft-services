@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import dayjs from 'dayjs'
 import PlayerGameStatsPanel from './PlayerGameStatsPanel.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import PlayerRecommendationsInline from './PlayerRecommendationsInline.vue'
 import type {
   PlayerAuthmeProfileResponse,
   PlayerStatsResponse,
@@ -12,10 +13,12 @@ import type {
 const props = defineProps<{
   profile: PlayerAuthmeProfileResponse | null
   stats: PlayerStatsResponse | null
+  loading?: boolean
 }>()
 
 const profile = computed(() => props.profile)
 const panelStats = computed(() => props.stats)
+const isLoading = computed(() => Boolean(props.loading))
 const displayName = computed(() => {
   if (!profile.value) return '玩家'
   return profile.value.realname || profile.value.username
@@ -168,6 +171,70 @@ const noop = () => {
         :refreshing="false"
         @refresh="noop"
       />
+
+      <section class="mt-10">
+        <PlayerRecommendationsInline avatar-size="h-6 w-6" />
+      </section>
     </div>
+  </div>
+
+  <div v-else-if="isLoading" class="mt-8 grid gap-8 lg:grid-cols-[320px_1fr]">
+    <div class="space-y-6 md:pt-6">
+      <div class="flex flex-col gap-3">
+        <USkeleton
+          class="h-16 w-16 rounded-full border border-slate-200 bg-slate-200/70 dark:border-slate-700 dark:bg-slate-700"
+        />
+        <USkeleton
+          class="h-6 w-32 rounded-lg bg-slate-200/70 dark:bg-slate-700"
+        />
+      </div>
+
+      <div class="mt-4 space-y-3">
+        <div class="flex justify-between">
+          <USkeleton class="h-4 w-16 bg-slate-200/70 dark:bg-slate-700" />
+          <USkeleton class="h-5 w-24 bg-slate-200/70 dark:bg-slate-700" />
+        </div>
+        <div class="flex justify-between">
+          <USkeleton class="h-4 w-16 bg-slate-200/70 dark:bg-slate-700" />
+          <USkeleton class="h-5 w-28 bg-slate-200/70 dark:bg-slate-700" />
+        </div>
+        <div class="flex justify-between">
+          <USkeleton class="h-4 w-16 bg-slate-200/70 dark:bg-slate-700" />
+          <USkeleton class="h-5 w-24 bg-slate-200/70 dark:bg-slate-700" />
+        </div>
+        <div class="flex justify-between">
+          <USkeleton class="h-4 w-16 bg-slate-200/70 dark:bg-slate-700" />
+          <USkeleton class="h-5 w-24 bg-slate-200/70 dark:bg-slate-700" />
+        </div>
+        <div class="flex justify-between">
+          <USkeleton class="h-4 w-16 bg-slate-200/70 dark:bg-slate-700" />
+          <USkeleton class="h-5 w-32 bg-slate-200/70 dark:bg-slate-700" />
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <div
+        class="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white backdrop-blur dark:bg-slate-800"
+      >
+        <USkeleton
+          class="h-5 w-24 rounded-lg bg-slate-200/70 dark:bg-slate-700"
+        />
+        <div class="mt-4 space-y-3">
+          <USkeleton class="h-4 w-full bg-slate-200/70 dark:bg-slate-700" />
+          <USkeleton class="h-4 w-5/6 bg-slate-200/70 dark:bg-slate-700" />
+          <USkeleton class="h-4 w-2/3 bg-slate-200/70 dark:bg-slate-700" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div v-else class="mt-8">
+    <UAlert
+      title="未找到玩家"
+      description="请确认玩家名是否正确，或稍后重试。"
+      color="warning"
+      variant="soft"
+    />
   </div>
 </template>

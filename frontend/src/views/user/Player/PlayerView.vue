@@ -133,6 +133,8 @@ const playerTitleParts = computed(() => {
   return name ? [name] : ['玩家档案']
 })
 
+const lastLoadedTargetKey = ref<string | null>(null)
+
 async function loadServerOptions() {
   const publicServers = await apiFetch<{
     servers: Array<{ id: string; displayName: string }>
@@ -143,20 +145,34 @@ async function loadServerOptions() {
 async function loadProfile() {
   if (!canViewProfile.value) {
     playerStore.reset()
+    lastLoadedTargetKey.value = null
     return
   }
   const routeIdentifier = targetPlayerParam.value
   const fallbackId = auth.user?.id ?? undefined
   const resolvedIdentifier = routeIdentifier ?? fallbackId
-  if (!resolvedIdentifier) {
-    playerStore.reset()
-    return
-  }
   const playerNameValue =
     routePlayerNameParam.value ?? routePlayerIdParam.value ?? undefined
+  const targetKey = shouldTreatAsPlayerName.value
+    ? playerNameValue
+      ? `name:${playerNameValue}`
+      : null
+    : resolvedIdentifier
+      ? `id:${resolvedIdentifier}`
+      : null
+  if (targetKey !== lastLoadedTargetKey.value) {
+    playerStore.reset()
+    lastLoadedTargetKey.value = targetKey
+  }
+  if (!resolvedIdentifier) {
+    playerStore.reset()
+    lastLoadedTargetKey.value = null
+    return
+  }
   if (shouldTreatAsPlayerName.value) {
     if (!playerNameValue) {
       playerStore.reset()
+      lastLoadedTargetKey.value = null
       return
     }
     try {
@@ -376,10 +392,11 @@ function formatIpLocation(location: string | null | undefined) {
     />
 
     <PlayerAuthmeProfileContent
-      v-else-if="canViewProfile && authmeProfile"
+      v-else-if="canViewProfile && (shouldTreatAsPlayerName || authmeProfile)"
       :profile="authmeProfile"
       :stats="stats"
       :bindings="authmeBindings"
+      :loading="playerStore.loading"
     />
 
     <PlayerProfileContent

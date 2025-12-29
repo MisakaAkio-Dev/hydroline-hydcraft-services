@@ -765,7 +765,7 @@ onBeforeUnmount(() => {
           v-else
           class="flex min-h-[180px] items-center justify-center text-slate-500 dark:text-slate-400"
         >
-          <UIcon name="i-lucide-loader-2" class="h-6 w-6 animate-spin" />
+          <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
         </div>
       </div>
     </div>
