@@ -1,34 +1,92 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import type { RailwayRouteGeometryCalculate } from '@/types/transportation'
 
 const props = defineProps<{
-  calculate: RailwayRouteGeometryCalculate | null
+  variants: Array<{
+    id: string
+    label: string
+    calculate: RailwayRouteGeometryCalculate | null
+  }>
   popoverMode: 'hover' | 'click'
 }>()
 
-const fallbackSnapshot = computed(() => props.calculate?.snapshot ?? null)
+const activeVariantId = ref<string>('')
+
+const resolveDefaultVariantId = (
+  list: Array<{ id: string; calculate: RailwayRouteGeometryCalculate | null }>,
+) => {
+  if (!list.length) return ''
+  const withCalculate = list.find((entry) => entry.calculate)
+  return (withCalculate ?? list[0]).id
+}
+
+watch(
+  () => props.variants,
+  (list) => {
+    if (!list.length) {
+      activeVariantId.value = ''
+      return
+    }
+    if (!activeVariantId.value) {
+      activeVariantId.value = resolveDefaultVariantId(list)
+      return
+    }
+    const stillExists = list.some((entry) => entry.id === activeVariantId.value)
+    if (!stillExists) {
+      activeVariantId.value = resolveDefaultVariantId(list)
+    }
+  },
+  { immediate: true },
+)
+
+const activeVariant = computed(() => {
+  const list = props.variants
+  if (!list.length) return null
+  return list.find((entry) => entry.id === activeVariantId.value) ?? list[0]
+})
+
+const calculate = computed(() => activeVariant.value?.calculate ?? null)
+const fallbackSnapshot = computed(() => calculate.value?.snapshot ?? null)
 const fallbackReasons = computed(
-  () => props.calculate?.fallbackDiagnostics?.reasons ?? [],
+  () => calculate.value?.fallbackDiagnostics?.reasons ?? [],
 )
 const fallbackSegments = computed(
-  () => props.calculate?.fallbackDiagnostics?.disconnectedSegments ?? [],
+  () => calculate.value?.fallbackDiagnostics?.disconnectedSegments ?? [],
 )
 const fallbackRawJson = computed(() => {
-  if (!props.calculate) return ''
-  return JSON.stringify(props.calculate, null, 2)
+  if (!calculate.value) return ''
+  return JSON.stringify(calculate.value, null, 2)
 })
 
-const isCritical = computed(() => {
-  if (!props.calculate) return false
-  if (props.calculate.status !== 'READY') return true
-  const reasons = fallbackReasons.value
-  return reasons.includes('path_not_found') || reasons.includes('graph_empty')
-})
+const isCriticalFor = (entry: RailwayRouteGeometryCalculate | null) => {
+  if (!entry) return false
+  if (entry.status !== 'READY') return true
+  const reasons = entry.fallbackDiagnostics?.reasons ?? []
+  return (
+    reasons.includes('path_not_found') ||
+    reasons.includes('graph_empty') ||
+    reasons.includes('route_platforms_disconnected')
+  )
+}
+
+const isCritical = computed(() => isCriticalFor(calculate.value))
+
+const hasAnyCalculate = computed(() =>
+  props.variants.some((entry) => entry.calculate),
+)
+
+const badgeCount = computed(
+  () => props.variants.filter((entry) => entry.calculate).length,
+)
+
+const overallCritical = computed(() =>
+  props.variants.some((entry) => isCriticalFor(entry.calculate)),
+)
 
 const fallbackTooltipText = computed(() => {
-  if (!props.calculate) return '线路路径已经正常生成'
+  if (!calculate.value) return '当前线路暂无异常记录'
   if (!fallbackReasons.value.length) return '线路使用 fallback 记录'
   return fallbackReasons.value
     .map((item) => formatFallbackReason(item))
@@ -49,8 +107,14 @@ const reasonExplanations = computed(() =>
     .filter((value): value is string => Boolean(value)),
 )
 
+const snapshotWarningText = computed(() => {
+  if (!calculate.value) return null
+  if (calculate.value.persistedSnapshot) return null
+  return '快照未写入，预览/地图可能只显示部分路径或不完整。'
+})
+
 const fallbackRows = computed(() => {
-  const entry = props.calculate
+  const entry = calculate.value
   if (!entry) return []
   const dataset = entry.dataset ?? null
   return [
@@ -84,9 +148,13 @@ const fallbackRows = computed(() => {
 })
 
 const badgeClass = computed(() =>
-  isCritical.value
+  overallCritical.value
     ? 'border-rose-200/80 bg-rose-50 text-rose-600 dark:border-rose-500/50 dark:bg-rose-900/30 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50'
     : 'border-amber-200/80 bg-amber-50 text-amber-700 dark:border-amber-500/50 dark:bg-amber-900/30 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50',
+)
+
+const badgeCountClass = computed(() =>
+  overallCritical.value ? 'bg-rose-700 text-white' : 'bg-amber-500 text-white',
 )
 
 const reasonClass = computed(() =>
@@ -94,6 +162,9 @@ const reasonClass = computed(() =>
     ? 'border-rose-200/80 bg-rose-50 text-rose-600 dark:border-rose-500/50 dark:bg-rose-900/40 dark:text-rose-200'
     : 'border-amber-200/80 bg-amber-50 text-amber-700 dark:border-amber-500/50 dark:bg-amber-900/40 dark:text-amber-200',
 )
+
+const tabBaseClass =
+  'rounded-full border px-2 py-0.5 text-[11px] font-medium transition'
 
 function formatFallbackReason(value: string) {
   switch (value) {
@@ -119,21 +190,30 @@ function formatSegmentPosition(value: { x: number; y: number; z: number }) {
 
 <template>
   <UPopover
-    v-if="calculate"
+    v-if="hasAnyCalculate"
     :mode="popoverMode"
     :popper="{ placement: 'bottom-start' }"
     :portal="false"
     :ui="{ content: 'z-[1000]' }"
   >
     <span
-      class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold cursor-pointer select-none transition"
+      class="relative inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold cursor-pointer select-none transition"
       :class="badgeClass"
     >
       <UIcon
-        :name="isCritical ? 'i-lucide-alert-triangle' : 'i-lucide-alert-circle'"
+        :name="
+          overallCritical ? 'i-lucide-alert-triangle' : 'i-lucide-alert-circle'
+        "
         class="h-3.5 w-3.5"
       />
-      {{ isCritical ? '线路路径异常' : '线路路径警告' }}
+      {{ overallCritical ? '线路路径异常' : '线路路径警告' }}
+      <span
+        v-if="badgeCount > 1"
+        class="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow"
+        :class="badgeCountClass"
+      >
+        {{ badgeCount }}
+      </span>
     </span>
 
     <template #content>
@@ -147,12 +227,34 @@ function formatSegmentPosition(value: { x: number; y: number; z: number }) {
               class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold"
               :class="badgeClass"
             >
-              {{ isCritical ? '严重警告' : '警告' }}
+              {{ overallCritical ? '严重警告' : '警告' }}
             </span>
           </div>
           <p class="text-xs text-slate-500">
             警告信息：{{ fallbackTooltipText }}
           </p>
+        </div>
+        <div v-if="variants.length > 1" class="flex flex-wrap gap-2">
+          <button
+            v-for="entry in variants"
+            :key="entry.id"
+            type="button"
+            :class="[
+              tabBaseClass,
+              activeVariant?.id === entry.id
+                ? 'border-slate-900/80 bg-slate-900 text-white dark:border-white/70 dark:bg-white dark:text-slate-900'
+                : 'border-slate-200/80 bg-white text-slate-600 dark:border-slate-700/80 dark:bg-slate-900/40 dark:text-slate-200',
+            ]"
+            @click="activeVariantId = entry.id"
+          >
+            {{ entry.label }}
+          </button>
+        </div>
+        <div
+          v-if="!calculate"
+          class="rounded-lg border border-slate-100/80 bg-slate-50/70 px-3 py-2 text-[11px] text-slate-600 dark:border-slate-800/80 dark:bg-slate-900/40 dark:text-slate-200"
+        >
+          当前线路暂无异常记录。
         </div>
         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div
@@ -179,6 +281,14 @@ function formatSegmentPosition(value: { x: number; y: number; z: number }) {
             >
               {{ formatFallbackReason(reason) }}
             </span>
+          </div>
+        </div>
+        <div v-if="snapshotWarningText" class="space-y-1">
+          <p class="text-[11px] font-semibold text-slate-500">预览提示</p>
+          <div
+            class="rounded-lg border border-amber-200/80 bg-amber-50 px-2 py-1 text-[11px] text-amber-700 dark:border-amber-500/50 dark:bg-amber-900/40 dark:text-amber-200"
+          >
+            {{ snapshotWarningText }}
           </div>
         </div>
         <div v-if="fallbackSegments.length" class="space-y-1">

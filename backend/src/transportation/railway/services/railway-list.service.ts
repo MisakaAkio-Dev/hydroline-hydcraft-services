@@ -97,12 +97,33 @@ function extractPlatformCount(payload: Prisma.JsonValue): number | null {
   return list.length;
 }
 
-function selectPrimaryRoute(routes: NormalizedRoute[]) {
+function buildCalculateKeyForRoute(route: NormalizedRoute) {
+  return [
+    route.server.id,
+    route.railwayType,
+    route.dimensionContext ?? '',
+    route.id,
+  ].join('::');
+}
+
+function selectPrimaryRoute(
+  routes: NormalizedRoute[],
+  calculateKeySet?: Set<string> | null,
+) {
   if (routes.length <= 1) return routes[0] ?? null;
-  const candidates = routes.filter(
+  let candidates = routes;
+  if (calculateKeySet?.size) {
+    const matched = routes.filter((route) =>
+      calculateKeySet.has(buildCalculateKeyForRoute(route)),
+    );
+    if (matched.length) {
+      candidates = matched;
+    }
+  }
+  const withoutVariant = candidates.filter(
     (route) => !extractRouteVariantLabel(route.name),
   );
-  const list = candidates.length ? candidates : routes;
+  const list = withoutVariant.length ? withoutVariant : candidates;
   return [...list].sort(
     (a, b) => (b.lastUpdated ?? 0) - (a.lastUpdated ?? 0),
   )[0];
@@ -310,7 +331,11 @@ export class TransportationRailwayListService {
       if (group.routes.length <= 1) {
         return group;
       }
-      const primary = selectPrimaryRoute(group.routes) ?? group.routes[0];
+      const primary =
+        selectPrimaryRoute(
+          group.routes,
+          routeStatus === 'abnormal' ? calculateKeySet : null,
+        ) ?? group.routes[0];
       const displayName =
         extractRouteDisplayName(primary.name) ??
         extractRouteDisplayName(group.routes[0]?.name) ??

@@ -212,8 +212,16 @@ const orderedStops = computed(() => {
   return [...stops].sort((a, b) => a.order - b.order)
 })
 
-const fallbackGeometryCalculate = computed(
-  () => activeDetail.value?.routeGeometryCalculate ?? null,
+const fallbackVariantItems = computed(() =>
+  variantRouteItems.value.map((entry) => ({
+    id: entry.routeId,
+    label:
+      entry.variantLabel ||
+      entry.detail?.route?.name ||
+      entry.routeId ||
+      '线路',
+    calculate: entry.detail?.routeGeometryCalculate ?? null,
+  })),
 )
 
 watch(
@@ -865,7 +873,7 @@ onBeforeUnmount(() => {
 
           <div class="flex items-center gap-1">
             <RailwayRouteFallbackPopover
-              :calculate="fallbackGeometryCalculate"
+              :variants="fallbackVariantItems"
               :popover-mode="fallbackPopoverMode"
             />
 
