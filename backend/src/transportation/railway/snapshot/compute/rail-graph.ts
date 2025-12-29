@@ -50,7 +50,7 @@ function isSameBlockPos(a: BlockPosition | null, b: BlockPosition | null) {
   return a.x === b.x && a.y === b.y && a.z === b.z;
 }
 
-function extractRailNodePosition(record: Record<string, unknown>) {
+export function extractRailNodePosition(record: Record<string, unknown>) {
   const candidates = [
     record['node_pos'],
     record['nodePos'],
@@ -83,7 +83,7 @@ function normalizeConnectionEntries(value: unknown) {
   return [];
 }
 
-function extractRailConnections(record: Record<string, unknown>) {
+export function extractRailConnections(record: Record<string, unknown>) {
   const candidates = [
     record['rail_connections'],
     record['railConnections'],
@@ -133,7 +133,7 @@ function pickPreferredRailCurve(
   return null;
 }
 
-function normalizeRailConnectionMetadata(
+export function normalizeRailConnectionMetadata(
   value: Record<string, unknown>,
   targetNodeId: string,
 ): RailConnectionMetadata | null {

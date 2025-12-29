@@ -866,7 +866,7 @@ export class TransportationRailwayService {
         select: { id: true },
       });
       if (!exists) {
-        throw new NotFoundException('线路不存在');
+        throw new NotFoundException('Route not found');
       }
       return;
     }
@@ -883,7 +883,7 @@ export class TransportationRailwayService {
         select: { id: true },
       });
       if (!exists) {
-        throw new NotFoundException('车站不存在');
+        throw new NotFoundException('Station not found');
       }
       return;
     }
@@ -899,7 +899,7 @@ export class TransportationRailwayService {
       select: { id: true },
     });
     if (!exists) {
-      throw new NotFoundException('车厂不存在');
+      throw new NotFoundException('Depot not found');
     }
   }
 

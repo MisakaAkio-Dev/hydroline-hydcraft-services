@@ -1730,7 +1730,7 @@ export class PlayerService {
 
   private extractNbtPosition(result: any): PlayerNbtPosition | null {
     if (!result) {
-      throw new Error('Beacon 未返回玩家 NBT (get_player_nbt)');
+      throw new Error('Beacon did not return player NBT (get_player_nbt)');
     }
     if (result.success === false) {
       throw new Error(

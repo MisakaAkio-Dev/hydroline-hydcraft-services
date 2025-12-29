@@ -7,10 +7,14 @@ import RailwayMapPanel from '@/views/user/Transportation/railway/components/Rail
 import RailwayMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwayMapFullscreenOverlay.vue'
 import RailwayRouteBasicInfoPanel from '@/views/user/Transportation/railway/components/RailwayRouteBasicInfoPanel.vue'
 import RailwayRouteDataStatusPanel from '@/views/user/Transportation/railway/components/RailwayRouteDataStatusPanel.vue'
+import RailwayRouteGeometryDialog from '@/views/user/Transportation/railway/components/RailwayRouteGeometryDialog.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
+import { useAuthStore } from '@/stores/user/auth'
+import { apiFetch } from '@/utils/http/api'
 import type {
   RailwayGeometryPoint,
   RailwayRouteDetail,
+  RailwayRouteGeometryRegenerateResult,
   RailwayRouteLogResult,
   RailwayRouteVariantsResult,
 } from '@/types/transportation'
@@ -26,6 +30,7 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const transportationStore = useTransportationRailwayStore()
+const authStore = useAuthStore()
 
 const detail = ref<RailwayRouteDetail | null>(null)
 const loading = ref(true)
@@ -43,6 +48,13 @@ const variantMode = ref<string>(DEFAULT_VARIANT_MODE)
 
 const logContentRef = ref<HTMLElement | null>(null)
 let lastLogContentHeight: number | null = null
+
+const routeGeometryDialogOpen = ref(false)
+const routeGeometryLoading = ref(false)
+const routeGeometryError = ref<string | null>(null)
+const routeGeometryResult = ref<RailwayRouteGeometryRegenerateResult | null>(
+  null,
+)
 
 const logPageSize = 8
 const logPage = ref(1)
@@ -64,6 +76,10 @@ const params = computed(() => {
   const dimension = (route.query.dimension as string | undefined) ?? undefined
   return { routeId, serverId, dimension, railwayType }
 })
+
+const canRegenerateRouteGeometry = computed(() =>
+  authStore.hasPermission('transportation.railway.force-refresh'),
+)
 
 const mapAutoFocus = ref(true)
 const fullscreenMapOpen = ref(false)
@@ -627,6 +643,68 @@ async function fetchLogs(force = true) {
   }
 }
 
+async function regenerateRouteGeometry() {
+  const { routeId, serverId, dimension, railwayType } = params.value
+  if (!routeId || !serverId || !railwayType) {
+    routeGeometryError.value = '缺少 routeId、serverId 或铁路类型参数'
+    routeGeometryResult.value = null
+    routeGeometryDialogOpen.value = true
+    return
+  }
+  routeGeometryDialogOpen.value = true
+  routeGeometryLoading.value = true
+  routeGeometryError.value = null
+  routeGeometryResult.value = null
+  try {
+    const regenerateAction = (
+      transportationStore as {
+        regenerateRouteGeometry?: (input: {
+          routeId: string
+          serverId: string
+          dimension?: string | null
+          railwayType: string
+        }) => Promise<RailwayRouteGeometryRegenerateResult>
+      }
+    ).regenerateRouteGeometry
+    const result =
+      typeof regenerateAction === 'function'
+        ? await regenerateAction.call(transportationStore, {
+            routeId,
+            serverId,
+            dimension,
+            railwayType,
+          })
+        : await (async () => {
+            if (!authStore.token) {
+              throw new Error('Missing auth token')
+            }
+            return await apiFetch<RailwayRouteGeometryRegenerateResult>(
+              `/transportation/railway/admin/routes/${encodeURIComponent(railwayType)}/${encodeURIComponent(routeId)}/geometry?${new URLSearchParams(
+                {
+                  serverId,
+                  ...(dimension ? { dimension } : {}),
+                },
+              ).toString()}`,
+              {
+                method: 'POST',
+                token: authStore.token,
+              },
+            )
+          })()
+    routeGeometryResult.value = result
+    if (result.status === 'READY') {
+      await fetchDetail()
+      await fetchVariants()
+    }
+  } catch (error) {
+    routeGeometryError.value =
+      error instanceof Error ? error.message : '生成失败，请稍后再试'
+    toast.add({ title: routeGeometryError.value, color: 'error' })
+  } finally {
+    routeGeometryLoading.value = false
+  }
+}
+
 watch(
   () => [logs.value?.page, logs.value?.entries.length] as const,
   async () => {
@@ -764,62 +842,75 @@ onMounted(() => {
         <p class="text-sm uppercase text-slate-500">铁路线路详情</p>
 
         <div>
-          <div>
-            <div
-              class="mb-2 flex items-center gap-1 text-4xl font-semibold text-slate-900 dark:text-white"
-            >
-              <span
-                v-if="detail?.route.previewSvg"
-                class="inline-flex h-10 w-fit items-center justify-center rounded-md align-middle overflow-hidden drop-shadow"
-                v-html="detail.route.previewSvg"
-              ></span>
-
-              <span>
-                {{ routeName.title }}
-              </span>
-
-              <span class="inline-flex items-center gap-1.5">
-                <UTooltip
-                  v-if="modpackInfo.image && modpackInfo.label"
-                  :text="`${modpackInfo.label} Mod`"
-                >
-                  <img
-                    :src="modpackInfo.image"
-                    :alt="modpackInfo.label"
-                    class="h-5 w-6 object-cover"
-                  />
-                </UTooltip>
-              </span>
-            </div>
-            <div
-              class="flex items-center gap-1.5 text-lg font-semibold text-slate-600 dark:text-slate-300"
-            >
-              <UTooltip :text="`线路色 ${routeColorHex}`">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div
+                class="mb-2 flex items-center gap-1 text-4xl font-semibold text-slate-900 dark:text-white"
+              >
                 <span
-                  class="block h-3 w-3 rounded-full"
-                  :style="
-                    routeColorHex
-                      ? { backgroundColor: routeColorHex }
-                      : undefined
-                  "
+                  v-if="detail?.route.previewSvg"
+                  class="inline-flex h-10 w-fit items-center justify-center rounded-md align-middle overflow-hidden drop-shadow"
+                  v-html="detail.route.previewSvg"
                 ></span>
+
+                <span>
+                  {{ routeName.title }}
+                </span>
+
+                <span class="inline-flex items-center gap-1.5">
+                  <UTooltip
+                    v-if="modpackInfo.image && modpackInfo.label"
+                    :text="`${modpackInfo.label} Mod`"
+                  >
+                    <img
+                      :src="modpackInfo.image"
+                      :alt="modpackInfo.label"
+                      class="h-5 w-6 object-cover"
+                    />
+                  </UTooltip>
+                </span>
+              </div>
+              <div
+                class="flex items-center gap-1.5 text-lg font-semibold text-slate-600 dark:text-slate-300"
+              >
+                <UTooltip :text="`线路色 ${routeColorHex}`">
+                  <span
+                    class="block h-3 w-3 rounded-full"
+                    :style="
+                      routeColorHex
+                        ? { backgroundColor: routeColorHex }
+                        : undefined
+                    "
+                  ></span>
+                </UTooltip>
+
+                <span v-if="routeName.subtitle">
+                  {{ routeName.subtitle }}
+                </span>
+
+                <UBadge variant="solid" size="sm" v-if="routeName.badge">
+                  {{ routeName.badge.split('|').join(' ') }}
+                </UBadge>
+
+                <UBadge variant="soft" size="sm">
+                  {{ detail?.server.name || params.serverId }}
+                </UBadge>
+
+                <UBadge variant="soft" size="sm">
+                  {{ getDimensionName(detail?.dimension || params.dimension) }}
+                </UBadge>
+              </div>
+            </div>
+            <div v-if="canRegenerateRouteGeometry" class="flex items-center">
+              <UTooltip text="重新生成线路几何数据">
+                <UButton
+                  variant="ghost"
+                  size="sm"
+                  icon="i-lucide-route"
+                  :loading="routeGeometryLoading"
+                  @click="regenerateRouteGeometry"
+                />
               </UTooltip>
-
-              <span v-if="routeName.subtitle">
-                {{ routeName.subtitle }}
-              </span>
-
-              <UBadge variant="solid" size="sm" v-if="routeName.badge">
-                {{ routeName.badge.split('|').join(' ') }}
-              </UBadge>
-
-              <UBadge variant="soft" size="sm">
-                {{ detail?.server.name || params.serverId }}
-              </UBadge>
-
-              <UBadge variant="soft" size="sm">
-                {{ getDimensionName(detail?.dimension || params.dimension) }}
-              </UBadge>
             </div>
           </div>
         </div>
@@ -1253,4 +1344,15 @@ onMounted(() => {
       </div>
     </div>
   </div>
+
+  <RailwayRouteGeometryDialog
+    :open="routeGeometryDialogOpen"
+    :loading="routeGeometryLoading"
+    :error="routeGeometryError"
+    :result="routeGeometryResult"
+    :route-title="routeName.title"
+    :route-id="params.routeId ?? null"
+    @update:open="routeGeometryDialogOpen = $event"
+    @regenerate="regenerateRouteGeometry"
+  />
 </template>

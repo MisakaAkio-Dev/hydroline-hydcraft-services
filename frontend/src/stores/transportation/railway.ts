@@ -7,6 +7,7 @@ import type {
   RailwayFeaturedItem,
   RailwayOverview,
   RailwayRouteDetail,
+  RailwayRouteGeometryRegenerateResult,
   RailwayRouteListResponse,
   RailwayRouteLogResult,
   RailwayRouteVariantsResult,
@@ -195,6 +196,27 @@ export const useTransportationRailwayStore = defineStore(
         )
         this.routeVariants[cacheKey] = data
         return data
+      },
+      async regenerateRouteGeometry(params: RouteCacheParams) {
+        const authStore = useAuthStore()
+        if (!authStore.token) {
+          throw new Error(
+            'Authentication required for route geometry generation',
+          )
+        }
+        const query = new URLSearchParams({
+          serverId: params.serverId,
+        })
+        if (params.dimension) {
+          query.set('dimension', params.dimension)
+        }
+        return await apiFetch<RailwayRouteGeometryRegenerateResult>(
+          `/transportation/railway/admin/routes/${encodeURIComponent(params.railwayType)}/${encodeURIComponent(params.routeId)}/geometry?${query.toString()}`,
+          {
+            method: 'POST',
+            token: authStore.token,
+          },
+        )
       },
 
       async fetchStationLogs(

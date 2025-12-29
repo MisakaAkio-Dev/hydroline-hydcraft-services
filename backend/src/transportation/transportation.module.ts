@@ -5,6 +5,7 @@ import { MinecraftModule } from '../minecraft/minecraft.module';
 import { AttachmentsModule } from '../attachments/attachments.module';
 import { TransportationRailwayController } from './railway/controllers/railway.controller';
 import { TransportationRailwayAdminController } from './railway/controllers/railway.admin.controller';
+import { TransportationRailwaySnapshotAdminController } from './railway/controllers/railway.snapshot.admin.controller';
 import { TransportationRailwayRouteDetailService } from './railway/route-detail/railway-route-detail.service';
 import { TransportationRailwayStationMapService } from './railway/services/railway-station-map.service';
 import { TransportationRailwayListService } from './railway/services/railway-list.service';
@@ -37,6 +38,7 @@ import { TransportationRailwayCompanyController } from './railway/controllers/ra
   controllers: [
     TransportationRailwayController,
     TransportationRailwayAdminController,
+    TransportationRailwaySnapshotAdminController,
     TransportationRailwaySystemController,
     TransportationRailwayBindingController,
     TransportationRailwayCompanyController,

@@ -239,6 +239,171 @@ export interface RailwaySystemRef {
   logoUrl: string | null
 }
 
+export interface RailwayRouteGeometryRegenerateResult {
+  jobId: string
+  status: 'READY' | 'FAILED' | 'SKIPPED'
+  errorMessage: string | null
+  routeId: string
+  serverId: string
+  railwayType: string
+  dimension: string | null
+  dimensionContext: string
+  fingerprint: string
+  source: 'graph' | 'fallback' | 'preserved' | null
+  persisted: boolean
+  report: {
+    pointCount: number
+    pathNodeCount: number
+    pathEdgeCount: number
+    stopCount: number
+    bounds: {
+      xMin: number
+      xMax: number
+      zMin: number
+      zMax: number
+    } | null
+  }
+  snapshot: {
+    status: string
+    errorMessage: string | null
+    generatedAt: string | null
+    sourceFingerprint: string
+    geometryPathCount: number
+    geometryPointCount: number
+    stopCount: number
+    pathNodeCount: number
+    pathEdgeCount: number
+    bounds: {
+      xMin: number
+      xMax: number
+      zMin: number
+      zMax: number
+    } | null
+  } | null
+  dataset: {
+    routeCount: number
+    platformCount: number
+    stationCount: number
+    railCount: number
+  }
+  curveDiagnostics: {
+    totalSegments: number
+    segmentsWithPrimaryCurve: number
+    segmentsWithSecondaryCurve: number
+    segmentsWithAnyCurve: number
+    segmentsWithoutCurve: number
+    segmentsStraight: number
+    segmentsWithVerticalCurve: number
+  }
+  missingCurveSegments: Array<{
+    index: number
+    start: { x: number; y: number; z: number }
+    end: { x: number; y: number; z: number }
+    connection: {
+      railType: string | null
+      transportMode: string | null
+      modelKey: string | null
+      isSecondaryDir: boolean | null
+      yStart: number | null
+      yEnd: number | null
+      verticalCurveRadius: number | null
+      preferredCurve: string | null
+      primary: RailwayCurveParameters | null
+      secondary: RailwayCurveParameters | null
+    } | null
+  }>
+  routeDiagnostics: {
+    routeId: string
+    name: string | null
+    color: number | null
+    transportMode: string | null
+    platformIds: string[]
+    resolvedPlatformIds: string[]
+    missingPlatformIds: string[]
+  }
+  platformDiagnostics: Array<{
+    platformId: string
+    name: string | null
+    stationId: string | null
+    transportMode: string | null
+    hasPos1: boolean
+    hasPos2: boolean
+    routeIds: string[]
+  }>
+  routeIds: string[]
+  platformIds: string[]
+  railIds: string[]
+  fallbackDiagnostics: {
+    source: string | null
+    graphPresent: boolean
+    graphNodeCount: number
+    graphEdgeCount: number
+    platformCount: number
+    platformWithNodesCount: number
+    platformMissingPosCount: number
+    platformNodeCount: number
+    snappedPlatformCount: number
+    snappedNodeCount: number
+    snappedMissingNodeCount: number
+    usedPathNodeCount: number
+    pathSegmentCount: number
+    graphComponentCount: number
+    routePlatformCount: number
+    routePlatformMissingNodes: number
+    routePlatformComponentCount: number
+    routePlatformComponents: Array<{
+      platformId: string
+      nodeIds: string[]
+      componentIds: number[]
+    }>
+    reasons: string[]
+  }
+}
+
+export interface RailwayRailDiagnosticsPage {
+  jobId: string
+  serverId: string
+  routeId: string
+  railwayType: string
+  dimensionContext: string
+  createdAt: number
+  page: number
+  pageSize: number
+  total: number
+  items: Array<{
+    railId: string
+    nodeId: string | null
+    nodePosition: { x: number; y: number; z: number } | null
+    connectionCount: number
+    connections: Array<{
+      targetNodeId: string | null
+      targetPosition: { x: number; y: number; z: number } | null
+      railType: string | null
+      transportMode: string | null
+      modelKey: string | null
+      isSecondaryDir: boolean | null
+      yStart: number | null
+      yEnd: number | null
+      verticalCurveRadius: number | null
+      preferredCurve: string | null
+      primary: RailwayCurveParameters | null
+      secondary: RailwayCurveParameters | null
+      hasCurve: boolean
+    }>
+    hasNodePosition: boolean
+    hasConnections: boolean
+    inGraph: boolean
+    usedInRoutePath: boolean
+    curvePresentCount: number
+    curveMissingCount: number
+    associatedPlatformIds: string[]
+    associatedRouteIds: string[]
+    calculationSuccess: boolean
+    issues: string[]
+    payload: Record<string, unknown> | null
+  }>
+}
+
 export interface RailwaySystemRouteSummary {
   entityId: string
   name: string | null

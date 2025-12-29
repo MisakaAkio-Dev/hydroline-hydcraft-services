@@ -399,6 +399,241 @@ export async function computeRouteGeometrySnapshots(
   return routeGeometryById;
 }
 
+export type RouteGeometrySnapshotReport = {
+  routeId: string;
+  status: 'READY' | 'FAILED' | 'SKIPPED';
+  errorMessage: string | null;
+  persisted: boolean;
+  source: 'graph' | 'fallback' | 'preserved' | null;
+  pointCount: number;
+  pathNodeCount: number;
+  pathEdgeCount: number;
+  stopCount: number;
+  bounds: RouteGeometrySnapshotValue['bounds'];
+};
+
+export async function computeRouteGeometrySnapshotForRoute(
+  prisma: PrismaService,
+  input: RouteGeometryComputeInput,
+  logger: { warn: (msg: string) => void },
+  record: RailwayRouteRecord,
+): Promise<RouteGeometrySnapshotReport> {
+  const routeId = normalizeId(record.id);
+  if (!routeId) {
+    return {
+      routeId: '',
+      status: 'FAILED',
+      errorMessage: 'Route id missing',
+      persisted: false,
+      source: null,
+      pointCount: 0,
+      pathNodeCount: 0,
+      pathEdgeCount: 0,
+      stopCount: 0,
+      bounds: null,
+    };
+  }
+
+  const stationMap = buildStationsMap(input.dataset.stationRecords);
+  const routePlatforms = resolvePlatformsForRoute(
+    record,
+    input.dataset.platformMap,
+  );
+
+  const existing =
+    await prisma.transportationRailwayRouteGeometrySnapshot.findUnique({
+      where: {
+        serverId_railwayMod_dimensionContext_routeEntityId: {
+          serverId: input.scope.serverId,
+          railwayMod: input.scope.railwayMod,
+          dimensionContext: input.scope.dimensionContext,
+          routeEntityId: routeId,
+        },
+      },
+      select: {
+        status: true,
+        geometry2d: true,
+        pathNodes3d: true,
+        pathEdges: true,
+      },
+    });
+
+  if (!routePlatforms.length) {
+    const preserved = pickExistingGeometry(existing);
+    if (preserved) {
+      return {
+        routeId,
+        status: 'READY',
+        errorMessage: null,
+        persisted: false,
+        source: 'preserved',
+        pointCount: preserved.points.length,
+        pathNodeCount: preserved.pathNodes3d?.length ?? 0,
+        pathEdgeCount: preserved.pathEdges?.length ?? 0,
+        stopCount: 0,
+        bounds: computeBoundsFromPaths([preserved.points]),
+      };
+    }
+    return {
+      routeId,
+      status: 'SKIPPED',
+      errorMessage: 'Route has no platforms attached',
+      persisted: false,
+      source: null,
+      pointCount: 0,
+      pathNodeCount: 0,
+      pathEdgeCount: 0,
+      stopCount: 0,
+      bounds: null,
+    };
+  }
+
+  try {
+    let points: Array<{ x: number; z: number }> = [];
+    let pathNodes3d: any[] | null = null;
+    let pathEdges: RailGeometrySegment[] | null = null;
+    let skipPersist = false;
+    let source: RouteGeometrySnapshotReport['source'] = null;
+
+    if (input.graph) {
+      const fromGraph = buildGeometryFromGraph(input.graph, routePlatforms);
+      if (fromGraph) {
+        points = fromGraph.points;
+        pathNodes3d = fromGraph.pathNodes3d;
+        pathEdges = fromGraph.pathEdges;
+        source = 'graph';
+      }
+    }
+    if (points.length < 2) {
+      const fallback = buildFallbackGeometry(
+        routePlatforms,
+        stationMap,
+        input.dataset.stationRecords,
+      );
+      points = fallback.points;
+      pathNodes3d = null;
+      pathEdges = null;
+      source = 'fallback';
+
+      const preserved = pickExistingGeometry(existing);
+      if (preserved) {
+        points = preserved.points;
+        pathNodes3d = preserved.pathNodes3d;
+        pathEdges = preserved.pathEdges;
+        skipPersist = true;
+        source = 'preserved';
+      }
+    }
+
+    const paths2d: Array<Array<{ x: number; z: number }>> = points.length
+      ? [points.map((p) => ({ x: p.x, z: p.z }))]
+      : [];
+    const bounds = computeBoundsFromPaths(paths2d);
+    const stops = buildRouteStopsForSnapshot({
+      route: record,
+      platformMap: input.dataset.platformMap,
+      stationMap,
+    });
+
+    if (!skipPersist) {
+      await prisma.transportationRailwayRouteGeometrySnapshot.upsert({
+        where: {
+          serverId_railwayMod_dimensionContext_routeEntityId: {
+            serverId: input.scope.serverId,
+            railwayMod: input.scope.railwayMod,
+            dimensionContext: input.scope.dimensionContext,
+            routeEntityId: routeId,
+          },
+        },
+        update: {
+          sourceFingerprint: input.fingerprint,
+          status: 'READY',
+          errorMessage: null,
+          geometry2d: { paths: paths2d } as Prisma.InputJsonValue,
+          bounds: bounds as unknown as Prisma.InputJsonValue,
+          stops: stops as unknown as Prisma.InputJsonValue,
+          pathNodes3d: (pathNodes3d ??
+            null) as unknown as Prisma.InputJsonValue,
+          pathEdges: (pathEdges ?? null) as unknown as Prisma.InputJsonValue,
+          generatedAt: new Date(),
+        },
+        create: {
+          id: randomUUID(),
+          serverId: input.scope.serverId,
+          railwayMod: input.scope.railwayMod,
+          dimensionContext: input.scope.dimensionContext,
+          routeEntityId: routeId,
+          sourceFingerprint: input.fingerprint,
+          status: 'READY',
+          geometry2d: { paths: paths2d } as Prisma.InputJsonValue,
+          bounds: bounds as unknown as Prisma.InputJsonValue,
+          stops: stops as unknown as Prisma.InputJsonValue,
+          pathNodes3d: (pathNodes3d ??
+            null) as unknown as Prisma.InputJsonValue,
+          pathEdges: (pathEdges ?? null) as unknown as Prisma.InputJsonValue,
+          generatedAt: new Date(),
+        },
+      });
+    }
+
+    return {
+      routeId,
+      status: 'READY',
+      errorMessage: null,
+      persisted: !skipPersist,
+      source,
+      pointCount: points.length,
+      pathNodeCount: pathNodes3d?.length ?? 0,
+      pathEdgeCount: pathEdges?.length ?? 0,
+      stopCount: stops.length,
+      bounds,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await prisma.transportationRailwayRouteGeometrySnapshot.upsert({
+      where: {
+        serverId_railwayMod_dimensionContext_routeEntityId: {
+          serverId: input.scope.serverId,
+          railwayMod: input.scope.railwayMod,
+          dimensionContext: input.scope.dimensionContext,
+          routeEntityId: routeId,
+        },
+      },
+      update: {
+        sourceFingerprint: input.fingerprint,
+        status: 'FAILED',
+        errorMessage: message,
+        generatedAt: new Date(),
+      },
+      create: {
+        id: randomUUID(),
+        serverId: input.scope.serverId,
+        railwayMod: input.scope.railwayMod,
+        dimensionContext: input.scope.dimensionContext,
+        routeEntityId: routeId,
+        sourceFingerprint: input.fingerprint,
+        status: 'FAILED',
+        errorMessage: message,
+        geometry2d: {} as Prisma.InputJsonValue,
+        generatedAt: new Date(),
+      },
+    });
+    logger.warn(`Route geometry snapshot failed: ${message}`);
+    return {
+      routeId,
+      status: 'FAILED',
+      errorMessage: message,
+      persisted: false,
+      source: null,
+      pointCount: 0,
+      pathNodeCount: 0,
+      pathEdgeCount: 0,
+      stopCount: 0,
+      bounds: null,
+    };
+  }
+}
+
 export function buildGraphFromRails(
   rails: Array<{ entityId: string; payload: Prisma.JsonValue }>,
 ): RailGraph | null {

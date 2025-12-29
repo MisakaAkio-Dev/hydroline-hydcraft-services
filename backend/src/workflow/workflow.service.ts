@@ -240,7 +240,7 @@ export class WorkflowService {
     states.forEach((state) => {
       const key = state.key.trim();
       if (stateMap.has(key)) {
-        throw new BadRequestException(`存在重复的状态 key: ${key}`);
+        throw new BadRequestException(`Duplicate state key: ${key}`);
       }
       const normalizedActions: WorkflowActionConfig[] = (
         state.actions ?? []
