@@ -698,6 +698,7 @@ export class TransportationRailwaySystemService {
             select: {
               name: true,
               image: true,
+              avatarAttachmentId: true,
             },
           },
         },
@@ -706,6 +707,10 @@ export class TransportationRailwaySystemService {
         take: pageSize,
       }),
     ]);
+
+    const avatarUrlMap = await this.attachmentsService.resolvePublicUrlsByIds(
+      items.map((item) => item.user.avatarAttachmentId),
+    );
 
     return {
       total,
@@ -716,7 +721,10 @@ export class TransportationRailwaySystemService {
         id: item.id,
         timestamp: item.createdAt.toISOString(),
         playerName: item.user.name,
-        playerAvatar: item.user.image,
+        playerAvatar:
+          avatarUrlMap.get(item.user.avatarAttachmentId ?? '') ??
+          item.user.image ??
+          null,
         changeType: item.action,
       })),
     };

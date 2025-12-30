@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import RailwaySystemMapPanel from '@/views/user/Transportation/railway/components/RailwaySystemMapPanel.vue'
 import RailwaySystemMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwaySystemMapFullscreenOverlay.vue'
 import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useTransportationRailwayBindingsStore } from '@/stores/transportation/railwayBindings'
@@ -458,11 +459,13 @@ onMounted(() => {
           </div>
 
           <div class="space-y-3">
-            <div class="flex items-center justify-between">
+            <div
+              class="flex flex-col lg:flex-row lg:items-center lg:justify-between"
+            >
               <h3 class="text-lg text-slate-600 dark:text-slate-300">
                 线路系统修改日志
               </h3>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 mx-auto lg:mx-0 lg:ml-auto">
                 <UButton
                   size="xs"
                   variant="ghost"
@@ -525,18 +528,10 @@ onMounted(() => {
                       class="shrink-0"
                       @click="goPlayerProfile(entry.playerName)"
                     >
-                      <img
-                        v-if="entry.playerAvatar"
+                      <UserAvatar
                         :src="entry.playerAvatar"
-                        class="h-10 w-10 rounded-full border border-slate-200 dark:border-slate-700"
-                        alt="player avatar"
+                        :name="entry.playerName ?? '未知用户'"
                       />
-                      <div
-                        v-else
-                        class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
-                      >
-                        无
-                      </div>
                     </button>
                     <div>
                       <p

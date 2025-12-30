@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Motion } from 'motion-v'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -49,6 +50,24 @@ const variantMode = ref<string>(DEFAULT_VARIANT_MODE)
 
 const logContentRef = ref<HTMLElement | null>(null)
 let lastLogContentHeight: number | null = null
+const backdropVisible = ref(true)
+const backdropColor = ref<string | null>(null)
+const backdropReady = ref(false)
+let backdropReadyFrame: number | null = null
+let backdropSwapTimer: number | null = null
+const backdropFadeDurationMs = 500
+let lastBackdropScrollY = 0
+const handleBackdropScroll = () => {
+  const current = window.scrollY
+  if (current > lastBackdropScrollY + 4) {
+    backdropVisible.value = false
+  } else if (current < lastBackdropScrollY - 4) {
+    backdropVisible.value = true
+  } else if (current <= 0) {
+    backdropVisible.value = true
+  }
+  lastBackdropScrollY = current
+}
 
 const routeGeometryDialogOpen = ref(false)
 const routeGeometryLoading = ref(false)
@@ -342,6 +361,38 @@ const modpackInfo = computed(() => {
 
 const routeColorHex = computed(() => routeAccentColor.value)
 const combinePaths = computed(() => variantMode.value === DEFAULT_VARIANT_MODE)
+
+watch(routeColorHex, (next) => {
+  if (!next || next === backdropColor.value) return
+  const isFirst = !backdropColor.value
+  if (backdropSwapTimer !== null) {
+    window.clearTimeout(backdropSwapTimer)
+    backdropSwapTimer = null
+  }
+  if (isFirst) {
+    backdropColor.value = next
+    if (backdropReadyFrame !== null) {
+      cancelAnimationFrame(backdropReadyFrame)
+    }
+    backdropReadyFrame = requestAnimationFrame(() => {
+      backdropReady.value = true
+      backdropReadyFrame = null
+    })
+    return
+  }
+  backdropReady.value = false
+  backdropSwapTimer = window.setTimeout(() => {
+    backdropColor.value = next
+    if (backdropReadyFrame !== null) {
+      cancelAnimationFrame(backdropReadyFrame)
+    }
+    backdropReadyFrame = requestAnimationFrame(() => {
+      backdropReady.value = true
+      backdropReadyFrame = null
+    })
+    backdropSwapTimer = null
+  }, backdropFadeDurationMs)
+})
 
 const variantLabelMap = computed(() => {
   const map = new Map<string, string>()
@@ -821,6 +872,7 @@ watch(
 )
 
 onMounted(() => {
+  lastBackdropScrollY = window.scrollY
   void fetchDetail()
   void fetchVariants()
   void fetchLogs()
@@ -832,6 +884,7 @@ onMounted(() => {
     'change',
     updateFallbackPopoverMode,
   )
+  window.addEventListener('scroll', handleBackdropScroll, { passive: true })
 })
 
 onBeforeUnmount(() => {
@@ -840,10 +893,31 @@ onBeforeUnmount(() => {
     updateFallbackPopoverMode,
   )
   fallbackHoverMediaQuery = null
+  window.removeEventListener('scroll', handleBackdropScroll)
+  if (backdropReadyFrame !== null) {
+    cancelAnimationFrame(backdropReadyFrame)
+    backdropReadyFrame = null
+  }
+  if (backdropSwapTimer !== null) {
+    window.clearTimeout(backdropSwapTimer)
+    backdropSwapTimer = null
+  }
 })
 </script>
 
 <template>
+  <Motion
+    v-if="backdropColor"
+    class="fixed -z-1 top-0 left-0 lg:left-16 right-0 h-2/5 pointer-events-none select-none transition-opacity duration-500"
+    :style="{
+      background: `linear-gradient(180deg, ${backdropColor} -50%, transparent 95%) no-repeat`,
+      opacity: !backdropReady ? 0 : backdropVisible ? 0.4 : 0,
+    }"
+    :initial="{ filter: 'blur(0px)' }"
+    :animate="{ filter: backdropVisible ? 'blur(64px)' : 'blur(0px)' }"
+    :transition="{ duration: 0.5, ease: 'easeOut' }"
+  ></Motion>
+
   <RailwayMapFullscreenOverlay
     v-model="fullscreenMapOpen"
     v-model:variantMode="variantMode"
@@ -1131,7 +1205,7 @@ onBeforeUnmount(() => {
 
             <section class="space-y-3">
               <div
-                class="flex flex-col lg:flex-row lg:items-center lg:justify-betweenx"
+                class="flex flex-col lg:flex-row lg:items-center lg:justify-between"
               >
                 <h3 class="text-lg text-slate-600 dark:text-slate-300">
                   线路修改日志

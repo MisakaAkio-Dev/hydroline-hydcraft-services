@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
+import { Motion } from 'motion-v'
 import RailwayDepotMapPanel from '@/views/user/Transportation/railway/components/RailwayDepotMapPanel.vue'
 import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
@@ -31,6 +32,24 @@ const logError = ref<string | null>(null)
 
 const logContentRef = ref<HTMLElement | null>(null)
 let lastLogContentHeight: number | null = null
+const backdropVisible = ref(true)
+const backdropColor = ref<string | null>(null)
+const backdropReady = ref(false)
+let backdropReadyFrame: number | null = null
+let backdropSwapTimer: number | null = null
+const backdropFadeDurationMs = 500
+let lastBackdropScrollY = 0
+const handleBackdropScroll = () => {
+  const current = window.scrollY
+  if (current > lastBackdropScrollY + 4) {
+    backdropVisible.value = false
+  } else if (current < lastBackdropScrollY - 4) {
+    backdropVisible.value = true
+  } else if (current <= 0) {
+    backdropVisible.value = true
+  }
+  lastBackdropScrollY = current
+}
 
 const logPageSize = 8
 const logPage = ref(1)
@@ -87,6 +106,38 @@ const routeColor = computed(
   () => detail.value?.depot.color ?? detail.value?.routes?.[0]?.color ?? null,
 )
 const routeColorHex = computed(() => colorToHex(routeColor.value))
+
+watch(routeColorHex, (next) => {
+  if (!next || next === backdropColor.value) return
+  const isFirst = !backdropColor.value
+  if (backdropSwapTimer !== null) {
+    window.clearTimeout(backdropSwapTimer)
+    backdropSwapTimer = null
+  }
+  if (isFirst) {
+    backdropColor.value = next
+    if (backdropReadyFrame !== null) {
+      cancelAnimationFrame(backdropReadyFrame)
+    }
+    backdropReadyFrame = requestAnimationFrame(() => {
+      backdropReady.value = true
+      backdropReadyFrame = null
+    })
+    return
+  }
+  backdropReady.value = false
+  backdropSwapTimer = window.setTimeout(() => {
+    backdropColor.value = next
+    if (backdropReadyFrame !== null) {
+      cancelAnimationFrame(backdropReadyFrame)
+    }
+    backdropReadyFrame = requestAnimationFrame(() => {
+      backdropReady.value = true
+      backdropReadyFrame = null
+    })
+    backdropSwapTimer = null
+  }, backdropFadeDurationMs)
+})
 
 function colorToHex(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return null
@@ -266,12 +317,38 @@ watch(
 )
 
 onMounted(() => {
+  lastBackdropScrollY = window.scrollY
   void fetchDetail()
   void fetchLogs()
+  window.addEventListener('scroll', handleBackdropScroll, { passive: true })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', handleBackdropScroll)
+  if (backdropReadyFrame !== null) {
+    cancelAnimationFrame(backdropReadyFrame)
+    backdropReadyFrame = null
+  }
+  if (backdropSwapTimer !== null) {
+    window.clearTimeout(backdropSwapTimer)
+    backdropSwapTimer = null
+  }
 })
 </script>
 
 <template>
+  <Motion
+    v-if="backdropColor"
+    class="fixed -z-1 top-0 left-0 lg:left-16 right-0 h-2/5 pointer-events-none select-none transition-opacity duration-500"
+    :style="{
+      background: `linear-gradient(180deg, ${backdropColor} -50%, transparent 95%) no-repeat`,
+      opacity: !backdropReady ? 0 : backdropVisible ? 0.4 : 0,
+    }"
+    :initial="{ filter: 'blur(0px)' }"
+    :animate="{ filter: backdropVisible ? 'blur(64px)' : 'blur(0px)' }"
+    :transition="{ duration: 0.5, ease: 'easeOut' }"
+  ></Motion>
+
   <div class="space-y-6">
     <div>
       <div class="flex flex-col gap-2">
@@ -404,7 +481,7 @@ onMounted(() => {
 
           <div class="mt-6 space-y-3">
             <div
-              class="flex flex-col lg:flex-row lg:items-center lg:justify-betweenx"
+              class="flex flex-col lg:flex-row lg:items-center lg:justify-between"
             >
               <h3 class="text-lg text-slate-600 dark:text-slate-300">
                 车厂修改日志

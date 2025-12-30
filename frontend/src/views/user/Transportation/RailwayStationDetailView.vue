@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
+import { Motion } from 'motion-v'
 import RailwayStationMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwayStationMapFullscreenOverlay.vue'
 import RailwayStationRoutesMapPanel from '@/views/user/Transportation/railway/components/RailwayStationRoutesMapPanel.vue'
 import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
@@ -40,6 +41,24 @@ const logContentRef = ref<HTMLElement | null>(null)
 let lastLogContentHeight: number | null = null
 
 const fullscreenMapOpen = ref(false)
+const backdropVisible = ref(true)
+const backdropColor = ref<string | null>(null)
+const backdropReady = ref(false)
+let backdropReadyFrame: number | null = null
+let backdropSwapTimer: number | null = null
+const backdropFadeDurationMs = 500
+let lastBackdropScrollY = 0
+const handleBackdropScroll = () => {
+  const current = window.scrollY
+  if (current > lastBackdropScrollY + 4) {
+    backdropVisible.value = false
+  } else if (current < lastBackdropScrollY - 4) {
+    backdropVisible.value = true
+  } else if (current <= 0) {
+    backdropVisible.value = true
+  }
+  lastBackdropScrollY = current
+}
 
 const stationRouteMap = ref<RailwayStationRouteMapPayload | null>(null)
 const stationRouteMapLoading = ref(false)
@@ -247,6 +266,38 @@ const routeColor = computed(
   () => detail.value?.station.color ?? detail.value?.routes?.[0]?.color ?? null,
 )
 const routeColorHex = computed(() => colorToHex(routeColor.value))
+
+watch(routeColorHex, (next) => {
+  if (!next || next === backdropColor.value) return
+  const isFirst = !backdropColor.value
+  if (backdropSwapTimer !== null) {
+    window.clearTimeout(backdropSwapTimer)
+    backdropSwapTimer = null
+  }
+  if (isFirst) {
+    backdropColor.value = next
+    if (backdropReadyFrame !== null) {
+      cancelAnimationFrame(backdropReadyFrame)
+    }
+    backdropReadyFrame = requestAnimationFrame(() => {
+      backdropReady.value = true
+      backdropReadyFrame = null
+    })
+    return
+  }
+  backdropReady.value = false
+  backdropSwapTimer = window.setTimeout(() => {
+    backdropColor.value = next
+    if (backdropReadyFrame !== null) {
+      cancelAnimationFrame(backdropReadyFrame)
+    }
+    backdropReadyFrame = requestAnimationFrame(() => {
+      backdropReady.value = true
+      backdropReadyFrame = null
+    })
+    backdropSwapTimer = null
+  }, backdropFadeDurationMs)
+})
 
 function colorToHex(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return null
@@ -529,17 +580,40 @@ watch(
 )
 
 onMounted(() => {
+  lastBackdropScrollY = window.scrollY
   void fetchDetail()
   void fetchLogs()
   void fetchStationRouteMap(true)
+  window.addEventListener('scroll', handleBackdropScroll, { passive: true })
 })
 
 onUnmounted(() => {
   stationRouteMapPollToken += 1
+  window.removeEventListener('scroll', handleBackdropScroll)
+  if (backdropReadyFrame !== null) {
+    cancelAnimationFrame(backdropReadyFrame)
+    backdropReadyFrame = null
+  }
+  if (backdropSwapTimer !== null) {
+    window.clearTimeout(backdropSwapTimer)
+    backdropSwapTimer = null
+  }
 })
 </script>
 
 <template>
+  <Motion
+    v-if="backdropColor"
+    class="fixed -z-1 top-0 left-0 lg:left-16 right-0 h-2/5 pointer-events-none select-none transition-opacity duration-500"
+    :style="{
+      background: `linear-gradient(180deg, ${backdropColor} -50%, transparent 95%) no-repeat`,
+      opacity: !backdropReady ? 0 : backdropVisible ? 0.4 : 0,
+    }"
+    :initial="{ filter: 'blur(0px)' }"
+    :animate="{ filter: backdropVisible ? 'blur(64px)' : 'blur(0px)' }"
+    :transition="{ duration: 0.5, ease: 'easeOut' }"
+  ></Motion>
+
   <RailwayStationMapFullscreenOverlay
     v-model="fullscreenMapOpen"
     :station-label="stationName.split('|')[0]"
@@ -743,7 +817,7 @@ onUnmounted(() => {
 
           <div class="mt-6 space-y-3">
             <div
-              class="flex flex-col lg:flex-row lg:items-center lg:justify-betweenx"
+              class="flex flex-col lg:flex-row lg:items-center lg:justify-between"
             >
               <h3 class="text-lg text-slate-600 dark:text-slate-300">
                 站点修改日志

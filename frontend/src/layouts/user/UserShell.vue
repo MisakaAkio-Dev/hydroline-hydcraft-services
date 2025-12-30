@@ -450,7 +450,7 @@ const routerPush = (path: string) => {
         </div>
       </header>
 
-      <main class="mt-8 lg:mt-4 mb-8">
+      <main class="pt-8 lg:pt-4 mb-8">
         <RouterView v-slot="{ Component, route }">
           <Transition name="page-fade" mode="out-in">
             <div v-if="Component" :key="route.path">

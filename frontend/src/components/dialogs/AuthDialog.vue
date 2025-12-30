@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { Motion } from 'motion-v'
 import { useAuthStore } from '@/stores/user/auth'
 import { useUiStore } from '@/stores/shared/ui'
 import { usePortalStore } from '@/stores/user/portal'
@@ -85,6 +86,13 @@ const oauthProviders = computed(() =>
   ),
 )
 const oauthLoadingProvider = ref<string | null>(null)
+const authmeLoginAvatarId = ref<string | null>(null)
+const authmeRegisterAvatarId = ref<string | null>(null)
+const authmeLoginAvatarError = ref(false)
+const authmeRegisterAvatarError = ref(false)
+let authmeLoginTimer: number | null = null
+let authmeRegisterTimer: number | null = null
+const minecraftIdPattern = /^[A-Za-z0-9_]{3,16}$/
 
 watch(
   () => featureStore.flags,
@@ -98,6 +106,57 @@ watch(
   },
   { immediate: true, deep: true },
 )
+
+const authmeLoginAvatarUrl = computed(() => {
+  const id = authmeLoginAvatarId.value?.trim()
+  if (!id) return null
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(id)}/32`
+})
+
+const authmeRegisterAvatarUrl = computed(() => {
+  const id = authmeRegisterAvatarId.value?.trim()
+  if (!id) return null
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(id)}/32`
+})
+
+watch(
+  () => authmeLoginForm.authmeId,
+  (value) => {
+    if (authmeLoginTimer) {
+      window.clearTimeout(authmeLoginTimer)
+    }
+    authmeLoginAvatarError.value = false
+    authmeLoginAvatarId.value = null
+    authmeLoginTimer = window.setTimeout(() => {
+      const trimmed = value.trim()
+      authmeLoginAvatarId.value = minecraftIdPattern.test(trimmed)
+        ? trimmed
+        : null
+    }, 500)
+  },
+)
+
+watch(
+  () => authmeRegisterForm.authmeId,
+  (value) => {
+    if (authmeRegisterTimer) {
+      window.clearTimeout(authmeRegisterTimer)
+    }
+    authmeRegisterAvatarError.value = false
+    authmeRegisterAvatarId.value = null
+    authmeRegisterTimer = window.setTimeout(() => {
+      const trimmed = value.trim()
+      authmeRegisterAvatarId.value = minecraftIdPattern.test(trimmed)
+        ? trimmed
+        : null
+    }, 500)
+  },
+)
+
+onBeforeUnmount(() => {
+  if (authmeLoginTimer) window.clearTimeout(authmeLoginTimer)
+  if (authmeRegisterTimer) window.clearTimeout(authmeRegisterTimer)
+})
 
 // 折叠过渡：在内容增减时平滑动画高度，避免对话框瞬间跳变
 const collapseMs = 220
@@ -595,7 +654,21 @@ async function confirmForgotReset() {
                     <label
                       class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
                     >
-                      <span>服务器账号</span>
+                      <div class="flex items-center gap-2">
+                        <span class="leading-[normal]">服务器账号</span>
+                        <Motion
+                          as="img"
+                          v-if="authmeLoginAvatarUrl && !authmeLoginAvatarError"
+                          :src="authmeLoginAvatarUrl ?? undefined"
+                          alt="服务器账号头像"
+                          class="h-4.5 w-4.5 rounded border border-slate-200 object-cover dark:border-slate-700"
+                          :initial="{ opacity: 0, filter: 'blur(6px)' }"
+                          :animate="{ opacity: 1, filter: 'blur(0px)' }"
+                          :transition="{ duration: 0.2 }"
+                          @error="authmeLoginAvatarError = true"
+                          @load="authmeLoginAvatarError = false"
+                        />
+                      </div>
                       <UInput
                         v-model="authmeLoginForm.authmeId"
                         placeholder="请输入服务器内登录过的游戏 ID"
@@ -780,7 +853,24 @@ async function confirmForgotReset() {
                     <label
                       class="flex flex-col gap-1 text-left text-sm font-medium text-slate-700 dark:text-slate-200"
                     >
-                      <span>服务器账号</span>
+                      <div class="flex items-center gap-2">
+                        <span class="leading-[normal]">服务器账号</span>
+                        <Motion
+                          as="img"
+                          v-if="
+                            authmeRegisterAvatarUrl &&
+                            !authmeRegisterAvatarError
+                          "
+                          :src="authmeRegisterAvatarUrl ?? undefined"
+                          alt="服务器账号头像"
+                          class="h-4.5 w-4.5 rounded border border-slate-200 object-cover dark:border-slate-700"
+                          :initial="{ opacity: 0, filter: 'blur(6px)' }"
+                          :animate="{ opacity: 1, filter: 'blur(0px)' }"
+                          :transition="{ duration: 0.2 }"
+                          @error="authmeRegisterAvatarError = true"
+                          @load="authmeRegisterAvatarError = false"
+                        />
+                      </div>
                       <UInput
                         v-model="authmeRegisterForm.authmeId"
                         placeholder="请输入服务器内登录过的游戏 ID"
