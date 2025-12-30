@@ -128,34 +128,6 @@ const routeGroups = computed(() => {
 const routeStops = computed<StopWithColor[]>(() => {
   const groups = props.routeMap?.groups ?? []
 
-  // First pass: determine snap status for each station
-  const stationSnapStatus = new Map<string, boolean>()
-
-  for (const group of groups) {
-    const groupStops = group.stops ?? []
-    if (!groupStops.length) continue
-
-    for (let i = 0; i < groupStops.length; i++) {
-      const item = groupStops[i]
-      const key = item.stationId
-        ? `id:${item.stationId}`
-        : `p:${item.x},${item.z}:${item.label}`
-
-      const isFirst = i === 0
-      const isLast = i === groupStops.length - 1
-      const isMiddle = !isFirst && !isLast
-
-      if (isMiddle) {
-        stationSnapStatus.set(key, false)
-      } else {
-        // If it's terminal, set to true ONLY if it hasn't been set to false yet.
-        if (!stationSnapStatus.has(key)) {
-          stationSnapStatus.set(key, true)
-        }
-      }
-    }
-  }
-
   const seen = new Set<string>()
   const stops: StopWithColor[] = []
   let order = 0
@@ -166,8 +138,6 @@ const routeStops = computed<StopWithColor[]>(() => {
         : `p:${item.x},${item.z}:${item.label}`
       if (seen.has(key)) continue
       seen.add(key)
-
-      const shouldSnap = stationSnapStatus.get(key) ?? true
 
       stops.push({
         order: order++,
@@ -180,7 +150,7 @@ const routeStops = computed<StopWithColor[]>(() => {
         bounds: null,
         color: group.color,
         groupKey: group.key ?? null,
-        snap: shouldSnap,
+        snap: false,
       })
     }
   }

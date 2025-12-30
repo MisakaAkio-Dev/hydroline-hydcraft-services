@@ -48,6 +48,15 @@ const FEATURED_TYPE_LABELS = {
   [TransportationRailwayFeaturedType.DEPOT]: 'depot',
 } as const;
 
+const DEFAULT_MIN_PATH_NODE_COUNT = 3;
+
+function resolveMinPathNodeCount(platformCount?: number | null) {
+  if (typeof platformCount === 'number' && Number.isFinite(platformCount)) {
+    return Math.max(2, Math.trunc(platformCount));
+  }
+  return DEFAULT_MIN_PATH_NODE_COUNT;
+}
+
 type FeaturedItemPayload = {
   id: string;
   type: 'route' | 'station' | 'depot';
@@ -207,9 +216,11 @@ export class TransportationRailwayService {
       bounds: Prisma.JsonValue | null;
     },
     color: number | null,
+    platformCount?: number | null,
   ): string | null {
     const paths: RoutePreviewPath[] = [];
     let mergedBounds: RoutePreviewBounds | null = null;
+    const minNodeCount = resolveMinPathNodeCount(platformCount);
 
     const nodes = Array.isArray(snapshot.pathNodes3d)
       ? (snapshot.pathNodes3d as Array<{ x?: unknown; z?: unknown }>)
@@ -224,7 +235,7 @@ export class TransportationRailwayService {
           Number.isFinite(point.x) && Number.isFinite(point.z),
       );
 
-    if (pointsFromNodes.length >= 2) {
+    if (pointsFromNodes.length >= minNodeCount) {
       paths.push({
         points: pointsFromNodes,
         color: color ?? null,
@@ -364,6 +375,7 @@ export class TransportationRailwayService {
           route.previewSvg = this.generatePreviewSvgFromSnapshot(
             snapshot,
             route.color,
+            route.platformCount ?? null,
           );
         }
       }
@@ -521,6 +533,7 @@ export class TransportationRailwayService {
           route.previewSvg = this.generatePreviewSvgFromSnapshot(
             snapshot,
             route.color,
+            route.platformCount ?? null,
           );
         }
       }
@@ -737,6 +750,7 @@ export class TransportationRailwayService {
           normalized.previewSvg = this.generatePreviewSvgFromSnapshot(
             snapshot,
             normalized.color,
+            normalized.platformCount ?? null,
           );
         }
       }

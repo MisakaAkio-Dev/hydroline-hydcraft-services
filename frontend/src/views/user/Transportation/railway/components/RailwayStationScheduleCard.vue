@@ -336,16 +336,16 @@ watch(
                 </div>
                 <Transition
                   mode="out-in"
-                  enter-active-class="transition-all duration-500 ease-out"
+                  enter-active-class="transition-all duration-200 ease-out"
                   enter-from-class="opacity-0 blur-sm"
                   enter-to-class="opacity-100 blur-0"
-                  leave-active-class="transition-all duration-500 ease-in"
+                  leave-active-class="transition-all duration-200 ease-in"
                   leave-from-class="opacity-100 blur-0"
                   leave-to-class="opacity-0 blur-sm"
                 >
                   <div
                     v-if="item.arrivalDifference < 0"
-                    class="text-xs text-green-400"
+                    class="text-xs text-green-600"
                     key="arrived"
                   >
                     已到站

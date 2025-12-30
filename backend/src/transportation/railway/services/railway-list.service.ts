@@ -46,6 +46,15 @@ type RailwayListResponse<TItem> = {
   pagination: RailwayListPagination;
 };
 
+const DEFAULT_MIN_PATH_NODE_COUNT = 3;
+
+function resolveMinPathNodeCount(platformCount?: number | null) {
+  if (typeof platformCount === 'number' && Number.isFinite(platformCount)) {
+    return Math.max(2, Math.trunc(platformCount));
+  }
+  return DEFAULT_MIN_PATH_NODE_COUNT;
+}
+
 function clampInt(
   value: number | string | undefined | null,
   min: number,
@@ -420,6 +429,7 @@ export class TransportationRailwayListService {
                   geometry2d: true,
                   pathNodes3d: true,
                   bounds: true,
+                  stops: true,
                 },
               },
             );
@@ -430,6 +440,7 @@ export class TransportationRailwayListService {
               geometry2d: Prisma.JsonValue;
               pathNodes3d: Prisma.JsonValue;
               bounds: Prisma.JsonValue | null;
+              stops: Prisma.JsonValue | null;
             }
           >(
             snapshots.map((row) => [
@@ -443,6 +454,7 @@ export class TransportationRailwayListService {
                 geometry2d: row.geometry2d,
                 pathNodes3d: row.pathNodes3d,
                 bounds: row.bounds,
+                stops: row.stops,
               },
             ]),
           );
@@ -461,6 +473,11 @@ export class TransportationRailwayListService {
               const snapshot = snapshotMap.get(key);
               if (!snapshot) continue;
 
+              const stopCount = Array.isArray(snapshot.stops)
+                ? snapshot.stops.length
+                : (route.platformCount ?? null);
+              const minNodeCount = resolveMinPathNodeCount(stopCount);
+
               const nodes = Array.isArray(snapshot.pathNodes3d)
                 ? (snapshot.pathNodes3d as Array<{
                     x?: unknown;
@@ -476,7 +493,7 @@ export class TransportationRailwayListService {
                   (point): point is { x: number; z: number } =>
                     Number.isFinite(point.x) && Number.isFinite(point.z),
                 );
-              if (pointsFromNodes.length >= 2) {
+              if (pointsFromNodes.length >= minNodeCount) {
                 paths.push({
                   points: pointsFromNodes,
                   color: route.color ?? null,
@@ -676,6 +693,7 @@ export class TransportationRailwayListService {
                 geometry2d: true,
                 pathNodes3d: true,
                 bounds: true,
+                stops: true,
               },
             },
           );
@@ -686,6 +704,7 @@ export class TransportationRailwayListService {
             geometry2d: Prisma.JsonValue;
             pathNodes3d: Prisma.JsonValue;
             bounds: Prisma.JsonValue | null;
+            stops: Prisma.JsonValue | null;
           }
         >(
           snapshots.map((row) => [
@@ -699,6 +718,7 @@ export class TransportationRailwayListService {
               geometry2d: row.geometry2d,
               pathNodes3d: row.pathNodes3d,
               bounds: row.bounds,
+              stops: row.stops,
             },
           ]),
         );
@@ -714,6 +734,11 @@ export class TransportationRailwayListService {
           ].join('::');
           const snapshot = snapshotMap.get(key);
           if (!snapshot) continue;
+
+          const stopCount = Array.isArray(snapshot.stops)
+            ? snapshot.stops.length
+            : (route.platformCount ?? null);
+          const minNodeCount = resolveMinPathNodeCount(stopCount);
 
           let mergedBounds: RoutePreviewBounds | null = null;
           const paths: RoutePreviewPath[] = [];
@@ -732,7 +757,7 @@ export class TransportationRailwayListService {
               (point): point is { x: number; z: number } =>
                 Number.isFinite(point.x) && Number.isFinite(point.z),
             );
-          if (pointsFromNodes.length >= 2) {
+          if (pointsFromNodes.length >= minNodeCount) {
             paths.push({
               points: pointsFromNodes,
               color: route.color ?? null,

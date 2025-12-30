@@ -201,12 +201,12 @@ function handleConfirm() {
     :open="props.open && Boolean(props.imageUrl)"
     :ui="{
       content:
-        'w-full max-w-4xl w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto',
+        'w-full max-w-4xl w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)]',
     }"
     @update:open="updateOpen"
   >
     <template #content>
-      <UCard :ui="{ body: 'space-y-6 pb-24 sm:pb-6' }">
+      <UCard :ui="{ body: 'space-y-6 sm:pb-6' }" class="overflow-y-auto">
         <template #header>
           <div class="flex flex-col gap-1">
             <p class="text-base font-semibold text-slate-900 dark:text-white">

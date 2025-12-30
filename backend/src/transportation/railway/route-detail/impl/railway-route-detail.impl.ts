@@ -42,6 +42,7 @@ import type {
 
 const BLOCKS_PER_KM = 1000;
 const NEAREST_STATION_MAX_DISTANCE_BLOCKS = 256;
+const DEFAULT_MIN_PATH_NODE_COUNT = 3;
 
 type StoredRailwayEntity =
   | TransportationRailwayRoute
@@ -61,6 +62,13 @@ export type RailwayRouteVariantsResult = {
   baseName: string | null;
   routes: RailwayRouteVariantItem[];
 };
+
+function resolveMinPathNodeCount(platformCount?: number | null) {
+  if (typeof platformCount === 'number' && Number.isFinite(platformCount)) {
+    return Math.max(2, Math.trunc(platformCount));
+  }
+  return DEFAULT_MIN_PATH_NODE_COUNT;
+}
 
 function estimateGeometryLengthKm(geometry: RouteDetailResult['geometry']) {
   const segments = geometry.segments ?? [];
@@ -824,6 +832,7 @@ export class TransportationRailwayRouteDetailService {
           geometry2d: true,
           pathNodes3d: true,
           bounds: true,
+          stops: true,
         },
       });
 
@@ -833,6 +842,7 @@ export class TransportationRailwayRouteDetailService {
         geometry2d: Prisma.JsonValue;
         pathNodes3d: Prisma.JsonValue;
         bounds: Prisma.JsonValue | null;
+        stops: Prisma.JsonValue | null;
       }
     >(
       snapshotRows.map((row) => [
@@ -846,6 +856,7 @@ export class TransportationRailwayRouteDetailService {
           geometry2d: row.geometry2d,
           pathNodes3d: row.pathNodes3d,
           bounds: row.bounds,
+          stops: row.stops,
         },
       ]),
     );
@@ -862,6 +873,11 @@ export class TransportationRailwayRouteDetailService {
       const snapshot = snapshotMap.get(key);
       if (!snapshot) continue;
 
+      const stopCount = Array.isArray(snapshot.stops)
+        ? snapshot.stops.length
+        : null;
+      const minNodeCount = resolveMinPathNodeCount(stopCount);
+
       const nodes = Array.isArray(snapshot.pathNodes3d)
         ? (snapshot.pathNodes3d as Array<{ x?: unknown; z?: unknown }>)
         : [];
@@ -874,7 +890,7 @@ export class TransportationRailwayRouteDetailService {
           (point): point is { x: number; z: number } =>
             Number.isFinite(point.x) && Number.isFinite(point.z),
         );
-      if (pointsFromNodes.length >= 2) {
+      if (pointsFromNodes.length >= minNodeCount) {
         paths.push({ points: pointsFromNodes, color: item.color ?? null });
         mergedBounds = mergeBounds(
           mergedBounds,
@@ -1995,7 +2011,8 @@ export class TransportationRailwayRouteDetailService {
               z?: unknown;
             }>)
           : [];
-        if (nodes.length >= 2) {
+        const minNodeCount = resolveMinPathNodeCount(platforms.length);
+        if (nodes.length >= minNodeCount) {
           const points = nodes
             .map((node) => ({
               x: Number(node.x),

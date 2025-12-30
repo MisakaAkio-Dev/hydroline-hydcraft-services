@@ -222,12 +222,15 @@ function handleEditBiography() {
           <template v-if="props.summary">
             <span class="inline-flex items-center gap-2">
               {{ props.summary.displayName }}
-              <UButton
-                variant="link"
-                icon="i-lucide-qr-code"
-                class="flex justify-center items-center rounded-full h-3 w-3"
-                size="xs"
-              />
+              <UTooltip text="开发中">
+                <UButton
+                  variant="link"
+                  icon="i-lucide-qr-code"
+                  class="flex justify-center items-center rounded-full h-3 w-3"
+                  size="xs"
+                  :disabled="true"
+                />
+              </UTooltip>
             </span>
             <div
               class="text-base font-semibold text-slate-800 dark:text-slate-300"
@@ -384,15 +387,17 @@ function handleEditBiography() {
         </UButton>
       </RouterLink>
 
-      <UButton
-        v-else
-        variant="soft"
-        color="primary"
-        class="flex justify-center items-center gap-2 w-full"
-      >
-        <UIcon name="i-lucide-mail" class="h-4 w-4" />
-        私信
-      </UButton>
+      <UTooltip text="开发中" v-else>
+        <UButton
+          variant="soft"
+          color="primary"
+          class="flex justify-center items-center gap-2 w-full"
+          :disabled="true"
+        >
+          <UIcon name="i-lucide-mail" class="h-4 w-4" />
+          私信
+        </UButton>
+      </UTooltip>
 
       <UButton
         v-if="props.isViewingSelf"

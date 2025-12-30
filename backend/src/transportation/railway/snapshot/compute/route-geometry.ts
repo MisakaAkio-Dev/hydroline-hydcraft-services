@@ -25,6 +25,15 @@ import {
   snapPlatformNodesToRailGraph,
 } from './rail-graph';
 
+const DEFAULT_MIN_PATH_NODE_COUNT = 3;
+
+function resolveMinPathNodeCount(platformCount?: number | null) {
+  if (typeof platformCount === 'number' && Number.isFinite(platformCount)) {
+    return Math.max(2, Math.trunc(platformCount));
+  }
+  return DEFAULT_MIN_PATH_NODE_COUNT;
+}
+
 function computeBoundsFromPaths(paths: Array<Array<{ x: number; z: number }>>) {
   let xMin = Number.POSITIVE_INFINITY;
   let xMax = Number.NEGATIVE_INFINITY;
@@ -182,6 +191,7 @@ function pickExistingGeometry(
     pathNodes3d: Prisma.JsonValue;
     pathEdges: Prisma.JsonValue;
   } | null,
+  minNodeCount: number,
 ) {
   if (!snapshot || snapshot.status !== 'READY') return null;
   const pathEdges = Array.isArray(snapshot.pathEdges)
@@ -212,14 +222,14 @@ function pickExistingGeometry(
     }
   }
 
-  const hasGraph = (pathEdges?.length ?? 0) > 0 || nodes.length >= 2;
+  const hasGraph = nodes.length >= minNodeCount;
   if (!hasGraph || points.length < 2) {
     return null;
   }
 
   return {
     points,
-    pathNodes3d: nodes.length >= 2 ? nodes : null,
+    pathNodes3d: nodes.length >= minNodeCount ? nodes : null,
     pathEdges: pathEdges?.length ? pathEdges : null,
   };
 }
@@ -249,9 +259,10 @@ export async function computeRouteGeometrySnapshots(
     let points: Array<{ x: number; z: number }> = [];
     let pathNodes3d: any[] | null = null;
     let pathEdges: RailGeometrySegment[] | null = null;
+    const minNodeCount = resolveMinPathNodeCount(routePlatforms.length);
     if (input.graph) {
       const fromGraph = buildGeometryFromGraph(input.graph, routePlatforms);
-      if (fromGraph) {
+      if (fromGraph && fromGraph.pathNodes3d.length >= minNodeCount) {
         points = fromGraph.points;
         pathNodes3d = fromGraph.pathNodes3d;
         pathEdges = fromGraph.pathEdges;
@@ -285,7 +296,7 @@ export async function computeRouteGeometrySnapshots(
             pathEdges: true,
           },
         });
-      const preserved = pickExistingGeometry(existing);
+      const preserved = pickExistingGeometry(existing, minNodeCount);
       if (preserved) {
         points = preserved.points;
         pathNodes3d = preserved.pathNodes3d;
@@ -438,6 +449,7 @@ export async function computeRouteGeometrySnapshotForRoute(
     record,
     input.dataset.platformMap,
   );
+  const minNodeCount = resolveMinPathNodeCount(routePlatforms.length);
 
   const existing =
     await prisma.transportationRailwayRouteGeometrySnapshot.findUnique({
@@ -458,7 +470,7 @@ export async function computeRouteGeometrySnapshotForRoute(
     });
 
   if (!routePlatforms.length) {
-    const preserved = pickExistingGeometry(existing);
+    const preserved = pickExistingGeometry(existing, minNodeCount);
     if (preserved) {
       return {
         routeId,
@@ -492,10 +504,9 @@ export async function computeRouteGeometrySnapshotForRoute(
     let pathNodes3d: any[] | null = null;
     let pathEdges: RailGeometrySegment[] | null = null;
     let source: RouteGeometrySnapshotReport['source'] = null;
-
     if (input.graph) {
       const fromGraph = buildGeometryFromGraph(input.graph, routePlatforms);
-      if (fromGraph) {
+      if (fromGraph && fromGraph.pathNodes3d.length >= minNodeCount) {
         points = fromGraph.points;
         pathNodes3d = fromGraph.pathNodes3d;
         pathEdges = fromGraph.pathEdges;
@@ -513,7 +524,7 @@ export async function computeRouteGeometrySnapshotForRoute(
       pathEdges = null;
       source = 'fallback';
 
-      const preserved = pickExistingGeometry(existing);
+      const preserved = pickExistingGeometry(existing, minNodeCount);
       if (preserved) {
         points = preserved.points;
         pathNodes3d = preserved.pathNodes3d;

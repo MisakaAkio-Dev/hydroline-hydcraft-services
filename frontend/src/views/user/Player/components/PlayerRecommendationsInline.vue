@@ -47,6 +47,16 @@ function avatarUrl(item: PlayerLoginRecommendation) {
   return null
 }
 
+function recommendationInitials(item: PlayerLoginRecommendation) {
+  const name = item.displayName?.trim() || item.targetId?.trim()
+  if (!name) return 'HC'
+  const segments = name.split(/\s+/)
+  if (segments.length === 1) {
+    return segments[0].slice(0, 2).toUpperCase()
+  }
+  return (segments[0][0] + segments[segments.length - 1][0]).toUpperCase()
+}
+
 function recommendationTooltip(item: PlayerLoginRecommendation) {
   return item.displayName?.trim() || item.targetId
 }
@@ -127,6 +137,12 @@ onMounted(() => {
                 :alt="item.displayName"
                 class="h-full w-full object-cover"
               />
+              <span
+                v-else
+                class="text-[10px] font-semibold uppercase text-slate-600 dark:text-slate-200"
+              >
+                {{ recommendationInitials(item) }}
+              </span>
             </div>
           </RouterLink>
         </UTooltip>
@@ -150,6 +166,12 @@ onMounted(() => {
               :alt="item.displayName"
               class="h-full w-full object-cover"
             />
+            <span
+              v-else
+              class="text-[10px] font-semibold uppercase text-slate-600 dark:text-slate-200"
+            >
+              {{ recommendationInitials(item) }}
+            </span>
           </div>
           <p
             class="text-center text-xs font-semibold text-slate-700 dark:text-slate-200 line-clamp-2"

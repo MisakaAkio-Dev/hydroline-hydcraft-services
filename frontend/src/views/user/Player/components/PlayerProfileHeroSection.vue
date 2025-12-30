@@ -70,6 +70,16 @@ const displayName = computed(() => {
   return name || null
 })
 
+const heroInitials = computed(() => {
+  const name = displayName.value ?? props.summary?.email?.trim()
+  if (!name) return 'UA'
+  const segments = name.trim().split(/\s+/)
+  if (segments.length === 1) {
+    return segments[0].slice(0, 2).toUpperCase()
+  }
+  return (segments[0][0] + segments[segments.length - 1][0]).toUpperCase()
+})
+
 async function handleLikeToggle() {
   if (likeLoading.value) return
   if (!playerPortalStore.targetUserId) return
@@ -117,7 +127,12 @@ async function handleLikeToggle() {
               :alt="displayName ?? props.summary.email"
               class="h-full w-full object-cover"
             />
-            <UIcon v-else name="i-lucide-user-round" class="h-8 w-8" />
+            <span
+              v-else
+              class="text-sm font-semibold uppercase text-slate-600 dark:text-slate-200"
+            >
+              {{ heroInitials }}
+            </span>
           </div>
 
           <img
@@ -128,7 +143,7 @@ async function handleLikeToggle() {
               primaryAuthmeBinding?.username ??
               'MC Avatar'
             "
-            class="h-18 w-18 rounded-xl border border-slate-200 object-cover dark:border-slate-700 shadow"
+            class="h-18 w-18 rounded-xl border border-slate-200 object-cover dark:border-slate-700"
           />
         </template>
         <template v-else>
@@ -145,13 +160,13 @@ async function handleLikeToggle() {
             v-if="props.summary?.authmeBindings?.length > 1"
             :text="`共 ${props.summary?.authmeBindings?.length ?? 0} 个账户`"
           >
-            <UButton
-              class="w-6 h-6 flex justify-center items-center rounded-full mt-auto"
-              variant="ghost"
+            <UBadge
+              class="w-5 h-5 flex justify-center items-center rounded-full mt-auto"
+              variant="soft"
               size="sm"
             >
               ...
-            </UButton>
+            </UBadge>
           </UTooltip>
         </div>
       </div>
@@ -163,12 +178,7 @@ async function handleLikeToggle() {
           <template v-if="props.summary">
             <div>
               <span class="text-2xl">
-                {{
-                  displayName ||
-                  primaryMinecraftProfile?.nickname ||
-                  primaryAuthmeBinding?.realname ||
-                  props.summary.email
-                }}
+                {{ primaryMinecraftProfile?.nickname || displayName }}
               </span>
               <span
                 class="mx-2 select-none"
