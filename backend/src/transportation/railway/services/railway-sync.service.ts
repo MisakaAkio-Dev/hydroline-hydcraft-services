@@ -342,8 +342,6 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     entityType: RailwayEntityCategory,
     syncMarker: Date,
   ): Promise<SyncCategoryStats> {
-    let offset = 0;
-    let truncated = false;
     const config = this.getRailwayModConfig(server.railwayMod);
     const stats: SyncCategoryStats = {
       beaconRows: 0,
@@ -354,35 +352,32 @@ export class TransportationRailwaySyncService implements OnModuleInit {
       staleDeleted: 0,
       pages: 0,
     };
-    do {
-      const response = await this.emitBeacon<QueryMtrEntitiesResponse>(
+
+    const response = await this.emitBeacon<QueryMtrEntitiesResponse>(
+      server,
+      config.queryEvent,
+      {
+        category,
+        all: true,
+        includePayload: true,
+      },
+    );
+    const rows = Array.isArray(response?.rows) ? response.rows : [];
+    stats.pages = 1;
+    stats.beaconRows = rows.length;
+    if (rows.length) {
+      const batch = await this.upsertRowsInBatches(
         server,
-        config.queryEvent,
-        {
-          category,
-          limit: QUERY_LIMIT,
-          offset,
-          includePayload: true,
-        },
+        entityType,
+        rows,
+        syncMarker,
       );
-      const rows = Array.isArray(response?.rows) ? response.rows : [];
-      stats.pages += 1;
-      stats.beaconRows += rows.length;
-      if (rows.length) {
-        const batch = await this.upsertRowsInBatches(
-          server,
-          entityType,
-          rows,
-          syncMarker,
-        );
-        stats.persisted += batch.persisted;
-        stats.skipped += batch.skipped;
-        stats.changed += batch.changed;
-        stats.unchanged += batch.unchanged;
-      }
-      truncated = Boolean(response?.truncated);
-      offset += rows.length;
-    } while (truncated);
+      stats.persisted += batch.persisted;
+      stats.skipped += batch.skipped;
+      stats.changed += batch.changed;
+      stats.unchanged += batch.unchanged;
+    }
+
     stats.staleDeleted = await this.deleteStaleEntities(
       entityType,
       server,
