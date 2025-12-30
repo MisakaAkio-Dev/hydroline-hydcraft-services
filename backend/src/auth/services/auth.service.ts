@@ -1012,6 +1012,10 @@ export class AuthService {
     input: { email: string; name?: string; rememberMe?: boolean },
     context: RequestContext,
   ) {
+    const inviteRequired = await this.inviteService.getInviteRequired();
+    if (inviteRequired) {
+      throw new BadRequestException('Invitation code is required');
+    }
     const email = this.normalizeEmail(input.email);
     if (!email) {
       throw new BadRequestException('Email address cannot be empty');
