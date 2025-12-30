@@ -34,7 +34,7 @@ const sortedMessages = computed(() => {
       <div
         v-for="message in sortedMessages"
         :key="message.id"
-        class="shrink-0 cursor-pointer rounded-lg border border-slate-300/70 dark:border-slate-700/70 bg-primary-100 dark:bg-primary-900 px-3 py-2 hover:shadow-md transition-shadow"
+        class="shrink-0 cursor-pointer rounded-lg border border-slate-300/70 dark:border-slate-700/70 bg-primary-100 dark:bg-primary-900 px-3 py-2"
         @click="emit('badgeClick', message)"
       >
         <div class="flex items-center gap-3 text-xs">
