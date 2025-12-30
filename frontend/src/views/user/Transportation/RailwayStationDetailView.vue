@@ -607,7 +607,7 @@ onUnmounted(() => {
     class="fixed -z-1 top-0 left-0 lg:left-16 right-0 h-2/5 pointer-events-none select-none transition-opacity duration-500"
     :style="{
       background: `linear-gradient(180deg, ${backdropColor} -50%, transparent 95%) no-repeat`,
-      opacity: !backdropReady ? 0 : backdropVisible ? 0.4 : 0,
+      opacity: !backdropReady ? 0 : backdropVisible ? 0.4 : 0.1,
     }"
     :initial="{ filter: 'blur(0px)' }"
     :animate="{ filter: backdropVisible ? 'blur(64px)' : 'blur(0px)' }"
