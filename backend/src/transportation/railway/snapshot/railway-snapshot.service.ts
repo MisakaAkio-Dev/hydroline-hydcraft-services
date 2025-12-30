@@ -104,6 +104,19 @@ type RailDiagnosticsCacheEntry = {
   rails: RailDiagnostic[];
 };
 
+type ScopeSnapshotComputeOutcome =
+  | 'SKIPPED_UNCHANGED'
+  | 'SKIPPED_RUNNING'
+  | 'SKIPPED_LOCKED'
+  | 'SUCCEEDED'
+  | 'FAILED';
+
+type ScopeSnapshotComputeResult = {
+  outcome: ScopeSnapshotComputeOutcome;
+  dimensionContext: string;
+  fingerprint: string;
+};
+
 function hasCurveParams(params: RailCurveParameters | null | undefined) {
   if (!params) return false;
   return (
@@ -237,13 +250,46 @@ export class TransportationRailwaySnapshotService {
     railwayMod: TransportationRailwayMod;
   }) {
     const dimensionContexts = await this.listDimensionContexts(input);
+    const summary = {
+      total: dimensionContexts.length,
+      succeeded: 0,
+      failed: 0,
+      skippedUnchanged: 0,
+      skippedRunning: 0,
+      skippedLocked: 0,
+    };
+    this.logger.log(
+      `[RailwaySnapshot] compute start: ${input.serverId} ${input.railwayMod} scopes=${summary.total}`,
+    );
     for (const dimensionContext of dimensionContexts) {
-      await this.computeAndPersistScopeSnapshots({
+      const result = await this.computeAndPersistScopeSnapshots({
         serverId: input.serverId,
         railwayMod: input.railwayMod,
         dimensionContext,
       });
+      switch (result.outcome) {
+        case 'SUCCEEDED':
+          summary.succeeded += 1;
+          break;
+        case 'FAILED':
+          summary.failed += 1;
+          break;
+        case 'SKIPPED_UNCHANGED':
+          summary.skippedUnchanged += 1;
+          break;
+        case 'SKIPPED_RUNNING':
+          summary.skippedRunning += 1;
+          break;
+        case 'SKIPPED_LOCKED':
+          summary.skippedLocked += 1;
+          break;
+        default:
+          break;
+      }
     }
+    this.logger.log(
+      `[RailwaySnapshot] compute done: ${input.serverId} ${input.railwayMod} scopes=${summary.total} succeeded=${summary.succeeded} failed=${summary.failed} skippedUnchanged=${summary.skippedUnchanged} skippedRunning=${summary.skippedRunning} skippedLocked=${summary.skippedLocked}`,
+    );
   }
 
   private async listDimensionContexts(input: {
@@ -271,7 +317,9 @@ export class TransportationRailwaySnapshotService {
       .filter(Boolean);
   }
 
-  private async computeAndPersistScopeSnapshots(scope: ScopeKey) {
+  private async computeAndPersistScopeSnapshots(
+    scope: ScopeKey,
+  ): Promise<ScopeSnapshotComputeResult> {
     const fingerprint = await computeScopeFingerprint(this.prisma, scope);
     const existing =
       await this.prisma.transportationRailwayComputeScope.findUnique({
@@ -290,30 +338,69 @@ export class TransportationRailwaySnapshotService {
       this.logger.log(
         `Fingerprint unchanged: ${scope.serverId} ${scope.railwayMod} ${scope.dimensionContext}`,
       );
+      return {
+        outcome: 'SKIPPED_UNCHANGED',
+        dimensionContext: scope.dimensionContext,
+        fingerprint,
+      };
     }
 
-    await this.prisma.transportationRailwayComputeScope.upsert({
-      where: {
-        serverId_railwayMod_dimensionContext: {
+    if (existing?.status === 'RUNNING') {
+      return {
+        outcome: 'SKIPPED_RUNNING',
+        dimensionContext: scope.dimensionContext,
+        fingerprint,
+      };
+    }
+
+    const lockResult =
+      await this.prisma.transportationRailwayComputeScope.updateMany({
+        where: {
           serverId: scope.serverId,
           railwayMod: scope.railwayMod,
           dimensionContext: scope.dimensionContext,
+          status: { not: 'RUNNING' },
         },
-      },
-      update: {
-        fingerprint,
-        status: 'RUNNING',
-        message: null,
-        computedAt: null,
-      },
-      create: {
-        serverId: scope.serverId,
-        railwayMod: scope.railwayMod,
-        dimensionContext: scope.dimensionContext,
-        fingerprint,
-        status: 'RUNNING',
-      },
-    });
+        data: {
+          fingerprint,
+          status: 'RUNNING',
+          message: null,
+          computedAt: null,
+        },
+      });
+
+    if (lockResult.count === 0) {
+      if (existing) {
+        return {
+          outcome: 'SKIPPED_LOCKED',
+          dimensionContext: scope.dimensionContext,
+          fingerprint,
+        };
+      }
+      try {
+        await this.prisma.transportationRailwayComputeScope.create({
+          data: {
+            serverId: scope.serverId,
+            railwayMod: scope.railwayMod,
+            dimensionContext: scope.dimensionContext,
+            fingerprint,
+            status: 'RUNNING',
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          return {
+            outcome: 'SKIPPED_LOCKED',
+            dimensionContext: scope.dimensionContext,
+            fingerprint,
+          };
+        }
+        throw error;
+      }
+    }
 
     try {
       const dataset = await loadScopeDataset(this.prisma, scope);
@@ -356,6 +443,11 @@ export class TransportationRailwaySnapshotService {
           message: null,
         },
       });
+      return {
+        outcome: 'SUCCEEDED',
+        dimensionContext: scope.dimensionContext,
+        fingerprint,
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await this.prisma.transportationRailwayComputeScope.update({
@@ -374,6 +466,11 @@ export class TransportationRailwaySnapshotService {
       this.logger.error(
         `Compute scope failed: ${scope.serverId} ${scope.railwayMod} ${scope.dimensionContext}: ${message}`,
       );
+      return {
+        outcome: 'FAILED',
+        dimensionContext: scope.dimensionContext,
+        fingerprint,
+      };
     }
   }
 
@@ -631,15 +728,14 @@ export class TransportationRailwaySnapshotService {
     fallbackRouteIds: Set<string>;
   }) {
     const { scope, dataset, graph, fingerprint, fallbackRouteIds } = input;
-    await this.prisma.transportationRailwayRouteCalculate.deleteMany({
-      where: {
-        serverId: scope.serverId,
-        railwayMod: scope.railwayMod,
-        dimensionContext: scope.dimensionContext,
-      },
-    });
-
     if (!fallbackRouteIds.size) {
+      await this.prisma.transportationRailwayRouteCalculate.deleteMany({
+        where: {
+          serverId: scope.serverId,
+          railwayMod: scope.railwayMod,
+          dimensionContext: scope.dimensionContext,
+        },
+      });
       return;
     }
 
@@ -768,11 +864,44 @@ export class TransportationRailwaySnapshotService {
       });
     }
 
-    if (data.length) {
-      await this.prisma.transportationRailwayRouteCalculate.createMany({
-        data,
-      });
+    if (!data.length) {
+      return;
     }
+
+    const batchSize = 25;
+    for (let i = 0; i < data.length; i += batchSize) {
+      const batch = data.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map((entry) => {
+          const { id: _, ...update } = entry;
+          update.railwayMod = scope.railwayMod;
+          return this.prisma.transportationRailwayRouteCalculate.upsert({
+            where: {
+              serverId_railwayMod_dimensionContext_routeEntityId: {
+                serverId: scope.serverId,
+                railwayMod: scope.railwayMod,
+                dimensionContext: scope.dimensionContext,
+                routeEntityId: entry.routeEntityId,
+              },
+            },
+            update,
+            create: {
+              ...entry,
+              railwayMod: scope.railwayMod,
+            },
+          });
+        }),
+      );
+    }
+
+    await this.prisma.transportationRailwayRouteCalculate.deleteMany({
+      where: {
+        serverId: scope.serverId,
+        railwayMod: scope.railwayMod,
+        dimensionContext: scope.dimensionContext,
+        routeEntityId: { notIn: routeIds },
+      },
+    });
   }
 
   async computeAndPersistRouteGeometrySnapshot(input: {

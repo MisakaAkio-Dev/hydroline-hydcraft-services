@@ -85,6 +85,31 @@ type RailwayEntityCategory =
   | 'SIGNAL_BLOCK'
   | 'STATION';
 
+type SyncCategoryStats = {
+  beaconRows: number;
+  persisted: number;
+  skipped: number;
+  changed: number;
+  unchanged: number;
+  staleDeleted: number;
+  pages: number;
+};
+
+type UpsertEntityStats = {
+  processed: boolean;
+  unchanged: boolean;
+  upserted: boolean;
+};
+
+type SyncLogStats = {
+  mode: 'full' | 'diff';
+  total: number;
+  beaconRows: number;
+  persisted: number;
+  skipped: number;
+  deletedBefore: number;
+};
+
 const CATEGORY_MAP: Array<{
   key: string;
   type: RailwayEntityCategory;
@@ -159,14 +184,41 @@ export class TransportationRailwaySyncService implements OnModuleInit {
   private async syncServer(server: BeaconServerRecord) {
     this.logger.log(`Syncing railway data for ${server.displayName}`);
     const syncMarker = new Date();
+    const summary = {
+      beaconRows: 0,
+      persisted: 0,
+      skipped: 0,
+      changed: 0,
+      unchanged: 0,
+      staleDeleted: 0,
+      pages: 0,
+    };
     for (const category of CATEGORY_MAP) {
-      await this.syncCategory(server, category.key, category.type, syncMarker);
+      const stats = await this.syncCategory(
+        server,
+        category.key,
+        category.type,
+        syncMarker,
+      );
+      summary.beaconRows += stats.beaconRows;
+      summary.persisted += stats.persisted;
+      summary.skipped += stats.skipped;
+      summary.changed += stats.changed;
+      summary.unchanged += stats.unchanged;
+      summary.staleDeleted += stats.staleDeleted;
+      summary.pages += stats.pages;
     }
-    await this.syncLogs(server);
+    const logStats = await this.syncLogs(server);
     await this.snapshotService.computeAndPersistAllSnapshotsForServer({
       serverId: server.id,
       railwayMod: server.railwayMod,
     });
+    this.logger.log(
+      `[RailwaySync] ${server.displayName} summary: beacon=${summary.beaconRows} persisted=${summary.persisted} skipped=${summary.skipped} changed=${summary.changed} unchanged=${summary.unchanged} staleDeleted=${summary.staleDeleted} pages=${summary.pages} logs(mode=${logStats.mode} beacon=${logStats.beaconRows} persisted=${logStats.persisted} skipped=${logStats.skipped} deletedBefore=${logStats.deletedBefore})`,
+    );
+    this.logger.log(
+      `Railway sync completed successfully for ${server.displayName}`,
+    );
   }
 
   async syncServerById(serverId: string) {
@@ -289,10 +341,19 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     category: string,
     entityType: RailwayEntityCategory,
     syncMarker: Date,
-  ) {
+  ): Promise<SyncCategoryStats> {
     let offset = 0;
     let truncated = false;
     const config = this.getRailwayModConfig(server.railwayMod);
+    const stats: SyncCategoryStats = {
+      beaconRows: 0,
+      persisted: 0,
+      skipped: 0,
+      changed: 0,
+      unchanged: 0,
+      staleDeleted: 0,
+      pages: 0,
+    };
     do {
       const response = await this.emitBeacon<QueryMtrEntitiesResponse>(
         server,
@@ -305,19 +366,35 @@ export class TransportationRailwaySyncService implements OnModuleInit {
         },
       );
       const rows = Array.isArray(response?.rows) ? response.rows : [];
+      stats.pages += 1;
+      stats.beaconRows += rows.length;
       if (rows.length) {
-        await this.upsertRowsInBatches(server, entityType, rows, syncMarker);
+        const batch = await this.upsertRowsInBatches(
+          server,
+          entityType,
+          rows,
+          syncMarker,
+        );
+        stats.persisted += batch.persisted;
+        stats.skipped += batch.skipped;
+        stats.changed += batch.changed;
+        stats.unchanged += batch.unchanged;
       }
       truncated = Boolean(response?.truncated);
       offset += rows.length;
     } while (truncated);
-    await this.deleteStaleEntities(entityType, server, syncMarker);
+    stats.staleDeleted = await this.deleteStaleEntities(
+      entityType,
+      server,
+      syncMarker,
+    );
+    return stats;
   }
 
   private async syncLogs(
     server: BeaconServerRecord,
     options?: { mode?: 'full' | 'diff' },
-  ) {
+  ): Promise<SyncLogStats> {
     const existing = await this.prisma.transportationRailwayLog.findFirst({
       where: { serverId: server.id },
       select: { id: true },
@@ -328,10 +405,13 @@ export class TransportationRailwaySyncService implements OnModuleInit {
       orderColumn: 'id',
       order: 'asc',
     };
+    let deletedBefore = 0;
     if (shouldFullSync) {
-      await this.prisma.transportationRailwayLog.deleteMany({
-        where: { serverId: server.id },
-      });
+      deletedBefore = (
+        await this.prisma.transportationRailwayLog.deleteMany({
+          where: { serverId: server.id },
+        })
+      ).count;
       payload.all = true;
     } else {
       const { startDate, endDate } = this.getLogSyncDateRange();
@@ -352,10 +432,24 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     }
     const rows = Array.isArray(response?.records) ? response.records : [];
     if (!rows.length) {
-      return { mode: shouldFullSync ? 'full' : 'diff', total: 0 };
+      return {
+        mode: shouldFullSync ? 'full' : 'diff',
+        total: 0,
+        beaconRows: 0,
+        persisted: 0,
+        skipped: 0,
+        deletedBefore,
+      };
     }
-    await this.upsertLogRowsInBatches(server, rows);
-    return { mode: shouldFullSync ? 'full' : 'diff', total: rows.length };
+    const logBatch = await this.upsertLogRowsInBatches(server, rows);
+    return {
+      mode: shouldFullSync ? 'full' : 'diff',
+      total: rows.length,
+      beaconRows: rows.length,
+      persisted: logBatch.persisted,
+      skipped: logBatch.skipped,
+      deletedBefore,
+    };
   }
 
   private async upsertEntity(
@@ -363,10 +457,10 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     category: RailwayEntityCategory,
     row: Record<string, unknown>,
     syncMarker: Date,
-  ) {
+  ): Promise<UpsertEntityStats> {
     const entityId = this.readString(row.entity_id ?? row.node_pos);
     if (!entityId) {
-      return;
+      return { processed: false, unchanged: false, upserted: false };
     }
     const filePath = this.readString(row.file_path);
     const railwayMod = this.resolveRailwayMod(server.railwayMod);
@@ -375,7 +469,7 @@ export class TransportationRailwaySyncService implements OnModuleInit {
       this.inferDimensionContext(filePath, railwayMod);
     const payload = this.normalizePayload(row.payload);
     const lastUpdated = this.readTimestamp(row.last_updated);
-    await this.persistEntityByCategory(category, server, {
+    const result = await this.persistEntityByCategory(category, server, {
       entityId,
       railwayMod,
       dimensionContext,
@@ -412,6 +506,11 @@ export class TransportationRailwaySyncService implements OnModuleInit {
         },
       });
     }
+    return {
+      processed: true,
+      unchanged: result.unchanged,
+      upserted: result.upserted,
+    };
   }
 
   private async upsertRowsInBatches(
@@ -419,30 +518,58 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     category: RailwayEntityCategory,
     rows: Array<Record<string, unknown>>,
     syncMarker: Date,
-  ) {
-    const pending: Array<Promise<void>> = [];
+  ): Promise<{
+    persisted: number;
+    skipped: number;
+    changed: number;
+    unchanged: number;
+  }> {
+    const stats = { persisted: 0, skipped: 0, changed: 0, unchanged: 0 };
+    const pending: Array<Promise<UpsertEntityStats>> = [];
     for (const row of rows) {
       pending.push(this.upsertEntity(server, category, row, syncMarker));
       if (pending.length >= UPSERT_BATCH_SIZE) {
-        await Promise.all(pending);
+        const results = await Promise.all(pending);
+        for (const result of results) {
+          if (!result.processed) {
+            stats.skipped += 1;
+            continue;
+          }
+          stats.persisted += 1;
+          if (result.unchanged) stats.unchanged += 1;
+          if (result.upserted) stats.changed += 1;
+        }
         pending.length = 0;
       }
     }
     if (pending.length) {
-      await Promise.all(pending);
+      const results = await Promise.all(pending);
+      for (const result of results) {
+        if (!result.processed) {
+          stats.skipped += 1;
+          continue;
+        }
+        stats.persisted += 1;
+        if (result.unchanged) stats.unchanged += 1;
+        if (result.upserted) stats.changed += 1;
+      }
     }
+    return stats;
   }
 
   private async upsertLogRowsInBatches(
     server: BeaconServerRecord,
     rows: Array<Record<string, unknown>>,
   ) {
+    const stats = { persisted: 0, skipped: 0 };
     const pending: Array<Promise<void>> = [];
     for (const row of rows) {
       const mapped = this.mapLogRecord(server, row);
       if (!mapped) {
+        stats.skipped += 1;
         continue;
       }
+      stats.persisted += 1;
       pending.push(
         this.prisma.transportationRailwayLog
           .upsert({
@@ -470,6 +597,7 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     if (pending.length) {
       await Promise.all(pending);
     }
+    return stats;
   }
 
   private mapLogRecord(
@@ -572,7 +700,7 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     category: RailwayEntityCategory,
     server: BeaconServerRecord,
     syncMarker: Date,
-  ) {
+  ): Promise<number> {
     const where = {
       serverId: server.id,
       railwayMod: server.railwayMod,
@@ -580,27 +708,33 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     };
     switch (category) {
       case 'DEPOT':
-        await this.prisma.transportationRailwayDepot.deleteMany({ where });
-        break;
+        return (
+          await this.prisma.transportationRailwayDepot.deleteMany({ where })
+        ).count;
       case 'PLATFORM':
-        await this.prisma.transportationRailwayPlatform.deleteMany({ where });
-        break;
+        return (
+          await this.prisma.transportationRailwayPlatform.deleteMany({ where })
+        ).count;
       case 'RAIL':
-        await this.prisma.transportationRailwayRail.deleteMany({ where });
-        break;
+        return (
+          await this.prisma.transportationRailwayRail.deleteMany({ where })
+        ).count;
       case 'ROUTE':
-        await this.prisma.transportationRailwayRoute.deleteMany({ where });
-        break;
+        return (
+          await this.prisma.transportationRailwayRoute.deleteMany({ where })
+        ).count;
       case 'SIGNAL_BLOCK':
-        await this.prisma.transportationRailwaySignalBlock.deleteMany({
-          where,
-        });
-        break;
+        return (
+          await this.prisma.transportationRailwaySignalBlock.deleteMany({
+            where,
+          })
+        ).count;
       case 'STATION':
-        await this.prisma.transportationRailwayStation.deleteMany({ where });
-        break;
+        return (
+          await this.prisma.transportationRailwayStation.deleteMany({ where })
+        ).count;
       default:
-        break;
+        return 0;
     }
   }
 
@@ -619,7 +753,7 @@ export class TransportationRailwaySyncService implements OnModuleInit {
       lastBeaconUpdatedAt: Date | null;
       syncedAt: Date;
     },
-  ) {
+  ): Promise<{ unchanged: boolean; upserted: boolean }> {
     const baseData = {
       railwayMod: entity.railwayMod,
       dimensionContext: entity.dimensionContext,
@@ -640,6 +774,19 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     };
     switch (category) {
       case 'DEPOT':
+        if (entity.lastBeaconUpdatedAt) {
+          const unchanged =
+            await this.prisma.transportationRailwayDepot.updateMany({
+              where: {
+                serverId: server.id,
+                railwayMod: entity.railwayMod,
+                entityId: entity.entityId,
+                lastBeaconUpdatedAt: entity.lastBeaconUpdatedAt,
+              },
+              data: { syncedAt: entity.syncedAt },
+            });
+          if (unchanged.count > 0) return { unchanged: true, upserted: false };
+        }
         await this.prisma.transportationRailwayDepot.upsert({
           where,
           update: baseData,
@@ -649,8 +796,21 @@ export class TransportationRailwaySyncService implements OnModuleInit {
             ...baseData,
           },
         });
-        break;
+        return { unchanged: false, upserted: true };
       case 'PLATFORM':
+        if (entity.lastBeaconUpdatedAt) {
+          const unchanged =
+            await this.prisma.transportationRailwayPlatform.updateMany({
+              where: {
+                serverId: server.id,
+                railwayMod: entity.railwayMod,
+                entityId: entity.entityId,
+                lastBeaconUpdatedAt: entity.lastBeaconUpdatedAt,
+              },
+              data: { syncedAt: entity.syncedAt },
+            });
+          if (unchanged.count > 0) return { unchanged: true, upserted: false };
+        }
         await this.prisma.transportationRailwayPlatform.upsert({
           where,
           update: baseData,
@@ -660,8 +820,21 @@ export class TransportationRailwaySyncService implements OnModuleInit {
             ...baseData,
           },
         });
-        break;
+        return { unchanged: false, upserted: true };
       case 'RAIL':
+        if (entity.lastBeaconUpdatedAt) {
+          const unchanged =
+            await this.prisma.transportationRailwayRail.updateMany({
+              where: {
+                serverId: server.id,
+                railwayMod: entity.railwayMod,
+                entityId: entity.entityId,
+                lastBeaconUpdatedAt: entity.lastBeaconUpdatedAt,
+              },
+              data: { syncedAt: entity.syncedAt },
+            });
+          if (unchanged.count > 0) return { unchanged: true, upserted: false };
+        }
         await this.prisma.transportationRailwayRail.upsert({
           where,
           update: baseData,
@@ -671,8 +844,21 @@ export class TransportationRailwaySyncService implements OnModuleInit {
             ...baseData,
           },
         });
-        break;
+        return { unchanged: false, upserted: true };
       case 'ROUTE':
+        if (entity.lastBeaconUpdatedAt) {
+          const unchanged =
+            await this.prisma.transportationRailwayRoute.updateMany({
+              where: {
+                serverId: server.id,
+                railwayMod: entity.railwayMod,
+                entityId: entity.entityId,
+                lastBeaconUpdatedAt: entity.lastBeaconUpdatedAt,
+              },
+              data: { syncedAt: entity.syncedAt },
+            });
+          if (unchanged.count > 0) return { unchanged: true, upserted: false };
+        }
         await this.prisma.transportationRailwayRoute.upsert({
           where,
           update: baseData,
@@ -682,8 +868,21 @@ export class TransportationRailwaySyncService implements OnModuleInit {
             ...baseData,
           },
         });
-        break;
+        return { unchanged: false, upserted: true };
       case 'SIGNAL_BLOCK':
+        if (entity.lastBeaconUpdatedAt) {
+          const unchanged =
+            await this.prisma.transportationRailwaySignalBlock.updateMany({
+              where: {
+                serverId: server.id,
+                railwayMod: entity.railwayMod,
+                entityId: entity.entityId,
+                lastBeaconUpdatedAt: entity.lastBeaconUpdatedAt,
+              },
+              data: { syncedAt: entity.syncedAt },
+            });
+          if (unchanged.count > 0) return { unchanged: true, upserted: false };
+        }
         await this.prisma.transportationRailwaySignalBlock.upsert({
           where,
           update: baseData,
@@ -693,8 +892,21 @@ export class TransportationRailwaySyncService implements OnModuleInit {
             ...baseData,
           },
         });
-        break;
+        return { unchanged: false, upserted: true };
       case 'STATION':
+        if (entity.lastBeaconUpdatedAt) {
+          const unchanged =
+            await this.prisma.transportationRailwayStation.updateMany({
+              where: {
+                serverId: server.id,
+                railwayMod: entity.railwayMod,
+                entityId: entity.entityId,
+                lastBeaconUpdatedAt: entity.lastBeaconUpdatedAt,
+              },
+              data: { syncedAt: entity.syncedAt },
+            });
+          if (unchanged.count > 0) return { unchanged: true, upserted: false };
+        }
         await this.prisma.transportationRailwayStation.upsert({
           where,
           update: baseData,
@@ -704,9 +916,9 @@ export class TransportationRailwaySyncService implements OnModuleInit {
             ...baseData,
           },
         });
-        break;
+        return { unchanged: false, upserted: true };
       default:
-        break;
+        return { unchanged: false, upserted: false };
     }
   }
 
