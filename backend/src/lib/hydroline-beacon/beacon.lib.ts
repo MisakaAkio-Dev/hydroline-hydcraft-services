@@ -124,6 +124,26 @@ export class BeaconLibService implements OnModuleInit {
     }
   }
 
+  async fetchOnlinePlayers(serverId: string) {
+    const client = this.pool.getClientOrNull(serverId);
+    if (!client) return null;
+    try {
+      const payload = await client.emit<unknown>(
+        'list_online_players',
+        {},
+        {
+          timeoutMs: this.defaultTimeoutMs,
+        },
+      );
+      return payload;
+    } catch (e) {
+      this.logger.debug(
+        `fetchOnlinePlayers failed for ${serverId}: ${String(e)}`,
+      );
+      return null;
+    }
+  }
+
   private get defaultTimeoutMs() {
     // 与客户端默认超时建议保持一致
     return 8000;

@@ -795,13 +795,18 @@ export class PortalGatewayService {
         let beaconClock: { displayTime?: string; locked?: boolean } | null =
           null;
         let beaconOnlinePlayers: number | null = null;
+        let beaconPlayersList: Array<{ uuid: string; name: string }> | null =
+          null;
         let beaconMaxPlayers: number | null = null;
 
+        let onlinePlayersPayload: unknown | null = null;
         try {
-          const [timePayload, statusPayload] = await Promise.all([
-            this.beaconLib.fetchServerTimeNow(server.id),
-            this.beaconLib.fetchStatusNow(server.id),
-          ]);
+          const [timePayload, statusPayload, onlinePlayersResult] =
+            await Promise.all([
+              this.beaconLib.fetchServerTimeNow(server.id),
+              this.beaconLib.fetchStatusNow(server.id),
+              this.beaconLib.fetchOnlinePlayers(server.id),
+            ]);
 
           if (timePayload && (timePayload as any).success) {
             const anyTime = timePayload as any;
@@ -837,12 +842,35 @@ export class PortalGatewayService {
               beaconMaxPlayers = anyStatus.server_max_players;
             }
           }
+          onlinePlayersPayload = onlinePlayersResult;
         } catch (e) {
           this.logger.debug(
             `Beacon realtime status failed for server ${server.id}: ${String(
               e,
             )}`,
           );
+        }
+
+        if (onlinePlayersPayload && (onlinePlayersPayload as any).players) {
+          const rawPlayers = (onlinePlayersPayload as any).players;
+          if (Array.isArray(rawPlayers)) {
+            beaconPlayersList = rawPlayers
+              .map((entry) => {
+                const uuid =
+                  typeof entry?.uuid === 'string' ? entry.uuid : undefined;
+                const name =
+                  typeof entry?.name === 'string'
+                    ? entry.name
+                    : typeof entry?.player_name === 'string'
+                      ? entry.player_name
+                      : undefined;
+                return uuid && name ? { uuid, name } : null;
+              })
+              .filter(
+                (entry): entry is { uuid: string; name: string } =>
+                  entry !== null,
+              );
+          }
         }
 
         // MCSM 连接状态（通过元数据/最近一次状态记录或配置来粗略判断）
@@ -905,6 +933,7 @@ export class PortalGatewayService {
           beacon: beaconClock ? { clock: beaconClock } : null,
           ping,
           mcsm,
+          players: beaconPlayersList ?? [],
         };
       }),
     );
