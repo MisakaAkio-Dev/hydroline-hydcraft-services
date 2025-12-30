@@ -216,7 +216,7 @@ const routeName = computed(() => {
   if (variantMode.value === DEFAULT_VARIANT_MODE && variantCount > 1) {
     const baseRaw = raw?.split('||')[0] ?? raw ?? null
     const baseParsed = parseRouteName(baseRaw)
-    return { title: baseParsed.title, subtitle: null, badge: null }
+    return baseParsed
   }
   return parsed
 })

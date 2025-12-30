@@ -803,7 +803,13 @@ export class TransportationRailwayRouteDetailService {
       );
 
     const unique = new Map<string, { routeId: string; color: number | null }>();
-    for (const item of candidates) {
+    const sortedCandidates = [...candidates].sort((a, b) => {
+      const aPrimary = a.routeId === input.primaryRouteId;
+      const bPrimary = b.routeId === input.primaryRouteId;
+      if (aPrimary !== bPrimary) return aPrimary ? -1 : 1;
+      return a.routeId.localeCompare(b.routeId);
+    });
+    for (const item of sortedCandidates) {
       unique.set(item.routeId, item);
     }
     if (!unique.size) {
