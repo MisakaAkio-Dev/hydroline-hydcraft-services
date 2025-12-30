@@ -970,9 +970,9 @@ onBeforeUnmount(() => {
             class="mb-1 flex items-center gap-1 text-4xl font-semibold text-slate-900 dark:text-white"
           >
             <span
-              v-if="detail?.route.previewSvg"
+              v-if="activeDetail?.route.previewSvg"
               class="inline-flex h-10 w-fit items-center justify-center rounded-md align-middle overflow-hidden drop-shadow"
-              v-html="detail.route.previewSvg"
+              v-html="activeDetail.route.previewSvg"
             ></span>
 
             <span>

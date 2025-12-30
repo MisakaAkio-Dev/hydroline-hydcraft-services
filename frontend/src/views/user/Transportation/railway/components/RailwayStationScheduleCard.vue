@@ -28,6 +28,7 @@ const schedule = ref<ScheduleItem[]>([])
 const now = ref(Date.now())
 const failCount = ref(0)
 const emptyCount = ref(0)
+const hasScheduleData = ref(false)
 
 const expanded = ref(false)
 const contentRef = ref<HTMLElement | null>(null)
@@ -67,16 +68,18 @@ const fetchSchedule = async (isPolling = false) => {
       serverId: props.serverId,
       railwayType: props.railwayType,
     })
-    schedule.value = data
     failCount.value = 0
     error.value = null
 
     if (data.length === 0) {
       emptyCount.value++
-      if (isPolling && emptyCount.value > 2) {
-        stopPolling()
+      if (!hasScheduleData.value || emptyCount.value > 3) {
+        schedule.value = []
+        hasScheduleData.value = false
       }
     } else {
+      schedule.value = data
+      hasScheduleData.value = true
       emptyCount.value = 0
     }
 
@@ -175,7 +178,7 @@ const sortedItems = computed(() => {
       return {
         ...item,
         arrivalDifference,
-        displayTime: arrivalDifference < 0 ? '' : formatTime(arrivalDifference),
+        displayTime: formatTime(Math.abs(arrivalDifference)),
         routeNameDisplay: routeName,
         routeNameSubDisplay: routeNameSub,
         routeNumberDisplay: routeNumber,
