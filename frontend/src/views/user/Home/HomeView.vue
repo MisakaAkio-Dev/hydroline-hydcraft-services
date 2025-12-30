@@ -22,6 +22,7 @@ const scrolled = ref(false)
 const heroImageLoaded = ref(false)
 const homeLoaded = ref(false)
 const heroParallaxOffset = reactive({ x: 0, y: 0 })
+const heroParallaxMaxOffset = 36
 const parallaxEnabled = ref(true)
 const scrollLockPosition = ref(0)
 const heroViewportHeight = ref<number | null>(null)
@@ -32,6 +33,13 @@ const heroPanActive = ref(false)
 const heroPanStartX = ref(0)
 const heroPanStartY = ref(0)
 const heroPanStartPosition = ref(50)
+const heroPanVelocity = ref(0)
+const heroPanLastX = ref(0)
+const heroPanLastTime = ref(0)
+const heroPanInertiaFrame = ref<number | null>(null)
+const heroPanInertiaActive = ref(false)
+const heroPointer = reactive({ x: 0, y: 0 })
+const heroPointerActive = ref(false)
 const numberFormatter = new Intl.NumberFormat('zh-CN')
 const railwayStatsText = computed(() => {
   const stats = home.value?.railwayOverview?.stats
@@ -121,7 +129,10 @@ const heroPanStyle = computed<Record<string, string>>(() => {
   }
   return {
     objectPosition: `${heroPanPosition.value}% top`,
-    transition: heroPanActive.value ? 'none' : 'object-position 0.25s ease-out',
+    transition:
+      heroPanActive.value || heroPanInertiaActive.value
+        ? 'none'
+        : 'object-position 0.25s ease-out',
   }
 })
 
@@ -131,7 +142,10 @@ const heroPanStylePreview = computed<Record<string, string>>(() => {
   }
   return {
     objectPosition: `${heroPanPosition.value}% top`,
-    transition: heroPanActive.value ? 'none' : 'object-position 0.25s ease-out',
+    transition:
+      heroPanActive.value || heroPanInertiaActive.value
+        ? 'none'
+        : 'object-position 0.25s ease-out',
   }
 })
 
@@ -146,6 +160,7 @@ function updateParallaxEnabled() {
   if (!enabled) {
     heroParallaxOffset.x = 0
     heroParallaxOffset.y = 0
+    heroPointerActive.value = false
   }
 }
 
@@ -165,8 +180,12 @@ function handleMouseMove(event: MouseEvent) {
   if (!parallaxEnabled.value || uiStore.previewMode) {
     heroParallaxOffset.x = 0
     heroParallaxOffset.y = 0
+    heroPointerActive.value = false
     return
   }
+  heroPointer.x = event.clientX
+  heroPointer.y = event.clientY
+  heroPointerActive.value = true
 
   const vw = window.innerWidth || 1
   const vh = window.innerHeight || 1
@@ -174,22 +193,33 @@ function handleMouseMove(event: MouseEvent) {
   const relX = event.clientX / vw
   const relY = event.clientY / vh
 
-  const maxOffset = 36
-  const offsetX = (relX - 0.5) * maxOffset * -1
-  const offsetY = (relY - 0.5) * maxOffset * -1
+  const offsetX = (relX - 0.5) * heroParallaxMaxOffset * -1
+  const offsetY = (relY - 0.5) * heroParallaxMaxOffset * -1
 
   heroParallaxOffset.x = offsetX
   heroParallaxOffset.y = offsetY
+}
+
+function handleMouseOut(event: MouseEvent) {
+  if (event.relatedTarget || event.toElement) return
+  heroParallaxOffset.x = 0
+  heroParallaxOffset.y = 0
+  heroPointerActive.value = false
 }
 
 function handleHeroPanStart(event: TouchEvent) {
   if (!isMobileViewport.value) return
   const touch = event.touches[0]
   if (!touch) return
+  stopHeroPanInertia()
   heroPanActive.value = true
+  heroPanInertiaActive.value = false
   heroPanStartX.value = touch.clientX
   heroPanStartY.value = touch.clientY
   heroPanStartPosition.value = heroPanPosition.value
+  heroPanLastX.value = touch.clientX
+  heroPanLastTime.value = performance.now()
+  heroPanVelocity.value = 0
 }
 
 function handleHeroPanMove(event: TouchEvent) {
@@ -202,10 +232,56 @@ function handleHeroPanMove(event: TouchEvent) {
   event.preventDefault()
   const next = heroPanStartPosition.value - deltaX * 0.1
   heroPanPosition.value = Math.max(0, Math.min(100, next))
+  const now = performance.now()
+  const deltaTime = now - heroPanLastTime.value
+  if (deltaTime > 0) {
+    const velocity = (touch.clientX - heroPanLastX.value) / deltaTime
+    heroPanVelocity.value = heroPanVelocity.value * 0.7 + velocity * 0.3
+  }
+  heroPanLastX.value = touch.clientX
+  heroPanLastTime.value = now
 }
 
 function handleHeroPanEnd() {
   heroPanActive.value = false
+  startHeroPanInertia()
+}
+
+function stopHeroPanInertia() {
+  if (heroPanInertiaFrame.value !== null) {
+    window.cancelAnimationFrame(heroPanInertiaFrame.value)
+    heroPanInertiaFrame.value = null
+  }
+  heroPanInertiaActive.value = false
+}
+
+function startHeroPanInertia() {
+  const minVelocity = 0.005
+  const friction = 0.92
+  let velocity = -heroPanVelocity.value * 0.1
+  if (Math.abs(velocity) < minVelocity) return
+  heroPanInertiaActive.value = true
+  let lastTime = performance.now()
+  const step = (now: number) => {
+    const deltaTime = now - lastTime
+    lastTime = now
+    if (deltaTime <= 0) {
+      heroPanInertiaFrame.value = window.requestAnimationFrame(step)
+      return
+    }
+    heroPanPosition.value = Math.max(
+      0,
+      Math.min(100, heroPanPosition.value + velocity * deltaTime),
+    )
+    velocity *= Math.pow(friction, deltaTime / 16.7)
+    const atEdge = heroPanPosition.value <= 0 || heroPanPosition.value >= 100
+    if (Math.abs(velocity) < minVelocity || atEdge) {
+      stopHeroPanInertia()
+      return
+    }
+    heroPanInertiaFrame.value = window.requestAnimationFrame(step)
+  }
+  heroPanInertiaFrame.value = window.requestAnimationFrame(step)
 }
 
 function updateHeroMetadata() {
@@ -273,6 +349,7 @@ onMounted(async () => {
   window.addEventListener('scroll', updateScrollState, { passive: true })
 
   window.addEventListener('mousemove', handleMouseMove)
+  window.addEventListener('mouseout', handleMouseOut)
 
   if (heroRef.value) {
     observer.value = new IntersectionObserver(
@@ -347,6 +424,9 @@ watch([activeHeroDescription, activeHeroSubtitle], () => {
 })
 
 onBeforeUnmount(() => {
+  if (uiStore.previewMode) {
+    uiStore.previewMode = false
+  }
   window.removeEventListener('scroll', updateScrollState)
   window.removeEventListener('resize', updateParallaxEnabled)
   window.removeEventListener('resize', updateHeroViewportHeight)
@@ -355,6 +435,8 @@ onBeforeUnmount(() => {
     updateHeroViewportHeight,
   )
   window.removeEventListener('mousemove', handleMouseMove)
+  window.removeEventListener('mouseout', handleMouseOut)
+  stopHeroPanInertia()
   if (observer.value && heroRef.value) {
     observer.value.unobserve(heroRef.value)
     observer.value.disconnect()
@@ -664,7 +746,13 @@ function handleHeroImageErrored() {
         :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
         :transition="{ duration: 0.4, ease: 'easeOut' }"
       >
-        <FeatureCards :railway-stats-text="railwayStatsText" />
+        <FeatureCards
+          :railway-stats-text="railwayStatsText"
+          :pointer-x="heroPointer.x"
+          :pointer-y="heroPointer.y"
+          :pointer-active="heroPointerActive"
+          :magnet-max-offset="6"
+        />
       </Motion>
     </section>
   </div>
