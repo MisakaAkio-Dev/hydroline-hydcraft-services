@@ -6,7 +6,7 @@ export default [
   },
   ...vueTsConfig({ rootDir: import.meta.dirname }),
   {
-    files: ['**/*.{ts,tsx,vue}'],
+    files: ['**/*.{ts,tsx,vue,mjs}'],
     languageOptions: {
       parserOptions: {
         tsconfigRootDir: import.meta.dirname,

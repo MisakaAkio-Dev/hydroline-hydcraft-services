@@ -3,8 +3,9 @@ import { createPinia } from 'pinia'
 import { createHead } from '@unhead/vue/client'
 import ui from '@nuxt/ui/vue-plugin'
 import { addCollection } from '@iconify/vue'
-import lucideIcons from '@iconify-json/lucide/icons.json'
-import logosIcons from '@iconify-json/logos/icons.json'
+import heroiconsIcons from '@/icons/heroicons.json'
+import logosIcons from '@/icons/logos.json'
+import lucideIcons from '@/icons/lucide.json'
 
 import router from './router'
 import { useUiStore } from '@/stores/shared/ui'
@@ -19,6 +20,7 @@ import { THEME_KEY } from 'vue-echarts'
 
 addCollection(lucideIcons)
 addCollection(logosIcons)
+addCollection(heroiconsIcons)
 
 import { use as echartsUse, registerTheme } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -28,6 +30,7 @@ import {
   TooltipComponent,
   LegendComponent,
 } from 'echarts/components'
+
 echartsUse([
   CanvasRenderer,
   LineChart,
