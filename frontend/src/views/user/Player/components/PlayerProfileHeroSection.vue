@@ -48,13 +48,8 @@ const primaryAvatarUrl = computed(() => {
   )}/64`
 })
 
-const fallbackAvatarUrl = computed(() => {
-  return (
-    props.summary?.avatarUrl ??
-    props.summary?.image ??
-    primaryAvatarUrl.value ??
-    null
-  )
+const userAvatarUrl = computed(() => {
+  return props.summary?.avatarUrl ?? props.summary?.image ?? null
 })
 
 const displayName = computed(() => {
@@ -119,20 +114,14 @@ async function handleLikeToggle() {
       <div class="flex gap-2 select-none">
         <template v-if="props.summary">
           <div
+            v-if="userAvatarUrl"
             class="flex h-18 w-18 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-700/60"
           >
             <img
-              v-if="fallbackAvatarUrl"
-              :src="fallbackAvatarUrl"
+              :src="userAvatarUrl"
               :alt="displayName ?? props.summary.email"
               class="h-full w-full object-cover"
             />
-            <span
-              v-else
-              class="text-sm font-semibold uppercase text-slate-600 dark:text-slate-200"
-            >
-              {{ heroInitials }}
-            </span>
           </div>
 
           <img
