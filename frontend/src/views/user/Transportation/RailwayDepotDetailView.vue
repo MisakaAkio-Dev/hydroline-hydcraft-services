@@ -370,8 +370,8 @@ onBeforeUnmount(() => {
               </UTooltip>
             </span>
           </p>
-          <div class="flex flex-wrap items-center gap-2 text-sm">
-            <div>
+          <div class="text-sm">
+            <div class="inline-block align-middle mr-2">
               <UTooltip :text="`线路色 ${routeColorHex}`">
                 <span
                   class="inline-block h-3 w-3 rounded-full mr-2"
@@ -391,18 +391,20 @@ onBeforeUnmount(() => {
               </span>
             </div>
 
-            <UBadge
-              v-if="depotName.split('||').length > 1"
-              variant="soft"
-              size="sm"
-              color="neutral"
-            >
-              {{ depotName.split('||')[1].split('|')[0] }}
-            </UBadge>
-            <UBadge variant="soft" size="sm">{{ serverBadge }}</UBadge>
-            <UBadge variant="soft" size="sm">{{
-              dimensionName || '未知维度'
-            }}</UBadge>
+            <div class="inline-flex items-center gap-2">
+              <UBadge
+                v-if="depotName.split('||').length > 1"
+                variant="soft"
+                size="sm"
+                color="neutral"
+              >
+                {{ depotName.split('||')[1].split('|')[0] }}
+              </UBadge>
+              <UBadge variant="soft" size="sm">{{ serverBadge }}</UBadge>
+              <UBadge variant="soft" size="sm">
+                {{ dimensionName || '未知维度' }}
+              </UBadge>
+            </div>
           </div>
         </div>
       </div>

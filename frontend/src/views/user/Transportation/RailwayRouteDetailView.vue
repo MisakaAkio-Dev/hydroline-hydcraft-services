@@ -992,10 +992,8 @@ onBeforeUnmount(() => {
               </UTooltip>
             </span>
           </div>
-          <div
-            class="flex items-center gap-1.5 text-lg font-semibold text-slate-600 dark:text-slate-300"
-          >
-            <div>
+          <div class="text-lg font-semibold text-slate-600 dark:text-slate-300">
+            <div class="inline-block align-middle mr-2">
               <UTooltip :text="`线路色 ${routeColorHex}`">
                 <span
                   class="inline-block h-3 w-3 rounded-full mr-2"
@@ -1012,17 +1010,19 @@ onBeforeUnmount(() => {
               </span>
             </div>
 
-            <UBadge variant="solid" size="sm" v-if="routeName.badge">
-              {{ routeName.badge.split('|').join(' ') }}
-            </UBadge>
+            <div class="inline-flex items-center gap-2">
+              <UBadge variant="solid" size="sm" v-if="routeName.badge">
+                {{ routeName.badge.split('|').join(' ') }}
+              </UBadge>
 
-            <UBadge variant="soft" size="sm">
-              {{ detail?.server.name || params.serverId }}
-            </UBadge>
+              <UBadge variant="soft" size="sm">
+                {{ detail?.server.name || params.serverId }}
+              </UBadge>
 
-            <UBadge variant="soft" size="sm">
-              {{ getDimensionName(detail?.dimension || params.dimension) }}
-            </UBadge>
+              <UBadge variant="soft" size="sm">
+                {{ getDimensionName(detail?.dimension || params.dimension) }}
+              </UBadge>
+            </div>
           </div>
         </div>
       </div>
@@ -1113,7 +1113,7 @@ onBeforeUnmount(() => {
           >
             <div
               v-if="stopDisplayItems.length === 0"
-              class="p-4 text-sm text-slate-500"
+              class="p-4 text-sm text-slate-500 text-center"
             >
               暂无站点数据
             </div>

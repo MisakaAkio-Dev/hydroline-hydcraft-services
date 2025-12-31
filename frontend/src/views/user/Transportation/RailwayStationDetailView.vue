@@ -651,8 +651,8 @@ onUnmounted(() => {
               </UTooltip>
             </span>
           </p>
-          <div class="flex flex-wrap items-center gap-2 text-sm">
-            <div>
+          <div class="text-sm">
+            <div class="inline-block align-middle mr-2">
               <UTooltip :text="`线路色 ${routeColorHex}`">
                 <span
                   class="inline-block h-3 w-3 rounded-full mr-2"
@@ -671,11 +671,12 @@ onUnmounted(() => {
                 {{ stationName.split('|')[1] }}
               </span>
             </div>
-
-            <UBadge variant="soft" size="sm">{{ serverBadge }}</UBadge>
-            <UBadge variant="soft" size="sm">{{
-              dimensionName || '未知维度'
-            }}</UBadge>
+            <div class="inline-flex items-center gap-2">
+              <UBadge variant="soft" size="sm">{{ serverBadge }}</UBadge>
+              <UBadge variant="soft" size="sm">
+                {{ dimensionName || '未知维度' }}
+              </UBadge>
+            </div>
           </div>
         </div>
       </div>
@@ -973,7 +974,7 @@ onUnmounted(() => {
               </span>
             </h3>
             <div
-              class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60"
+              class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 text-center"
             >
               <p
                 v-if="associatedRoutes.length === 0"
@@ -1147,7 +1148,7 @@ onUnmounted(() => {
             </div>
             <div
               v-else
-              class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 text-sm text-slate-500"
+              class="mt-3 space-y-2 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 text-sm text-slate-500 text-center"
             >
               暂无站台数据
             </div>
