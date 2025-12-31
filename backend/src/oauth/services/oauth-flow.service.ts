@@ -179,13 +179,25 @@ export class OAuthFlowService {
     return this.stateService.consumeResult(state);
   }
 
-  async unlink(providerKey: string, userId: string) {
-    const account = await this.prisma.account.findFirst({
-      where: { provider: providerKey, userId },
-    });
+  async unlink(providerKey: string, userId: string, accountId?: string) {
+    const account = accountId
+      ? await this.prisma.account.findUnique({ where: { id: accountId } })
+      : await this.prisma.account.findFirst({
+          where: { provider: providerKey, userId },
+        });
     if (!account) {
       throw new BadRequestException(
         'Current account is not bound to this provider',
+      );
+    }
+    if (account.userId !== userId) {
+      throw new BadRequestException(
+        'Current account is not bound to the authenticated user',
+      );
+    }
+    if (account.provider !== providerKey) {
+      throw new BadRequestException(
+        'Account provider does not match the requested provider',
       );
     }
     await this.prisma.account.delete({ where: { id: account.id } });

@@ -89,6 +89,19 @@ export class OAuthPublicController {
     return payload;
   }
 
+  @Delete(':providerKey/bindings/:accountId')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: '解除指定的 Provider 绑定' })
+  async unlinkProviderBinding(
+    @Param('providerKey') providerKey: string,
+    @Param('accountId') accountId: string,
+    @Req() req: Request,
+  ) {
+    await this.flowService.unlink(providerKey, req.user!.id, accountId);
+    return { success: true };
+  }
+
   @Delete(':providerKey/bindings')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)

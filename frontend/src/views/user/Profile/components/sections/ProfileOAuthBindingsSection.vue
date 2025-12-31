@@ -5,6 +5,7 @@ import { useFeatureStore } from '@/stores/shared/feature'
 import { useOAuthStore } from '@/stores/shared/oauth'
 import { ApiError } from '@/utils/http/api'
 import { resolveProviderAccent, resolveProviderIcon } from '@/utils/oauth/brand'
+import qqLogo from '@/assets/resources/brands/qq_logo.png'
 
 type AccountProfile = {
   displayName?: string | null
@@ -75,20 +76,28 @@ const boundAccounts = computed<BoundAccount[]>(() => {
   return normalized
 })
 
-const accountMap = computed<Map<string, BoundAccount>>(() => {
-  const map = new Map<string, BoundAccount>()
+const boundAccountsByProvider = computed(() => {
+  const map = new Map<string, BoundAccount[]>()
   for (const account of boundAccounts.value) {
-    map.set(account.provider, account)
+    const list = map.get(account.provider)
+    if (list) {
+      list.push(account)
+    } else {
+      map.set(account.provider, [account])
+    }
   }
   return map
 })
 
-function linkedAccount(providerKey: string) {
-  return accountMap.value.get(providerKey) ?? null
+function accountsForProvider(providerKey: string) {
+  return boundAccountsByProvider.value.get(providerKey) ?? []
 }
 
-function accountPrimaryLabel(account: BoundAccount | null) {
-  if (!account) return ''
+function hasBoundAccount(providerKey: string) {
+  return accountsForProvider(providerKey).length > 0
+}
+
+function accountPrimaryLabel(account: BoundAccount) {
   const profile = account.profile
   return (
     profile?.displayName ??
@@ -98,8 +107,7 @@ function accountPrimaryLabel(account: BoundAccount | null) {
   )
 }
 
-function accountSecondaryLabel(account: BoundAccount | null) {
-  if (!account) return null
+function accountSecondaryLabel(account: BoundAccount) {
   const profile = account.profile
   if (!profile) return null
   const primary = accountPrimaryLabel(account)
@@ -112,12 +120,19 @@ function accountSecondaryLabel(account: BoundAccount | null) {
   return candidate
 }
 
-function accountAvatar(account: BoundAccount | null) {
-  return account?.profile?.avatarDataUri ?? null
+function accountAvatar(account: BoundAccount) {
+  return account.profile?.avatarDataUri ?? null
 }
 
+const loadingProvider = ref<string | null>(null)
+const isConfirmModalOpen = ref(false)
+const pendingUnbind = ref<{
+  providerKey: string
+  account: BoundAccount
+} | null>(null)
+
 function getPendingAccountLabel() {
-  const account = linkedAccount(pendingUnbindProvider.value ?? '')
+  const account = pendingUnbind.value?.account
   if (!account) return '该账号'
   return (
     account.profile?.displayName ??
@@ -126,10 +141,6 @@ function getPendingAccountLabel() {
     '该账号'
   )
 }
-
-const loadingProvider = ref<string | null>(null)
-const isConfirmModalOpen = ref(false)
-const pendingUnbindProvider = ref<string | null>(null)
 
 async function bindProvider(providerKey: string) {
   if (!auth.token) {
@@ -160,22 +171,22 @@ async function bindProvider(providerKey: string) {
   }
 }
 
-function openUnbindConfirm(providerKey: string) {
-  pendingUnbindProvider.value = providerKey
+function openUnbindConfirm(providerKey: string, account: BoundAccount) {
+  pendingUnbind.value = { providerKey, account }
   isConfirmModalOpen.value = true
 }
 
 function closeUnbindConfirm() {
   isConfirmModalOpen.value = false
-  pendingUnbindProvider.value = null
+  pendingUnbind.value = null
 }
 
 async function confirmUnbind() {
-  if (!auth.token || !pendingUnbindProvider.value) return
-  const providerKey = pendingUnbindProvider.value
+  if (!auth.token || !pendingUnbind.value) return
+  const { providerKey, account } = pendingUnbind.value
   loadingProvider.value = providerKey
   try {
-    await oauthStore.unbind(providerKey)
+    await oauthStore.unbind(providerKey, account.id)
     await auth.fetchCurrentUser()
     toast.add({ title: '已解除绑定', color: 'success' })
     closeUnbindConfirm()
@@ -212,7 +223,14 @@ async function confirmUnbind() {
         <div class="px-5 py-3 flex items-center justify-between gap-4">
           <div class="flex items-center gap-3">
             <div class="flex items-center justify-center">
+              <img
+                v-if="provider.key?.toLowerCase() === 'qq'"
+                :src="qqLogo"
+                alt="QQ"
+                class="h-5 w-5 object-contain"
+              />
               <UIcon
+                v-else
                 :name="resolveProviderIcon(provider.type)"
                 class="h-5 w-5"
                 :class="resolveProviderAccent(provider.type)"
@@ -224,102 +242,103 @@ async function confirmUnbind() {
               >
                 {{ provider.name }}
                 <UBadge
-                  v-if="linkedAccount(provider.key)"
+                  v-if="hasBoundAccount(provider.key)"
                   color="primary"
                   size="sm"
                   variant="soft"
                   >已绑定</UBadge
                 >
                 <UBadge v-else color="neutral" size="sm" variant="soft"
-                  >未绑定</UBadge
+                  >无绑定</UBadge
                 >
               </div>
             </div>
           </div>
           <div class="flex gap-2">
             <UButton
-              v-if="linkedAccount(provider.key)"
-              color="error"
-              size="sm"
-              variant="ghost"
-              :loading="loadingProvider === provider.key"
-              @click="openUnbindConfirm(provider.key)"
-            >
-              解除绑定
-            </UButton>
-            <UButton
-              v-else
               color="primary"
               size="sm"
               variant="ghost"
               :loading="loadingProvider === provider.key"
               @click="bindProvider(provider.key)"
             >
-              绑定
+              新增绑定
             </UButton>
           </div>
         </div>
 
-        <div
-          class="grid gap-4 p-4 py-3 bg-slate-50/60 dark:bg-slate-700/60 border-t border-slate-200/60 dark:border-slate-800/60 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2"
-          v-if="linkedAccount(provider.key)"
-        >
-          <div class="col-span-2 flex items-center gap-3">
-            <div>
+        <div class="space-y-3 px-3 pb-3" v-if="hasBoundAccount(provider.key)">
+          <div
+            v-for="account in accountsForProvider(provider.key)"
+            :key="account.id"
+            class="rounded-xl border border-slate-200/60 bg-white/50 p-4 shadow-slate-900/5 dark:border-slate-800/60 dark:bg-slate-800/70"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex items-center gap-3">
                 <UAvatar
-                  v-if="accountAvatar(linkedAccount(provider.key))"
-                  :src="accountAvatar(linkedAccount(provider.key))!"
+                  v-if="accountAvatar(account)"
+                  :src="accountAvatar(account)!"
                   size="lg"
                   class="ring-2 ring-slate-200/50 dark:ring-slate-800/50"
                 />
                 <div
                   v-else
-                  class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800"
+                  class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-900"
                 >
                   <UIcon name="i-lucide-user-round" class="h-9 w-9" />
                 </div>
-
                 <div>
                   <div
                     class="text-base font-semibold text-slate-800 dark:text-slate-200"
                   >
-                    {{ accountPrimaryLabel(linkedAccount(provider.key)) }}
+                    {{ accountPrimaryLabel(account) }}
                   </div>
                   <p
-                    v-if="accountSecondaryLabel(linkedAccount(provider.key))"
+                    v-if="accountSecondaryLabel(account)"
                     class="text-xs text-slate-500 dark:text-slate-400"
                   >
-                    {{ accountSecondaryLabel(linkedAccount(provider.key)) }}
+                    {{ accountSecondaryLabel(account) }}
                   </p>
                 </div>
               </div>
+              <UButton
+                color="error"
+                size="sm"
+                variant="ghost"
+                :loading="loadingProvider === provider.key"
+                @click="openUnbindConfirm(provider.key, account)"
+              >
+                解除绑定
+              </UButton>
             </div>
-          </div>
-          <div>
-            <div class="text-xs text-slate-500 dark:text-slate-500">
-              外部账号 ID
-            </div>
+
             <div
-              class="break-all text-base font-semibold text-slate-800 dark:text-slate-300"
+              class="grid gap-4 pt-4 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2"
             >
-              {{ linkedAccount(provider.key)?.providerAccountId }}
-            </div>
-          </div>
-          <div class="text-xs text-slate-500">
-            <div class="text-xs text-slate-500 dark:text-slate-500">
-              绑定时间
-            </div>
-            <div
-              class="text-base font-semibold text-slate-800 dark:text-slate-300"
-            >
-              {{
-                linkedAccount(provider.key)?.createdAt
-                  ? new Date(
-                      linkedAccount(provider.key)?.createdAt as string,
-                    ).toLocaleString()
-                  : '—'
-              }}
+              <div>
+                <div class="text-xs text-slate-500 dark:text-slate-500">
+                  外部账号 ID
+                </div>
+                <div
+                  class="break-all text-base font-semibold text-slate-800 dark:text-slate-100"
+                >
+                  {{ account.providerAccountId }}
+                </div>
+              </div>
+              <div>
+                <div class="text-xs text-slate-500 dark:text-slate-500">
+                  绑定时间
+                </div>
+                <div
+                  class="text-base font-semibold text-slate-800 dark:text-slate-100"
+                >
+                  {{
+                    account.createdAt
+                      ? new Date(account.createdAt).toLocaleString()
+                      : '—'
+                  }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -354,7 +373,7 @@ async function confirmUnbind() {
           </UButton>
           <UButton
             color="error"
-            :loading="loadingProvider === pendingUnbindProvider"
+            :loading="loadingProvider === pendingUnbind?.providerKey"
             @click="confirmUnbind"
           >
             确认解除绑定

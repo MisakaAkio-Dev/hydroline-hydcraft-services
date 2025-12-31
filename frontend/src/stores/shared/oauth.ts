@@ -233,15 +233,18 @@ export const useOAuthStore = defineStore('oauth-admin', {
         `/oauth/providers/${encodeURIComponent(providerKey)}/result?${qs.toString()}`,
       )
     },
-    async unbind(providerKey: string) {
+    async unbind(providerKey: string, accountId?: string | null) {
       const token = this.requireToken()
-      await apiFetch(
-        `/oauth/providers/${encodeURIComponent(providerKey)}/bindings`,
-        {
-          method: 'DELETE',
-          token,
-        },
-      )
+      const path =
+        accountId && accountId.length > 0
+          ? `/oauth/providers/${encodeURIComponent(
+              providerKey,
+            )}/bindings/${encodeURIComponent(accountId)}`
+          : `/oauth/providers/${encodeURIComponent(providerKey)}/bindings`
+      await apiFetch(path, {
+        method: 'DELETE',
+        token,
+      })
       return true
     },
   },
