@@ -688,6 +688,9 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     if (typeof value === 'number' && !Number.isSafeInteger(value)) {
       return value.toString();
     }
+    if (typeof value === 'string') {
+      return this.removeNullCharacters(value) as Prisma.InputJsonValue;
+    }
     return value as Prisma.InputJsonValue;
   }
 
@@ -934,11 +937,18 @@ export class TransportationRailwaySyncService implements OnModuleInit {
     if (typeof value === 'number' && Number.isFinite(value)) {
       return Math.trunc(value);
     }
-    if (typeof value === 'string' && value.trim().length) {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+    if (typeof value === 'string') {
+      const cleaned = this.removeNullCharacters(value).trim();
+      if (cleaned.length) {
+        const parsed = Number(cleaned);
+        return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+      }
     }
     return null;
+  }
+
+  private removeNullCharacters(value: string) {
+    return value.replace(/\u0000/g, '');
   }
 
   private readTimestamp(value: unknown) {
