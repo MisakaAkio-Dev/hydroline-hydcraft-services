@@ -80,10 +80,29 @@ const authmeRegisterEnabled = computed(
   () => featureStore.flags.authmeRegisterEnabled,
 )
 const inviteRequired = computed(() => featureStore.flags.inviteRequired)
+const featureOauthProviders = computed(
+  () => featureStore.flags.oauthProviders ?? [],
+)
 const oauthProviders = computed(() =>
-  (featureStore.flags.oauthProviders ?? []).filter(
-    (provider) => provider.hasClientSecret !== false,
+  featureOauthProviders.value.filter(
+    (provider) =>
+      provider.hasClientSecret !== false && provider.key.toLowerCase() !== 'qq',
   ),
+)
+const qqProvider = computed(() =>
+  featureOauthProviders.value.find(
+    (provider) => provider.key.toLowerCase() === 'qq',
+  ),
+)
+const qqOauthAuthorizeUrl = computed(
+  () =>
+    qqProvider.value?.authorizeUrl ?? 'https://graph.qq.com/oauth2.0/authorize',
+)
+const qqOauthClientId = computed(() => qqProvider.value?.clientId ?? '')
+const qqOauthRedirectUri = computed(() => qqProvider.value?.redirectUri ?? '')
+const qqOauthEnabled = computed(
+  () =>
+    !!(qqProvider.value && qqOauthClientId.value && qqOauthRedirectUri.value),
 )
 const oauthLoadingProvider = ref<string | null>(null)
 const authmeLoginAvatarId = ref<string | null>(null)
@@ -415,6 +434,17 @@ async function openForgot() {
 function closeForgot() {
   forgotOpen.value = false
   forgotStep.value = 'INPUT'
+}
+
+function startQqAuth() {
+  if (typeof window === 'undefined' || !qqOauthEnabled.value) return
+  const url = new URL(qqOauthAuthorizeUrl.value)
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('client_id', qqOauthClientId.value)
+  url.searchParams.set('redirect_uri', qqOauthRedirectUri.value)
+  url.searchParams.set('state', `hydroline-qq-${Date.now()}`)
+  url.searchParams.set('scope', 'get_user_info')
+  window.open(url.toString(), '_blank')
 }
 
 async function sendForgotCode() {
@@ -777,11 +807,13 @@ async function confirmForgotReset() {
                     type="button"
                     variant="outline"
                     class="w-full justify-center gap-2"
+                    @click="startQqAuth"
+                    v-if="qqOauthEnabled"
                   >
                     <img
                       src="@/assets/resources/brands/qq_logo.png"
                       alt="QQ"
-                      class="h-4 object-contain"
+                      class="h-4 w-4 object-contain"
                     />
                     QQ 登录
                   </UButton>
@@ -1023,11 +1055,13 @@ async function confirmForgotReset() {
                     type="button"
                     variant="outline"
                     class="w-full justify-center gap-2"
+                    @click="startQqAuth"
+                    v-if="qqOauthEnabled"
                   >
                     <img
                       src="@/assets/resources/brands/qq_logo.png"
                       alt="QQ"
-                      class="h-4 object-contain"
+                      class="h-4 w-4 object-contain"
                     />
                     QQ 注册
                   </UButton>

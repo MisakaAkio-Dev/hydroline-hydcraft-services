@@ -6,6 +6,9 @@ type OAuthProviderSummary = {
   name: string
   type: string
   hasClientSecret?: boolean
+  clientId?: string
+  redirectUri?: string
+  authorizeUrl?: string
 }
 
 type AuthFeatureFlags = {

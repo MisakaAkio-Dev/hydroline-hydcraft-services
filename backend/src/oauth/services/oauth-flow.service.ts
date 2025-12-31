@@ -210,6 +210,9 @@ export class OAuthFlowService {
     code: string,
     providerKey: string,
   ) {
+    if (providerKey === 'qq') {
+      return this.exchangeQqToken(settings, code);
+    }
     const tenant = (settings.tenantId as string) || 'common';
     const tokenUrl =
       (settings.tokenUrl as string) ||
@@ -254,6 +257,61 @@ export class OAuthFlowService {
     };
   }
 
+  private async exchangeQqToken(
+    settings: OAuthProviderSettings,
+    code: string,
+  ): Promise<{
+    access_token: string;
+    refresh_token?: string;
+    expires_in?: number;
+    scope?: string;
+  }> {
+    const tokenUrl =
+      (settings.tokenUrl as string) ?? 'https://graph.qq.com/oauth2.0/token';
+    const redirectUri = this.resolveRedirectUri(settings, 'qq');
+    const clientId =
+      (settings.clientId as string) ?? process.env.QQ_OAUTH_CLIENT_ID ?? '';
+    const clientSecret =
+      (settings.clientSecret as string) ??
+      process.env.QQ_OAUTH_CLIENT_SECRET ??
+      '';
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: redirectUri,
+    });
+
+    const response = await oauthProxyFetch(
+      tokenUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body,
+      },
+      settings,
+    );
+    const text = await response.text();
+    if (!response.ok) {
+      throw new UnauthorizedException(`QQ token exchange failed: ${text}`);
+    }
+    const params = new URLSearchParams(text);
+    const accessToken = params.get('access_token');
+    if (!accessToken) {
+      throw new UnauthorizedException('QQ token response missing access_token');
+    }
+    const expiresIn = params.get('expires_in');
+    return {
+      access_token: accessToken,
+      refresh_token: params.get('refresh_token') ?? undefined,
+      expires_in: expiresIn ? Number(expiresIn) : undefined,
+      scope: params.get('scope') ?? undefined,
+    };
+  }
+
   private async fetchProviderProfile(
     providerKey: string,
     accessToken: string,
@@ -261,6 +319,9 @@ export class OAuthFlowService {
   ): Promise<{ profile: ProviderProfile; avatarDataUri: string | null }> {
     if (providerKey === 'google') {
       return this.fetchGoogleProfile(accessToken, settings);
+    }
+    if (providerKey === 'qq') {
+      return this.fetchQqProfile(accessToken, settings);
     }
     return this.fetchMicrosoftProviderProfile(accessToken, settings);
   }
@@ -359,6 +420,104 @@ export class OAuthFlowService {
       settings,
     );
     return { profile, avatarDataUri };
+  }
+
+  private async fetchQqProfile(
+    accessToken: string,
+    settings: OAuthProviderSettings,
+  ): Promise<{ profile: ProviderProfile; avatarDataUri: string | null }> {
+    const { openid, unionid } = await this.fetchQqOpenId(accessToken, settings);
+    const info = await this.fetchQqUserInfo(accessToken, settings, openid);
+    const avatarUrl = info.figureurl_qq_2 ?? info.figureurl_qq_1 ?? null;
+    const avatarDataUri = await this.fetchImageAsDataUri(avatarUrl, settings);
+    const profile: ProviderProfile = {
+      id: openid,
+      email: null,
+      mail: null,
+      displayName: info.nickname ?? null,
+      userPrincipalName: unionid ?? null,
+    };
+    return { profile, avatarDataUri };
+  }
+
+  private async fetchQqOpenId(
+    accessToken: string,
+    settings: OAuthProviderSettings,
+  ): Promise<{ openid: string; unionid?: string }> {
+    const openIdUrl = 'https://graph.qq.com/oauth2.0/me';
+    const response = await oauthProxyFetch(
+      `${openIdUrl}?access_token=${encodeURIComponent(accessToken)}`,
+      {
+        method: 'GET',
+      },
+      settings,
+    );
+    const text = await response.text();
+    if (!response.ok) {
+      throw new UnauthorizedException(`Failed to fetch QQ openid: ${text}`);
+    }
+    const payload = this.parseQqCallbackPayload(text);
+    if (!payload.openid) {
+      throw new UnauthorizedException('QQ openid response missing openid');
+    }
+    return { openid: payload.openid, unionid: payload.unionid };
+  }
+
+  private async fetchQqUserInfo(
+    accessToken: string,
+    settings: OAuthProviderSettings,
+    openid: string,
+  ) {
+    const base =
+      (settings.graphUserUrl as string) ??
+      'https://graph.qq.com/user/get_user_info';
+    const url = new URL(base);
+    url.searchParams.set('access_token', accessToken);
+    url.searchParams.set(
+      'oauth_consumer_key',
+      (settings.clientId as string) ?? process.env.QQ_OAUTH_CLIENT_ID ?? '',
+    );
+    url.searchParams.set('openid', openid);
+    url.searchParams.set('format', 'json');
+    const response = await oauthProxyFetch(
+      url.toString(),
+      {
+        method: 'GET',
+      },
+      settings,
+    );
+    const text = await response.text();
+    if (!response.ok) {
+      throw new UnauthorizedException(`Failed to fetch QQ profile: ${text}`);
+    }
+    const data = JSON.parse(text) as {
+      ret?: number;
+      msg?: string;
+      nickname?: string;
+      figureurl_qq_1?: string;
+      figureurl_qq_2?: string;
+    };
+    if (data.ret && data.ret !== 0) {
+      throw new UnauthorizedException(
+        `QQ profile returned error: ${String(data.msg ?? data.ret)}`,
+      );
+    }
+    return data;
+  }
+
+  private parseQqCallbackPayload(text: string) {
+    const trimmed = text.trim();
+    const match = trimmed.match(/^callback\\((.*)\\);?$/);
+    const payloadText = match ? match[1] : trimmed;
+    try {
+      return JSON.parse(payloadText);
+    } catch (error) {
+      throw new UnauthorizedException(
+        `Invalid QQ callback payload: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   private buildAccountProfile(

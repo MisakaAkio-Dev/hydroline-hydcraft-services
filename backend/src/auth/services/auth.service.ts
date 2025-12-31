@@ -335,6 +335,9 @@ export class AuthService {
           name: provider.name,
           type: provider.type,
           hasClientSecret: provider.settings.hasClientSecret,
+          clientId: provider.settings.clientId,
+          redirectUri: provider.settings.redirectUri,
+          authorizeUrl: provider.settings.authorizeUrl,
         })),
     };
   }

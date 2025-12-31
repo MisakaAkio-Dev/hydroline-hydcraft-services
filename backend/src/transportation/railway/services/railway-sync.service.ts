@@ -918,8 +918,11 @@ export class TransportationRailwaySyncService implements OnModuleInit {
   }
 
   private readString(value: unknown) {
-    if (typeof value === 'string' && value.trim().length) {
-      return value.trim();
+    if (typeof value === 'string') {
+      const cleaned = this.removeNullCharacters(value).trim();
+      if (cleaned.length) {
+        return cleaned;
+      }
     }
     if (typeof value === 'number' && Number.isFinite(value)) {
       return String(Math.trunc(value));

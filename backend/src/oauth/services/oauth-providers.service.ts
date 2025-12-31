@@ -38,6 +38,7 @@ export class OAuthProvidersService implements OnModuleInit {
   async onModuleInit() {
     await this.ensureDefaultMicrosoftProvider();
     await this.ensureDefaultGoogleProvider();
+    await this.ensureDefaultQqProvider();
   }
 
   private handleTableMissing(error: unknown) {
@@ -304,6 +305,13 @@ export class OAuthProvidersService implements OnModuleInit {
         redirectUri: process.env.GOOGLE_OAUTH_REDIRECT_URI ?? undefined,
       };
     }
+    if (key === 'qq') {
+      return {
+        clientId: process.env.QQ_OAUTH_CLIENT_ID ?? undefined,
+        clientSecret: process.env.QQ_OAUTH_CLIENT_SECRET ?? undefined,
+        redirectUri: process.env.QQ_OAUTH_REDIRECT_URI ?? undefined,
+      };
+    }
     return {};
   }
 
@@ -395,6 +403,53 @@ export class OAuthProvidersService implements OnModuleInit {
         },
       });
       this.logger.log('Bootstrapped Google OAuth provider');
+    }
+  }
+
+  private async ensureDefaultQqProvider() {
+    if (
+      !process.env.QQ_OAUTH_CLIENT_ID ||
+      !process.env.QQ_OAUTH_CLIENT_SECRET
+    ) {
+      return;
+    }
+    let existing: { id: string } | null = null;
+    try {
+      existing = await this.prisma.oAuthProvider.findUnique({
+        where: { key: 'qq' },
+      });
+      this.tablesReady = true;
+    } catch (error) {
+      if (this.handleTableMissing(error)) {
+        return;
+      }
+      throw error;
+    }
+
+    const defaultSettings: OAuthProviderSettings = {
+      clientId: process.env.QQ_OAUTH_CLIENT_ID,
+      clientSecret: process.env.QQ_OAUTH_CLIENT_SECRET,
+      authorizeUrl: 'https://graph.qq.com/oauth2.0/authorize',
+      tokenUrl: 'https://graph.qq.com/oauth2.0/token',
+      redirectUri:
+        process.env.QQ_OAUTH_REDIRECT_URI ??
+        'http://localhost:3000/oauth/providers/qq/callback',
+      graphUserUrl: 'https://graph.qq.com/user/get_user_info',
+      scopes: ['get_user_info'],
+    };
+
+    if (!existing) {
+      await this.prisma.oAuthProvider.create({
+        data: {
+          key: 'qq',
+          name: 'QQ',
+          type: 'QQ',
+          description: 'Login via QQ OAuth 2.0',
+          enabled: true,
+          settings: defaultSettings as Prisma.InputJsonValue,
+        },
+      });
+      this.logger.log('Bootstrapped QQ OAuth provider');
     }
   }
 

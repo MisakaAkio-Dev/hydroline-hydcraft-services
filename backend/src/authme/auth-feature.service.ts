@@ -10,6 +10,9 @@ export interface OAuthProviderFeature {
   name: string;
   type: string;
   hasClientSecret?: boolean;
+  clientId?: string;
+  redirectUri?: string;
+  authorizeUrl?: string;
 }
 
 export interface AuthmeFeatureFlags {
