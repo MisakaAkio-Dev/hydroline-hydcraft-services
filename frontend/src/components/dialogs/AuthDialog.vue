@@ -772,6 +772,19 @@ async function confirmForgotReset() {
                     />
                     {{ provider.name }}
                   </UButton>
+
+                  <UButton
+                    type="button"
+                    variant="outline"
+                    class="w-full justify-center gap-2"
+                  >
+                    <img
+                      src="@/assets/resources/brands/qq_logo.png"
+                      alt="QQ"
+                      class="h-4 object-contain"
+                    />
+                    QQ 登录
+                  </UButton>
                 </div>
               </form>
 
@@ -1004,6 +1017,19 @@ async function confirmForgotReset() {
                       class="h-4 w-4"
                     />
                     {{ provider.name }}
+                  </UButton>
+
+                  <UButton
+                    type="button"
+                    variant="outline"
+                    class="w-full justify-center gap-2"
+                  >
+                    <img
+                      src="@/assets/resources/brands/qq_logo.png"
+                      alt="QQ"
+                      class="h-4 object-contain"
+                    />
+                    QQ 注册
                   </UButton>
                 </div>
               </form>
