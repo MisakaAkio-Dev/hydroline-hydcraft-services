@@ -23,7 +23,10 @@ import {
 import { ResetUserPasswordDto } from '../../dto/reset-user-password.dto';
 import { UpdateCurrentUserDto } from '../../dto/update-current-user.dto';
 import { UpdateUserProfileDto } from '../../dto/update-user-profile.dto';
-import { listUserOauthAccounts } from './users-oauth.manager';
+import {
+  hydrateAccountsWithMinecraftProfiles,
+  listUserOauthAccounts,
+} from './users-oauth.manager';
 
 export async function initializeUserRecords(
   ctx: UsersServiceContext,
@@ -697,6 +700,17 @@ export async function getUserDetail(ctx: UsersServiceContext, userId: string) {
       contacts: {
         include: { channel: true },
       },
+      accounts: {
+        select: {
+          id: true,
+          provider: true,
+          providerAccountId: true,
+          profile: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      },
       roles: {
         include: {
           role: {
@@ -812,10 +826,15 @@ export async function getUserDetail(ctx: UsersServiceContext, userId: string) {
     }));
 
   const oauthAccounts = await listUserOauthAccounts(ctx, userId);
+  const accountsWithMinecraft = await hydrateAccountsWithMinecraftProfiles(
+    ctx,
+    user.accounts ?? [],
+  );
   const likesReceived = await getUserLikeSummary(ctx, userId);
 
   return {
     ...rest,
+    accounts: accountsWithMinecraft,
     nicknames,
     authmeBindings: enrichedBindings,
     luckperms: bindingData.luckperms,

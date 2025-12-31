@@ -767,6 +767,21 @@ export const useAuthStore = defineStore('auth', {
       this.setUser(result.user)
       return result.user
     },
+    async bindAuthmeByMicrosoft(payload: { authmeId: string }) {
+      if (!this.token) {
+        throw new ApiError(401, '未登录')
+      }
+      const result = await apiFetch<{ user: RawUser }>(
+        '/authme/bind/by-microsoft',
+        {
+          method: 'POST',
+          token: this.token,
+          body: payload,
+        },
+      )
+      this.setUser(result.user)
+      return result.user
+    },
     async unbindAuthme(payload: { username?: string; password: string }) {
       if (!this.token) {
         throw new ApiError(401, '未登录')

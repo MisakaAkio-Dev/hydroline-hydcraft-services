@@ -14,7 +14,9 @@ export type BusinessValidationError = {
     | 'AUTHME_PASSWORD_MISMATCH'
     | 'BINDING_CONFLICT'
     | 'AUTHME_EMAIL_REQUIRED'
-    | 'AUTHME_NOT_BOUND';
+    | 'AUTHME_NOT_BOUND'
+    | 'AUTHME_MICROSOFT_MINECRAFT_MISSING'
+    | 'AUTHME_MICROSOFT_MINECRAFT_MISMATCH';
   safeMessage: string;
 };
 

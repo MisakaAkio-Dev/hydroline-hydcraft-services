@@ -1,17 +1,26 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/user/auth'
 import { useFeatureStore } from '@/stores/shared/feature'
 import { useOAuthStore } from '@/stores/shared/oauth'
-import { ApiError } from '@/utils/http/api'
+import { ApiError, apiFetch } from '@/utils/http/api'
+import { translateAuthErrorMessage } from '@/utils/errors/auth-errors'
 import { resolveProviderAccent, resolveProviderIcon } from '@/utils/oauth/brand'
 import qqLogo from '@/assets/resources/brands/qq_logo.png'
+import MinecraftCreeperLogo from '@/assets/resources/brands/minecraft_creeper_logo.svg'
+import XboxLogo from '@/assets/resources/brands/xbox_logo.svg'
 
 type AccountProfile = {
   displayName?: string | null
   email?: string | null
   userPrincipalName?: string | null
   avatarDataUri?: string | null
+  minecraft?: {
+    updatedAt?: string | null
+    java?: { name?: string | null; uuid?: string | null } | null
+    bedrock?: { gamertag?: string | null; xuid?: string | null } | null
+  } | null
 }
 
 type BoundAccount = {
@@ -26,12 +35,55 @@ const auth = useAuthStore()
 const featureStore = useFeatureStore()
 const oauthStore = useOAuthStore()
 const toast = useToast()
+const route = useRoute()
+const router = useRouter()
 
 const oauthProviders = computed(() => featureStore.flags.oauthProviders ?? [])
+const deviceFlowOpen = ref(false)
+const deviceFlowState = ref<string | null>(null)
+const deviceFlowAccountId = ref<string | null>(null)
+const deviceFlowUserCode = ref<string | null>(null)
+const deviceFlowVerifyUri = ref<string | null>(null)
+const deviceFlowInterval = ref(5)
+const deviceFlowPolling = ref(false)
+let deviceFlowTimer: number | null = null
+let deviceFlowPopup: Window | null = null
+
+onMounted(() => {
+  const candidate = route.query.syncMicrosoftAccount
+  if (typeof candidate !== 'string' || candidate.length === 0) return
+  const nextQuery = { ...route.query }
+  delete nextQuery.syncMicrosoftAccount
+  router.replace({ query: nextQuery })
+  void syncMicrosoftMinecraft(candidate)
+})
+
+onUnmounted(() => {
+  if (deviceFlowTimer) {
+    window.clearTimeout(deviceFlowTimer)
+    deviceFlowTimer = null
+  }
+  closeDeviceFlowPopup()
+})
 
 function parseProfile(value: unknown): AccountProfile | undefined {
   if (!value || typeof value !== 'object') return undefined
   const profile = value as Record<string, unknown>
+  const minecraftRaw = profile.minecraft
+  const minecraft =
+    minecraftRaw && typeof minecraftRaw === 'object'
+      ? (minecraftRaw as Record<string, unknown>)
+      : null
+  const javaRaw = minecraft?.java
+  const bedrockRaw = minecraft?.bedrock
+  const java =
+    javaRaw && typeof javaRaw === 'object'
+      ? (javaRaw as Record<string, unknown>)
+      : null
+  const bedrock =
+    bedrockRaw && typeof bedrockRaw === 'object'
+      ? (bedrockRaw as Record<string, unknown>)
+      : null
   return {
     displayName:
       typeof profile.displayName === 'string' ? profile.displayName : undefined,
@@ -44,6 +96,29 @@ function parseProfile(value: unknown): AccountProfile | undefined {
       typeof profile.avatarDataUri === 'string'
         ? profile.avatarDataUri
         : undefined,
+    minecraft: minecraft
+      ? {
+          updatedAt:
+            typeof minecraft.updatedAt === 'string'
+              ? minecraft.updatedAt
+              : null,
+          java: java
+            ? {
+                name: typeof java.name === 'string' ? java.name : null,
+                uuid: typeof java.uuid === 'string' ? java.uuid : null,
+              }
+            : null,
+          bedrock: bedrock
+            ? {
+                gamertag:
+                  typeof bedrock.gamertag === 'string'
+                    ? bedrock.gamertag
+                    : null,
+                xuid: typeof bedrock.xuid === 'string' ? bedrock.xuid : null,
+              }
+            : null,
+        }
+      : null,
   }
 }
 
@@ -125,6 +200,7 @@ function accountAvatar(account: BoundAccount) {
 }
 
 const loadingProvider = ref<string | null>(null)
+const syncLoadingAccountId = ref<string | null>(null)
 const isConfirmModalOpen = ref(false)
 const pendingUnbind = ref<{
   providerKey: string
@@ -165,7 +241,149 @@ async function bindProvider(providerKey: string) {
     toast.add({
       title: '绑定失败',
       description:
-        error instanceof ApiError ? error.message : '无法启动授权流程',
+        translateAuthErrorMessage(
+          error instanceof ApiError
+            ? (error.rawMessage ?? error.message)
+            : error,
+        ) || '无法启动授权流程',
+      color: 'error',
+    })
+  }
+}
+
+async function startXboxDeviceFlow(accountId: string) {
+  if (!auth.token) {
+    toast.add({ title: '请先登录', color: 'error' })
+    return
+  }
+  syncLoadingAccountId.value = accountId
+  try {
+    const result = await apiFetch<{
+      state: string
+      userCode: string
+      verificationUri: string
+      interval: number
+      expiresIn: number
+    }>(
+      `/oauth/providers/microsoft/bindings/${encodeURIComponent(accountId)}/xbox-device`,
+      { method: 'POST', token: auth.token },
+    )
+    deviceFlowState.value = result.state
+    deviceFlowAccountId.value = accountId
+    deviceFlowUserCode.value = result.userCode
+    deviceFlowVerifyUri.value = result.verificationUri
+    deviceFlowInterval.value = Math.max(result.interval || 5, 3)
+    deviceFlowOpen.value = true
+    openDeviceFlowPopup(result.verificationUri)
+    startDeviceFlowPolling()
+  } catch (error) {
+    toast.add({
+      title: '同步失败',
+      description: translateAuthErrorMessage(
+        error instanceof ApiError ? (error.rawMessage ?? error.message) : error,
+      ),
+      color: 'error',
+    })
+  } finally {
+    syncLoadingAccountId.value = null
+  }
+}
+
+function openDeviceFlowPopup(url?: string | null) {
+  if (!url) return
+  try {
+    if (deviceFlowPopup && !deviceFlowPopup.closed) {
+      deviceFlowPopup.close()
+    }
+    deviceFlowPopup = window.open(url, '_blank', 'noopener,noreferrer')
+  } catch {
+    deviceFlowPopup = null
+  }
+}
+
+function closeDeviceFlowPopup() {
+  if (deviceFlowPopup && !deviceFlowPopup.closed) {
+    deviceFlowPopup.close()
+  }
+  deviceFlowPopup = null
+}
+
+function startDeviceFlowPolling() {
+  if (deviceFlowPolling.value) return
+  deviceFlowPolling.value = true
+  scheduleDeviceFlowPoll(deviceFlowInterval.value)
+}
+
+function stopDeviceFlowPolling() {
+  deviceFlowPolling.value = false
+  if (deviceFlowTimer) {
+    window.clearTimeout(deviceFlowTimer)
+    deviceFlowTimer = null
+  }
+}
+
+function scheduleDeviceFlowPoll(delaySeconds: number) {
+  if (!deviceFlowPolling.value) return
+  if (deviceFlowTimer) {
+    window.clearTimeout(deviceFlowTimer)
+  }
+  deviceFlowTimer = window.setTimeout(() => {
+    void pollDeviceFlow()
+  }, delaySeconds * 1000)
+}
+
+async function pollDeviceFlow() {
+  if (!auth.token || !deviceFlowState.value || !deviceFlowAccountId.value) {
+    stopDeviceFlowPolling()
+    return
+  }
+  try {
+    const result = await apiFetch<{
+      status: 'PENDING' | 'AUTHORIZED' | 'DECLINED' | 'EXPIRED' | 'SLOW_DOWN'
+      interval?: number
+      message?: string
+    }>(
+      `/oauth/providers/microsoft/bindings/${encodeURIComponent(deviceFlowAccountId.value)}/xbox-device/poll`,
+      {
+        method: 'POST',
+        token: auth.token,
+        body: { state: deviceFlowState.value },
+      },
+    )
+    if (result.status === 'PENDING') {
+      scheduleDeviceFlowPoll(deviceFlowInterval.value)
+      return
+    }
+    if (result.status === 'SLOW_DOWN') {
+      const nextInterval = Math.max(result.interval ?? 5, 3)
+      deviceFlowInterval.value = nextInterval
+      scheduleDeviceFlowPoll(nextInterval)
+      return
+    }
+    if (result.status === 'AUTHORIZED') {
+      stopDeviceFlowPolling()
+      deviceFlowOpen.value = false
+      closeDeviceFlowPopup()
+      await syncMicrosoftMinecraft(deviceFlowAccountId.value)
+      return
+    }
+    stopDeviceFlowPolling()
+    deviceFlowOpen.value = false
+    closeDeviceFlowPopup()
+    toast.add({
+      title: '同步失败',
+      description: translateAuthErrorMessage(result.message ?? '请求失败'),
+      color: 'error',
+    })
+  } catch (error) {
+    stopDeviceFlowPolling()
+    deviceFlowOpen.value = false
+    closeDeviceFlowPopup()
+    toast.add({
+      title: '同步失败',
+      description: translateAuthErrorMessage(
+        error instanceof ApiError ? (error.rawMessage ?? error.message) : error,
+      ),
       color: 'error',
     })
   }
@@ -193,11 +411,51 @@ async function confirmUnbind() {
   } catch (error) {
     toast.add({
       title: '操作失败',
-      description: error instanceof ApiError ? error.message : '请稍后再试',
+      description: translateAuthErrorMessage(
+        error instanceof ApiError ? (error.rawMessage ?? error.message) : error,
+      ),
       color: 'error',
     })
   } finally {
     loadingProvider.value = null
+  }
+}
+
+async function syncMicrosoftMinecraft(accountId: string) {
+  if (!auth.token) {
+    toast.add({ title: '请先登录', color: 'error' })
+    return
+  }
+  syncLoadingAccountId.value = accountId
+  try {
+    await apiFetch(
+      `/oauth/providers/microsoft/bindings/${encodeURIComponent(accountId)}/sync-minecraft`,
+      { method: 'POST', token: auth.token },
+    )
+    await auth.fetchCurrentUser()
+    toast.add({ title: '已同步', color: 'success' })
+  } catch (error) {
+    if (error instanceof ApiError) {
+      const rawMessage = error.rawMessage ?? error.message
+      if (
+        rawMessage ===
+          'Missing Microsoft refresh token, please re-bind this account' ||
+        rawMessage ===
+          'Xbox Live authentication failed, please re-bind this Microsoft account'
+      ) {
+        await startXboxDeviceFlow(accountId)
+        return
+      }
+    }
+    toast.add({
+      title: '同步失败',
+      description: translateAuthErrorMessage(
+        error instanceof ApiError ? (error.rawMessage ?? error.message) : error,
+      ),
+      color: 'error',
+    })
+  } finally {
+    syncLoadingAccountId.value = null
   }
 }
 </script>
@@ -291,7 +549,38 @@ async function confirmUnbind() {
                   <div
                     class="text-base font-semibold text-slate-800 dark:text-slate-200"
                   >
-                    {{ accountPrimaryLabel(account) }}
+                    <span class="inline-flex items-center gap-1.5">
+                      <span>{{ accountPrimaryLabel(account) }}</span>
+                      <span
+                        v-if="provider.key?.toLowerCase() === 'microsoft'"
+                        class="inline-flex items-center"
+                      >
+                        <UTooltip
+                          v-if="account.profile?.minecraft?.java?.name"
+                          :text="`Java ID：${account.profile.minecraft.java.name}`"
+                        >
+                          <span
+                            class="inline-flex h-5 w-5 items-center justify-center rounded-md"
+                          >
+                            <MinecraftCreeperLogo
+                              class="h-3.5 w-3.5 rounded-xs"
+                            />
+                          </span>
+                        </UTooltip>
+                        <UTooltip
+                          v-if="account.profile?.minecraft?.bedrock?.gamertag"
+                          :text="`基岩 ID：${account.profile.minecraft.bedrock.gamertag}`"
+                        >
+                          <span
+                            class="inline-flex h-5 w-5 items-center justify-center rounded-md"
+                          >
+                            <XboxLogo
+                              class="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400"
+                            />
+                          </span>
+                        </UTooltip>
+                      </span>
+                    </span>
                   </div>
                   <p
                     v-if="accountSecondaryLabel(account)"
@@ -301,15 +590,27 @@ async function confirmUnbind() {
                   </p>
                 </div>
               </div>
-              <UButton
-                color="error"
-                size="sm"
-                variant="ghost"
-                :loading="loadingProvider === provider.key"
-                @click="openUnbindConfirm(provider.key, account)"
-              >
-                解除绑定
-              </UButton>
+              <div class="flex items-center gap-2">
+                <UButton
+                  v-if="provider.key?.toLowerCase() === 'microsoft'"
+                  color="primary"
+                  size="sm"
+                  variant="ghost"
+                  :loading="syncLoadingAccountId === account.id"
+                  @click="syncMicrosoftMinecraft(account.id)"
+                >
+                  同步游戏数据
+                </UButton>
+                <UButton
+                  color="error"
+                  size="sm"
+                  variant="ghost"
+                  :loading="loadingProvider === provider.key"
+                  @click="openUnbindConfirm(provider.key, account)"
+                >
+                  解除绑定
+                </UButton>
+              </div>
             </div>
 
             <div
@@ -378,6 +679,59 @@ async function confirmUnbind() {
           >
             确认解除绑定
           </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <UModal
+    :open="deviceFlowOpen"
+    @update:open="
+      (value: boolean) => {
+        if (!value) {
+          deviceFlowOpen = false
+          stopDeviceFlowPolling()
+          closeDeviceFlowPopup()
+        }
+      }
+    "
+    :ui="{ content: 'w-full max-w-md w-[calc(100vw-2rem)]' }"
+  >
+    <template #content>
+      <div class="space-y-4 p-6 text-sm">
+        <div class="space-y-1">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            Xbox 账号授权
+          </h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            请在微软页面输入下方代码完成授权，本页会自动检测。
+          </p>
+        </div>
+        <div
+          class="rounded-lg border border-emerald-200/60 bg-emerald-50/60 px-4 py-3 text-center text-2xl font-semibold tracking-widest text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/30 dark:text-emerald-200"
+        >
+          {{ deviceFlowUserCode || '----' }}
+        </div>
+        <div
+          class="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400"
+        >
+          <span class="truncate"
+            >验证地址：{{ deviceFlowVerifyUri || '—' }}</span
+          >
+          <UButton
+            size="xs"
+            variant="soft"
+            color="primary"
+            :disabled="!deviceFlowVerifyUri"
+            @click="
+              deviceFlowVerifyUri && openDeviceFlowPopup(deviceFlowVerifyUri)
+            "
+          >
+            重新打开
+          </UButton>
+        </div>
+        <div class="text-xs text-slate-500 dark:text-slate-400">
+          已自动打开验证页，完成后本页会自动返回。
         </div>
       </div>
     </template>

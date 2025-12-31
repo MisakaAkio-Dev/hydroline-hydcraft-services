@@ -387,10 +387,11 @@ onBeforeUnmount(() => {
           class="rounded-xl border border-slate-200/60 bg-white p-4 dark:border-slate-800/60 dark:bg-slate-700/60"
         >
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="font-medium text-slate-800 dark:text-slate-100">{{
-                contact.value
-              }}</span>
+            <div class="flex flex-wrap items-center gap-x-2">
+              <span
+                class="font-medium text-slate-800 dark:text-slate-100 break-all"
+                >{{ contact.value }}</span
+              >
               <UBadge
                 v-if="contact.isPrimary"
                 size="sm"
@@ -408,7 +409,7 @@ onBeforeUnmount(() => {
                 >{{ isContactVerified(contact) ? '已验证' : '未验证' }}</UBadge
               >
             </div>
-            <div class="flex items-center gap-2">
+            <div class="whitespace-nowrap flex items-center gap-2">
               <UButton
                 v-if="!isContactVerified(contact)"
                 size="xs"
@@ -447,7 +448,7 @@ onBeforeUnmount(() => {
     >
       <template #content>
         <div class="space-y-5 p-6">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between gap-1">
             <div>
               <h3
                 class="text-base font-semibold text-slate-900 dark:text-white"

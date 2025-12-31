@@ -14,6 +14,7 @@ import { AuthService } from '../services/auth.service';
 import { AuthmeBindDto } from '../dto/authme-bind.dto';
 import { AuthmeUnbindDto } from '../dto/authme-unbind.dto';
 import { SetPrimaryAuthmeBindingDto } from '../dto/set-primary-authme-binding.dto';
+import { AuthmeBindByMicrosoftDto } from '../dto/authme-bind-by-microsoft.dto';
 import { rethrowAuthmeError } from '../helpers/authme-error.helper';
 import { AuthmeRateLimitGuard } from '../../authme/authme-rate-limit.guard';
 import { buildRequestContext } from '../helpers/request-context.helper';
@@ -32,6 +33,27 @@ export class ApiAuthmeController {
       const user = await this.authService.bindAuthme(
         req.user!.id,
         dto,
+        buildRequestContext(req),
+      );
+      return user;
+    } catch (error) {
+      rethrowAuthmeError(error);
+    }
+  }
+
+  @Post('bind/by-microsoft')
+  @UseGuards(AuthGuard, AuthmeRateLimitGuard)
+  @ApiOperation({
+    summary: '通过已关联的 Microsoft→Minecraft ID 免密绑定 AuthMe',
+  })
+  async bindByMicrosoft(
+    @Body() dto: AuthmeBindByMicrosoftDto,
+    @Req() req: Request,
+  ) {
+    try {
+      const user = await this.authService.bindAuthmeByMicrosoft(
+        req.user!.id,
+        dto.authmeId,
         buildRequestContext(req),
       );
       return user;

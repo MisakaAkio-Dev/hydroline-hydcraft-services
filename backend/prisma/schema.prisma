@@ -100,11 +100,26 @@ model Account {
   refreshToken          String?
   refreshTokenExpiresAt DateTime?
   profile               Json?
+  minecraftProfile      AccountMinecraftProfile?
   user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   oauthLogs             OAuthLog[]
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
+}
+
+model AccountMinecraftProfile {
+  id              String   @id @default(uuid())
+  accountId       String   @unique
+  javaName        String?
+  javaUuid        String?
+  bedrockGamertag String?
+  bedrockXuid     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("account_minecraft_profiles")
 }
 
 model Session {

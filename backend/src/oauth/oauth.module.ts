@@ -6,6 +6,7 @@ import { OAuthProvidersService } from './services/oauth-providers.service';
 import { OAuthLogService } from './services/oauth-log.service';
 import { OAuthFlowService } from './services/oauth-flow.service';
 import { OAuthStateService } from './services/oauth-state.service';
+import { MicrosoftMinecraftService } from './services/microsoft-minecraft.service';
 import { OAuthAdminController } from './controllers/oauth-admin.controller';
 import { OAuthPublicController } from './controllers/oauth-public.controller';
 import { OAuthProxyTestController } from './controllers/oauth-proxy-test.controller';
@@ -26,6 +27,7 @@ import { OAuthProxyTestController } from './controllers/oauth-proxy-test.control
     OAuthLogService,
     OAuthFlowService,
     OAuthStateService,
+    MicrosoftMinecraftService,
   ],
   exports: [OAuthProvidersService, OAuthLogService, OAuthFlowService],
 })

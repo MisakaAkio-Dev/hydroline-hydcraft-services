@@ -22,6 +22,13 @@ export interface OAuthStatePayload {
   redirectUri?: string;
   userId?: string;
   rememberMe?: boolean;
+  purpose?: 'DEFAULT' | 'XBOX' | 'XBOX_DEVICE';
+  accountId?: string;
+  deviceFlow?: {
+    deviceCode: string;
+    interval: number;
+    expiresAt: string;
+  };
 }
 
 export interface OAuthResultPayload {

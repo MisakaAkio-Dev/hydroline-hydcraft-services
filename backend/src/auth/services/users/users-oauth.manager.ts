@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { AccountMinecraftProfile } from '@prisma/client';
 import { UsersServiceContext } from './users.context';
 
 export async function listUserOauthAccounts(
@@ -19,7 +20,12 @@ export async function listUserOauthAccounts(
     : [];
   const providerMap = new Map(providers.map((p) => [p.key, p]));
 
-  return accounts.map((account) => {
+  const hydratedAccounts = await hydrateAccountsWithMinecraftProfiles(
+    ctx,
+    accounts,
+  );
+
+  return hydratedAccounts.map((account) => {
     const provider = providerMap.get(account.provider) ?? null;
     return {
       id: account.id,
@@ -74,4 +80,57 @@ async function ensureUserExists(ctx: UsersServiceContext, userId: string) {
   if (!user) {
     throw new NotFoundException('User not found');
   }
+}
+
+export async function hydrateAccountsWithMinecraftProfiles<
+  T extends { id: string; profile: unknown },
+>(ctx: UsersServiceContext, accounts: T[]) {
+  const accountIds = accounts.map((account) => account.id);
+  if (accountIds.length === 0) {
+    return accounts;
+  }
+  const minecraftProfiles = await ctx.prisma.accountMinecraftProfile.findMany({
+    where: { accountId: { in: accountIds } },
+  });
+  if (!minecraftProfiles.length) {
+    return accounts;
+  }
+  const minecraftMap = new Map(
+    minecraftProfiles.map((entry) => [entry.accountId, entry]),
+  );
+  return accounts.map((account) => {
+    const minecraft = minecraftMap.get(account.id);
+    if (!minecraft) {
+      return account;
+    }
+    return {
+      ...account,
+      profile: mergeMinecraftProfile(account.profile, minecraft),
+    } as T;
+  });
+}
+
+function mergeMinecraftProfile(
+  profile: unknown,
+  minecraft: AccountMinecraftProfile,
+): Record<string, unknown> {
+  const base =
+    profile && typeof profile === 'object'
+      ? { ...(profile as Record<string, unknown>) }
+      : {};
+  base.minecraft = {
+    updatedAt: minecraft.updatedAt.toISOString(),
+    java:
+      minecraft.javaName || minecraft.javaUuid
+        ? { name: minecraft.javaName ?? null, uuid: minecraft.javaUuid ?? null }
+        : null,
+    bedrock:
+      minecraft.bedrockGamertag || minecraft.bedrockXuid
+        ? {
+            gamertag: minecraft.bedrockGamertag ?? null,
+            xuid: minecraft.bedrockXuid ?? null,
+          }
+        : null,
+  };
+  return base;
 }

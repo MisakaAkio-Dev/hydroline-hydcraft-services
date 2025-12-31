@@ -258,6 +258,58 @@ export class AuthService {
     return { user };
   }
 
+  async bindAuthmeByMicrosoft(
+    userId: string,
+    authmeId: string,
+    context: RequestContext = {},
+  ) {
+    const flags = await this.authFeatureService.getFlags();
+    if (!flags.authmeBindingEnabled) {
+      throw new BadRequestException(
+        'AuthMe binding is not enabled in current environment',
+      );
+    }
+
+    const candidateIds = await this.listLinkedMinecraftIds(userId);
+    if (candidateIds.length === 0) {
+      throw businessError({
+        type: 'BUSINESS_VALIDATION_FAILED',
+        code: 'AUTHME_MICROSOFT_MINECRAFT_MISSING',
+        safeMessage:
+          'No Minecraft ID detected. Please sync data from Microsoft account or re-bind first.',
+      });
+    }
+
+    const normalized = authmeId.trim().toLowerCase();
+    const ok = candidateIds.some((id) => id.toLowerCase() === normalized);
+    if (!ok) {
+      throw businessError({
+        type: 'BUSINESS_VALIDATION_FAILED',
+        code: 'AUTHME_MICROSOFT_MINECRAFT_MISMATCH',
+        safeMessage:
+          'This Minecraft ID does not belong to your linked Microsoft account.',
+      });
+    }
+
+    const account = await this.authmeService.getAccount(authmeId.trim());
+    if (!account) {
+      throw businessError({
+        type: 'BUSINESS_VALIDATION_FAILED',
+        code: 'AUTHME_ACCOUNT_NOT_FOUND',
+        safeMessage: 'AuthMe 账号不存在，请确认后再试',
+      });
+    }
+
+    await this.authmeBindingService.bindUser({
+      userId,
+      authmeUser: account,
+      operatorUserId: userId,
+      sourceIp: context.ip ?? null,
+    });
+    const user = await this.usersService.getSessionUser(userId);
+    return { user };
+  }
+
   async unbindAuthme(
     userId: string,
     dto: AuthmeUnbindDto,
@@ -317,6 +369,45 @@ export class AuthService {
     );
     const user = await this.usersService.getSessionUser(userId);
     return { user };
+  }
+
+  private async listLinkedMinecraftIds(userId: string) {
+    const accounts = await this.prisma.account.findMany({
+      where: { userId, provider: 'microsoft' },
+      select: { profile: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const ids: string[] = [];
+    for (const account of accounts) {
+      const profile =
+        account.profile && typeof account.profile === 'object'
+          ? (account.profile as Record<string, unknown>)
+          : null;
+      const minecraft =
+        profile && typeof profile.minecraft === 'object'
+          ? (profile.minecraft as Record<string, unknown>)
+          : null;
+      const java =
+        minecraft && typeof minecraft.java === 'object'
+          ? (minecraft.java as Record<string, unknown>)
+          : null;
+      const bedrock =
+        minecraft && typeof minecraft.bedrock === 'object'
+          ? (minecraft.bedrock as Record<string, unknown>)
+          : null;
+      const javaName = java ? java.name : null;
+      const bedrockGamertag = bedrock ? bedrock.gamertag : null;
+      if (typeof javaName === 'string' && javaName.trim().length > 0) {
+        ids.push(javaName.trim());
+      }
+      if (
+        typeof bedrockGamertag === 'string' &&
+        bedrockGamertag.trim().length > 0
+      ) {
+        ids.push(bedrockGamertag.trim());
+      }
+    }
+    return Array.from(new Set(ids));
   }
 
   async getFeatureFlags(): Promise<AuthFeatureFlags> {

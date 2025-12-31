@@ -18,6 +18,7 @@ import {
 import { oauthProxyFetch } from '../../lib/proxy/oauth-proxy-client';
 import { AuthService, RequestContext } from '../../auth/services/auth.service';
 import { generateRandomString } from 'better-auth/crypto';
+import { MicrosoftMinecraftService } from './microsoft-minecraft.service';
 
 interface StartFlowInput {
   providerKey: string;
@@ -25,6 +26,8 @@ interface StartFlowInput {
   redirectUri: string;
   userId?: string;
   rememberMe?: boolean;
+  purpose?: 'DEFAULT' | 'XBOX' | 'XBOX_DEVICE';
+  accountId?: string;
 }
 
 interface AccountProfilePayload extends Record<string, unknown> {
@@ -53,6 +56,7 @@ export class OAuthFlowService {
     private readonly stateService: OAuthStateService,
     private readonly logService: OAuthLogService,
     private readonly authService: AuthService,
+    private readonly microsoftMinecraft: MicrosoftMinecraftService,
   ) {}
 
   async start(input: StartFlowInput, context: RequestContext) {
@@ -65,12 +69,15 @@ export class OAuthFlowService {
       redirectUri: input.redirectUri,
       userId: input.userId,
       rememberMe: input.rememberMe,
+      purpose: input.purpose ?? 'DEFAULT',
+      accountId: input.accountId,
     });
 
     const authorizeUrl = this.buildAuthorizeUrl(
       runtime.settings,
       runtime.provider.key,
       state,
+      input.purpose ?? 'DEFAULT',
     );
 
     await this.logService.record({
@@ -93,15 +100,19 @@ export class OAuthFlowService {
     settings: OAuthProviderSettings,
     providerKey: string,
     state: string,
+    purpose: 'DEFAULT' | 'XBOX' | 'XBOX_DEVICE',
   ) {
     const tenant = (settings.tenantId as string) || 'common';
     const baseAuthorize =
       (settings.authorizeUrl as string) ||
       'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize';
     const redirectUri = this.resolveRedirectUri(settings, providerKey);
-    const scopes = Array.isArray(settings.scopes)
-      ? settings.scopes
-      : ['openid', 'profile', 'email', 'offline_access', 'User.Read'];
+    const scopes =
+      providerKey === 'microsoft'
+        ? this.resolveMicrosoftScopes(settings, purpose)
+        : Array.isArray(settings.scopes)
+          ? settings.scopes
+          : ['openid', 'profile', 'email', 'offline_access', 'User.Read'];
     const authorizeUrl = baseAuthorize.replace('{tenant}', tenant);
     const params = new URLSearchParams({
       client_id: (settings.clientId as string) ?? '',
@@ -143,7 +154,33 @@ export class OAuthFlowService {
       runtime.settings,
       input.code,
       input.providerKey,
+      statePayload.purpose ?? 'DEFAULT',
     );
+
+    if (statePayload.purpose === 'XBOX') {
+      if (!statePayload.userId || !statePayload.accountId) {
+        throw new BadRequestException('Invalid Xbox consent state');
+      }
+      await this.storeXboxTokens({
+        accountId: statePayload.accountId,
+        userId: statePayload.userId,
+        providerKey: input.providerKey,
+        token,
+      });
+      const result = {
+        success: true,
+        mode: 'BIND',
+        binding: {
+          providerKey: input.providerKey,
+          userId: statePayload.userId,
+        },
+      } as const;
+      await this.stateService.storeResult(input.state, result);
+      return {
+        redirectUri: statePayload.redirectUri,
+        result,
+      };
+    }
 
     const { profile, avatarDataUri } = await this.fetchProviderProfile(
       input.providerKey,
@@ -159,12 +196,14 @@ export class OAuthFlowService {
             statePayload,
             profile,
             accountProfile,
+            token,
           )
         : await this.handleLogin(
             runtime.provider,
             statePayload,
             profile,
             accountProfile,
+            token,
             input.context,
           );
 
@@ -221,6 +260,7 @@ export class OAuthFlowService {
     settings: OAuthProviderSettings,
     code: string,
     providerKey: string,
+    purpose: 'DEFAULT' | 'XBOX' | 'XBOX_DEVICE' = 'DEFAULT',
   ) {
     if (providerKey === 'qq') {
       return this.exchangeQqToken(settings, code);
@@ -234,11 +274,15 @@ export class OAuthFlowService {
     const clientSecret =
       (settings.clientSecret as string) ||
       process.env.MICROSOFT_OAUTH_CLIENT_SECRET;
+    const scopes =
+      providerKey === 'microsoft'
+        ? this.resolveMicrosoftScopes(settings, purpose)
+        : Array.isArray(settings.scopes)
+          ? settings.scopes
+          : ['openid', 'profile', 'email', 'offline_access', 'User.Read'];
     const body = new URLSearchParams({
       client_id: clientId,
-      scope: Array.isArray(settings.scopes)
-        ? settings.scopes.join(' ')
-        : 'openid profile email offline_access User.Read',
+      scope: scopes.join(' '),
       code,
       redirect_uri: redirectUri,
       grant_type: 'authorization_code',
@@ -546,6 +590,69 @@ export class OAuthFlowService {
     };
   }
 
+  private resolveMicrosoftScopes(
+    settings: OAuthProviderSettings,
+    purpose: 'DEFAULT' | 'XBOX' | 'XBOX_DEVICE',
+  ) {
+    if (purpose === 'XBOX' || purpose === 'XBOX_DEVICE') {
+      return ['XboxLive.signin', 'offline_access'];
+    }
+    const base = Array.isArray(settings.scopes)
+      ? settings.scopes
+      : ['openid', 'profile', 'email', 'offline_access', 'User.Read'];
+    return base.filter((scope) => scope !== 'XboxLive.signin');
+  }
+
+  private async storeXboxTokens(options: {
+    accountId: string;
+    userId: string;
+    providerKey: string;
+    token: {
+      access_token: string;
+      refresh_token?: string;
+      expires_in?: number;
+      id_token?: string;
+      scope?: string;
+    };
+  }) {
+    if (options.providerKey !== 'microsoft') {
+      throw new BadRequestException('Only Microsoft accounts can be synced');
+    }
+    const account = await this.prisma.account.findUnique({
+      where: { id: options.accountId },
+    });
+    if (!account || account.userId !== options.userId) {
+      throw new BadRequestException('OAuth binding does not exist');
+    }
+    if (account.provider !== 'microsoft') {
+      throw new BadRequestException('Only Microsoft accounts can be synced');
+    }
+    const base =
+      account.profile && typeof account.profile === 'object'
+        ? (account.profile as Record<string, unknown>)
+        : {};
+    const expiresIn = Number(options.token.expires_in ?? 0);
+    const accessTokenExpiresAt =
+      Number.isFinite(expiresIn) && expiresIn > 0
+        ? new Date(Date.now() + expiresIn * 1000).toISOString()
+        : null;
+    const minecraftAuth = {
+      accessToken: options.token.access_token,
+      refreshToken: options.token.refresh_token ?? null,
+      accessTokenExpiresAt,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.prisma.account.update({
+      where: { id: account.id },
+      data: {
+        profile: {
+          ...(base as Record<string, unknown>),
+          minecraftAuth,
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
   private async fetchMicrosoftPhoto(
     accessToken: string,
     settings: OAuthProviderSettings,
@@ -618,6 +725,13 @@ export class OAuthFlowService {
     state: OAuthStatePayload,
     profile: ProviderProfile,
     accountProfile: AccountProfilePayload,
+    token: {
+      access_token: string;
+      refresh_token?: string;
+      expires_in?: number;
+      id_token?: string;
+      scope?: string;
+    },
     context: RequestContext,
   ): Promise<OAuthResultPayload> {
     const externalId = profile.id;
@@ -630,12 +744,14 @@ export class OAuthFlowService {
       },
     });
     if (account) {
+      const tokenUpdate = this.buildAccountTokenUpdate(token);
       await this.prisma.account.update({
         where: { id: account.id },
         data: {
           profile: accountProfile
             ? (accountProfile as Prisma.InputJsonValue)
             : Prisma.JsonNull,
+          ...tokenUpdate,
         },
       });
       const session = await this.authService.createSessionForUser(
@@ -676,7 +792,7 @@ export class OAuthFlowService {
       provider.key,
       externalId,
       registerResult.user.id,
-      registerResult.tokens.refreshToken ?? null,
+      token,
       accountProfile,
     );
     await this.logService.record({
@@ -701,6 +817,13 @@ export class OAuthFlowService {
     state: OAuthStatePayload,
     profile: ProviderProfile,
     accountProfile: AccountProfilePayload,
+    token: {
+      access_token: string;
+      refresh_token?: string;
+      expires_in?: number;
+      id_token?: string;
+      scope?: string;
+    },
   ): Promise<OAuthResultPayload> {
     if (!state.userId) {
       throw new UnauthorizedException('Binding requires authenticated user');
@@ -718,13 +841,27 @@ export class OAuthFlowService {
         'This account is already bound to another user',
       );
     }
-    await this.linkAccount(
+    const linked = await this.linkAccount(
       state.providerKey,
       profile.id,
       state.userId,
-      null,
+      token,
       accountProfile,
     );
+    if (state.providerKey === 'microsoft' && state.purpose === 'XBOX') {
+      try {
+        await this.microsoftMinecraft.syncForUserAccount({
+          userId: state.userId,
+          accountId: linked.id,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Failed to sync Minecraft profile after binding: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
     await this.logService.record({
       providerId: provider.id,
       providerKey: state.providerKey,
@@ -741,14 +878,62 @@ export class OAuthFlowService {
     };
   }
 
+  async storeErrorResult(options: {
+    state: string;
+    error: string;
+    description?: string;
+  }) {
+    const message = options.description
+      ? `${options.error}: ${options.description}`
+      : options.error;
+    const statePayload = await this.stateService.consumeState(options.state);
+    if (!statePayload) {
+      throw new BadRequestException('Invalid or expired state');
+    }
+    await this.stateService.storeResult(options.state, {
+      success: false,
+      mode: 'BIND',
+      error: message,
+    });
+    return statePayload.redirectUri;
+  }
+
+  private buildAccountTokenUpdate(token: {
+    access_token: string;
+    refresh_token?: string;
+    expires_in?: number;
+    id_token?: string;
+    scope?: string;
+  }) {
+    const expiresIn = Number(token.expires_in ?? 0);
+    const accessTokenExpiresAt =
+      Number.isFinite(expiresIn) && expiresIn > 0
+        ? new Date(Date.now() + expiresIn * 1000)
+        : null;
+    return {
+      accessToken: token.access_token,
+      accessTokenExpiresAt,
+      ...(token.refresh_token && { refreshToken: token.refresh_token }),
+      ...(token.id_token && { idToken: token.id_token }),
+      ...(token.scope && { scope: token.scope }),
+    } as const;
+  }
+
   private async linkAccount(
     providerKey: string,
     providerAccountId: string,
     userId: string,
-    refreshToken: string | null,
+    token: {
+      access_token: string;
+      refresh_token?: string;
+      expires_in?: number;
+      id_token?: string;
+      scope?: string;
+    },
     accountProfile?: AccountProfilePayload,
   ) {
-    await this.prisma.account.upsert({
+    const tokenData = this.buildAccountTokenUpdate(token);
+    return this.prisma.account.upsert({
       where: {
         provider_providerAccountId: {
           provider: providerKey,
@@ -757,7 +942,7 @@ export class OAuthFlowService {
       },
       update: {
         userId,
-        refreshToken,
+        ...tokenData,
         ...(accountProfile && {
           profile: accountProfile as Prisma.InputJsonValue,
         }),
@@ -769,11 +954,12 @@ export class OAuthFlowService {
         provider: providerKey,
         providerAccountId,
         type: 'oauth',
-        refreshToken,
+        ...tokenData,
         profile: accountProfile
           ? (accountProfile as Prisma.InputJsonValue)
           : Prisma.JsonNull,
       },
+      select: { id: true },
     });
   }
 }

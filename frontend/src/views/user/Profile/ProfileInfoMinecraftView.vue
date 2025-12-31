@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { computed, reactive, ref, watch } from 'vue'
 import MinecraftSection from './components/sections/MinecraftSection.vue'
+import MinecraftOAuthAccountsSection from './components/sections/MinecraftOAuthAccountsSection.vue'
 import NicknameSection from './components/sections/NicknameSection.vue'
 import BindingHistorySection from './components/sections/BindingHistorySection.vue'
 import AuthmeBindDialog from './components/AuthmeBindDialog.vue'
@@ -244,6 +245,35 @@ const authmeBindings = computed(() => {
   return result
 })
 
+const linkedMinecraftIds = computed(() => {
+  const raw = (auth.user as { accounts?: unknown } | null)?.accounts
+  if (!Array.isArray(raw)) return []
+  const ids: string[] = []
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue
+    const record = entry as Record<string, unknown>
+    const provider = record.provider
+    if (typeof provider !== 'string' || provider.toLowerCase() !== 'microsoft')
+      continue
+    const profile = record.profile
+    if (!profile || typeof profile !== 'object') continue
+    const minecraft = (profile as Record<string, unknown>).minecraft
+    if (!minecraft || typeof minecraft !== 'object') continue
+    const java = (minecraft as Record<string, unknown>).java
+    const bedrock = (minecraft as Record<string, unknown>).bedrock
+    if (java && typeof java === 'object') {
+      const name = (java as Record<string, unknown>).name
+      if (typeof name === 'string' && name.trim()) ids.push(name.trim())
+    }
+    if (bedrock && typeof bedrock === 'object') {
+      const gamertag = (bedrock as Record<string, unknown>).gamertag
+      if (typeof gamertag === 'string' && gamertag.trim())
+        ids.push(gamertag.trim())
+    }
+  }
+  return Array.from(new Set(ids))
+})
+
 function resetHistoryState() {
   historyLatestItems.value = []
   historyLatestLoading.value = false
@@ -354,6 +384,27 @@ async function submitAuthmeBinding() {
       authmeId: authmeBindingForm.value.authmeId,
       password: authmeBindingForm.value.password,
     })
+    authmeBindingForm.value.authmeId = ''
+    authmeBindingForm.value.password = ''
+    showBindDialog.value = false
+    toast.add({ title: '绑定成功', color: 'success' })
+  } catch (error) {
+    if (error instanceof ApiError) bindingError.value = error.message
+    else bindingError.value = '绑定失败，请稍后再试'
+  } finally {
+    bindingLoading.value = false
+  }
+}
+
+async function submitAuthmeBindingByMicrosoft(authmeId: string) {
+  if (!bindingEnabled.value) {
+    bindingError.value = '当前未开放绑定功能'
+    return
+  }
+  bindingError.value = ''
+  bindingLoading.value = true
+  try {
+    await auth.bindAuthmeByMicrosoft({ authmeId })
     authmeBindingForm.value.authmeId = ''
     authmeBindingForm.value.password = ''
     showBindDialog.value = false
@@ -576,6 +627,8 @@ async function setPrimaryBinding(bindingId: string | null) {
       @set-primary="handleSetPrimaryNickname"
     />
 
+    <MinecraftOAuthAccountsSection />
+
     <MinecraftSection
       :bindings="authmeBindings"
       :is-editing="false"
@@ -596,6 +649,7 @@ async function setPrimaryBinding(bindingId: string | null) {
       :open="showBindDialog"
       :loading="bindingLoading"
       :error="bindingError"
+      :suggested-ids="linkedMinecraftIds"
       @close="showBindDialog = false"
       @submit="
         (p) => {
@@ -604,6 +658,7 @@ async function setPrimaryBinding(bindingId: string | null) {
           submitAuthmeBinding()
         }
       "
+      @submit-passwordless="(p) => submitAuthmeBindingByMicrosoft(p.authmeId)"
     />
 
     <UModal

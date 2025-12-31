@@ -103,6 +103,25 @@ const STATIC_TRANSLATIONS: Record<string, string> = {
   'AuthMe registration is not enabled': 'AuthMe 注册暂未开放',
   'AuthMe login is not enabled': 'AuthMe 登录暂未开放',
   'Must specify which AuthMe account to unbind': '请指定要解绑的 AuthMe 账号',
+  'Missing Microsoft refresh token, please re-bind this account':
+    '该 Microsoft 账号缺少可用的授权信息，已自动重新关联',
+  'Xbox Live authentication failed, please re-bind this Microsoft account':
+    'Xbox Live 认证失败，已自动重新关联',
+  'Microsoft refresh token response missing access_token':
+    'Microsoft 授权刷新失败，请稍后重试',
+  'Microsoft OAuth configuration is missing':
+    'Microsoft 授权配置缺失，请联系管理员',
+  'Only Microsoft accounts can be synced': '仅支持同步 Microsoft 账号',
+  'OAuth binding does not exist': 'OAuth 绑定不存在',
+  'No Minecraft ID detected. Please sync data from Microsoft account or re-bind first.':
+    '未检测到可用的 Minecraft ID，请先同步数据或重新关联',
+  'This Minecraft ID does not belong to your linked Microsoft account.':
+    '该 Minecraft ID 不属于当前账号已关联的 Microsoft 账户',
+  'Device flow state expired': '授权已过期，请重新获取设备码',
+  'Invalid device flow state': '设备码状态无效，请重新获取',
+  'Device flow state does not belong to user': '设备码不属于当前用户',
+  'Device flow state does not match account': '设备码与账号不匹配',
+  'Device flow state missing device code': '设备码信息缺失，请重新获取',
   // Account and profile errors
   'Username can only be changed once every 30 days': '用户名每30天只能修改一次',
   'Current account has no email configured': '当前账户尚未配置邮箱',
@@ -238,6 +257,15 @@ export function translateAuthErrorMessage(message: unknown): string {
   }
   if (TOO_MANY_REQUESTS_RE.test(trimmed)) {
     return '尝试次数过多，请稍后再试'
+  }
+  if (trimmed.startsWith('Token exchange failed:')) {
+    return 'Microsoft 授权失败，请重新关联'
+  }
+  if (trimmed.startsWith('Microsoft device code request failed:')) {
+    return 'Microsoft 设备码获取失败，请稍后重试'
+  }
+  if (trimmed.startsWith('Microsoft device flow failed:')) {
+    return 'Microsoft 设备授权失败，请稍后重试'
   }
   return trimmed
 }
