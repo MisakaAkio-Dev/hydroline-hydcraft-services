@@ -46,6 +46,7 @@ const deviceFlowUserCode = ref<string | null>(null)
 const deviceFlowVerifyUri = ref<string | null>(null)
 const deviceFlowInterval = ref(5)
 const deviceFlowPolling = ref(false)
+const deviceFlowCopyStatus = ref<'idle' | 'success' | 'failed'>('idle')
 let deviceFlowTimer: number | null = null
 let deviceFlowPopup: Window | null = null
 
@@ -274,9 +275,10 @@ async function startXboxDeviceFlow(accountId: string) {
     deviceFlowVerifyUri.value = result.verificationUri
     deviceFlowInterval.value = Math.max(result.interval || 5, 3)
     deviceFlowOpen.value = true
-    openDeviceFlowPopup(result.verificationUri)
+    deviceFlowCopyStatus.value = 'idle'
     startDeviceFlowPolling()
   } catch (error) {
+    closeDeviceFlowPopup()
     toast.add({
       title: '同步失败',
       description: translateAuthErrorMessage(
@@ -293,7 +295,8 @@ function openDeviceFlowPopup(url?: string | null) {
   if (!url) return
   try {
     if (deviceFlowPopup && !deviceFlowPopup.closed) {
-      deviceFlowPopup.close()
+      deviceFlowPopup.location.href = url
+      return
     }
     deviceFlowPopup = window.open(url, '_blank', 'noopener,noreferrer')
   } catch {
@@ -306,6 +309,46 @@ function closeDeviceFlowPopup() {
     deviceFlowPopup.close()
   }
   deviceFlowPopup = null
+}
+
+async function copyDeviceFlowCode(userCode: string) {
+  if (!userCode) return
+  try {
+    const primaryCopy = async () => {
+      if (!navigator.clipboard?.writeText) return false
+      await navigator.clipboard.writeText(userCode)
+      return true
+    }
+    const fallbackCopy = () => {
+      const textArea = document.createElement('textarea')
+      textArea.value = userCode
+      textArea.setAttribute('readonly', 'true')
+      textArea.style.position = 'fixed'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.select()
+      textArea.setSelectionRange(0, userCode.length)
+      const copied = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      return copied
+    }
+    const copied = (await primaryCopy()) || fallbackCopy()
+    if (!copied) {
+      throw new Error('Copy failed')
+    }
+    deviceFlowCopyStatus.value = 'success'
+  } catch {
+    deviceFlowCopyStatus.value = 'failed'
+  }
+}
+
+function openDeviceFlowAndCopy() {
+  if (deviceFlowUserCode.value) {
+    void copyDeviceFlowCode(deviceFlowUserCode.value)
+  }
+  if (deviceFlowVerifyUri.value) {
+    openDeviceFlowPopup(deviceFlowVerifyUri.value)
+  }
 }
 
 function startDeviceFlowPolling() {
@@ -597,7 +640,7 @@ async function syncMicrosoftMinecraft(accountId: string) {
                   size="sm"
                   variant="ghost"
                   :loading="syncLoadingAccountId === account.id"
-                  @click="syncMicrosoftMinecraft(account.id)"
+                  @click="startXboxDeviceFlow(account.id)"
                 >
                   同步游戏数据
                 </UButton>
@@ -712,26 +755,30 @@ async function syncMicrosoftMinecraft(accountId: string) {
         >
           {{ deviceFlowUserCode || '----' }}
         </div>
-        <div
-          class="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400"
-        >
-          <span class="truncate"
-            >验证地址：{{ deviceFlowVerifyUri || '—' }}</span
-          >
+        <div class="flex items-center justify-between gap-2 text-xs">
+          <span class="text-slate-500 dark:text-slate-400">
+            {{
+              deviceFlowCopyStatus === 'success'
+                ? '验证码已复制到剪贴板'
+                : deviceFlowCopyStatus === 'failed'
+                  ? '自动复制失败，请手动复制'
+                  : '点击按钮复制验证码并打开微软验证页'
+            }}
+          </span>
           <UButton
             size="xs"
             variant="soft"
             color="primary"
-            :disabled="!deviceFlowVerifyUri"
-            @click="
-              deviceFlowVerifyUri && openDeviceFlowPopup(deviceFlowVerifyUri)
-            "
+            :disabled="!deviceFlowUserCode || !deviceFlowVerifyUri"
+            @click="openDeviceFlowAndCopy"
           >
-            重新打开
+            复制验证码并打开
           </UButton>
         </div>
-        <div class="text-xs text-slate-500 dark:text-slate-400">
-          已自动打开验证页，完成后本页会自动返回。
+        <div
+          class="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400"
+        >
+          <span class="truncate">{{ deviceFlowVerifyUri || '—' }}</span>
         </div>
       </div>
     </template>

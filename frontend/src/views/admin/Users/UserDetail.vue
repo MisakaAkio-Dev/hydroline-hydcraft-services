@@ -78,6 +78,7 @@ const likeDetails = ref<AdminUserLikeEntry[]>([])
 const likeDetailsLoading = ref(false)
 const pendingEmailToken = ref<number | null>(null)
 const oauthUnbindingId = ref<string | null>(null)
+const oauthResettingId = ref<string | null>(null)
 
 const profileForm = reactive<ProfileForm>({
   displayName: undefined,
@@ -503,6 +504,34 @@ async function unbindOauthAccount(accountId: string) {
   } finally {
     oauthUnbindingId.value = null
   }
+}
+
+async function clearMicrosoftMinecraft(accountId: string) {
+  if (!auth.token || !detail.value) return
+  deleteConfirmMessage.value = '确定要清除该微软账号的游戏数据吗？'
+  deleteConfirmCallback.value = async () => {
+    oauthResettingId.value = accountId
+    try {
+      await apiFetch(
+        `/auth/users/${detail.value!.id}/oauth/accounts/${accountId}/minecraft`,
+        {
+          method: 'DELETE',
+          token: auth.token,
+        },
+      )
+      toast.add({ title: '已清除游戏数据', color: 'success' })
+      await fetchDetail()
+    } catch (error) {
+      toast.add({
+        title: '清除失败',
+        description: error instanceof ApiError ? error.message : '请稍后再试',
+        color: 'error',
+      })
+    } finally {
+      oauthResettingId.value = null
+    }
+  }
+  deleteConfirmDialogOpen.value = true
 }
 
 async function markPrimaryMinecraft(profileId: string) {
@@ -989,7 +1018,9 @@ onBeforeUnmount(() => {
       :accounts="oauthAccounts"
       :loading="loading"
       :unbinding-id="oauthUnbindingId"
+      :resetting-id="oauthResettingId"
       @unbind="unbindOauthAccount"
+      @clear-minecraft="clearMicrosoftMinecraft"
     />
     <UserDetailSectionServerAccounts
       :detail="detail"

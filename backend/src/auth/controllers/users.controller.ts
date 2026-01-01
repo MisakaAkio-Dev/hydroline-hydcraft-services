@@ -127,6 +127,21 @@ export class UsersController {
     );
   }
 
+  @Delete(':userId/oauth/accounts/:accountId/minecraft')
+  @ApiOperation({ summary: '清除 Microsoft 账号的游戏数据' })
+  @RequirePermissions(PERMISSIONS.AUTH_MANAGE_USERS)
+  async clearMicrosoftMinecraftProfile(
+    @Param('userId') userId: string,
+    @Param('accountId') accountId: string,
+    @Req() req: Request,
+  ) {
+    return this.usersService.clearMicrosoftMinecraftProfile(
+      userId,
+      accountId,
+      req.user?.id,
+    );
+  }
+
   @Patch(':userId/profile')
   @ApiOperation({ summary: '更新用户档案' })
   @RequirePermissions(PERMISSIONS.AUTH_MANAGE_USERS)

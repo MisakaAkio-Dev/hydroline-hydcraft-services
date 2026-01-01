@@ -28,6 +28,7 @@ import {
 import {
   listUserOauthAccounts,
   unlinkUserOauthAccount,
+  clearMicrosoftMinecraftProfile,
 } from './users-oauth.manager';
 import {
   addContact,
@@ -151,6 +152,14 @@ export class UsersService {
     actorId?: string,
   ) {
     return unlinkUserOauthAccount(this.ctx, userId, accountId, actorId);
+  }
+
+  async clearMicrosoftMinecraftProfile(
+    userId: string,
+    accountId: string,
+    actorId?: string,
+  ) {
+    return clearMicrosoftMinecraftProfile(this.ctx, userId, accountId, actorId);
   }
 
   async getUserDetail(userId: string) {
