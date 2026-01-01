@@ -10,6 +10,7 @@ import {
 import { normalizeIpAddress } from '../../../lib/ip2region/ip-normalizer';
 import { generateRandomString, hashPassword } from 'better-auth/crypto';
 import { UsersServiceContext } from './users.context';
+import { SYSTEM_USER_EMAIL } from '../../../lib/shared/system-user';
 import {
   AuthmeBindingSnapshot,
   composeAuthmeBindingSnapshots,
@@ -145,27 +146,38 @@ export async function listUsers(
   const { keyword, page = 1, pageSize = 20, sortField, sortOrder } = params;
   const where: Prisma.UserWhereInput = keyword
     ? {
-        OR: [
-          { email: { contains: keyword, mode: 'insensitive' } },
-          { name: { contains: keyword, mode: 'insensitive' } },
-          { profile: { piic: { contains: keyword, mode: 'insensitive' } } },
+        AND: [
           {
-            minecraftIds: {
-              some: {
-                nickname: { contains: keyword, mode: 'insensitive' },
+            OR: [
+              { email: { contains: keyword, mode: 'insensitive' } },
+              { name: { contains: keyword, mode: 'insensitive' } },
+              {
+                profile: { piic: { contains: keyword, mode: 'insensitive' } },
               },
-            },
+              {
+                minecraftIds: {
+                  some: {
+                    nickname: { contains: keyword, mode: 'insensitive' },
+                  },
+                },
+              },
+              {
+                authmeBindings: {
+                  some: {
+                    authmeUsername: { contains: keyword, mode: 'insensitive' },
+                  },
+                },
+              },
+            ],
           },
           {
-            authmeBindings: {
-              some: {
-                authmeUsername: { contains: keyword, mode: 'insensitive' },
-              },
-            },
+            NOT: { email: SYSTEM_USER_EMAIL },
           },
         ],
       }
-    : {};
+    : {
+        NOT: { email: SYSTEM_USER_EMAIL },
+      };
 
   const orderBy: Prisma.UserOrderByWithRelationInput[] = [];
   const sort = resolveUserSort(sortField, sortOrder);

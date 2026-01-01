@@ -374,11 +374,29 @@ export class AuthService {
   private async listLinkedMinecraftIds(userId: string) {
     const accounts = await this.prisma.account.findMany({
       where: { userId, provider: 'microsoft' },
-      select: { profile: true },
+      select: { id: true, profile: true },
       orderBy: { createdAt: 'desc' },
     });
+    if (accounts.length === 0) {
+      return [];
+    }
+    const minecraftProfiles =
+      await this.prisma.accountMinecraftProfile.findMany({
+        where: { accountId: { in: accounts.map((account) => account.id) } },
+        select: { accountId: true, javaName: true, bedrockGamertag: true },
+      });
+    const minecraftMap = new Map(
+      minecraftProfiles.map((entry) => [entry.accountId, entry]),
+    );
     const ids: string[] = [];
     for (const account of accounts) {
+      const minecraftProfile = minecraftMap.get(account.id);
+      if (minecraftProfile?.javaName) {
+        ids.push(minecraftProfile.javaName);
+      }
+      if (minecraftProfile?.bedrockGamertag) {
+        ids.push(minecraftProfile.bedrockGamertag);
+      }
       const profile =
         account.profile && typeof account.profile === 'object'
           ? (account.profile as Record<string, unknown>)

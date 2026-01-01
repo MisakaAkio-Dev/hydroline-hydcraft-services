@@ -47,34 +47,29 @@ const AUTHME_SORT_FIELDS = {
 } as const;
 
 export class MysqlAuthmeLib implements AuthmeLib {
-  readonly pool: Pool;
+  private poolInternal: Pool;
   private readonly logger?: LoggerLike;
   private readonly metrics?: AuthmeMetricsRecorder;
+  private readonly config: AuthmeDbConfig;
+  private readonly canRecreatePool: boolean;
+  private reconnecting: Promise<void> | null = null;
 
   constructor(options: AuthmeLibOptions) {
     this.logger = options.logger;
     this.metrics = options.metrics;
-    const poolOptions: PoolOptions = {
-      host: options.config.host,
-      port: options.config.port,
-      user: options.config.user,
-      password: options.config.password,
-      database: options.config.database,
-      charset: options.config.charset,
-      waitForConnections: true,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 0,
-      queueLimit: 0,
-      connectionLimit: options.config.pool.max,
-      connectTimeout: options.config.connectTimeoutMillis,
-    };
-    this.pool = options.poolOverride ?? mysql.createPool(poolOptions);
+    this.config = options.config;
+    this.canRecreatePool = !options.poolOverride;
+    this.poolInternal = options.poolOverride ?? this.createPool();
+  }
+
+  get pool() {
+    return this.poolInternal;
   }
 
   async health(): Promise<AuthmeHealth> {
     const start = performance.now();
     try {
-      const connection = await this.pool.getConnection();
+      const connection = await this.poolInternal.getConnection();
       try {
         await connection.query('SELECT 1');
       } finally {
@@ -97,7 +92,7 @@ export class MysqlAuthmeLib implements AuthmeLib {
 
   async close(): Promise<void> {
     this.metrics?.setConnected(false);
-    await this.pool.end().catch(() => undefined);
+    await this.poolInternal.end().catch(() => undefined);
   }
 
   async getByUsername(username: string): Promise<AuthmeUser | null> {
@@ -278,7 +273,7 @@ export class MysqlAuthmeLib implements AuthmeLib {
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         let connection: PoolConnection | null = null;
         try {
-          connection = await this.pool.getConnection();
+          connection = await this.poolInternal.getConnection();
           await this.ensureHealthyConnection(connection);
           const [rows] = await this.executeQueryWithTimeout(
             connection,
@@ -298,6 +293,7 @@ export class MysqlAuthmeLib implements AuthmeLib {
               { code, label, attempt: attempt + 1, maxAttempts },
             );
             this.metrics?.setConnected(false);
+            await this.reconnectPool();
             await delay(backoffMs(attempt));
             continue;
           }
@@ -355,6 +351,42 @@ export class MysqlAuthmeLib implements AuthmeLib {
       if (timer) {
         clearTimeout(timer);
       }
+    }
+  }
+
+  private createPool(): Pool {
+    const poolOptions: PoolOptions = {
+      host: this.config.host,
+      port: this.config.port,
+      user: this.config.user,
+      password: this.config.password,
+      database: this.config.database,
+      charset: this.config.charset,
+      waitForConnections: true,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
+      queueLimit: 0,
+      connectionLimit: this.config.pool.max,
+      connectTimeout: this.config.connectTimeoutMillis,
+    };
+    return mysql.createPool(poolOptions);
+  }
+
+  private async reconnectPool() {
+    if (!this.canRecreatePool) {
+      return;
+    }
+    if (!this.reconnecting) {
+      this.reconnecting = (async () => {
+        const previous = this.poolInternal;
+        this.poolInternal = this.createPool();
+        await previous.end().catch(() => undefined);
+      })();
+    }
+    try {
+      await this.reconnecting;
+    } finally {
+      this.reconnecting = null;
     }
   }
 

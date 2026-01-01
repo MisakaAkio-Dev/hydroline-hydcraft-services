@@ -61,6 +61,7 @@ import type {
   WorkflowDefinitionWithConfig,
   WorkflowTransitionResult,
 } from '../workflow/workflow.types';
+import { SYSTEM_USER_EMAIL } from '../lib/shared/system-user';
 
 const companyInclude = Prisma.validator<Prisma.CompanyInclude>()({
   type: true,
@@ -477,13 +478,20 @@ export class CompanyService implements OnModuleInit {
     const limit = Math.min(query.limit ?? 20, 100);
     return this.prisma.user.findMany({
       where: {
-        OR: [
-          { name: { contains: keyword, mode: 'insensitive' } },
-          { email: { contains: keyword, mode: 'insensitive' } },
+        AND: [
           {
-            profile: {
-              displayName: { contains: keyword, mode: 'insensitive' },
-            },
+            OR: [
+              { name: { contains: keyword, mode: 'insensitive' } },
+              { email: { contains: keyword, mode: 'insensitive' } },
+              {
+                profile: {
+                  displayName: { contains: keyword, mode: 'insensitive' },
+                },
+              },
+            ],
+          },
+          {
+            NOT: { email: SYSTEM_USER_EMAIL },
           },
         ],
       },

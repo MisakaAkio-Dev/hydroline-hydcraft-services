@@ -22,6 +22,7 @@ import { LuckpermsService } from '../luckperms/luckperms.service';
 import { LuckpermsLookupService } from '../luckperms/luckperms-lookup.service';
 import { buildPagination } from '../lib/shared/pagination';
 import { normalizeIpAddress } from '../lib/ip2region/ip-normalizer';
+import { SYSTEM_USER_EMAIL } from '../lib/shared/system-user';
 import type { LuckpermsPlayer } from '../luckperms/luckperms.interfaces';
 import type {
   PlayerLoginCluster,
@@ -252,6 +253,9 @@ export class PlayerService {
     const page = Math.max(options.page ?? 1, 1);
     const pageSize = this.normalizeRecommendationPageSize(options.pageSize);
     const users = await this.prisma.user.findMany({
+      where: {
+        NOT: { email: SYSTEM_USER_EMAIL },
+      },
       orderBy: { createdAt: 'desc' },
       take: RECOMMENDED_PLAYER_LIMIT,
       select: {

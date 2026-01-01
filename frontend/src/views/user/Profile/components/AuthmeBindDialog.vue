@@ -62,8 +62,7 @@ watch(
         </div>
         <div v-if="props.suggestedIds?.length" class="mt-3 space-y-2">
           <p class="text-xs text-slate-500 dark:text-slate-400">
-            已检测到你关联的 Microsoft→Minecraft
-            ID，点击即可免输密码绑定（若已被他人绑定，将提示冲突）：
+            已检测到你微软账户旗下的 Minecraft ID，点击即可免输密码绑定
           </p>
           <div class="flex flex-wrap gap-2">
             <UButton
