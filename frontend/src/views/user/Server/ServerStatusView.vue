@@ -505,7 +505,7 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <div class="grid grid-cols-3 gap-2">
+              <div class="grid md:grid-cols-3 gap-2">
                 <div
                   class="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-slate-800 dark:bg-slate-950/60"
                 >
@@ -515,7 +515,7 @@ onUnmounted(() => {
                     游戏版本
                   </p>
                   <p
-                    class="text-sm font-semibold text-slate-900 dark:text-white"
+                    class="uppercase text-sm font-semibold text-slate-900 dark:text-white"
                   >
                     {{ versionLabel(server) }}
                   </p>
