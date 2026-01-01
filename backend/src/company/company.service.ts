@@ -8,8 +8,14 @@ import {
 } from '@nestjs/common';
 import {
   CompanyApplicationStatus,
+  CompanyApplicationConsentProgress,
+  CompanyApplicationConsentRole,
+  CompanyApplicationConsentStatus,
   CompanyCategory,
   CompanyIndustry,
+  CompanyLlcOfficerRole,
+  CompanyLlcOperatingTermType,
+  CompanyLlcShareholderKind,
   CompanyMemberRole,
   CompanyPosition,
   CompanyStatus,
@@ -35,10 +41,15 @@ import {
   CompanyMemberRejectDto,
   CompanyMemberUpdateDto,
   CompanyRecommendationsQueryDto,
+  CompanySearchDto,
+  GeoDivisionSearchDto,
   CompanySettingsDto,
   CompanyUserSearchDto,
   CreateCompanyApplicationDto,
+  CompanyApplicationConsentDecisionDto,
+  LimitedLiabilityCompanyApplicationDto,
   UpdateCompanyProfileDto,
+  WithdrawCompanyApplicationDto,
 } from './dto/company.dto';
 import {
   COMPANY_MEMBER_WRITE_ROLES,
@@ -121,6 +132,12 @@ const companyInclude = Prisma.validator<Prisma.CompanyInclude>()({
     orderBy: { submittedAt: 'desc' },
     take: 5,
   },
+  llcRegistration: {
+    include: {
+      shareholders: true,
+      officers: true,
+    },
+  },
   workflowInstance: {
     include: { definition: true },
   },
@@ -128,6 +145,15 @@ const companyInclude = Prisma.validator<Prisma.CompanyInclude>()({
 
 const COMPANY_CONFIG_NAMESPACE = 'company';
 const COMPANY_CONFIG_AUTO_APPROVE_KEY = 'auto_approve_applications';
+const WORLD_ADMIN_DIVISIONS_NAMESPACE = 'world.admin_divisions';
+const WORLD_ADMIN_DIVISIONS_KEY = 'divisions_v1';
+
+type WorldDivisionNode = {
+  id: string;
+  name: string;
+  level: 1 | 2 | 3;
+  parentId?: string | null;
+};
 
 type CompanyWithRelations = Prisma.CompanyGetPayload<{
   include: typeof companyInclude;
@@ -211,34 +237,112 @@ const DEFAULT_INDUSTRIES = [
 
 const DEFAULT_COMPANY_TYPES = [
   {
-    code: 'limited_liability',
+    code: 'limited_liability_company',
     name: '有限责任公司',
-    description: '中国最常见的公司形式，股东以出资额为限对公司承担责任。',
-    category: CompanyCategory.ENTERPRISE,
+    description:
+      '根据《中华人民共和国公司登记管理条例》规定登记注册，由五十个以下股东出资设立，股东以其所认缴的出资额为限对公司承担有限责任，公司以其全部财产对自身债务承担责任的经济组织。',
+    category: CompanyCategory.FOR_PROFIT_LEGAL_PERSON,
   },
   {
-    code: 'joint_stock',
+    code: 'join_stock_company_limited_by_shares',
     name: '股份有限公司',
-    description: '适用于资本较大、计划引入多方投资的实体。',
-    category: CompanyCategory.ENTERPRISE,
+    description: '公司资本由股份组成、股东以认购股份为限承担责任的法人组织。',
+    category: CompanyCategory.FOR_PROFIT_LEGAL_PERSON,
   },
   {
-    code: 'foreign_invested',
-    name: '外商投资企业',
-    description: '对接外资与全球合作的特殊类型。',
-    category: CompanyCategory.ENTERPRISE,
+    code: 'other_enterprise_that_has_the_legal_person_status',
+    name: '其他企业法人',
+    description: '其他企业法人，如国有独资公司、集体所有制企业等。',
+    category: CompanyCategory.FOR_PROFIT_LEGAL_PERSON,
   },
   {
-    code: 'individual_business',
+    code: 'public_institution',
+    name: '事业单位',
+    description:
+      '国家为公益目的设立，由国家机关或其他组织利用国有资产举办，从事教育、科技、文化、卫生、体育等活动的社会服务组织。',
+    category: CompanyCategory.NON_PROFIT_LEGAL_PERSON,
+  },
+  {
+    code: 'social_organization',
+    name: '社会团体',
+    description:
+      '公民自愿组成，为实现会员共同意愿，按照其章程开展活动的非营利性社会组织。',
+    category: CompanyCategory.NON_PROFIT_LEGAL_PERSON,
+  },
+  {
+    code: 'foundation',
+    name: '基金会',
+    description:
+      '利用自然人、法人或其他组织捐赠的财产，以从事公益事业为目的成立的非营利性法人。',
+    category: CompanyCategory.NON_PROFIT_LEGAL_PERSON,
+  },
+  {
+    code: 'social_service_institution',
+    name: '社会服务机构',
+    description:
+      '由企业、事业单位、社会团体或个人利用非国有资产举办的公益性、非营利性社会组织。',
+    category: CompanyCategory.NON_PROFIT_LEGAL_PERSON,
+  },
+  {
+    code: 'state_organ_legal_person',
+    name: '机关法人',
+    description:
+      '依照法律和行政命令组建，具有独立经费且自成立之日起即取得法人资格的各级国家机关及承担行政职能的法定机构。',
+    category: CompanyCategory.SPECIAL_LEGAL_PERSON,
+  },
+  {
+    code: 'rural_economic_collective_legal_person',
+    name: '农村集体经济组织法人',
+    description:
+      '以土地集体所有为基础，依法代表成员集体行使所有权，实行家庭承包经营为基础、统分结合双层经营体制的区域性经济组织，包括乡镇级农村集体经济组织、村级农村集体经济组织、组级农村集体经济组织。',
+    category: CompanyCategory.SPECIAL_LEGAL_PERSON,
+  },
+  {
+    code: 'urban_and_rural_cooperative_economic_organization_legal_person',
+    name: '城镇农村的合作经济组织法人',
+    description: '',
+    category: CompanyCategory.SPECIAL_LEGAL_PERSON,
+  },
+  {
+    code: 'primary-level_self-governing_organization_legal_person',
+    name: '基层群众性自治组织法人',
+    description:
+      '根据《中华人民共和国宪法》第111条设立的城乡居民实行自我管理、自我教育、自我服务的自治形式，包含村民委员会和居民委员会两类。',
+    category: CompanyCategory.SPECIAL_LEGAL_PERSON,
+  },
+  {
+    code: 'proprietorship',
+    name: '个人独资企业',
+    description:
+      '个人出资经营、归个人所有和控制、由个人承担经营风险和享有全部经营收益的企业。',
+    category: CompanyCategory.UNINCORPORATED_ORGANIZATION,
+  },
+  {
+    code: 'partnership',
+    name: '合伙企业',
+    description:
+      '自然人、法人或其他组织依法设立的经营实体，由两名及以上合伙人通过书面协议共同出资、共担风险，其核心特征为普通合伙人需对企业债务承担无限连带责任。',
+    category: CompanyCategory.UNINCORPORATED_ORGANIZATION,
+  },
+  {
+    code: 'professional_service_institution_that_dose_not_have_the_legal_person_status',
+    name: '不具有法人资格的专业服务机构',
+    description: '',
+    category: CompanyCategory.UNINCORPORATED_ORGANIZATION,
+  },
+  {
+    code: 'individual-run_industrial_and_commercial_households',
     name: '个体工商户',
-    description: '天然适合玩家单人经营的小微模式，允许少量成员。',
+    description:
+      '在法律允许的范围内，依法经核准登记，从事工商经营活动的自然人或者家庭。',
     category: CompanyCategory.INDIVIDUAL,
   },
   {
-    code: 'organization',
-    name: '事业机构 / 组织',
-    description: '用于社团、联盟或公共事业类运营。',
-    category: CompanyCategory.ORGANIZATION,
+    code: 'rural-land_contractual_management_households',
+    name: '农村承包经营户',
+    description:
+      '在法律允许的范围内，按照农村土地承包经营合同的约定，利用农村集体土地从事种植业以及副业生产经营的农村集体经济组织成员或者家庭。',
+    category: CompanyCategory.INDIVIDUAL,
   },
 ];
 
@@ -345,7 +449,7 @@ export class CompanyService implements OnModuleInit {
       SELECT
         to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS "date",
         COUNT(*) AS "total",
-        SUM(CASE WHEN "isIndividualBusiness" THEN 1 ELSE 0 END) AS "individual"
+        SUM(CASE WHEN "category" = 'INDIVIDUAL' THEN 1 ELSE 0 END) AS "individual"
       FROM "companies"
       WHERE "createdAt" >= ${start}
       GROUP BY date
@@ -502,6 +606,28 @@ export class CompanyService implements OnModuleInit {
     });
   }
 
+  async resolveUsers(ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids.filter((id) => id?.trim())));
+    if (!uniqueIds.length) {
+      return [];
+    }
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: uniqueIds } },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        profile: { select: { displayName: true } },
+      },
+    });
+    return users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      displayName: u.profile?.displayName ?? null,
+    }));
+  }
+
   async searchUserAttachments(
     userId: string,
     query: CompanyAttachmentSearchDto,
@@ -652,62 +778,1086 @@ export class CompanyService implements OnModuleInit {
     return this.serializeCompany(company, viewerId ?? undefined);
   }
 
+  async searchCompanies(query: CompanySearchDto) {
+    const keyword = query.query.trim();
+    const limit =
+      query.limit && query.limit > 0 ? Math.min(query.limit, 50) : 10;
+    if (!keyword) {
+      return [];
+    }
+    const companies = await this.prisma.company.findMany({
+      where: {
+        status: CompanyStatus.ACTIVE,
+        name: { contains: keyword, mode: 'insensitive' },
+      },
+      orderBy: [{ lastActiveAt: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        category: true,
+        type: { select: { id: true, code: true, name: true } },
+        industry: { select: { id: true, code: true, name: true } },
+      },
+    });
+    return companies;
+  }
+
+  private async loadWorldDivisions(): Promise<WorldDivisionNode[]> {
+    const entry = await this.configService.getEntry(
+      WORLD_ADMIN_DIVISIONS_NAMESPACE,
+      WORLD_ADMIN_DIVISIONS_KEY,
+    );
+    const raw = entry?.value as unknown;
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+    const items: WorldDivisionNode[] = [];
+    for (const node of raw) {
+      if (!node || typeof node !== 'object') continue;
+      const n = node;
+      if (typeof n.id !== 'string' || typeof n.name !== 'string') continue;
+      const level = Number(n.level) as 1 | 2 | 3;
+      if (![1, 2, 3].includes(level)) continue;
+      items.push({
+        id: n.id,
+        name: n.name,
+        level,
+        parentId:
+          typeof n.parentId === 'string'
+            ? n.parentId
+            : n.parentId === null || n.parentId === undefined
+              ? null
+              : null,
+      });
+    }
+    return items;
+  }
+
+  async searchGeoDivisions(query: GeoDivisionSearchDto) {
+    const q = query.q?.trim().toLowerCase() ?? '';
+    const limit =
+      query.limit && query.limit > 0 ? Math.min(query.limit, 50) : 20;
+    const nodes = await this.loadWorldDivisions();
+    const filtered = nodes.filter((n) => {
+      if (query.level && n.level !== query.level) return false;
+      if (query.parentId && (n.parentId ?? null) !== query.parentId)
+        return false;
+      if (q && !n.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    filtered.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
+    return filtered.slice(0, limit);
+  }
+
+  async getGeoDivisionPath(id: string) {
+    const nodes = await this.loadWorldDivisions();
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const current = byId.get(id);
+    if (!current) {
+      throw new BadRequestException('Division node not found');
+    }
+    const path: WorldDivisionNode[] = [];
+    let cursor: WorldDivisionNode | undefined = current;
+    const seen = new Set<string>();
+    while (cursor) {
+      if (seen.has(cursor.id)) break;
+      seen.add(cursor.id);
+      path.push(cursor);
+      const parentId = cursor.parentId ?? null;
+      cursor = parentId ? byId.get(parentId) : undefined;
+    }
+    path.sort((a, b) => a.level - b.level);
+    return {
+      level1: path.find((n) => n.level === 1) ?? null,
+      level2: path.find((n) => n.level === 2) ?? null,
+      level3: path.find((n) => n.level === 3) ?? null,
+    };
+  }
+
+  private validateLlcApplication(dto: LimitedLiabilityCompanyApplicationDto) {
+    const errors: string[] = [];
+
+    // 股东出资比例合计 100%
+    const shareholders = Array.isArray(dto.shareholders)
+      ? dto.shareholders
+      : [];
+    const normalized = shareholders
+      .map((s) => ({
+        kind: s.kind,
+        userId: s.userId,
+        companyId: s.companyId,
+        ratio: typeof s.ratio === 'number' ? s.ratio : Number(s.ratio),
+      }))
+      .filter((s) => Number.isFinite(s.ratio));
+    const sum = normalized.reduce((acc, s) => acc + (s.ratio ?? 0), 0);
+    if (Math.abs(sum - 100) > 1e-6) {
+      errors.push('所有股东的出资比例之和必须为 100%');
+    }
+    for (const s of normalized) {
+      if (s.kind === 'USER' && !s.userId) {
+        errors.push('股东类型为用户时必须选择 userId');
+      }
+      if (s.kind === 'COMPANY' && !s.companyId) {
+        errors.push('股东类型为公司时必须选择 companyId');
+      }
+    }
+
+    // 董事：要么 1 个，要么 >= 3 个；>1 时必须指定董事长（副董事长可选）
+    const directorIds = dto.directors?.directorIds ?? [];
+    const uniqueDirectorIds = Array.from(new Set(directorIds));
+    if (uniqueDirectorIds.length !== directorIds.length) {
+      errors.push('董事名单不能重复');
+    }
+    if (!(directorIds.length === 1 || directorIds.length >= 3)) {
+      errors.push('董事人数必须为 1 人或 3 人及以上');
+    }
+    if (directorIds.length > 1) {
+      if (!dto.directors?.chairpersonId) {
+        errors.push('董事人数大于 1 人时必须指定董事长');
+      } else if (!directorIds.includes(dto.directors.chairpersonId)) {
+        errors.push('董事长必须从董事中选择');
+      }
+      if (
+        dto.directors?.viceChairpersonId &&
+        !directorIds.includes(dto.directors.viceChairpersonId)
+      ) {
+        errors.push('副董事长必须从董事中选择');
+      }
+    }
+
+    // 经理/副经理：各最多 1 人
+    if (
+      dto.managers?.managerId &&
+      dto.managers?.deputyManagerId &&
+      dto.managers.managerId === dto.managers.deputyManagerId
+    ) {
+      errors.push('经理与副经理不能为同一人');
+    }
+
+    // 法定代表人：必须从董事或经理中选择（按需求：不含副经理）
+    const legal = dto.legalRepresentativeId;
+    const legalCandidates = new Set<string>([
+      ...directorIds,
+      ...(dto.managers?.managerId ? [dto.managers.managerId] : []),
+    ]);
+    if (!legalCandidates.has(legal)) {
+      errors.push('法定代表人必须从董事或经理中选择');
+    }
+
+    // 监事：可多个；>1 可选监事会主席；监事不得兼任董事/经理/副经理/财务负责人
+    const supervisorIds = dto.supervisors?.supervisorIds ?? [];
+    const uniqueSupervisorIds = Array.from(new Set(supervisorIds));
+    if (uniqueSupervisorIds.length !== supervisorIds.length) {
+      errors.push('监事名单不能重复');
+    }
+    if (supervisorIds.length > 1 && dto.supervisors?.chairpersonId) {
+      if (!supervisorIds.includes(dto.supervisors.chairpersonId)) {
+        errors.push('监事会主席必须从监事中选择');
+      }
+    }
+    const forbidden = new Set<string>([
+      ...directorIds,
+      ...(dto.managers?.managerId ? [dto.managers.managerId] : []),
+      ...(dto.managers?.deputyManagerId ? [dto.managers.deputyManagerId] : []),
+      ...(dto.financialOfficerId ? [dto.financialOfficerId] : []),
+    ]);
+    for (const sid of supervisorIds) {
+      if (forbidden.has(sid)) {
+        errors.push('监事不得由董事、经理、副经理或财务负责人兼任');
+        break;
+      }
+    }
+
+    if (errors.length) {
+      throw new BadRequestException(errors.join('；'));
+    }
+  }
+
+  private async initLlcApplicationConsents(
+    applicationId: string,
+    llc: LimitedLiabilityCompanyApplicationDto,
+  ) {
+    const now = new Date();
+
+    const requirements: Array<{
+      requiredUserId: string;
+      role: CompanyApplicationConsentRole;
+      shareholderCompanyId?: string | null;
+      shareholderUserId?: string | null;
+    }> = [];
+
+    // 法定代表人
+    requirements.push({
+      requiredUserId: llc.legalRepresentativeId,
+      role: CompanyApplicationConsentRole.LEGAL_REPRESENTATIVE,
+    });
+
+    // 股东
+    const shareholderCompanyIds = new Set<string>();
+    for (const s of llc.shareholders ?? []) {
+      if (s.kind === 'USER' && s.userId) {
+        requirements.push({
+          requiredUserId: s.userId,
+          role: CompanyApplicationConsentRole.SHAREHOLDER_USER,
+          shareholderUserId: s.userId,
+        });
+      }
+      if (s.kind === 'COMPANY' && s.companyId) {
+        shareholderCompanyIds.add(s.companyId);
+      }
+    }
+    if (shareholderCompanyIds.size) {
+      const companies = await this.prisma.company.findMany({
+        where: { id: { in: Array.from(shareholderCompanyIds) } },
+        select: { id: true, legalRepresentativeId: true },
+      });
+      const byId = new Map(companies.map((c) => [c.id, c]));
+      for (const cid of shareholderCompanyIds) {
+        const company = byId.get(cid);
+        if (!company) {
+          throw new BadRequestException(`股东公司不存在：${cid}`);
+        }
+        if (!company.legalRepresentativeId) {
+          throw new BadRequestException(`股东公司未设置法定代表人：${cid}`);
+        }
+        requirements.push({
+          requiredUserId: company.legalRepresentativeId,
+          role: CompanyApplicationConsentRole.SHAREHOLDER_COMPANY_LEGAL,
+          shareholderCompanyId: cid,
+        });
+      }
+    }
+
+    // 董事/董事长/副董事长
+    for (const id of llc.directors?.directorIds ?? []) {
+      requirements.push({
+        requiredUserId: id,
+        role: CompanyApplicationConsentRole.DIRECTOR,
+      });
+    }
+    if (llc.directors?.chairpersonId) {
+      requirements.push({
+        requiredUserId: llc.directors.chairpersonId,
+        role: CompanyApplicationConsentRole.CHAIRPERSON,
+      });
+    }
+    if (llc.directors?.viceChairpersonId) {
+      requirements.push({
+        requiredUserId: llc.directors.viceChairpersonId,
+        role: CompanyApplicationConsentRole.VICE_CHAIRPERSON,
+      });
+    }
+
+    // 经理/副经理
+    if (llc.managers?.managerId) {
+      requirements.push({
+        requiredUserId: llc.managers.managerId,
+        role: CompanyApplicationConsentRole.MANAGER,
+      });
+    }
+    if (llc.managers?.deputyManagerId) {
+      requirements.push({
+        requiredUserId: llc.managers.deputyManagerId,
+        role: CompanyApplicationConsentRole.DEPUTY_MANAGER,
+      });
+    }
+
+    // 监事/监事会主席
+    for (const id of llc.supervisors?.supervisorIds ?? []) {
+      requirements.push({
+        requiredUserId: id,
+        role: CompanyApplicationConsentRole.SUPERVISOR,
+      });
+    }
+    if (llc.supervisors?.chairpersonId) {
+      requirements.push({
+        requiredUserId: llc.supervisors.chairpersonId,
+        role: CompanyApplicationConsentRole.SUPERVISOR_CHAIRPERSON,
+      });
+    }
+
+    // 财务负责人
+    if (llc.financialOfficerId) {
+      requirements.push({
+        requiredUserId: llc.financialOfficerId,
+        role: CompanyApplicationConsentRole.FINANCIAL_OFFICER,
+      });
+    }
+
+    await this.prisma.companyApplicationConsent.createMany({
+      data: requirements.map((r) => ({
+        id: randomUUID(),
+        applicationId,
+        requiredUserId: r.requiredUserId,
+        role: r.role,
+        shareholderCompanyId: r.shareholderCompanyId ?? null,
+        shareholderUserId: r.shareholderUserId ?? null,
+        status: CompanyApplicationConsentStatus.PENDING,
+        createdAt: now,
+        updatedAt: now,
+      })),
+      skipDuplicates: true,
+    });
+
+    const pendingCount = await this.prisma.companyApplicationConsent.count({
+      where: { applicationId, status: CompanyApplicationConsentStatus.PENDING },
+    });
+    await this.prisma.companyApplication.update({
+      where: { id: applicationId },
+      data: {
+        currentStage: pendingCount > 0 ? 'AWAITING_CONSENTS' : null,
+        consentStatus:
+          pendingCount > 0
+            ? CompanyApplicationConsentProgress.PENDING
+            : CompanyApplicationConsentProgress.APPROVED,
+        consentCompletedAt: pendingCount > 0 ? null : now,
+      },
+    });
+  }
+
+  async getApplicationConsents(applicationId: string, userId: string) {
+    const application = await this.prisma.companyApplication.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        companyId: true,
+        company: {
+          select: { id: true, name: true, slug: true, status: true },
+        },
+        applicantId: true,
+        status: true,
+        currentStage: true,
+        consentStatus: true,
+        consentCompletedAt: true,
+        submittedAt: true,
+        consents: {
+          orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+          include: {
+            requiredUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profile: { select: { displayName: true } },
+              },
+            },
+            shareholderCompany: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
+        },
+      },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+    const canView =
+      application.applicantId === userId ||
+      application.consents.some((c) => c.requiredUserId === userId);
+    if (!canView) {
+      throw new ForbiddenException(
+        'No permission to view application consents',
+      );
+    }
+    return application;
+  }
+
+  async decideApplicationConsents(
+    applicationId: string,
+    userId: string,
+    approve: boolean,
+    dto: CompanyApplicationConsentDecisionDto,
+  ) {
+    const application = await this.prisma.companyApplication.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        companyId: true,
+        applicantId: true,
+        status: true,
+        consentStatus: true,
+        workflowInstance: {
+          select: {
+            definitionCode: true,
+          },
+        },
+      },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+    if (application.status !== CompanyApplicationStatus.SUBMITTED) {
+      throw new BadRequestException(
+        'Application is no longer pending consents',
+      );
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.companyApplicationConsent.updateMany({
+      where: {
+        applicationId,
+        requiredUserId: userId,
+        status: CompanyApplicationConsentStatus.PENDING,
+      },
+      data: {
+        status: approve
+          ? CompanyApplicationConsentStatus.APPROVED
+          : CompanyApplicationConsentStatus.REJECTED,
+        decidedAt: now,
+        comment: dto.comment,
+      },
+    });
+    if (updated.count === 0) {
+      throw new BadRequestException('No pending consent items for this user');
+    }
+
+    // 刷新汇总状态
+    const [pendingCount, rejectedCount] = await Promise.all([
+      this.prisma.companyApplicationConsent.count({
+        where: {
+          applicationId,
+          status: CompanyApplicationConsentStatus.PENDING,
+        },
+      }),
+      this.prisma.companyApplicationConsent.count({
+        where: {
+          applicationId,
+          status: CompanyApplicationConsentStatus.REJECTED,
+        },
+      }),
+    ]);
+    const progress =
+      rejectedCount > 0
+        ? CompanyApplicationConsentProgress.REJECTED
+        : pendingCount > 0
+          ? CompanyApplicationConsentProgress.PENDING
+          : CompanyApplicationConsentProgress.APPROVED;
+    const isDeregistration =
+      application.workflowInstance?.definitionCode ===
+      DEFAULT_COMPANY_DEREGISTRATION_WORKFLOW_CODE;
+    await this.prisma.companyApplication.update({
+      where: { id: applicationId },
+      data: {
+        consentStatus: progress,
+        consentCompletedAt:
+          progress === CompanyApplicationConsentProgress.APPROVED ? now : null,
+        currentStage:
+          progress === CompanyApplicationConsentProgress.APPROVED
+            ? 'READY_FOR_AUTHORITY'
+            : 'AWAITING_CONSENTS',
+        ...(isDeregistration && progress === CompanyApplicationConsentProgress.REJECTED
+          ? {
+              status: CompanyApplicationStatus.REJECTED,
+              resolvedAt: now,
+            }
+          : {}),
+      },
+    });
+
+    if (application.companyId) {
+      await this.prisma.companyAuditRecord.create({
+        data: {
+          id: randomUUID(),
+          companyId: application.companyId,
+          applicationId,
+          actorId: userId,
+          actionKey: approve ? 'consent_approve' : 'consent_reject',
+          actionLabel: approve ? '参与人同意' : '参与人拒绝',
+          resultState: progress,
+          comment: dto.comment,
+          payload: Prisma.JsonNull,
+          createdAt: now,
+        },
+      });
+    }
+
+    return this.getApplicationConsents(applicationId, userId);
+  }
+
+  async listMyApplications(userId: string) {
+    const applications = await this.prisma.companyApplication.findMany({
+      where: { applicantId: userId },
+      orderBy: { submittedAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        companyId: true,
+        workflowInstanceId: true,
+        workflowInstance: {
+          select: { definitionCode: true },
+        },
+        status: true,
+        currentStage: true,
+        consentStatus: true,
+        consentCompletedAt: true,
+        submittedAt: true,
+        resolvedAt: true,
+        rejectReason: true,
+        payload: true,
+        company: {
+          select: { id: true, name: true, slug: true, status: true },
+        },
+      },
+    });
+
+    const ids = applications.map((a) => a.id);
+    const instanceIds = applications
+      .map((a) => a.workflowInstanceId)
+      .filter((v): v is string => Boolean(v));
+    const grouped = ids.length
+      ? await this.prisma.companyApplicationConsent.groupBy({
+          by: ['applicationId', 'status'],
+          where: { applicationId: { in: ids } },
+          _count: { _all: true },
+        })
+      : [];
+    const counter = new Map<
+      string,
+      { pending: number; approved: number; rejected: number }
+    >();
+    for (const row of grouped) {
+      const key = row.applicationId;
+      const next = counter.get(key) ?? { pending: 0, approved: 0, rejected: 0 };
+      const count = row._count._all;
+      if (row.status === CompanyApplicationConsentStatus.PENDING)
+        next.pending += count;
+      if (row.status === CompanyApplicationConsentStatus.APPROVED)
+        next.approved += count;
+      if (row.status === CompanyApplicationConsentStatus.REJECTED)
+        next.rejected += count;
+      counter.set(key, next);
+    }
+
+    // 读取管理员在工作流动作（reject / request_changes）里填写的 comment，作为用户可见的“驳回/补件理由”
+    // 注意：必须允许 comment 为 null。否则当管理员这次不填理由时，前端会回退显示上一次的旧理由。
+    const adminActionComments = new Map<string, string | null>();
+    if (instanceIds.length) {
+      const actions = await this.prisma.workflowAction.findMany({
+        where: {
+          instanceId: { in: instanceIds },
+          actorRole: 'ADMIN',
+          actionKey: { in: ['reject', 'request_changes'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          instanceId: true,
+          actionKey: true,
+          comment: true,
+          createdAt: true,
+        },
+      });
+      for (const a of actions) {
+        const key = `${a.instanceId}:${a.actionKey}`;
+        if (!adminActionComments.has(key)) {
+          adminActionComments.set(key, a.comment ?? null);
+        }
+      }
+    }
+
+    return applications.map((a) => {
+      const payload = a.payload as any;
+      const rejectKey = a.workflowInstanceId
+        ? `${a.workflowInstanceId}:reject`
+        : null;
+      const requestChangesKey = a.workflowInstanceId
+        ? `${a.workflowInstanceId}:request_changes`
+        : null;
+
+      const rejectComment =
+        a.rejectReason ??
+        (rejectKey && adminActionComments.has(rejectKey)
+          ? adminActionComments.get(rejectKey) ?? null
+          : null);
+      const requestChangesComment =
+        requestChangesKey && adminActionComments.has(requestChangesKey)
+          ? adminActionComments.get(requestChangesKey) ?? null
+          : null;
+
+      const reviewComment =
+        a.status === CompanyApplicationStatus.REJECTED
+          ? rejectComment
+          : a.status === CompanyApplicationStatus.NEEDS_CHANGES
+            ? requestChangesComment
+            : null;
+      return {
+        id: a.id,
+        companyId: a.companyId,
+        company: a.company ?? null,
+        workflowCode: a.workflowInstance?.definitionCode ?? null,
+        status: a.status,
+        currentStage: a.currentStage,
+        submittedAt: a.submittedAt,
+        resolvedAt: a.resolvedAt,
+        consentStatus: a.consentStatus,
+        consentCompletedAt: a.consentCompletedAt,
+        name:
+          typeof payload?.name === 'string'
+            ? payload.name
+            : a.company?.name ?? null,
+        reviewComment,
+        rejectReason: rejectComment,
+        requestChangesReason: requestChangesComment,
+        consentCounts: counter.get(a.id) ?? {
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+        },
+      };
+    });
+  }
+
+  async getMyApplicationDetail(applicationId: string, userId: string) {
+    const application = await this.prisma.companyApplication.findFirst({
+      where: { id: applicationId, applicantId: userId },
+      select: {
+        id: true,
+        companyId: true,
+        workflowInstanceId: true,
+        status: true,
+        currentStage: true,
+        consentStatus: true,
+        consentCompletedAt: true,
+        submittedAt: true,
+        resolvedAt: true,
+        rejectReason: true,
+        payload: true,
+        company: {
+          select: { id: true, name: true, slug: true, status: true },
+        },
+      },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+
+    const instanceId = application.workflowInstanceId;
+    let rejectComment: string | null = application.rejectReason ?? null;
+    let requestChangesComment: string | null = null;
+    if (instanceId) {
+      const actions = await this.prisma.workflowAction.findMany({
+        where: {
+          instanceId,
+          actorRole: 'ADMIN',
+          actionKey: { in: ['reject', 'request_changes'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { actionKey: true, comment: true },
+      });
+      for (const a of actions) {
+        if (a.actionKey === 'reject' && rejectComment === null)
+          rejectComment = a.comment ?? null;
+        if (a.actionKey === 'request_changes' && requestChangesComment === null)
+          requestChangesComment = a.comment ?? null;
+      }
+    }
+
+    const reviewComment =
+      application.status === CompanyApplicationStatus.REJECTED
+        ? rejectComment
+        : application.status === CompanyApplicationStatus.NEEDS_CHANGES
+          ? requestChangesComment
+          : null;
+
+    return {
+      id: application.id,
+      companyId: application.companyId,
+      company: application.company ?? null,
+      status: application.status,
+      currentStage: application.currentStage,
+      consentStatus: application.consentStatus,
+      consentCompletedAt: application.consentCompletedAt,
+      submittedAt: application.submittedAt,
+      resolvedAt: application.resolvedAt,
+      payload: application.payload,
+      reviewComment,
+      rejectReason: rejectComment,
+      requestChangesReason: requestChangesComment,
+    };
+  }
+
+  async updateMyApplication(
+    applicationId: string,
+    userId: string,
+    dto: CreateCompanyApplicationDto,
+  ) {
+    const application = await this.prisma.companyApplication.findFirst({
+      where: { id: applicationId, applicantId: userId },
+      select: { id: true, status: true },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+    if (application.status !== CompanyApplicationStatus.NEEDS_CHANGES) {
+      throw new BadRequestException('当前申请状态不允许修改');
+    }
+
+    await this.assertCompanyNameAvailable(dto.name, null);
+    const type = await this.resolveCompanyType(dto.typeId, dto.typeCode);
+    const industry = await this.resolveIndustry(dto.industryId, dto.industryCode);
+
+    if (type?.code === 'limited_liability_company') {
+      if (!dto.llc) {
+        throw new BadRequestException('缺少有限责任公司登记所需字段');
+      }
+      this.validateLlcApplication(dto.llc);
+    }
+
+    await this.prisma.companyApplication.update({
+      where: { id: applicationId },
+      data: {
+        typeId: type?.id,
+        industryId: industry?.id,
+        payload: this.toJsonValue(dto),
+      },
+    });
+
+    return this.getMyApplicationDetail(applicationId, userId);
+  }
+
+  async resubmitMyApplication(
+    applicationId: string,
+    userId: string,
+    dto: { comment?: string },
+  ) {
+    const application = await this.prisma.companyApplication.findFirst({
+      where: { id: applicationId, applicantId: userId },
+      select: { id: true, status: true, workflowInstanceId: true },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+    if (application.status !== CompanyApplicationStatus.NEEDS_CHANGES) {
+      throw new BadRequestException('当前申请状态不允许重新提交');
+    }
+    if (!application.workflowInstanceId) {
+      throw new BadRequestException('申请缺少流程实例，无法重新提交');
+    }
+
+    const transition = await this.workflowService.performAction({
+      instanceId: application.workflowInstanceId,
+      actionKey: 'resubmit',
+      actorId: userId,
+      actorRoles: ['OWNER', 'LEGAL_PERSON'],
+      comment: dto.comment,
+      payload: {},
+    });
+
+    const applicationStatus = transition.nextState.business
+      ?.applicationStatus as CompanyApplicationStatus | undefined;
+
+    // 重新提交：回到“已提交”，并按最新表单内容重新生成需同意人员
+    const now = new Date();
+    await this.prisma.companyApplicationConsent.deleteMany({
+      where: { applicationId },
+    });
+
+    const latest = await this.prisma.companyApplication.findUnique({
+      where: { id: applicationId },
+      select: { id: true, typeId: true, payload: true },
+    });
+    if (!latest) {
+      throw new NotFoundException('Application not found');
+    }
+    const type = latest.typeId
+      ? await this.prisma.companyType.findUnique({
+          where: { id: latest.typeId },
+          select: { code: true },
+        })
+      : null;
+    const payload = latest.payload as any;
+    const dtoPayload = payload as CreateCompanyApplicationDto;
+    if (type?.code === 'limited_liability_company') {
+      if (!dtoPayload?.llc) {
+        throw new BadRequestException('缺少有限责任公司登记所需字段');
+      }
+      this.validateLlcApplication(dtoPayload.llc);
+      await this.initLlcApplicationConsents(applicationId, dtoPayload.llc);
+    }
+
+    const pendingCount = await this.prisma.companyApplicationConsent.count({
+      where: { applicationId, status: CompanyApplicationConsentStatus.PENDING },
+    });
+
+    await this.prisma.companyApplication.update({
+      where: { id: applicationId },
+      data: {
+        currentStage: transition.nextState.key,
+        status: applicationStatus ?? undefined,
+        resolvedAt: null,
+        consentStatus:
+          pendingCount > 0
+            ? CompanyApplicationConsentProgress.PENDING
+            : CompanyApplicationConsentProgress.APPROVED,
+        consentCompletedAt: pendingCount > 0 ? null : now,
+      },
+    });
+
+    return this.getMyApplicationDetail(applicationId, userId);
+  }
+
+  async withdrawMyApplication(
+    applicationId: string,
+    userId: string,
+    dto: WithdrawCompanyApplicationDto,
+  ) {
+    const application = await this.prisma.companyApplication.findFirst({
+      where: { id: applicationId, applicantId: userId },
+      select: {
+        id: true,
+        companyId: true,
+        status: true,
+        workflowInstanceId: true,
+        workflowInstance: {
+          select: { id: true, definitionCode: true, currentState: true },
+        },
+      },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+    if (
+      application.status === CompanyApplicationStatus.APPROVED ||
+      application.status === CompanyApplicationStatus.REJECTED ||
+      application.status === CompanyApplicationStatus.ARCHIVED
+    ) {
+      throw new BadRequestException('当前申请状态不可撤回');
+    }
+
+    const now = new Date();
+    const comment = dto.comment?.trim() || '申请已撤回';
+    const isDeregistration =
+      application.workflowInstance?.definitionCode ===
+      DEFAULT_COMPANY_DEREGISTRATION_WORKFLOW_CODE;
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1) 清空所有待同意项，避免继续出现在“待我同意”列表里
+      await tx.companyApplicationConsent.updateMany({
+        where: {
+          applicationId,
+          status: CompanyApplicationConsentStatus.PENDING,
+        },
+        data: {
+          status: CompanyApplicationConsentStatus.REJECTED,
+          decidedAt: now,
+          comment,
+        },
+      });
+
+      // 2) 申请标记为已撤回：并强制把 consentStatus 置为 REJECTED（避免管理员列表误入）
+      await tx.companyApplication.update({
+        where: { id: applicationId },
+        data: {
+          status: CompanyApplicationStatus.ARCHIVED,
+          resolvedAt: now,
+          currentStage: 'WITHDRAWN',
+          consentStatus: CompanyApplicationConsentProgress.REJECTED,
+          consentCompletedAt: now,
+        },
+      });
+
+      // 3) 取消流程实例（不走 performAction，直接标记取消）
+      if (application.workflowInstanceId) {
+        await tx.workflowInstance.update({
+          where: { id: application.workflowInstanceId },
+          data: {
+            status: WorkflowInstanceStatus.CANCELLED,
+            cancelledAt: now,
+            completedAt: null,
+          },
+        });
+        await tx.workflowAction.create({
+          data: {
+            id: randomUUID(),
+            instanceId: application.workflowInstanceId,
+            state: application.workflowInstance?.currentState ?? 'unknown',
+            actionKey: 'withdraw',
+            actionName: '撤回申请',
+            actorId: userId,
+            actorRole: 'APPLICANT',
+            comment,
+            payload: Prisma.JsonNull,
+            createdAt: now,
+          },
+        });
+      }
+
+      // 4) 注销申请撤回：恢复公司当前 workflow 关联到“上一个 company 实例”
+      if (
+        isDeregistration &&
+        application.companyId &&
+        application.workflowInstanceId
+      ) {
+        const previous = await tx.workflowInstance.findFirst({
+          where: {
+            targetType: 'company',
+            targetId: application.companyId,
+            id: { not: application.workflowInstanceId },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, definitionCode: true, currentState: true },
+        });
+        await tx.company.update({
+          where: { id: application.companyId },
+          data: {
+            workflowInstanceId: previous?.id ?? null,
+            workflowDefinitionCode: previous?.definitionCode ?? null,
+            workflowState: previous?.currentState ?? null,
+            updatedById: userId,
+          },
+        });
+        await tx.companyAuditRecord.create({
+          data: {
+            id: randomUUID(),
+            companyId: application.companyId,
+            applicationId,
+            actorId: userId,
+            actionKey: 'withdraw_deregistration',
+            actionLabel: '撤回注销申请',
+            resultState: 'WITHDRAWN',
+            comment,
+            payload: Prisma.JsonNull,
+            createdAt: now,
+          },
+        });
+      }
+    });
+
+    return this.getMyApplicationDetail(applicationId, userId);
+  }
+
+  async listMyPendingConsents(userId: string) {
+    const consents = await this.prisma.companyApplicationConsent.findMany({
+      where: {
+        requiredUserId: userId,
+        status: CompanyApplicationConsentStatus.PENDING,
+      },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        application: {
+          select: {
+            id: true,
+            applicantId: true,
+            status: true,
+            currentStage: true,
+            consentStatus: true,
+            submittedAt: true,
+            resolvedAt: true,
+            payload: true,
+            workflowInstance: {
+              select: { definitionCode: true },
+            },
+            company: {
+              select: { id: true, name: true, slug: true, status: true },
+            },
+          },
+        },
+        shareholderCompany: { select: { id: true, name: true, slug: true } },
+      },
+    });
+
+    const byApp = new Map<
+      string,
+      {
+        application: any;
+        items: Array<{
+          id: string;
+          role: CompanyApplicationConsentRole;
+          shareholderCompany?: {
+            id: string;
+            name: string;
+            slug: string;
+          } | null;
+        }>;
+      }
+    >();
+
+    for (const c of consents) {
+      const appId = c.applicationId;
+      const bucket = byApp.get(appId) ?? {
+        application: c.application,
+        items: [],
+      };
+      bucket.items.push({
+        id: c.id,
+        role: c.role,
+        shareholderCompany: c.shareholderCompany
+          ? {
+              id: c.shareholderCompany.id,
+              name: c.shareholderCompany.name,
+              slug: c.shareholderCompany.slug,
+            }
+          : null,
+      });
+      byApp.set(appId, bucket);
+    }
+
+    return Array.from(byApp.values()).map((entry) => {
+      const payload = entry.application?.payload;
+      const resolvedName =
+        typeof payload?.name === 'string'
+          ? payload.name
+          : entry.application?.company?.name ?? null;
+      return {
+        applicationId: entry.application.id,
+        workflowCode: entry.application.workflowInstance?.definitionCode ?? null,
+        status: entry.application.status,
+        currentStage: entry.application.currentStage,
+        consentStatus: entry.application.consentStatus,
+        submittedAt: entry.application.submittedAt,
+        resolvedAt: entry.application.resolvedAt,
+        name: resolvedName,
+        items: entry.items,
+      };
+    });
+  }
+
   async createApplication(userId: string, dto: CreateCompanyApplicationDto) {
     await this.workflowService.ensureDefinition(
       DEFAULT_COMPANY_WORKFLOW_DEFINITION,
     );
+    await this.assertCompanyNameAvailable(dto.name, null);
     const type = await this.resolveCompanyType(dto.typeId, dto.typeCode);
     const industry = await this.resolveIndustry(
       dto.industryId,
       dto.industryCode,
     );
-    const legalRepresentativeId = dto.legalRepresentativeId ?? userId;
-    const legalRepresentative = await this.prisma.user.findUnique({
-      where: { id: legalRepresentativeId },
-      select: {
-        id: true,
-        name: true,
-        profile: {
-          select: {
-            displayName: true,
-          },
-        },
-      },
-    });
-    if (!legalRepresentative) {
-      throw new BadRequestException('Legal representative user not found');
+    const now = new Date();
+
+    if (type?.code === 'limited_liability_company') {
+      if (!dto.llc) {
+        throw new BadRequestException('缺少有限责任公司登记所需字段');
+      }
+      this.validateLlcApplication(dto.llc);
     }
-    const slug = await this.generateUniqueSlug(dto.name);
+
     const workflowCode = type?.defaultWorkflow ?? DEFAULT_COMPANY_WORKFLOW_CODE;
 
-    const company = await this.prisma.company.create({
+    const application = await this.prisma.companyApplication.create({
       data: {
-        name: dto.name,
-        slug,
-        summary: dto.summary,
-        description: dto.description,
-        typeId: type?.id ?? null,
-        industryId: industry?.id ?? null,
-        category: dto.category ?? type?.category ?? undefined,
-        isIndividualBusiness: dto.isIndividualBusiness ?? false,
-        legalRepresentativeId,
-        legalNameSnapshot:
-          legalRepresentative.profile?.displayName ??
-          legalRepresentative.name ??
-          undefined,
-        workflowDefinitionCode: workflowCode,
-        status: CompanyStatus.PENDING_REVIEW,
-        visibility: CompanyVisibility.PRIVATE,
-        createdById: userId,
-        updatedById: userId,
-        lastActiveAt: new Date(),
+        applicantId: userId,
+        typeId: type?.id,
+        industryId: industry?.id,
+        status: CompanyApplicationStatus.SUBMITTED,
+        currentStage: 'submitted',
+        // 管理端只在“所有参与人都已同意”后才看到申请：
+        // - LLC 会在 initLlcApplicationConsents / decideApplicationConsents 里推进 consentStatus
+        // - 非 LLC 默认视为“无需同意”，直接标记为 APPROVED
+        consentStatus:
+          type?.code === 'limited_liability_company'
+            ? undefined
+            : CompanyApplicationConsentProgress.APPROVED,
+        consentCompletedAt:
+          type?.code === 'limited_liability_company' ? undefined : now,
+        payload: this.toJsonValue(dto),
       },
     });
 
     const workflowInstance = await this.workflowService.createInstance({
       definitionCode: workflowCode,
-      targetType: 'company',
-      targetId: company.id,
+      targetType: 'company_application',
+      targetId: application.id,
       createdById: userId,
       context: {
         name: dto.name,
@@ -716,82 +1866,45 @@ export class CompanyService implements OnModuleInit {
         category: dto.category ?? type?.category,
       },
     });
-
-    const application = await this.prisma.companyApplication.create({
-      data: {
-        companyId: company.id,
-        applicantId: userId,
-        typeId: type?.id,
-        industryId: industry?.id,
-        status: CompanyApplicationStatus.SUBMITTED,
-        payload: this.toJsonValue(dto),
-        workflowInstanceId: workflowInstance.id,
-      },
+    await this.prisma.companyApplication.update({
+      where: { id: application.id },
+      data: { workflowInstanceId: workflowInstance.id },
     });
 
-    const ownerPosition = await this.resolvePosition('owner');
-    const legalPosition = await this.resolvePosition('legal_person');
-
-    await this.prisma.company.update({
-      where: { id: company.id },
-      data: {
-        workflowInstanceId: workflowInstance.id,
-        workflowState: workflowInstance.currentState,
-        members: {
-          createMany: {
-            data: [
-              {
-                userId,
-                role: CompanyMemberRole.OWNER,
-                title: '公司持有者',
-                isPrimary: true,
-                positionCode: ownerPosition?.code,
-              },
-              {
-                userId: legalRepresentativeId,
-                role: CompanyMemberRole.LEGAL_PERSON,
-                title: '法定代表人',
-                isPrimary: true,
-                positionCode: legalPosition?.code,
-              },
-            ],
-            skipDuplicates: true,
-          },
-        },
-      },
-    });
-
-    await this.prisma.companyAuditRecord.create({
-      data: {
-        companyId: company.id,
-        applicationId: application.id,
-        actorId: userId,
-        actionKey: 'submit',
-        actionLabel: '提交申请',
-        resultState: workflowInstance.currentState,
-        payload: this.toJsonValue(dto),
-      },
-    });
+    if (type?.code === 'limited_liability_company' && dto.llc) {
+      await this.initLlcApplicationConsents(application.id, dto.llc);
+    }
 
     const settings = await this.getCompanyApplicationSettings(
       DEFAULT_COMPANY_WORKFLOW_CODE,
     );
     if (settings.autoApprove) {
+      // 自动移交/自动审批仅在“参与人同意已完成”时才允许继续推进到登记机关；
+      // 否则这是正常流程：申请已提交，等待所有参与人同意后系统再移交。
+      const latest = await this.prisma.companyApplication.findUnique({
+        where: { id: application.id },
+        select: { consentStatus: true },
+      });
+      const consentOk =
+        !latest?.consentStatus ||
+        latest.consentStatus === CompanyApplicationConsentProgress.APPROVED;
+      if (!consentOk) {
+        return this.getApplicationConsents(application.id, userId);
+      }
       const systemUser = await this.resolveSystemUser();
-      await this.adminExecuteAction(company.id, systemUser.id, {
+      await this.adminExecuteApplicationAction(application.id, systemUser.id, {
         actionKey: 'route_to_review',
         comment: 'Auto approval enabled',
-        payload: { workflowInstanceId: workflowInstance.id },
+        payload: {},
       });
-      await this.adminExecuteAction(company.id, systemUser.id, {
+      await this.adminExecuteApplicationAction(application.id, systemUser.id, {
         actionKey: 'approve',
         comment: 'Auto approval enabled',
-        payload: { workflowInstanceId: workflowInstance.id },
+        payload: {},
       });
     }
 
-    const withRelations = await this.findCompanyOrThrow(company.id);
-    return this.serializeCompany(withRelations, userId);
+    return this.getApplicationConsents(application.id, userId);
   }
 
   async createDeregistrationApplication(
@@ -802,8 +1915,8 @@ export class CompanyService implements OnModuleInit {
     await this.workflowService.ensureDefinition(
       DEFAULT_COMPANY_DEREGISTRATION_WORKFLOW_DEFINITION,
     );
-    await this.assertOwnerOrLegal(companyId, userId);
     const company = await this.findCompanyOrThrow(companyId);
+    await this.assertCanInitiateDeregistration(company, userId);
     if (
       company.status !== CompanyStatus.ACTIVE &&
       company.status !== CompanyStatus.SUSPENDED
@@ -848,11 +1961,15 @@ export class CompanyService implements OnModuleInit {
         applicantId: userId,
         status: CompanyApplicationStatus.SUBMITTED,
         payload: this.toJsonValue({
+          name: company.name,
           reason: dto.reason ?? null,
         }),
         workflowInstanceId: workflowInstance.id,
       },
     });
+
+    // 注销：提交后需要“全体股东一致同意”才能进入管理员审批列表（见 listApplications 过滤逻辑）
+    await this.initDeregistrationApplicationConsents(application.id, company);
 
     await this.prisma.company.update({
       where: { id: company.id },
@@ -881,6 +1998,18 @@ export class CompanyService implements OnModuleInit {
       DEFAULT_COMPANY_DEREGISTRATION_WORKFLOW_CODE,
     );
     if (settings.autoApprove) {
+      // 自动审批也必须等待股东同意完成；否则走正常流程。
+      const latest = await this.prisma.companyApplication.findUnique({
+        where: { id: application.id },
+        select: { consentStatus: true },
+      });
+      const consentOk =
+        !latest?.consentStatus ||
+        latest.consentStatus === CompanyApplicationConsentProgress.APPROVED;
+      if (!consentOk) {
+        const refreshed = await this.findCompanyOrThrow(company.id);
+        return this.serializeCompany(refreshed, userId);
+      }
       const systemUser = await this.resolveSystemUser();
       await this.adminExecuteAction(company.id, systemUser.id, {
         actionKey: 'route_to_review',
@@ -1373,8 +2502,10 @@ export class CompanyService implements OnModuleInit {
         description: dto.description,
         typeId: type?.id ?? null,
         industryId: industry?.id ?? null,
-        category: dto.category ?? type?.category ?? CompanyCategory.ENTERPRISE,
-        isIndividualBusiness: dto.isIndividualBusiness ?? false,
+        category:
+          dto.category ??
+          type?.category ??
+          CompanyCategory.FOR_PROFIT_LEGAL_PERSON,
         legalRepresentativeId,
         legalNameSnapshot:
           legalRepresentative.profile?.displayName ??
@@ -1457,9 +2588,6 @@ export class CompanyService implements OnModuleInit {
     if (query.industryId) {
       where.industryId = query.industryId;
     }
-    if (query.isIndividualBusiness !== undefined) {
-      where.isIndividualBusiness = query.isIndividualBusiness;
-    }
     if (query.search) {
       const keyword = query.search.trim();
       where.OR = [
@@ -1498,7 +2626,9 @@ export class CompanyService implements OnModuleInit {
   async listApplications(query: CompanyApplicationListQueryDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
-    const where: Prisma.CompanyApplicationWhereInput = {};
+    const where: Prisma.CompanyApplicationWhereInput = {
+      consentStatus: CompanyApplicationConsentProgress.APPROVED,
+    };
     if (query.status) {
       where.status = query.status;
     }
@@ -1536,6 +2666,10 @@ export class CompanyService implements OnModuleInit {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
+          // 申请在“未入库”阶段 company 可能为 null，但申请本身已绑定 type/industry
+          // 用于管理端申请列表显示正确的公司类型/行业
+          type: true,
+          industry: true,
           company: {
             include: {
               type: true,
@@ -1674,8 +2808,17 @@ export class CompanyService implements OnModuleInit {
         workflowInstanceId: true,
       },
     });
-    if (!application?.companyId || !application.workflowInstanceId) {
-      throw new BadRequestException('Application is not linked to a company');
+    if (!application?.workflowInstanceId) {
+      throw new BadRequestException('Application is not linked to a process');
+    }
+    // 注册申请：审批通过前不会创建 company
+    if (!application.companyId) {
+      return this.executeRegistrationApplicationWorkflowAction(
+        application.id,
+        actorId,
+        dto,
+        application.workflowInstanceId,
+      );
     }
     const company = await this.findCompanyOrThrow(application.companyId);
     return this.executeWorkflowAction(
@@ -1685,6 +2828,408 @@ export class CompanyService implements OnModuleInit {
       application.workflowInstanceId,
       application.id,
     );
+  }
+
+  private async executeRegistrationApplicationWorkflowAction(
+    applicationId: string,
+    actorId: string,
+    dto: CompanyActionDto,
+    instanceId: string,
+  ) {
+    if (dto.actionKey === 'route_to_review' || dto.actionKey === 'approve') {
+      const app = await this.prisma.companyApplication.findUnique({
+        where: { id: applicationId },
+        select: { consentStatus: true },
+      });
+      if (
+        app &&
+        app.consentStatus !== CompanyApplicationConsentProgress.APPROVED
+      ) {
+        throw new BadRequestException(
+          '等待申请表涉及到的所有用户同意后才能提交登记机关',
+        );
+      }
+    }
+
+    const transition = await this.workflowService.performAction({
+      instanceId,
+      actionKey: dto.actionKey,
+      actorId,
+      actorRoles: ['ADMIN'],
+      comment: dto.comment,
+      payload: dto.payload,
+    });
+
+    const applicationStatus = transition.nextState.business
+      ?.applicationStatus as CompanyApplicationStatus | undefined;
+
+    await this.prisma.companyApplication.update({
+      where: { id: applicationId },
+      data: {
+        currentStage: transition.nextState.key,
+        status: applicationStatus ?? undefined,
+        resolvedAt: applicationStatus ? new Date() : undefined,
+        rejectReason:
+          dto.actionKey === 'reject' ? (dto.comment ?? undefined) : undefined,
+      },
+    });
+
+    // 管理员要求补件：清空需同意人员，等待申请人修改并重新提交后按最新表单重新推送
+    if (dto.actionKey === 'request_changes') {
+      const now = new Date();
+      await this.prisma.companyApplicationConsent.deleteMany({
+        where: { applicationId },
+      });
+      await this.prisma.companyApplication.update({
+        where: { id: applicationId },
+        data: {
+          consentStatus: CompanyApplicationConsentProgress.PENDING,
+          consentCompletedAt: null,
+          currentStage: 'AWAITING_RESUBMIT',
+        },
+      });
+    }
+
+    if (dto.actionKey === 'approve') {
+      const companyId = await this.createCompanyFromApprovedApplication(
+        applicationId,
+        instanceId,
+        actorId,
+      );
+      const company = await this.findCompanyOrThrow(companyId);
+      return this.serializeCompany(company);
+    }
+
+    return this.prisma.companyApplication.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        companyId: true,
+        status: true,
+        currentStage: true,
+        consentStatus: true,
+        submittedAt: true,
+        resolvedAt: true,
+        workflowInstanceId: true,
+      },
+    });
+  }
+
+  private async createCompanyFromApprovedApplication(
+    applicationId: string,
+    instanceId: string,
+    actorId: string,
+  ) {
+    const application = await this.prisma.companyApplication.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        applicantId: true,
+        typeId: true,
+        industryId: true,
+        payload: true,
+        consentStatus: true,
+      },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+    if (
+      application.consentStatus !== CompanyApplicationConsentProgress.APPROVED
+    ) {
+      throw new BadRequestException('参与人同意未完成，无法创建公司');
+    }
+
+    const payload = application.payload as any;
+    const dto = payload as CreateCompanyApplicationDto;
+    const llc = (payload?.llc ??
+      null) as LimitedLiabilityCompanyApplicationDto | null;
+
+    const legalRepresentativeId =
+      llc?.legalRepresentativeId ??
+      dto.legalRepresentativeId ??
+      application.applicantId;
+    const legalRepresentative = await this.prisma.user.findUnique({
+      where: { id: legalRepresentativeId },
+      select: {
+        id: true,
+        name: true,
+        profile: { select: { displayName: true } },
+      },
+    });
+    if (!legalRepresentative) {
+      throw new BadRequestException('Legal representative user not found');
+    }
+
+    const type = await this.resolveCompanyType(
+      application.typeId ?? undefined,
+      dto.typeCode,
+      true,
+    );
+    const workflowCode = type?.defaultWorkflow ?? DEFAULT_COMPANY_WORKFLOW_CODE;
+
+    const slug = await this.generateUniqueSlug(dto.name);
+    const now = new Date();
+
+    const company = await this.prisma.company.create({
+      data: {
+        name: dto.name,
+        slug,
+        summary: dto.summary,
+        description: dto.description,
+        typeId: application.typeId ?? null,
+        industryId: application.industryId ?? null,
+        category: dto.category ?? type?.category ?? undefined,
+        legalRepresentativeId,
+        legalNameSnapshot:
+          legalRepresentative.profile?.displayName ??
+          legalRepresentative.name ??
+          undefined,
+        workflowDefinitionCode: workflowCode,
+        workflowInstanceId: instanceId,
+        workflowState: 'approved',
+        status: CompanyStatus.ACTIVE,
+        visibility: CompanyVisibility.PUBLIC,
+        createdById: application.applicantId,
+        updatedById: actorId,
+        lastActiveAt: now,
+        approvedAt: now,
+      },
+    });
+
+    await this.prisma.workflowInstance.update({
+      where: { id: instanceId },
+      data: { targetType: 'company', targetId: company.id },
+    });
+
+    await this.prisma.companyApplication.update({
+      where: { id: applicationId },
+      data: { companyId: company.id },
+    });
+
+    const ownerPosition = await this.resolvePosition('owner');
+    const legalPosition = await this.resolvePosition('legal_person');
+    await this.prisma.companyMember.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          companyId: company.id,
+          userId: application.applicantId,
+          role: CompanyMemberRole.OWNER,
+          title: '公司持有者',
+          isPrimary: true,
+          positionCode: ownerPosition?.code ?? null,
+          permissions: [],
+          metadata: Prisma.JsonNull,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: randomUUID(),
+          companyId: company.id,
+          userId: legalRepresentativeId,
+          role: CompanyMemberRole.LEGAL_PERSON,
+          title: '法定代表人',
+          isPrimary: true,
+          positionCode: legalPosition?.code ?? null,
+          permissions: [],
+          metadata: Prisma.JsonNull,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      skipDuplicates: true,
+    });
+
+    await this.prisma.companyAuditRecord.create({
+      data: {
+        id: randomUUID(),
+        companyId: company.id,
+        applicationId,
+        actorId,
+        actionKey: 'approve',
+        actionLabel: '批准并入库',
+        resultState: 'approved',
+        comment: 'approved',
+        payload: Prisma.JsonNull,
+        createdAt: now,
+      },
+    });
+
+    // LLC 入库（结构化）
+    await this.persistLlcRegistrationFromApplication(applicationId, company.id);
+
+    return company.id;
+  }
+
+  private async persistLlcRegistrationFromApplication(
+    applicationId: string,
+    companyId: string,
+  ) {
+    const application = await this.prisma.companyApplication.findUnique({
+      where: { id: applicationId },
+      select: { id: true, payload: true, consentStatus: true },
+    });
+    if (!application) return;
+    if (
+      application.consentStatus !== CompanyApplicationConsentProgress.APPROVED
+    ) {
+      throw new BadRequestException('参与人同意未完成，无法入库');
+    }
+    const payload = application.payload as any;
+    const llc = payload?.llc as
+      | LimitedLiabilityCompanyApplicationDto
+      | undefined;
+    if (!llc) return;
+
+    const now = new Date();
+    const operatingTermType =
+      llc.operatingTerm?.type === 'YEARS'
+        ? CompanyLlcOperatingTermType.YEARS
+        : CompanyLlcOperatingTermType.LONG_TERM;
+    const operatingTermYears =
+      llc.operatingTerm?.type === 'YEARS'
+        ? Number(llc.operatingTerm?.years ?? null)
+        : null;
+    const registeredCapital = Number(llc.registeredCapital);
+    if (!Number.isFinite(registeredCapital)) {
+      throw new BadRequestException('注册资本必须为数字');
+    }
+
+    const registration = await this.prisma.companyLlcRegistration.upsert({
+      where: { applicationId: application.id },
+      create: {
+        id: randomUUID(),
+        companyId,
+        applicationId: application.id,
+        domicileDivisionId: llc.domicileDivisionId,
+        domicileDivisionPath: llc.domicileDivisionPath
+          ? (llc.domicileDivisionPath as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+        registeredCapital: Math.floor(registeredCapital),
+        administrativeDivisionLevel: Number(llc.administrativeDivisionLevel),
+        brandName: llc.brandName,
+        industryFeature: llc.industryFeature,
+        registrationAuthorityName: llc.registrationAuthorityName,
+        domicileAddress: llc.domicileAddress,
+        operatingTermType,
+        operatingTermYears: operatingTermYears ?? undefined,
+        businessScope: llc.businessScope,
+        createdAt: now,
+        updatedAt: now,
+      },
+      update: {
+        domicileDivisionId: llc.domicileDivisionId,
+        domicileDivisionPath: llc.domicileDivisionPath
+          ? (llc.domicileDivisionPath as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+        registeredCapital: Math.floor(registeredCapital),
+        administrativeDivisionLevel: Number(llc.administrativeDivisionLevel),
+        brandName: llc.brandName,
+        industryFeature: llc.industryFeature,
+        registrationAuthorityName: llc.registrationAuthorityName,
+        domicileAddress: llc.domicileAddress,
+        operatingTermType,
+        operatingTermYears: operatingTermYears ?? undefined,
+        businessScope: llc.businessScope,
+        updatedAt: now,
+      },
+    });
+
+    await this.prisma.companyLlcRegistrationShareholder.deleteMany({
+      where: { registrationId: registration.id },
+    });
+    await this.prisma.companyLlcRegistrationOfficer.deleteMany({
+      where: { registrationId: registration.id },
+    });
+
+    const shareholders = (llc.shareholders ?? []).map((s) => ({
+      id: randomUUID(),
+      registrationId: registration.id,
+      kind:
+        s.kind === 'COMPANY'
+          ? CompanyLlcShareholderKind.COMPANY
+          : CompanyLlcShareholderKind.USER,
+      userId: s.kind === 'USER' ? (s.userId ?? null) : null,
+      companyId: s.kind === 'COMPANY' ? (s.companyId ?? null) : null,
+      ratio: Number(s.ratio),
+      createdAt: now,
+      updatedAt: now,
+    }));
+    if (shareholders.length) {
+      await this.prisma.companyLlcRegistrationShareholder.createMany({
+        data: shareholders,
+      });
+    }
+
+    const officers: Array<{ userId: string; role: CompanyLlcOfficerRole }> = [];
+    officers.push({
+      userId: llc.legalRepresentativeId,
+      role: CompanyLlcOfficerRole.LEGAL_REPRESENTATIVE,
+    });
+    for (const id of llc.directors?.directorIds ?? []) {
+      officers.push({ userId: id, role: CompanyLlcOfficerRole.DIRECTOR });
+    }
+    if (llc.directors?.chairpersonId) {
+      officers.push({
+        userId: llc.directors.chairpersonId,
+        role: CompanyLlcOfficerRole.CHAIRPERSON,
+      });
+    }
+    if (llc.directors?.viceChairpersonId) {
+      officers.push({
+        userId: llc.directors.viceChairpersonId,
+        role: CompanyLlcOfficerRole.VICE_CHAIRPERSON,
+      });
+    }
+    if (llc.managers?.managerId) {
+      officers.push({
+        userId: llc.managers.managerId,
+        role: CompanyLlcOfficerRole.MANAGER,
+      });
+    }
+    if (llc.managers?.deputyManagerId) {
+      officers.push({
+        userId: llc.managers.deputyManagerId,
+        role: CompanyLlcOfficerRole.DEPUTY_MANAGER,
+      });
+    }
+    for (const id of llc.supervisors?.supervisorIds ?? []) {
+      officers.push({ userId: id, role: CompanyLlcOfficerRole.SUPERVISOR });
+    }
+    if (llc.supervisors?.chairpersonId) {
+      officers.push({
+        userId: llc.supervisors.chairpersonId,
+        role: CompanyLlcOfficerRole.SUPERVISOR_CHAIRPERSON,
+      });
+    }
+    if (llc.financialOfficerId) {
+      officers.push({
+        userId: llc.financialOfficerId,
+        role: CompanyLlcOfficerRole.FINANCIAL_OFFICER,
+      });
+    }
+
+    const unique = new Map<
+      string,
+      { userId: string; role: CompanyLlcOfficerRole }
+    >();
+    for (const o of officers) {
+      unique.set(`${o.userId}:${o.role}`, o);
+    }
+    const officerRows = Array.from(unique.values()).map((o) => ({
+      id: randomUUID(),
+      registrationId: registration.id,
+      userId: o.userId,
+      role: o.role,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    if (officerRows.length) {
+      await this.prisma.companyLlcRegistrationOfficer.createMany({
+        data: officerRows,
+      });
+    }
   }
 
   async deleteCompanyAsAdmin(companyId: string, userId: string) {
@@ -1742,6 +3287,21 @@ export class CompanyService implements OnModuleInit {
     instanceId: string,
     applicationId?: string,
   ) {
+    if (dto.actionKey === 'route_to_review' || dto.actionKey === 'approve') {
+      const application = await this.prisma.companyApplication.findFirst({
+        where: { companyId: company.id, workflowInstanceId: instanceId },
+        select: { id: true, consentStatus: true },
+      });
+      if (
+        application &&
+        application.consentStatus !== CompanyApplicationConsentProgress.APPROVED
+      ) {
+        throw new BadRequestException(
+          '等待申请表涉及的所有参与人同意后才能提交登记机关',
+        );
+      }
+    }
+
     const transition = await this.workflowService.performAction({
       instanceId,
       actionKey: dto.actionKey,
@@ -1751,6 +3311,13 @@ export class CompanyService implements OnModuleInit {
       payload: dto.payload,
     });
     await this.applyWorkflowEffects(company, transition);
+
+    if (dto.actionKey === 'approve') {
+      // 注册流程在 approve 时会通过 applicationId->companyId 入库 LLC；
+      // 这里保留对“已有 companyId 的流程”（例如注销/其他）的兼容。
+      await this.persistLlcRegistrationIfNeeded(company.id, instanceId);
+    }
+
     const resolvedApplicationId =
       applicationId ??
       company.applications.find(
@@ -1770,6 +3337,172 @@ export class CompanyService implements OnModuleInit {
     });
     const updated = await this.findCompanyOrThrow(company.id);
     return this.serializeCompany(updated);
+  }
+
+  private async persistLlcRegistrationIfNeeded(
+    companyId: string,
+    instanceId: string,
+  ) {
+    const application = await this.prisma.companyApplication.findFirst({
+      where: { companyId, workflowInstanceId: instanceId },
+      select: { id: true, payload: true, consentStatus: true },
+    });
+    if (!application) return;
+    if (
+      application.consentStatus !== CompanyApplicationConsentProgress.APPROVED
+    ) {
+      throw new BadRequestException('参与人同意未完成，无法入库');
+    }
+    const payload = application.payload as any;
+    const llc = payload?.llc as
+      | LimitedLiabilityCompanyApplicationDto
+      | undefined;
+    if (!llc) return;
+
+    const now = new Date();
+    const operatingTermType =
+      llc.operatingTerm?.type === 'YEARS'
+        ? CompanyLlcOperatingTermType.YEARS
+        : CompanyLlcOperatingTermType.LONG_TERM;
+    const operatingTermYears =
+      llc.operatingTerm?.type === 'YEARS'
+        ? Number(llc.operatingTerm?.years ?? null)
+        : null;
+
+    const registration = await this.prisma.companyLlcRegistration.upsert({
+      where: { applicationId: application.id },
+      create: {
+        id: randomUUID(),
+        companyId,
+        applicationId: application.id,
+        domicileDivisionId: llc.domicileDivisionId,
+        domicileDivisionPath: llc.domicileDivisionPath
+          ? (llc.domicileDivisionPath as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+        registeredCapital: Math.floor(Number(llc.registeredCapital ?? 0)),
+        administrativeDivisionLevel: Number(llc.administrativeDivisionLevel),
+        brandName: llc.brandName,
+        industryFeature: llc.industryFeature,
+        registrationAuthorityName: llc.registrationAuthorityName,
+        domicileAddress: llc.domicileAddress,
+        operatingTermType,
+        operatingTermYears: operatingTermYears ?? undefined,
+        businessScope: llc.businessScope,
+        createdAt: now,
+        updatedAt: now,
+      },
+      update: {
+        domicileDivisionId: llc.domicileDivisionId,
+        domicileDivisionPath: llc.domicileDivisionPath
+          ? (llc.domicileDivisionPath as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+        registeredCapital: Math.floor(Number(llc.registeredCapital ?? 0)),
+        administrativeDivisionLevel: Number(llc.administrativeDivisionLevel),
+        brandName: llc.brandName,
+        industryFeature: llc.industryFeature,
+        registrationAuthorityName: llc.registrationAuthorityName,
+        domicileAddress: llc.domicileAddress,
+        operatingTermType,
+        operatingTermYears: operatingTermYears ?? undefined,
+        businessScope: llc.businessScope,
+        updatedAt: now,
+      },
+    });
+
+    await this.prisma.companyLlcRegistrationShareholder.deleteMany({
+      where: { registrationId: registration.id },
+    });
+    await this.prisma.companyLlcRegistrationOfficer.deleteMany({
+      where: { registrationId: registration.id },
+    });
+
+    const shareholders = (llc.shareholders ?? []).map((s) => ({
+      id: randomUUID(),
+      registrationId: registration.id,
+      kind:
+        s.kind === 'COMPANY'
+          ? CompanyLlcShareholderKind.COMPANY
+          : CompanyLlcShareholderKind.USER,
+      userId: s.kind === 'USER' ? (s.userId ?? null) : null,
+      companyId: s.kind === 'COMPANY' ? (s.companyId ?? null) : null,
+      ratio: Number(s.ratio),
+      createdAt: now,
+      updatedAt: now,
+    }));
+    if (shareholders.length) {
+      await this.prisma.companyLlcRegistrationShareholder.createMany({
+        data: shareholders,
+      });
+    }
+
+    const officers: Array<{ userId: string; role: CompanyLlcOfficerRole }> = [];
+    officers.push({
+      userId: llc.legalRepresentativeId,
+      role: CompanyLlcOfficerRole.LEGAL_REPRESENTATIVE,
+    });
+    for (const id of llc.directors?.directorIds ?? []) {
+      officers.push({ userId: id, role: CompanyLlcOfficerRole.DIRECTOR });
+    }
+    if (llc.directors?.chairpersonId) {
+      officers.push({
+        userId: llc.directors.chairpersonId,
+        role: CompanyLlcOfficerRole.CHAIRPERSON,
+      });
+    }
+    if (llc.directors?.viceChairpersonId) {
+      officers.push({
+        userId: llc.directors.viceChairpersonId,
+        role: CompanyLlcOfficerRole.VICE_CHAIRPERSON,
+      });
+    }
+    if (llc.managers?.managerId) {
+      officers.push({
+        userId: llc.managers.managerId,
+        role: CompanyLlcOfficerRole.MANAGER,
+      });
+    }
+    if (llc.managers?.deputyManagerId) {
+      officers.push({
+        userId: llc.managers.deputyManagerId,
+        role: CompanyLlcOfficerRole.DEPUTY_MANAGER,
+      });
+    }
+    for (const id of llc.supervisors?.supervisorIds ?? []) {
+      officers.push({ userId: id, role: CompanyLlcOfficerRole.SUPERVISOR });
+    }
+    if (llc.supervisors?.chairpersonId) {
+      officers.push({
+        userId: llc.supervisors.chairpersonId,
+        role: CompanyLlcOfficerRole.SUPERVISOR_CHAIRPERSON,
+      });
+    }
+    if (llc.financialOfficerId) {
+      officers.push({
+        userId: llc.financialOfficerId,
+        role: CompanyLlcOfficerRole.FINANCIAL_OFFICER,
+      });
+    }
+
+    const unique = new Map<
+      string,
+      { userId: string; role: CompanyLlcOfficerRole }
+    >();
+    for (const o of officers) {
+      unique.set(`${o.userId}:${o.role}`, o);
+    }
+    const officerRows = Array.from(unique.values()).map((o) => ({
+      id: randomUUID(),
+      registrationId: registration.id,
+      userId: o.userId,
+      role: o.role,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    if (officerRows.length) {
+      await this.prisma.companyLlcRegistrationOfficer.createMany({
+        data: officerRows,
+      });
+    }
   }
 
   private canViewCompany(
@@ -1885,26 +3618,169 @@ export class CompanyService implements OnModuleInit {
       : COMPANY_CONFIG_AUTO_APPROVE_KEY;
   }
 
-  private async assertOwnerOrLegal(companyId: string, userId: string) {
-    const member = await this.prisma.companyMember.findFirst({
-      where: {
-        companyId,
-        userId,
-        role: {
-          in: [CompanyMemberRole.OWNER, CompanyMemberRole.LEGAL_PERSON],
-        },
+  private async assertCanInitiateDeregistration(
+    company: CompanyWithRelations,
+    userId: string,
+  ) {
+    // 1) 法定代表人 / OWNER（一般也属于股东）可发起
+    const member = company.members.find(
+      (m) =>
+        m.userId === userId &&
+        (m.role === CompanyMemberRole.OWNER ||
+          m.role === CompanyMemberRole.LEGAL_PERSON),
+    );
+    if (member) {
+      if (this.resolveJoinStatus(member.metadata) !== 'ACTIVE') {
+        throw new ForbiddenException('Pending members cannot request deregistration');
+      }
+      return;
+    }
+
+    // 2) 股东（LLC 股东表）也可发起：USER 股东本人 / COMPANY 股东的法定代表人
+    const llc = company.llcRegistration;
+    const shareholders = llc?.shareholders ?? [];
+    if (!shareholders.length) {
+      throw new ForbiddenException('Only legal representative or shareholders can request deregistration');
+    }
+
+    for (const s of shareholders) {
+      if (s.kind === CompanyLlcShareholderKind.USER && s.userId === userId) {
+        return;
+      }
+    }
+
+    const shareholderCompanyIds = shareholders
+      .filter(
+        (s) =>
+          s.kind === CompanyLlcShareholderKind.COMPANY && Boolean(s.companyId),
+      )
+      .map((s) => s.companyId as string);
+    if (!shareholderCompanyIds.length) {
+      throw new ForbiddenException('Only legal representative or shareholders can request deregistration');
+    }
+
+    const companies = await this.prisma.company.findMany({
+      where: { id: { in: shareholderCompanyIds } },
+      select: { id: true, legalRepresentativeId: true },
+    });
+    const byId = new Map(companies.map((c) => [c.id, c]));
+    for (const cid of shareholderCompanyIds) {
+      const c = byId.get(cid);
+      if (!c) continue;
+      if (c.legalRepresentativeId === userId) {
+        return;
+      }
+    }
+
+    throw new ForbiddenException('Only legal representative or shareholders can request deregistration');
+  }
+
+  private async initDeregistrationApplicationConsents(
+    applicationId: string,
+    company: CompanyWithRelations,
+  ) {
+    const now = new Date();
+
+    const requirements: Array<{
+      requiredUserId: string;
+      role: CompanyApplicationConsentRole;
+      shareholderCompanyId?: string | null;
+      shareholderUserId?: string | null;
+    }> = [];
+
+    const llc = company.llcRegistration;
+    const shareholders = llc?.shareholders ?? [];
+
+    // 优先：使用 LLC 股东表作为“股东范围”
+    if (shareholders.length) {
+      const shareholderCompanyIds = new Set<string>();
+      for (const s of shareholders) {
+        if (s.kind === CompanyLlcShareholderKind.USER && s.userId) {
+          requirements.push({
+            requiredUserId: s.userId,
+            role: CompanyApplicationConsentRole.SHAREHOLDER_USER,
+            shareholderUserId: s.userId,
+          });
+        }
+        if (s.kind === CompanyLlcShareholderKind.COMPANY && s.companyId) {
+          shareholderCompanyIds.add(s.companyId);
+        }
+      }
+
+      if (shareholderCompanyIds.size) {
+        const companies = await this.prisma.company.findMany({
+          where: { id: { in: Array.from(shareholderCompanyIds) } },
+          select: { id: true, legalRepresentativeId: true },
+        });
+        const byId = new Map(companies.map((c) => [c.id, c]));
+        for (const cid of shareholderCompanyIds) {
+          const c = byId.get(cid);
+          if (!c) {
+            throw new BadRequestException(`股东公司不存在：${cid}`);
+          }
+          if (!c.legalRepresentativeId) {
+            throw new BadRequestException(`股东公司未设置法定代表人：${cid}`);
+          }
+          requirements.push({
+            requiredUserId: c.legalRepresentativeId,
+            role: CompanyApplicationConsentRole.SHAREHOLDER_COMPANY_LEGAL,
+            shareholderCompanyId: cid,
+          });
+        }
+      }
+    } else {
+      // 兜底：无 LLC 股东数据时，把 OWNER 成员视为股东范围
+      for (const m of company.members) {
+        if (m.role !== CompanyMemberRole.OWNER) continue;
+        requirements.push({
+          requiredUserId: m.userId,
+          role: CompanyApplicationConsentRole.SHAREHOLDER_USER,
+          shareholderUserId: m.userId,
+        });
+      }
+    }
+
+    // 去重
+    const unique = new Map<string, (typeof requirements)[number]>();
+    for (const r of requirements) {
+      unique.set(
+        `${r.requiredUserId}:${r.role}:${r.shareholderCompanyId ?? ''}:${r.shareholderUserId ?? ''}`,
+        r,
+      );
+    }
+    const rows = Array.from(unique.values());
+
+    if (rows.length) {
+      await this.prisma.companyApplicationConsent.createMany({
+        data: rows.map((r) => ({
+          id: randomUUID(),
+          applicationId,
+          requiredUserId: r.requiredUserId,
+          role: r.role,
+          shareholderCompanyId: r.shareholderCompanyId ?? null,
+          shareholderUserId: r.shareholderUserId ?? null,
+          status: CompanyApplicationConsentStatus.PENDING,
+          createdAt: now,
+          updatedAt: now,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    const pendingCount = await this.prisma.companyApplicationConsent.count({
+      where: { applicationId, status: CompanyApplicationConsentStatus.PENDING },
+    });
+    await this.prisma.companyApplication.update({
+      where: { id: applicationId },
+      data: {
+        currentStage: pendingCount > 0 ? 'AWAITING_CONSENTS' : null,
+        consentStatus:
+          pendingCount > 0
+            ? CompanyApplicationConsentProgress.PENDING
+            : CompanyApplicationConsentProgress.APPROVED,
+        consentCompletedAt: pendingCount > 0 ? null : now,
       },
     });
-    if (!member) {
-      throw new ForbiddenException(
-        'Only company owners can request deregistration',
-      );
-    }
-    if (this.resolveJoinStatus(member.metadata) !== 'ACTIVE') {
-      throw new ForbiddenException(
-        'Pending members cannot request deregistration',
-      );
-    }
   }
 
   private async resolveSystemUser() {
@@ -1936,6 +3812,31 @@ export class CompanyService implements OnModuleInit {
       }
     }
     return `${base}-${randomUUID().slice(0, 8)}`;
+  }
+
+  private normalizeCompanyName(name: string) {
+    return (name ?? '').trim();
+  }
+
+  /**
+   * 申请注册的公司名不能与库中已有公司名相同（大小写不敏感）。
+   * - 当 application 已关联 companyId 时，允许与该 company 自身同名（兜底兼容）。
+   */
+  private async assertCompanyNameAvailable(name: string, companyIdToIgnore?: string | null) {
+    const normalized = this.normalizeCompanyName(name);
+    if (!normalized) {
+      return;
+    }
+    const exists = await this.prisma.company.findFirst({
+      where: {
+        name: { equals: normalized, mode: 'insensitive' },
+        ...(companyIdToIgnore ? { id: { not: companyIdToIgnore } } : {}),
+      },
+      select: { id: true },
+    });
+    if (exists) {
+      throw new BadRequestException('公司名称已被占用，请更换一个名称');
+    }
   }
 
   private slugify(input: string) {
@@ -2054,9 +3955,58 @@ export class CompanyService implements OnModuleInit {
       ? (attachmentUrlMap.get(company.logoAttachmentId) ?? null)
       : null;
 
+    // --- 待审批/未入库阶段兜底展示 ---
+    // 有些公司在待审核阶段可能会使用占位名称/未绑定类型，但流程实例 context 内包含真实名称与类型编码。
+    // 为了让管理端列表能展示正确的公司名称/类型，这里做轻量兜底（仅在缺失时补全）。
+    const workflowContext =
+      company.workflowInstance?.context &&
+      typeof company.workflowInstance.context === 'object' &&
+      !Array.isArray(company.workflowInstance.context)
+        ? (company.workflowInstance.context as Record<string, unknown>)
+        : null;
+    const contextName =
+      workflowContext && typeof workflowContext.name === 'string'
+        ? workflowContext.name.trim()
+        : '';
+    const contextTypeCode =
+      workflowContext && typeof workflowContext.typeCode === 'string'
+        ? workflowContext.typeCode.trim()
+        : '';
+    const contextIndustryCode =
+      workflowContext && typeof workflowContext.industryCode === 'string'
+        ? workflowContext.industryCode.trim()
+        : '';
+
+    const isPendingRegistryStatus =
+      company.status === CompanyStatus.DRAFT ||
+      company.status === CompanyStatus.PENDING_REVIEW ||
+      company.status === CompanyStatus.UNDER_REVIEW ||
+      company.status === CompanyStatus.NEEDS_REVISION;
+
+    const effectiveName =
+      isPendingRegistryStatus &&
+      contextName &&
+      (!company.name || company.name.trim() === '' || company.name === '未知公司')
+        ? contextName
+        : company.name;
+
+    const effectiveType =
+      !company.type && isPendingRegistryStatus && contextTypeCode
+        ? await this.prisma.companyType.findUnique({
+            where: { code: contextTypeCode },
+          })
+        : company.type;
+
+    const effectiveIndustry =
+      !company.industry && isPendingRegistryStatus && contextIndustryCode
+        ? await this.prisma.companyIndustry.findUnique({
+            where: { code: contextIndustryCode },
+          })
+        : company.industry;
+
     return {
       id: company.id,
-      name: company.name,
+      name: effectiveName,
       slug: company.slug,
       summary: company.summary,
       description: company.description,
@@ -2117,8 +4067,8 @@ export class CompanyService implements OnModuleInit {
       owners: company.members.filter(
         (member) => member.role === CompanyMemberRole.OWNER,
       ),
-      type: company.type,
-      industry: company.industry,
+      type: effectiveType,
+      industry: effectiveIndustry,
       policies: company.policies,
       auditTrail: company.auditRecords,
       applications: company.applications,
@@ -2165,7 +4115,7 @@ export class CompanyService implements OnModuleInit {
   private calculateDashboardStats(companies: CompanyWithRelations[]) {
     const companyCount = companies.length;
     const individualBusinessCount = companies.filter(
-      (company) => company.isIndividualBusiness,
+      (company) => company.category === CompanyCategory.INDIVIDUAL,
     ).length;
     const memberCount = companies.reduce(
       (sum, company) =>

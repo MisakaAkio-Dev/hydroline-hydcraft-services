@@ -8,11 +8,14 @@ import type {
   CompanyMemberInvitePayload,
   CompanyMemberJoinPayload,
   CompanyMemberUserRef,
+  CompanyRef,
   CompanyMeta,
   CompanyModel,
   CompanyRecommendation,
   CompanyDeregistrationApplyPayload,
   CreateCompanyApplicationPayload,
+  MyCompanyApplicationEntry,
+  MyPendingConsentEntry,
   UpdateCompanyPayload,
 } from '@/types/company'
 
@@ -45,6 +48,10 @@ export const useCompanyStore = defineStore('companies', {
     dailyRegistrations: [] as CompanyDailyRegistration[],
     dailyRegistrationsLoading: false,
     submitting: false,
+    myApplications: [] as MyCompanyApplicationEntry[],
+    myApplicationsLoading: false,
+    pendingConsents: [] as MyPendingConsentEntry[],
+    pendingConsentsLoading: false,
   }),
   getters: {
     hasCompanies(state): boolean {
@@ -95,7 +102,7 @@ export const useCompanyStore = defineStore('companies', {
     recalculateStats() {
       const companyCount = this.dashboard.length
       const individualBusinessCount = this.dashboard.filter(
-        (company) => company.isIndividualBusiness,
+        (company) => company.category === 'INDIVIDUAL',
       ).length
       const memberCount = this.dashboard.reduce(
         (sum, company) =>
@@ -125,21 +132,99 @@ export const useCompanyStore = defineStore('companies', {
         },
       )
     },
+    async searchCompanies(keyword: string, limit = 10): Promise<CompanyRef[]> {
+      if (!keyword.trim()) {
+        return []
+      }
+      const authStore = useAuthStore()
+      return apiFetch<CompanyRef[]>(
+        `/companies/search?query=${encodeURIComponent(keyword)}&limit=${limit}`,
+        {
+          token: authStore.token,
+        },
+      )
+    },
     async apply(payload: CreateCompanyApplicationPayload) {
       this.submitting = true
       try {
         const authStore = useAuthStore()
-        const company = await apiFetch<CompanyModel>('/companies/apply', {
+        const application = await apiFetch<{ id: string; status: string }>(
+          '/companies/apply',
+          {
           method: 'POST',
           body: payload,
           token: authStore.token,
-        })
-        this.dashboard.unshift(company)
-        this.recalculateStats()
-        return company
+          },
+        )
+        // 注册申请在审批通过前不会生成公司记录，因此这里不更新 dashboard
+        return application
       } finally {
         this.submitting = false
       }
+    },
+    async fetchMyApplications() {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法查询我的申请')
+      this.myApplicationsLoading = true
+      try {
+        const result = await apiFetch<MyCompanyApplicationEntry[]>(
+          '/companies/applications/mine',
+          { token: authStore.token },
+        )
+        this.myApplications = result
+        return result
+      } finally {
+        this.myApplicationsLoading = false
+      }
+    },
+    async fetchPendingConsents() {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法查询待同意清单')
+      this.pendingConsentsLoading = true
+      try {
+        const result = await apiFetch<MyPendingConsentEntry[]>(
+          '/companies/consents/pending',
+          { token: authStore.token },
+        )
+        this.pendingConsents = result
+        return result
+      } finally {
+        this.pendingConsentsLoading = false
+      }
+    },
+    async getApplicationConsents(applicationId: string) {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法查看同意明细')
+      return apiFetch(`/companies/applications/${applicationId}/consents`, {
+        token: authStore.token,
+      })
+    },
+    async approveMyApplicationConsents(applicationId: string, comment?: string) {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法同意')
+      return apiFetch(`/companies/applications/${applicationId}/consents/approve`, {
+        method: 'POST',
+        body: { comment },
+        token: authStore.token,
+      })
+    },
+    async rejectMyApplicationConsents(applicationId: string, comment?: string) {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法拒绝')
+      return apiFetch(`/companies/applications/${applicationId}/consents/reject`, {
+        method: 'POST',
+        body: { comment },
+        token: authStore.token,
+      })
+    },
+    async withdrawMyApplication(applicationId: string, comment?: string) {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法撤回申请')
+      return apiFetch(`/companies/applications/${applicationId}/withdraw`, {
+        method: 'POST',
+        body: { comment },
+        token: authStore.token,
+      })
     },
     async applyDeregistration(
       companyId: string,

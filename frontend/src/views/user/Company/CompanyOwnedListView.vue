@@ -104,9 +104,9 @@ async function handleApply(payload: CreateCompanyApplicationPayload) {
     return
   }
   try {
-    const company = await companyStore.apply(payload)
-    selectedCompanyId.value = company.id
-    toast.add({ title: '申请已提交，等待审核', color: 'primary' })
+    await companyStore.apply(payload)
+    toast.add({ title: '申请已提交，等待相关人员同意与登记机关审批', color: 'primary' })
+    // 仅在提交成功后关闭表单；失败/校验报错时保持打开，避免用户重填
     applicationModalOpen.value = false
   } catch (error) {
     toast.add({
@@ -471,7 +471,7 @@ onBeforeUnmount(() => {
   <UModal
     :open="applicationModalOpen"
     @update:open="(value) => (applicationModalOpen = value)"
-    :ui="{ content: 'w-full max-w-lg w-[calc(100vw-2rem)]' }"
+    :ui="{ content: 'w-full max-w-3xl w-[calc(100vw-2rem)]' }"
   >
     <template #content>
       <div class="flex h-full max-h-[85vh] flex-col">

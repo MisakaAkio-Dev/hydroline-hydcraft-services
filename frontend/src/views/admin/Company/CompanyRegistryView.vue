@@ -17,7 +17,6 @@ const filters = reactive({
   typeId: undefined as string | undefined,
   industryId: undefined as string | undefined,
   search: '',
-  isIndividualBusiness: undefined as boolean | undefined,
 })
 
 const createDialogOpen = ref(false)
@@ -43,12 +42,6 @@ const statusOptions: { label: string; value: CompanyStatus | undefined }[] = [
   { label: '注销', value: 'ARCHIVED' },
 ]
 
-const isIndividualOptions = [
-  { label: '全部主体', value: undefined },
-  { label: '企业', value: false },
-  { label: '个体工商', value: true },
-]
-
 const pageCount = computed(() =>
   Math.max(Math.ceil(adminStore.total / adminStore.pageSize), 1),
 )
@@ -65,7 +58,6 @@ async function fetchCompanies(page = 1) {
     status: filters.status,
     typeId: filters.typeId,
     industryId: filters.industryId,
-    isIndividualBusiness: filters.isIndividualBusiness,
     search: filters.search,
     page,
   })
@@ -174,12 +166,6 @@ onMounted(() => {
             searchable
             clearable
             placeholder="行业"
-          />
-          <USelectMenu
-            v-model="filters.isIndividualBusiness"
-            :items="isIndividualOptions"
-            clearable
-            placeholder="主体类型"
           />
           <UInput
             v-model="filters.search"

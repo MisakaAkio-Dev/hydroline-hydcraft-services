@@ -67,6 +67,10 @@ model User {
   companiesCreated                            Company[]                             @relation("CompanyCreatedBy")
   companiesUpdated                            Company[]                             @relation("CompanyUpdatedBy")
   legalRepresentativeCompanies                Company[]                             @relation("CompanyLegalRepresentative")
+  companyApplicationConsentsRequired          CompanyApplicationConsent[]            @relation("CompanyApplicationConsentUser")
+  companyApplicationConsentsAsShareholderUser CompanyApplicationConsent[]            @relation("CompanyApplicationConsentShareholderUser")
+  llcRegistrationShareholdings               CompanyLlcRegistrationShareholder[]    @relation("CompanyLlcRegistrationShareholderUser")
+  llcRegistrationOfficerRoles                CompanyLlcRegistrationOfficer[]        @relation("CompanyLlcRegistrationOfficerUser")
   workflowInstancesCreated                    WorkflowInstance[]                    @relation("WorkflowInstanceCreator")
   transportationRailwayFeaturedCreated        TransportationRailwayFeaturedItem[]   @relation("TransportationRailwayFeaturedCreatedBy")
   transportationRailwayFeaturedUpdated        TransportationRailwayFeaturedItem[]   @relation("TransportationRailwayFeaturedUpdatedBy")
@@ -1280,7 +1284,7 @@ model CompanyType {
   code              String               @unique
   name              String
   description       String?
-  category          CompanyCategory      @default(ENTERPRISE)
+  category          CompanyCategory      @default(FOR_PROFIT_LEGAL_PERSON)
   isDefault         Boolean              @default(false)
   defaultWorkflow   String?
   requiredDocuments String[]             @default([])
@@ -1318,10 +1322,9 @@ model Company {
   unifiedSocialCreditCode              String?
   legalNameSnapshot                    String?
   legalIdSnapshot                      String?
-  category                             CompanyCategory                       @default(ENTERPRISE)
+  category                             CompanyCategory                       @default(FOR_PROFIT_LEGAL_PERSON)
   visibility                           CompanyVisibility                     @default(PRIVATE)
   status                               CompanyStatus                         @default(PENDING_REVIEW)
-  isIndividualBusiness                 Boolean                               @default(false)
   typeId                               String?
   industryId                           String?
   legalRepresentativeId                String?
@@ -1356,6 +1359,9 @@ model Company {
   applications                         CompanyApplication[]
   auditRecords                         CompanyAuditRecord[]
   transportationRailwayCompanyBindings TransportationRailwayCompanyBinding[]
+  applicationConsentsAsShareholderCompany CompanyApplicationConsent[]               @relation("CompanyApplicationConsentShareholderCompany")
+  llcRegistration                          CompanyLlcRegistration?
+  llcRegistrationShareholdings             CompanyLlcRegistrationShareholder[]      @relation("CompanyLlcRegistrationShareholderCompany")
 
   @@index([status, createdAt], map: "idx_companies_status_created")
   @@index([industryId], map: "idx_companies_industry")
@@ -1392,6 +1398,8 @@ model CompanyApplication {
   industryId         String?
   status             CompanyApplicationStatus @default(SUBMITTED)
   currentStage       String?
+  consentStatus      CompanyApplicationConsentProgress @default(PENDING)
+  consentCompletedAt DateTime?
   payload            Json?
   attachments        Json?
   notes              String?
@@ -1406,10 +1414,95 @@ model CompanyApplication {
   type               CompanyType?             @relation(fields: [typeId], references: [id])
   industry           CompanyIndustry?         @relation("IndustryApplications", fields: [industryId], references: [id])
   auditRecords       CompanyAuditRecord[]
+  consents           CompanyApplicationConsent[]
+  llcRegistration    CompanyLlcRegistration?
 
   @@index([applicantId], map: "idx_company_applications_applicant")
   @@index([status], map: "idx_company_applications_status")
   @@map("company_applications")
+}
+
+model CompanyApplicationConsent {
+  id                 String                              @id @default(uuid())
+  applicationId      String
+  requiredUserId     String
+  role               CompanyApplicationConsentRole
+  shareholderCompanyId String?
+  shareholderUserId  String?
+  status             CompanyApplicationConsentStatus     @default(PENDING)
+  decidedAt          DateTime?
+  comment            String?
+  createdAt          DateTime                            @default(now())
+  updatedAt          DateTime                            @updatedAt
+  application        CompanyApplication                  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  requiredUser       User                                @relation("CompanyApplicationConsentUser", fields: [requiredUserId], references: [id], onDelete: Cascade)
+  shareholderCompany Company?                            @relation("CompanyApplicationConsentShareholderCompany", fields: [shareholderCompanyId], references: [id])
+  shareholderUser    User?                               @relation("CompanyApplicationConsentShareholderUser", fields: [shareholderUserId], references: [id])
+
+  @@unique([applicationId, requiredUserId, role, shareholderCompanyId, shareholderUserId], map: "uq_company_application_consent_unique")
+  @@index([applicationId, status], map: "idx_company_application_consents_app_status")
+  @@index([requiredUserId, status], map: "idx_company_application_consents_user_status")
+  @@map("company_application_consents")
+}
+
+model CompanyLlcRegistration {
+  id                       String                    @id @default(uuid())
+  companyId                String                    @unique
+  applicationId            String                    @unique
+  domicileDivisionId       String
+  domicileDivisionPath     Json?
+  registeredCapital        Int
+  administrativeDivisionLevel Int
+  brandName                String
+  industryFeature          String
+  registrationAuthorityName String
+  domicileAddress          String
+  operatingTermType        CompanyLlcOperatingTermType
+  operatingTermYears       Int?
+  businessScope            String
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  application              CompanyApplication         @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  shareholders             CompanyLlcRegistrationShareholder[]
+  officers                 CompanyLlcRegistrationOfficer[]
+
+  @@index([companyId], map: "idx_company_llc_reg_company")
+  @@index([applicationId], map: "idx_company_llc_reg_application")
+  @@map("company_llc_registrations")
+}
+
+model CompanyLlcRegistrationShareholder {
+  id             String                  @id @default(uuid())
+  registrationId String
+  kind           CompanyLlcShareholderKind
+  userId         String?
+  companyId      String?
+  ratio          Float
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  registration   CompanyLlcRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user           User?                   @relation("CompanyLlcRegistrationShareholderUser", fields: [userId], references: [id])
+  company        Company?                @relation("CompanyLlcRegistrationShareholderCompany", fields: [companyId], references: [id])
+
+  @@index([registrationId], map: "idx_company_llc_reg_shareholders_reg")
+  @@map("company_llc_registration_shareholders")
+}
+
+model CompanyLlcRegistrationOfficer {
+  id             String                @id @default(uuid())
+  registrationId String
+  userId         String
+  role           CompanyLlcOfficerRole
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  registration   CompanyLlcRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user           User                  @relation("CompanyLlcRegistrationOfficerUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([registrationId, userId, role], map: "uq_company_llc_reg_officer")
+  @@index([registrationId], map: "idx_company_llc_reg_officers_reg")
+  @@index([userId], map: "idx_company_llc_reg_officers_user")
+  @@map("company_llc_registration_officers")
 }
 
 model CompanyAuditRecord {
@@ -1552,6 +1645,54 @@ enum CompanyApplicationStatus {
   ARCHIVED
 }
 
+enum CompanyApplicationConsentProgress {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CompanyApplicationConsentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CompanyApplicationConsentRole {
+  LEGAL_REPRESENTATIVE
+  SHAREHOLDER_USER
+  SHAREHOLDER_COMPANY_LEGAL
+  DIRECTOR
+  CHAIRPERSON
+  VICE_CHAIRPERSON
+  MANAGER
+  DEPUTY_MANAGER
+  SUPERVISOR
+  SUPERVISOR_CHAIRPERSON
+  FINANCIAL_OFFICER
+}
+
+enum CompanyLlcOperatingTermType {
+  LONG_TERM
+  YEARS
+}
+
+enum CompanyLlcShareholderKind {
+  USER
+  COMPANY
+}
+
+enum CompanyLlcOfficerRole {
+  LEGAL_REPRESENTATIVE
+  DIRECTOR
+  CHAIRPERSON
+  VICE_CHAIRPERSON
+  MANAGER
+  DEPUTY_MANAGER
+  SUPERVISOR
+  SUPERVISOR_CHAIRPERSON
+  FINANCIAL_OFFICER
+}
+
 enum CompanyPolicyStatus {
   DRAFT
   ACTIVE
@@ -1560,9 +1701,11 @@ enum CompanyPolicyStatus {
 }
 
 enum CompanyCategory {
-  ENTERPRISE
+  FOR_PROFIT_LEGAL_PERSON
+  NON_PROFIT_LEGAL_PERSON
+  SPECIAL_LEGAL_PERSON
+  UNINCORPORATED_ORGANIZATION
   INDIVIDUAL
-  ORGANIZATION
 }
 
 enum WorkflowInstanceStatus {

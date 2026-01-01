@@ -111,6 +111,16 @@ export const userRoutes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'dashboard/applications',
+            name: 'company.dashboard.applications',
+            component: () =>
+              import('@/views/user/Company/CompanyApplicationsProgressView.vue'),
+            meta: {
+              requiresAuth: true,
+              title: '我的申请/待同意',
+            },
+          },
+          {
             path: 'database',
             name: 'company.database',
             component: () =>

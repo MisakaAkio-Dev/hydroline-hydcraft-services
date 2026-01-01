@@ -39,7 +39,8 @@ const activeTab = computed(() => {
   if (
     route.name === 'company.dashboard' ||
     route.name === 'company.dashboard.owned' ||
-    route.name === 'company.dashboard.join'
+    route.name === 'company.dashboard.join' ||
+    route.name === 'company.dashboard.applications'
   ) {
     return 'company.dashboard'
   }

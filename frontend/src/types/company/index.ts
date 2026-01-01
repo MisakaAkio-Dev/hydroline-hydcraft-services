@@ -44,6 +44,62 @@ export interface CompanyType {
   category?: string | null
 }
 
+export interface CompanyRef {
+  id: string
+  name: string
+  slug: string
+  category?: string | null
+  type?: { id: string; code: string; name: string } | null
+  industry?: { id: string; code: string; name: string } | null
+}
+
+export type WorldDivisionLevel = 1 | 2 | 3
+
+export interface WorldDivisionNode {
+  id: string
+  name: string
+  level: WorldDivisionLevel
+  parentId?: string | null
+}
+
+export interface WorldDivisionPath {
+  level1: WorldDivisionNode | null
+  level2: WorldDivisionNode | null
+  level3: WorldDivisionNode | null
+}
+
+export type LlcShareholderKind = 'USER' | 'COMPANY'
+
+export interface LlcShareholderEntry {
+  kind: LlcShareholderKind
+  userId?: string
+  companyId?: string
+  ratio: number
+}
+
+export interface LimitedLiabilityCompanyApplicationPayload {
+  domicileDivisionId: string
+  domicileDivisionPath?: WorldDivisionPath
+  registeredCapital: number
+  administrativeDivisionLevel: WorldDivisionLevel
+  brandName: string
+  industryFeature: string
+  registrationAuthorityName: string
+  domicileAddress: string
+  operatingTerm: { type: 'LONG_TERM' | 'YEARS'; years?: number }
+  businessScope: string
+  shareholders: LlcShareholderEntry[]
+  directors: {
+    directorIds: string[]
+    chairpersonId?: string
+    viceChairpersonId?: string
+  }
+  managers: { managerId?: string; deputyManagerId?: string }
+  legalRepresentativeId: string
+  supervisors?: { supervisorIds?: string[]; chairpersonId?: string }
+  financialOfficerId?: string
+}
+
 export interface CompanyPosition {
   code: string
   name: string
@@ -117,6 +173,60 @@ export interface CompanyApplication {
   resolvedAt?: string | null
 }
 
+export type CompanyApplicationConsentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export type CompanyApplicationConsentProgress = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export type CompanyApplicationConsentRole =
+  | 'LEGAL_REPRESENTATIVE'
+  | 'SHAREHOLDER_USER'
+  | 'SHAREHOLDER_COMPANY_LEGAL'
+  | 'DIRECTOR'
+  | 'CHAIRPERSON'
+  | 'VICE_CHAIRPERSON'
+  | 'MANAGER'
+  | 'DEPUTY_MANAGER'
+  | 'SUPERVISOR'
+  | 'SUPERVISOR_CHAIRPERSON'
+  | 'FINANCIAL_OFFICER'
+
+export interface MyCompanyApplicationEntry {
+  id: string
+  name?: string | null
+  workflowCode?: string | null
+  status: CompanyApplicationStatus | string
+  currentStage?: string | null
+  submittedAt: string
+  resolvedAt?: string | null
+  consentStatus: CompanyApplicationConsentProgress
+  consentCompletedAt?: string | null
+  consentCounts: { pending: number; approved: number; rejected: number }
+  companyId?: string | null
+  company?: { id: string; name: string; slug: string; status?: string | null } | null
+  /** 管理员在“驳回/要求补件”时填写的理由（后端已按当前状态挑选匹配的 comment） */
+  reviewComment?: string | null
+  /** 兼容字段：驳回理由（可能来自历史字段或工作流动作 comment） */
+  rejectReason?: string | null
+  /** 要求补件理由（来自工作流动作 request_changes 的 comment） */
+  requestChangesReason?: string | null
+}
+
+export interface MyPendingConsentEntry {
+  applicationId: string
+  name?: string | null
+  workflowCode?: string | null
+  status: CompanyApplicationStatus | string
+  currentStage?: string | null
+  consentStatus: CompanyApplicationConsentProgress
+  submittedAt: string
+  resolvedAt?: string | null
+  items: Array<{
+    id: string
+    role: CompanyApplicationConsentRole
+    shareholderCompany?: { id: string; name: string; slug: string } | null
+  }>
+}
+
 export type CompanyApplicationStatus =
   | 'SUBMITTED'
   | 'UNDER_REVIEW'
@@ -143,6 +253,14 @@ export interface AdminCompanyApplicationEntry {
   resolvedAt?: string | null
   notes?: string | null
   rejectReason?: string | null
+  /**
+   * 申请提交时的原始 payload（包含公司名、typeId/typeCode 等）。
+   * 注意：公司未入库时 company 可能为 null，需要依赖该字段做展示兜底。
+   */
+  payload?: Record<string, unknown> | null
+  /** 公司未入库时，用申请本身关联的类型/行业做兜底展示 */
+  type?: CompanyType | null
+  industry?: CompanyIndustry | null
   company?: {
     id: string
     name: string
@@ -180,7 +298,6 @@ export interface CompanyModel {
   status: CompanyStatus
   visibility: CompanyVisibility
   category?: string | null
-  isIndividualBusiness?: boolean
   recommendationScore?: number | null
   highlighted?: boolean | null
   lastActiveAt?: string | null
@@ -254,7 +371,6 @@ export interface AdminCreateCompanyPayload {
   description?: string
   typeId?: string
   industryId?: string
-  isIndividualBusiness?: boolean
   legalRepresentativeId?: string
   category?: string
   status?: CompanyStatus
@@ -270,8 +386,8 @@ export interface CreateCompanyApplicationPayload {
   industryId?: string
   industryCode?: string
   category?: string
-  isIndividualBusiness?: boolean
   legalRepresentativeId?: string
+  llc?: LimitedLiabilityCompanyApplicationPayload
 }
 
 export interface CompanyDeregistrationApplyPayload {

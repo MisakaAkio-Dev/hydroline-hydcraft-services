@@ -99,6 +99,22 @@ const formatApplicant = (entry: AdminCompanyApplicationEntry) => {
   )
 }
 
+function getCompanyName(entry: AdminCompanyApplicationEntry) {
+  if (entry.company?.name) return entry.company.name
+  const payloadName = entry.payload?.name
+  return typeof payloadName === 'string' && payloadName.trim()
+    ? payloadName.trim()
+    : '未知公司'
+}
+
+function getCompanyTypeName(entry: AdminCompanyApplicationEntry) {
+  return (
+    entry.company?.type?.name ||
+    entry.type?.name ||
+    '未绑定类型'
+  )
+}
+
 function actionsForEntry(entry: AdminCompanyApplicationEntry) {
   switch (entry.status) {
     case 'SUBMITTED':
@@ -290,10 +306,10 @@ watch(autoApproveDraft, async (value) => {
             >
               <td class="px-4 py-3">
                 <div class="font-medium text-slate-900 dark:text-white">
-                  {{ item.company?.name || '未知公司' }}
+                  {{ getCompanyName(item) }}
                 </div>
                 <p class="text-xs text-slate-500">
-                  {{ item.company?.type?.name || '未绑定类型' }}
+                  {{ getCompanyTypeName(item) }}
                 </p>
               </td>
               <td class="px-4 py-3 text-slate-500">
@@ -445,7 +461,7 @@ watch(autoApproveDraft, async (value) => {
                 公司申请审批
               </p>
               <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-                {{ actionTarget?.company?.name || '审批操作' }}
+                {{ actionTarget ? getCompanyName(actionTarget) : '审批操作' }}
               </h3>
             </div>
             <UButton

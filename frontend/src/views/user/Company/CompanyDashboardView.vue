@@ -106,6 +106,13 @@ watch(
         >
           名下公司
         </UButton>
+        <UButton
+          color="neutral"
+          variant="soft"
+          @click="requireLogin('/company/dashboard/applications')"
+        >
+          我的申请/待同意
+        </UButton>
       </div>
     </div>
 

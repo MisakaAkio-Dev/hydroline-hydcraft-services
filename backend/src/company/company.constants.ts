@@ -77,7 +77,7 @@ export const DEFAULT_COMPANY_WORKFLOW_DEFINITION: UpsertWorkflowDefinitionDto =
           {
             key: 'resubmit',
             label: '重新提交',
-            to: 'under_review',
+            to: 'submitted',
             roles: ['OWNER', 'LEGAL_PERSON'],
           },
           {

@@ -11,7 +11,6 @@ export interface AdminCompanyFilter {
   status?: CompanyStatus
   typeId?: string
   industryId?: string
-  isIndividualBusiness?: boolean
   search?: string
   page?: number
   pageSize?: number
@@ -42,12 +41,6 @@ export const useAdminCompanyStore = defineStore('admin-companies', {
         if (filters.status) query.set('status', filters.status)
         if (filters.typeId) query.set('typeId', filters.typeId)
         if (filters.industryId) query.set('industryId', filters.industryId)
-        if (filters.isIndividualBusiness !== undefined) {
-          query.set(
-            'isIndividualBusiness',
-            String(filters.isIndividualBusiness),
-          )
-        }
         if (filters.search) query.set('search', filters.search)
         query.set('page', String(filters.page ?? this.page))
         query.set('pageSize', String(filters.pageSize ?? this.pageSize))

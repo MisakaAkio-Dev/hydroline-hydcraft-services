@@ -3,6 +3,7 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsNumber,
   IsEmail,
   IsEnum,
   IsInt,
@@ -15,6 +16,7 @@ import {
   Min,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import {
   CompanyCategory,
@@ -22,6 +24,195 @@ import {
   CompanyStatus,
   CompanyVisibility,
 } from '@prisma/client';
+
+export class CompanySearchDto {
+  @IsString()
+  @MinLength(1)
+  query!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
+export class GeoDivisionSearchDto {
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(3)
+  level?: 1 | 2 | 3;
+
+  @IsOptional()
+  @IsString()
+  parentId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
+export class LlcShareholderDto {
+  @IsIn(['USER', 'COMPANY'])
+  kind!: 'USER' | 'COMPANY';
+
+  @ValidateIf((o) => o.kind === 'USER')
+  @IsString()
+  @MinLength(1)
+  userId?: string;
+
+  @ValidateIf((o) => o.kind === 'COMPANY')
+  @IsUUID()
+  companyId?: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  ratio!: number;
+}
+
+export class LlcDirectorsDto {
+  @IsArray()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  directorIds!: string[];
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  chairpersonId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  viceChairpersonId?: string;
+}
+
+export class LlcManagersDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  managerId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  deputyManagerId?: string;
+}
+
+export class LlcSupervisorsDto {
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  supervisorIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  chairpersonId?: string;
+}
+
+export class LlcOperatingTermDto {
+  @IsIn(['LONG_TERM', 'YEARS'])
+  type!: 'LONG_TERM' | 'YEARS';
+
+  @ValidateIf((o) => o.type === 'YEARS')
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  years?: number;
+}
+
+export class LimitedLiabilityCompanyApplicationDto {
+  @IsString()
+  domicileDivisionId!: string;
+
+  @IsOptional()
+  @IsObject()
+  domicileDivisionPath?: {
+    level1?: { id: string; name: string } | null;
+    level2?: { id: string; name: string } | null;
+    level3?: { id: string; name: string } | null;
+  };
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  registeredCapital!: number;
+
+  @IsIn([1, 2, 3])
+  @Type(() => Number)
+  @IsInt()
+  administrativeDivisionLevel!: 1 | 2 | 3;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  brandName!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  industryFeature!: string;
+
+  @IsString()
+  @MaxLength(80)
+  registrationAuthorityName!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  domicileAddress!: string;
+
+  @ValidateNested()
+  @Type(() => LlcOperatingTermDto)
+  operatingTerm!: LlcOperatingTermDto;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  businessScope!: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LlcShareholderDto)
+  shareholders!: LlcShareholderDto[];
+
+  @ValidateNested()
+  @Type(() => LlcDirectorsDto)
+  directors!: LlcDirectorsDto;
+
+  @ValidateNested()
+  @Type(() => LlcManagersDto)
+  managers!: LlcManagersDto;
+
+  @IsString()
+  @MinLength(1)
+  legalRepresentativeId!: string;
+
+  @ValidateNested()
+  @Type(() => LlcSupervisorsDto)
+  @IsOptional()
+  supervisors?: LlcSupervisorsDto;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  financialOfficerId?: string;
+}
 
 export class CompanyRecommendationsQueryDto {
   @IsOptional()
@@ -83,12 +274,24 @@ export class CreateCompanyApplicationDto {
   category?: CompanyCategory;
 
   @IsOptional()
-  @IsBoolean()
-  isIndividualBusiness?: boolean;
-
-  @IsOptional()
   @IsString()
   legalRepresentativeId?: string;
+
+  /**
+   * 有限责任公司专用字段（typeCode === limited_liability_company 或对应 typeId 时生效）
+   * 其内容会被整体保存到 CompanyApplication.payload 以供审核与后续落库扩展使用。
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LimitedLiabilityCompanyApplicationDto)
+  llc?: LimitedLiabilityCompanyApplicationDto;
+}
+
+export class CompanyApplicationConsentDecisionDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  comment?: string;
 }
 
 export class UpdateCompanyProfileDto {
@@ -213,10 +416,6 @@ export class AdminCreateCompanyDto {
   category?: CompanyCategory;
 
   @IsOptional()
-  @IsBoolean()
-  isIndividualBusiness?: boolean;
-
-  @IsOptional()
   @IsString()
   legalRepresentativeId?: string;
 
@@ -247,10 +446,6 @@ export class AdminCompanyListQueryDto {
   industryId?: string;
 
   @IsOptional()
-  @IsBoolean()
-  isIndividualBusiness?: boolean;
-
-  @IsOptional()
   @IsString()
   search?: string;
 
@@ -279,6 +474,12 @@ export class CompanyUserSearchDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+export class CompanyUserResolveDto {
+  @IsArray()
+  @IsString({ each: true })
+  ids!: string[];
 }
 
 export class CompanyMemberInviteDto {
@@ -428,4 +629,18 @@ export class CompanyActionDto {
   @IsOptional()
   @IsObject()
   payload?: Record<string, unknown>;
+}
+
+export class ResubmitCompanyApplicationDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  comment?: string;
+}
+
+export class WithdrawCompanyApplicationDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  comment?: string;
 }

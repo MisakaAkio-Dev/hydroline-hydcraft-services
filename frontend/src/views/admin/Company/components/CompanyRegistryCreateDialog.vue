@@ -29,7 +29,6 @@ const formState = reactive<AdminCreateCompanyPayload>({
   description: '',
   typeId: undefined,
   industryId: undefined,
-  isIndividualBusiness: false,
   legalRepresentativeId: undefined,
 })
 
@@ -151,10 +150,6 @@ function handleSubmit() {
           <div class="space-y-2">
             <label class="text-xs font-semibold text-slate-500">描述</label>
             <UTextarea v-model="formState.description" rows="4" />
-          </div>
-          <div class="flex items-center justify-between">
-            <p class="text-xs text-slate-500">是否为个体工商户</p>
-            <USwitch v-model="formState.isIndividualBusiness" />
           </div>
           <div class="space-y-2">
             <label class="text-xs font-semibold text-slate-500">搜索法人</label>
