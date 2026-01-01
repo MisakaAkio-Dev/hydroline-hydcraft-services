@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import dayjs from 'dayjs'
 import { AnimatePresence, Motion } from 'motion-v'
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
 
@@ -219,7 +220,9 @@ onMounted(() => {
                 </td>
                 <td class="px-4 py-3">{{ getServerName(item.serverId) }}</td>
                 <td class="px-4 py-3">{{ item.routeCount }}</td>
-                <td class="px-4 py-3">{{ item.updatedAt }}</td>
+                <td class="px-4 py-3">
+                  {{ dayjs(item.updatedAt).format('YYYY/MM/DD HH:mm:ss') }}
+                </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-2">
                     <UButton

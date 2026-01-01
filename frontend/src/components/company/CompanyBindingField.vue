@@ -102,8 +102,8 @@ const bindingTypeQuery = computed(() => {
 
 <template>
   <div>
-    <div class="flex items-center justify-between gap-2">
-      <span class="inline-flex items-center gap-1">
+    <div class="flex items-baseline justify-between gap-2">
+      <span class="whitespace-nowrap inline-flex items-center gap-1">
         {{ label }}
 
         <UButton
@@ -124,7 +124,7 @@ const bindingTypeQuery = computed(() => {
           暂无绑定</span
         >
 
-        <div v-else class="flex flex-wrap gap-2 text-xs">
+        <div v-else class="flex justify-end flex-wrap gap-x-2 text-xs">
           <div
             v-for="companyId in orderedCompanyIds"
             :key="companyId"
