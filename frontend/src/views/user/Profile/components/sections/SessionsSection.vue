@@ -115,10 +115,10 @@ function deviceIcon(value: string | null | undefined) {
             <div
               class="flex flex-wrap items-center gap-2 text-base font-semibold text-slate-900 dark:text-slate-100 mb-0"
             >
-              <div class="flex-1 flex items-center">
-                <div class="flex items-center gap-1">
+              <div class="flex-1 flex items-center gap-1">
+                <div class="mb-3 md:mb-0">
                   <span
-                    class="text-lg"
+                    class="break-all text-lg"
                     :class="
                       session.ipAddress
                         ? 'text-slate-900 dark:text-slate-100'
@@ -128,14 +128,15 @@ function deviceIcon(value: string | null | undefined) {
                   </span>
                   <span
                     v-if="session.ipLocation"
-                    class="text-xs text-slate-500 dark:text-slate-400"
+                    class="ml-1 text-xs text-slate-500 dark:text-slate-400"
                   >
-                    （{{ session.ipLocation }}）
+                    {{ session.ipLocation }}
                   </span>
                 </div>
 
                 <UBadge
                   v-if="session.isCurrent"
+                  class="whitespace-nowrap"
                   color="primary"
                   variant="soft"
                   size="sm"
