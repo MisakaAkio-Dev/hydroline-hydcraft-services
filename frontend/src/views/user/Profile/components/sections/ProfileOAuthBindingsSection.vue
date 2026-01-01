@@ -23,6 +23,8 @@ type AccountProfile = {
   } | null
 }
 
+type MinecraftSnapshot = AccountProfile['minecraft']
+
 type BoundAccount = {
   id: string
   provider: string
@@ -198,6 +200,32 @@ function accountSecondaryLabel(account: BoundAccount) {
 
 function accountAvatar(account: BoundAccount) {
   return account.profile?.avatarDataUri ?? null
+}
+
+function patchAccountMinecraftSnapshot(
+  accountId: string,
+  minecraft: MinecraftSnapshot,
+) {
+  const user = auth.user as Record<string, unknown> | null
+  if (!user || typeof user !== 'object') return false
+  const accounts = user.accounts
+  if (!Array.isArray(accounts)) return false
+  let updated = false
+  const nextAccounts = accounts.map((entry) => {
+    if (!entry || typeof entry !== 'object') return entry
+    const record = entry as Record<string, unknown>
+    if (record.id !== accountId) return record
+    const baseProfile =
+      record.profile && typeof record.profile === 'object'
+        ? { ...(record.profile as Record<string, unknown>) }
+        : {}
+    baseProfile.minecraft = minecraft ?? null
+    updated = true
+    return { ...record, profile: baseProfile }
+  })
+  if (!updated) return false
+  auth.setUser({ ...user, accounts: nextAccounts })
+  return true
 }
 
 const loadingProvider = ref<string | null>(null)
@@ -471,11 +499,20 @@ async function syncMicrosoftMinecraft(accountId: string) {
   }
   syncLoadingAccountId.value = accountId
   try {
-    await apiFetch(
+    const result = await apiFetch<{
+      accountId: string
+      minecraft?: MinecraftSnapshot | null
+    }>(
       `/oauth/providers/microsoft/bindings/${encodeURIComponent(accountId)}/sync-minecraft`,
       { method: 'POST', token: auth.token },
     )
-    await auth.fetchCurrentUser()
+    const patched = patchAccountMinecraftSnapshot(
+      result.accountId,
+      result.minecraft ?? null,
+    )
+    if (!patched) {
+      await auth.fetchCurrentUser()
+    }
     toast.add({ title: '已同步', color: 'success' })
   } catch (error) {
     if (error instanceof ApiError) {

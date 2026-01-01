@@ -520,6 +520,7 @@ async function clearMicrosoftMinecraft(accountId: string) {
         },
       )
       toast.add({ title: '已清除游戏数据', color: 'success' })
+      clearLocalMinecraftSnapshot(accountId)
       await fetchDetail()
     } catch (error) {
       toast.add({
@@ -532,6 +533,29 @@ async function clearMicrosoftMinecraft(accountId: string) {
     }
   }
   deleteConfirmDialogOpen.value = true
+}
+
+function clearLocalMinecraftSnapshot(accountId: string) {
+  const current = detail.value
+  if (!current) return
+  const stripMinecraft = (profile: unknown) => {
+    if (!profile || typeof profile !== 'object') return profile
+    const next = { ...(profile as Record<string, unknown>) }
+    if ('minecraft' in next) {
+      delete next.minecraft
+    }
+    return next
+  }
+  const updateAccounts = (accounts?: AdminOauthAccount[]) =>
+    accounts?.map((account) =>
+      account.id === accountId
+        ? { ...account, profile: stripMinecraft(account.profile) }
+        : account,
+    )
+  detail.value = {
+    ...current,
+    oauthAccounts: updateAccounts(current.oauthAccounts),
+  }
 }
 
 async function markPrimaryMinecraft(profileId: string) {

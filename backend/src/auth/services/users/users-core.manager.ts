@@ -519,6 +519,10 @@ export async function getSessionUser(
       allowFallback: options.allowFallback,
     }),
   ]);
+  const accountsWithMinecraft = await hydrateAccountsWithMinecraftProfiles(
+    ctx,
+    user.accounts ?? [],
+  );
   const nicknames = (user.minecraftIds ?? []).map((profile) => ({
     id: profile.id,
     userId: profile.userId,
@@ -564,7 +568,7 @@ export async function getSessionUser(
     authmeBindings,
     luckperms: bindingData.luckperms,
     security,
-    accounts: user.accounts.filter(
+    accounts: accountsWithMinecraft.filter(
       (account) => account.provider !== 'credential',
     ),
   } as typeof user & {
