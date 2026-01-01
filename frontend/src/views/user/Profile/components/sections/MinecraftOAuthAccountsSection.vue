@@ -146,7 +146,7 @@ function minecraftAvatarUrl(identifier: string) {
     </div>
 
     <div
-      v-if="microsoftAccounts.length > 0"
+      v-if="microsoftAccounts.length == 0"
       class="rounded-xl border border-dashed border-slate-200/70 px-4 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400 text-center"
     >
       尚未同步 Minecraft 账号下的游戏资料<br />
