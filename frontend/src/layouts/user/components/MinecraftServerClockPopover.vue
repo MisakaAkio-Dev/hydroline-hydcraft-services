@@ -1,13 +1,6 @@
 <script setup lang="ts">
-import {
-  Transition,
-  computed,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  nextTick,
-} from 'vue'
-import { Motion } from 'motion-v'
+import { computed, onBeforeUnmount, onMounted, ref, nextTick } from 'vue'
+import { AnimatePresence, Motion } from 'motion-v'
 import dayjs from 'dayjs'
 import { apiFetch } from '@/utils/http/api'
 
@@ -52,7 +45,6 @@ type LocalClock = {
 }
 
 const localClocks = ref<Record<string, LocalClock>>({})
-const playersRefreshKeys = ref<Record<string, number>>({})
 
 const now = ref(dayjs())
 const nowReal = ref(Date.now())
@@ -122,12 +114,6 @@ async function fetchStatus() {
       '/portal/header/minecraft-status',
     )
     servers.value = res.servers || []
-    const stamp = Date.now()
-    const nextKeys: Record<string, number> = {}
-    for (const item of servers.value) {
-      nextKeys[item.id] = stamp + (item.players?.length ?? 0)
-    }
-    playersRefreshKeys.value = nextKeys
 
     const nowMs = Date.now()
     const map: Record<string, LocalClock> = { ...localClocks.value }
@@ -328,13 +314,6 @@ function serverOnlinePercent(item: PublicServerStatusItem) {
   if (!max) return 0
   return Math.min(100, Math.round((online / max) * 100))
 }
-
-function playersKey(item: PublicServerStatusItem) {
-  return (
-    playersRefreshKeys.value[item.id] ??
-    `players-${item.id}-${item.players?.length ?? 0}`
-  )
-}
 </script>
 
 <template>
@@ -485,35 +464,54 @@ function playersKey(item: PublicServerStatusItem) {
                 </div>
               </div>
 
-              <Transition
-                enter-active-class="transition-[height,opacity] duration-300 ease-in-out"
-                leave-active-class="transition-[height,opacity] duration-300 ease-in-out"
+              <div
+                v-if="item.players?.length"
+                class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500"
               >
-                <Motion
-                  v-if="item.players?.length"
-                  :key="playersKey(item)"
-                  as="div"
-                  class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 overflow-hidden transition-[height] duration-300 ease-in-out"
-                  :initial="{ opacity: 0, filter: 'blur(8px)', y: 8 }"
-                  :animate="{ opacity: 1, filter: 'blur(0px)', y: 0 }"
-                  :transition="{ duration: 0.35, ease: 'easeInOut' }"
-                >
-                  <UTooltip
+                <AnimatePresence mode="sync" :initial="false">
+                  <Motion
                     v-for="player in item.players"
                     :key="player.uuid"
-                    :text="player.name"
-                    :ui="{ content: 'z-[50000]' }"
+                    as="div"
+                    :initial="{
+                      opacity: 0,
+                      scale: 0.92,
+                      y: -10,
+                      filter: 'blur(6px)',
+                    }"
+                    :animate="{
+                      opacity: 1,
+                      scale: 1,
+                      y: 0,
+                      filter: 'blur(0px)',
+                    }"
+                    :exit="{
+                      opacity: 0,
+                      scale: 0.9,
+                      y: -8,
+                      filter: 'blur(6px)',
+                    }"
+                    :transition="{
+                      type: 'spring',
+                      stiffness: 320,
+                      damping: 30,
+                    }"
                   >
-                    <div class="flex flex-wrap items-center gap-1">
-                      <img
-                        :src="`https://mc-heads.hydcraft.cn/avatar/${player.name}`"
-                        :alt="player.name"
-                        class="h-4 w-4 rounded border border-slate-200 dark:border-slate-700"
-                      />
-                    </div>
-                  </UTooltip>
-                </Motion>
-              </Transition>
+                    <UTooltip
+                      :text="player.name"
+                      :ui="{ content: 'z-[50000]' }"
+                    >
+                      <div class="flex items-center">
+                        <img
+                          :src="`https://mc-heads.hydcraft.cn/avatar/${player.name}`"
+                          :alt="player.name"
+                          class="h-4 w-4 rounded border border-slate-200 dark:border-slate-700"
+                        />
+                      </div>
+                    </UTooltip>
+                  </Motion>
+                </AnimatePresence>
+              </div>
 
               <p
                 v-if="motdText(item)"
