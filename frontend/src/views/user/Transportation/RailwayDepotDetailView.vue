@@ -641,10 +641,8 @@ onBeforeUnmount(() => {
                 class="flex items-center justify-between py-3 first:pt-0 last:pb-0"
               >
                 <div>
-                  <p
-                    class="flex items-baseline gap-1 font-medium text-slate-900 dark:text-white"
-                  >
-                    <span>
+                  <p class="font-medium text-slate-900 dark:text-white">
+                    <span class="mr-2">
                       {{ route.name?.split('|')[0] }}
                     </span>
 

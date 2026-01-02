@@ -990,29 +990,31 @@ onUnmounted(() => {
                     <div
                       v-for="route in visibleRoutes"
                       :key="route.id"
-                      class="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+                      class="flex items-center justify-between gap-1 py-3 first:pt-0 last:pb-0"
                     >
                       <div>
                         <p
                           class="flex items-baseline gap-1 font-medium text-slate-900 dark:text-white"
                         >
                           <span
-                            class="block h-3 w-3 rounded-full"
+                            class="shrink-0 block h-3 w-3 rounded-full"
                             :style="
                               colorToHex(route.color)
                                 ? { backgroundColor: colorToHex(route.color) }
                                 : undefined
                             "
                           ></span>
-                          <span>
-                            {{ route.name?.split('|')[0] || '未命名' }}
-                          </span>
+                          <span class="text-left">
+                            <span>
+                              {{ route.name?.split('|')[0] || '未命名' }}
+                            </span>
 
-                          <span
-                            class="text-xs text-slate-700 dark:text-slate-500"
-                            v-if="route.name?.split('|')[1]"
-                          >
-                            {{ route.name?.split('|')[1] }}
+                            <span
+                              class="break-all ml-2 text-xs text-slate-700 dark:text-slate-500"
+                              v-if="route.name?.split('|')[1]"
+                            >
+                              {{ route.name?.split('|')[1] }}
+                            </span>
                           </span>
                         </p>
                         <div class="flex items-center gap-1">
@@ -1036,6 +1038,7 @@ onUnmounted(() => {
                         </div>
                       </div>
                       <UButton
+                        class="whitespace-nowrap"
                         size="xs"
                         variant="soft"
                         @click="goRoute(route.id)"
