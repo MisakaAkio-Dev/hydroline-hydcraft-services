@@ -54,10 +54,7 @@ function upsertUserLabel(u: CompanyUserRef) {
 function upsertCompanyLabel(c: CompanyRef) {
   companyLabelCache[c.id] = c.name
 }
-function buildUserItems(
-  candidates: CompanyUserRef[],
-  selectedId?: string,
-) {
+function buildUserItems(candidates: CompanyUserRef[], selectedId?: string) {
   const items = candidates.map((u) => {
     upsertUserLabel(u)
     return { value: u.id, label: getUserLabel(u) }
@@ -121,9 +118,9 @@ async function refreshAuthorityCompanies() {
     return
   }
   try {
-    authorityCompanies.value = await apiFetch<Array<{ id: string; name: string }>>(
-      `/companies/geo/divisions/${divisionId}/authorities`,
-    )
+    authorityCompanies.value = await apiFetch<
+      Array<{ id: string; name: string }>
+    >(`/companies/geo/divisions/${divisionId}/authorities`)
   } catch {
     authorityCompanies.value = []
   }
@@ -641,10 +638,7 @@ function removeShareholder(index: number) {
   llcDraft.shareholders.splice(index, 1)
 }
 
-function handleUserSearchList(
-  candidates: CompanyUserRef[],
-  query: string,
-) {
+function handleUserSearchList(candidates: CompanyUserRef[], query: string) {
   const q = query.trim()
   if (!q) {
     candidates.splice(0, candidates.length)
@@ -745,8 +739,9 @@ const typeOptions = computed(() => {
     const items: Array<{ value: string; label: string }> = []
     const llc = limitedLiabilityType.value
     const selectedId = formState.typeId
-    const selected =
-      selectedId ? resolvedTypes.value.find((t) => t.id === selectedId) : null
+    const selected = selectedId
+      ? resolvedTypes.value.find((t) => t.id === selectedId)
+      : null
 
     // 兼容：打开历史申请/回填时，如果当前选中类型不是 LLC，也保证 UI 能展示其名称
     if (selected && selected.code !== LIMITED_LIABILITY_CODE) {
@@ -758,7 +753,10 @@ const typeOptions = computed(() => {
     if (llc) items.push({ value: llc.id, label: llc.name })
     return items
   }
-  return resolvedTypes.value.map((type) => ({ value: type.id, label: type.name }))
+  return resolvedTypes.value.map((type) => ({
+    value: type.id,
+    label: type.name,
+  }))
 })
 
 const industryOptions = computed(() =>
@@ -1300,7 +1298,7 @@ const handleSubmit = () => {
                 class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 aria-label="清空"
                 @click.stop.prevent="
-                  llcDraft.registrationAuthorityCompanyId = undefined;
+                  llcDraft.registrationAuthorityCompanyId = undefined
                   llcDraft.registrationAuthorityName = ''
                 "
               >

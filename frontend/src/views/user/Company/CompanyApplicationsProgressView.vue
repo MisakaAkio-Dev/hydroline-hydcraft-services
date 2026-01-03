@@ -138,10 +138,9 @@ async function openConsentDetail(
   consentLoading.value = true
   consentDetail.value = null
   try {
-    consentDetail.value =
-      (await companyStore.getApplicationConsents(
-        applicationId,
-      )) as ApplicationConsentsDetail
+    consentDetail.value = (await companyStore.getApplicationConsents(
+      applicationId,
+    )) as ApplicationConsentsDetail
   } catch (error) {
     toast.add({
       title: (error as Error).message || '无法加载同意明细',
@@ -542,10 +541,13 @@ onMounted(() => {
                   v-else-if="selectedWorkflowCode === 'company.capital_change'"
                   class="mt-1 text-xs text-gray-500"
                 >
-                  注册资本变更申请如涉及新增股东，需新增股东同意 + 享有表决权三分之二以上的原股东同意后才会进入审批。
+                  注册资本变更申请如涉及新增股东，需新增股东同意 +
+                  享有表决权三分之二以上的原股东同意后才会进入审批。
                 </p>
                 <p
-                  v-else-if="selectedWorkflowCode === 'company.change_management'"
+                  v-else-if="
+                    selectedWorkflowCode === 'company.change_management'
+                  "
                   class="mt-1 text-xs text-gray-500"
                 >
                   管理层变更申请需经半数董事（按人数）同意且新任人员同意后，才会进入管理员审批。

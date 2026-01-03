@@ -110,7 +110,8 @@ export const useCompanyStore = defineStore('companies', {
       ).length
       const memberCount = this.dashboard.reduce((sum, company) => {
         const ids = new Set<string>()
-        if (company.legalRepresentative?.id) ids.add(company.legalRepresentative.id)
+        if (company.legalRepresentative?.id)
+          ids.add(company.legalRepresentative.id)
         for (const officer of company.llcRegistration?.officers ?? []) {
           if (officer.user?.id) ids.add(officer.user.id)
         }
@@ -125,10 +126,7 @@ export const useCompanyStore = defineStore('companies', {
         memberCount,
       }
     },
-    async searchUsers(
-      keyword: string,
-      limit = 10,
-    ): Promise<CompanyUserRef[]> {
+    async searchUsers(keyword: string, limit = 10): Promise<CompanyUserRef[]> {
       if (!keyword.trim()) {
         return []
       }
@@ -159,9 +157,9 @@ export const useCompanyStore = defineStore('companies', {
         const application = await apiFetch<{ id: string; status: string }>(
           '/companies/apply',
           {
-          method: 'POST',
-          body: payload,
-          token: authStore.token,
+            method: 'POST',
+            body: payload,
+            token: authStore.token,
           },
         )
         // 注册申请在审批通过前不会生成公司记录，因此这里不更新 dashboard
@@ -207,23 +205,32 @@ export const useCompanyStore = defineStore('companies', {
         token: authStore.token,
       })
     },
-    async approveMyApplicationConsents(applicationId: string, comment?: string) {
+    async approveMyApplicationConsents(
+      applicationId: string,
+      comment?: string,
+    ) {
       const authStore = useAuthStore()
       if (!authStore.token) throw new Error('未登录，无法同意')
-      return apiFetch(`/companies/applications/${applicationId}/consents/approve`, {
-        method: 'POST',
-        body: { comment },
-        token: authStore.token,
-      })
+      return apiFetch(
+        `/companies/applications/${applicationId}/consents/approve`,
+        {
+          method: 'POST',
+          body: { comment },
+          token: authStore.token,
+        },
+      )
     },
     async rejectMyApplicationConsents(applicationId: string, comment?: string) {
       const authStore = useAuthStore()
       if (!authStore.token) throw new Error('未登录，无法拒绝')
-      return apiFetch(`/companies/applications/${applicationId}/consents/reject`, {
-        method: 'POST',
-        body: { comment },
-        token: authStore.token,
-      })
+      return apiFetch(
+        `/companies/applications/${applicationId}/consents/reject`,
+        {
+          method: 'POST',
+          body: { comment },
+          token: authStore.token,
+        },
+      )
     },
     async withdrawMyApplication(applicationId: string, comment?: string) {
       const authStore = useAuthStore()
@@ -252,7 +259,10 @@ export const useCompanyStore = defineStore('companies', {
         this.submitting = false
       }
     },
-    async applyNameChange(companyId: string, payload: CompanyRenameApplyPayload) {
+    async applyNameChange(
+      companyId: string,
+      payload: CompanyRenameApplyPayload,
+    ) {
       this.submitting = true
       try {
         const authStore = useAuthStore()
@@ -292,7 +302,8 @@ export const useCompanyStore = defineStore('companies', {
       this.submitting = true
       try {
         const authStore = useAuthStore()
-        if (!authStore.token) throw new Error('未登录，无法提交经营范围变更申请')
+        if (!authStore.token)
+          throw new Error('未登录，无法提交经营范围变更申请')
         // 后端返回“申请+同意明细”，公司状态不会在提交时立即改变，因此不更新 dashboard
         return apiFetch(`/companies/${companyId}/business-scope-change`, {
           method: 'POST',
@@ -310,7 +321,8 @@ export const useCompanyStore = defineStore('companies', {
       this.submitting = true
       try {
         const authStore = useAuthStore()
-        if (!authStore.token) throw new Error('未登录，无法提交注册资本变更申请')
+        if (!authStore.token)
+          throw new Error('未登录，无法提交注册资本变更申请')
         // 后端返回“申请+同意明细”，公司状态不会在提交时立即改变，因此不更新 dashboard
         return apiFetch(`/companies/${companyId}/capital-change`, {
           method: 'POST',

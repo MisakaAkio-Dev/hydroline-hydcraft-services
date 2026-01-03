@@ -14,10 +14,7 @@ const props = defineProps<{
   modelValue: boolean
   types: CompanyType[]
   industries: CompanyIndustry[]
-  searchUsers: (
-    keyword: string,
-    limit: number,
-  ) => Promise<CompanyUserRef[]>
+  searchUsers: (keyword: string, limit: number) => Promise<CompanyUserRef[]>
   saving?: boolean
 }>()
 
@@ -85,9 +82,11 @@ const divisionOptions = computed(() =>
 const selectedDivisionPathLabel = computed(() => {
   const path = selectedDivisionPath.value
   if (!path) return ''
-  const parts = [path.level1?.name, path.level2?.name, path.level3?.name].filter(
-    Boolean,
-  ) as string[]
+  const parts = [
+    path.level1?.name,
+    path.level2?.name,
+    path.level3?.name,
+  ].filter(Boolean) as string[]
   return parts.join(' / ')
 })
 
@@ -276,7 +275,10 @@ function handleSubmit() {
                 :clearable="false"
                 :disabled="divisionOptions.length === 0"
               />
-              <p v-if="selectedDivisionPathLabel" class="text-xs text-slate-500">
+              <p
+                v-if="selectedDivisionPathLabel"
+                class="text-xs text-slate-500"
+              >
                 路径：{{ selectedDivisionPathLabel }}
               </p>
             </div>

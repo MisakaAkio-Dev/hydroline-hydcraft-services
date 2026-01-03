@@ -262,14 +262,17 @@ const administrativeDivisionPathLabel = computed(() => {
   const division = props.company?.administrativeDivision
   const path = division?.domicileDivisionPath
   if (!path) return ''
-  const parts = [path.level1?.name, path.level2?.name, path.level3?.name].filter(
-    Boolean,
-  ) as string[]
+  const parts = [
+    path.level1?.name,
+    path.level2?.name,
+    path.level3?.name,
+  ].filter(Boolean) as string[]
   return parts.join(' / ')
 })
 
 const administrativeDivisionLevelLabel = computed(() => {
-  const level = props.company?.administrativeDivision?.administrativeDivisionLevel
+  const level =
+    props.company?.administrativeDivision?.administrativeDivisionLevel
   if (level === 1) return '一级（省/自治区/直辖市）'
   if (level === 2) return '二级（地市/州）'
   if (level === 3) return '三级（区/县）'
@@ -598,9 +601,7 @@ function handleSave() {
                       v-for="officer in company.llcRegistration.officers ?? []"
                       :key="`${officer.role}-${officer.user?.id ?? 'unknown'}`"
                     >
-                      {{
-                        officerRoleLabel(officer.role)
-                      }}
+                      {{ officerRoleLabel(officer.role) }}
                       ·
                       {{
                         officer.user?.displayName ||
@@ -610,7 +611,9 @@ function handleSave() {
                       }}
                     </div>
                     <div
-                      v-if="(company.llcRegistration.officers?.length ?? 0) === 0"
+                      v-if="
+                        (company.llcRegistration.officers?.length ?? 0) === 0
+                      "
                       class="text-xs text-slate-400"
                     >
                       暂无高管记录
@@ -632,7 +635,10 @@ function handleSave() {
                       {{ Number(sh.votingRatio).toFixed(2) }}%
                     </div>
                     <div
-                      v-if="(company.llcRegistration.shareholders?.length ?? 0) === 0"
+                      v-if="
+                        (company.llcRegistration.shareholders?.length ?? 0) ===
+                        0
+                      "
                       class="text-xs text-slate-400"
                     >
                       暂无股东记录

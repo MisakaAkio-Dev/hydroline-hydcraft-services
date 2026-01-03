@@ -252,7 +252,10 @@ watch(autoApproveDraft, async (value) => {
           <UButton color="primary" @click="applyFilters"> 查询 </UButton>
           <div class="flex items-center gap-2 text-sm">
             <span>自动审批</span>
-            <USwitch v-model="autoApproveDraft" :disabled="autoApproveLoading" />
+            <USwitch
+              v-model="autoApproveDraft"
+              :disabled="autoApproveLoading"
+            />
           </div>
         </div>
       </div>
@@ -454,7 +457,9 @@ watch(autoApproveDraft, async (value) => {
           </div>
           <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <div class="grid grid-cols-[120px_minmax(0,1fr)] items-start gap-3">
-              <label class="text-xs font-semibold text-slate-500">审批动作</label>
+              <label class="text-xs font-semibold text-slate-500"
+                >审批动作</label
+              >
               <USelectMenu
                 v-model="actionKey"
                 :items="actionOptions"
@@ -478,7 +483,9 @@ watch(autoApproveDraft, async (value) => {
                 actionTarget?.workflowInstance?.definition?.name || '未配置流程'
               }}
               ·
-              {{ actionTarget?.status ? statusLabels[actionTarget.status] : '—' }}
+              {{
+                actionTarget?.status ? statusLabels[actionTarget.status] : '—'
+              }}
             </div>
           </div>
           <div
@@ -504,5 +511,3 @@ watch(autoApproveDraft, async (value) => {
     </UModal>
   </section>
 </template>
-
-

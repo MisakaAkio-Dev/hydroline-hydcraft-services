@@ -51,5 +51,3 @@ export class UpdateWorldDivisionNodeDto {
   @MaxLength(64)
   parentId?: string | null;
 }
-
-

@@ -46,7 +46,10 @@ watch(
     transferorCompanyTimer = setTimeout(async () => {
       if (form.transferor.kind !== 'COMPANY') return
       try {
-        transferorCompanyOptions.value = await companyStore.searchCompanies(q, 10)
+        transferorCompanyOptions.value = await companyStore.searchCompanies(
+          q,
+          10,
+        )
       } catch {
         transferorCompanyOptions.value = []
       }
@@ -85,7 +88,10 @@ watch(
     transfereeCompanyTimer = setTimeout(async () => {
       if (form.transferee.kind !== 'COMPANY') return
       try {
-        transfereeCompanyOptions.value = await companyStore.searchCompanies(q, 10)
+        transfereeCompanyOptions.value = await companyStore.searchCompanies(
+          q,
+          10,
+        )
       } catch {
         transfereeCompanyOptions.value = []
       }
@@ -98,11 +104,15 @@ const canSubmit = computed(() => {
   if (!Number.isFinite(form.ratio) || form.ratio <= 0) return false
   if (!Number.isFinite(form.votingRatio) || form.votingRatio <= 0) return false
   const transfereeOk =
-    (form.transferee.kind === 'USER' && Boolean((form.transferee as any).userId)) ||
-    (form.transferee.kind === 'COMPANY' && Boolean((form.transferee as any).companyId))
+    (form.transferee.kind === 'USER' &&
+      Boolean((form.transferee as any).userId)) ||
+    (form.transferee.kind === 'COMPANY' &&
+      Boolean((form.transferee as any).companyId))
   const transferorOk =
-    (form.transferor.kind === 'USER' && Boolean((form.transferor as any).userId)) ||
-    (form.transferor.kind === 'COMPANY' && Boolean((form.transferor as any).companyId))
+    (form.transferor.kind === 'USER' &&
+      Boolean((form.transferor as any).userId)) ||
+    (form.transferor.kind === 'COMPANY' &&
+      Boolean((form.transferor as any).companyId))
   return transfereeOk && transferorOk
 })
 
@@ -169,8 +179,13 @@ watch(
           :disabled="props.submitting"
         />
 
-        <div v-if="form.transferor.kind === 'USER'" class="text-xs text-slate-500">
-          当前登录用户：{{ authStore.user?.name || authStore.user?.email || '—' }}
+        <div
+          v-if="form.transferor.kind === 'USER'"
+          class="text-xs text-slate-500"
+        >
+          当前登录用户：{{
+            authStore.user?.name || authStore.user?.email || '—'
+          }}
         </div>
 
         <div v-else class="space-y-2">
@@ -277,7 +292,9 @@ watch(
     </div>
 
     <div class="space-y-2">
-      <div class="text-sm font-semibold text-slate-900 dark:text-white">备注</div>
+      <div class="text-sm font-semibold text-slate-900 dark:text-white">
+        备注
+      </div>
       <UTextarea
         v-model="form.comment"
         rows="3"
@@ -287,7 +304,12 @@ watch(
     </div>
 
     <div class="flex justify-end gap-2">
-      <UButton color="primary" :disabled="!canSubmit" :loading="props.submitting" @click="handleSubmit">
+      <UButton
+        color="primary"
+        :disabled="!canSubmit"
+        :loading="props.submitting"
+        @click="handleSubmit"
+      >
         提交股权转让申请
       </UButton>
     </div>
@@ -297,5 +319,3 @@ watch(
     </div>
   </div>
 </template>
-
-

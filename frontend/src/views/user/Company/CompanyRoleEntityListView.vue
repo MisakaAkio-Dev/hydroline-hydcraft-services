@@ -74,7 +74,9 @@ const entities = computed(() => {
     case 'legalRepresentative':
       return all.filter((company) => {
         const byCompany = company.legalRepresentative?.id === userId
-        const byOfficers = hasOfficerRole(company, userId, ['LEGAL_REPRESENTATIVE'])
+        const byOfficers = hasOfficerRole(company, userId, [
+          'LEGAL_REPRESENTATIVE',
+        ])
         return Boolean(byCompany || byOfficers)
       })
     case 'shareholding':
@@ -90,7 +92,10 @@ const entities = computed(() => {
       })
     case 'manager':
       return all.filter((company) => {
-        const byOfficers = hasOfficerRole(company, userId, ['MANAGER', 'DEPUTY_MANAGER'])
+        const byOfficers = hasOfficerRole(company, userId, [
+          'MANAGER',
+          'DEPUTY_MANAGER',
+        ])
         return Boolean(byOfficers)
       })
     case 'supervisor':
@@ -102,7 +107,9 @@ const entities = computed(() => {
         return Boolean(byOfficers)
       })
     case 'financialOfficer':
-      return all.filter((company) => hasOfficerRole(company, userId, ['FINANCIAL_OFFICER']))
+      return all.filter((company) =>
+        hasOfficerRole(company, userId, ['FINANCIAL_OFFICER']),
+      )
     default:
       return []
   }
@@ -112,7 +119,9 @@ const filteredEntities = computed(() => {
   const q = search.value.trim().toLowerCase()
   if (!q) return entities.value
   return entities.value.filter((company) =>
-    String(company.name || '').toLowerCase().includes(q),
+    String(company.name || '')
+      .toLowerCase()
+      .includes(q),
   )
 })
 
@@ -171,7 +180,11 @@ watch(
 <template>
   <section class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-4">
-      <UButton color="primary" variant="ghost" @click="router.push('/company/dashboard')">
+      <UButton
+        color="primary"
+        variant="ghost"
+        @click="router.push('/company/dashboard')"
+      >
         <UIcon name="i-lucide-arrow-left" />
         返回仪表盘
       </UButton>
@@ -206,7 +219,9 @@ watch(
       class="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white dark:border-slate-800/70 dark:bg-slate-900"
     >
       <div class="overflow-x-auto">
-        <table class="min-w-[960px] w-full text-left text-sm text-slate-600 dark:text-slate-300">
+        <table
+          class="min-w-[960px] w-full text-left text-sm text-slate-600 dark:text-slate-300"
+        >
           <thead
             class="bg-slate-50 text-xs uppercase tracking-wide whitespace-nowrap text-slate-500 dark:bg-slate-800 dark:text-slate-400"
           >
@@ -242,13 +257,21 @@ watch(
                 <CompanyStatusBadge :status="company.status" />
               </td>
               <td class="px-4 py-3 text-right">
-                <UButton size="xs" color="primary" variant="ghost" @click="openDetail(company.id)">
+                <UButton
+                  size="xs"
+                  color="primary"
+                  variant="ghost"
+                  @click="openDetail(company.id)"
+                >
                   查看详情
                 </UButton>
               </td>
             </tr>
             <tr v-if="pagedEntities.length === 0">
-              <td colspan="5" class="px-4 py-10 text-center text-sm text-slate-500">
+              <td
+                colspan="5"
+                class="px-4 py-10 text-center text-sm text-slate-500"
+              >
                 暂无匹配的主体
               </td>
             </tr>
@@ -260,10 +283,16 @@ watch(
         class="flex items-center justify-between border-t border-slate-100 px-6 py-4 text-xs text-slate-500 dark:border-slate-800"
       >
         <div>
-          共 {{ filteredEntities.length }} 条 · 第 {{ page }} / {{ pageCount }} 页
+          共 {{ filteredEntities.length }} 条 · 第 {{ page }} /
+          {{ pageCount }} 页
         </div>
         <div class="flex items-center gap-2">
-          <UButton variant="ghost" size="sm" :disabled="page <= 1" @click="goToPage(page - 1)">
+          <UButton
+            variant="ghost"
+            size="sm"
+            :disabled="page <= 1"
+            @click="goToPage(page - 1)"
+          >
             上一页
           </UButton>
           <UButton
@@ -279,5 +308,3 @@ watch(
     </div>
   </section>
 </template>
-
-

@@ -172,9 +172,15 @@ export interface CompanyApplication {
   resolvedAt?: string | null
 }
 
-export type CompanyApplicationConsentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type CompanyApplicationConsentStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
 
-export type CompanyApplicationConsentProgress = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type CompanyApplicationConsentProgress =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
 
 export type CompanyApplicationConsentRole =
   | 'LEGAL_REPRESENTATIVE'
@@ -203,7 +209,12 @@ export interface MyCompanyApplicationEntry {
   consentCompletedAt?: string | null
   consentCounts: { pending: number; approved: number; rejected: number }
   companyId?: string | null
-  company?: { id: string; name: string; slug: string; status?: string | null } | null
+  company?: {
+    id: string
+    name: string
+    slug: string
+    status?: string | null
+  } | null
   /** 管理员在“驳回/要求补件”时填写的理由（后端已按当前状态挑选匹配的 comment） */
   reviewComment?: string | null
   /** 兼容字段：驳回理由（可能来自历史字段或工作流动作 comment） */

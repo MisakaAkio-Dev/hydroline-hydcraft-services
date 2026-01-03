@@ -61,5 +61,3 @@ export class CompanyGeoAdminController {
     return { success: true };
   }
 }
-
-

@@ -24,10 +24,7 @@ function ownerUser(company: CompanyModel | null | undefined) {
 
   if (!user) return null
 
-  const displayName =
-    user.displayName ||
-    user.name ||
-    '未知用户'
+  const displayName = user.displayName || user.name || '未知用户'
 
   const avatarUrl = user.avatarUrl ?? null
 

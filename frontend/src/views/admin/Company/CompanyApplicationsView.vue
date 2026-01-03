@@ -112,11 +112,7 @@ function getCompanyName(entry: AdminCompanyApplicationEntry) {
 }
 
 function getCompanyTypeName(entry: AdminCompanyApplicationEntry) {
-  return (
-    entry.company?.type?.name ||
-    entry.type?.name ||
-    '未绑定类型'
-  )
+  return entry.company?.type?.name || entry.type?.name || '未绑定类型'
 }
 
 function getRegistrationAuthorityName(entry: AdminCompanyApplicationEntry) {
@@ -135,7 +131,9 @@ type ApplicationActionOption = {
   color: 'primary' | 'neutral'
 }
 
-function actionsForEntry(entry: AdminCompanyApplicationEntry): ApplicationActionOption[] {
+function actionsForEntry(
+  entry: AdminCompanyApplicationEntry,
+): ApplicationActionOption[] {
   switch (entry.status) {
     case 'UNDER_REVIEW':
       return [
@@ -519,7 +517,9 @@ watch(autoApproveDraft, async (value) => {
                 actionTarget?.workflowInstance?.definition?.name || '未配置流程'
               }}
               ·
-              {{ actionTarget?.status ? statusLabel(actionTarget.status) : '—' }}
+              {{
+                actionTarget?.status ? statusLabel(actionTarget.status) : '—'
+              }}
             </div>
           </div>
           <div

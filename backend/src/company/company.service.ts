@@ -838,7 +838,11 @@ export class CompanyService implements OnModuleInit {
     );
 
     if (entry) {
-      await this.configService.updateEntry(entry.id, { value: normalized }, userId);
+      await this.configService.updateEntry(
+        entry.id,
+        { value: normalized },
+        userId,
+      );
       return;
     }
 
@@ -847,7 +851,8 @@ export class CompanyService implements OnModuleInit {
       {
         key: WORLD_ADMIN_DIVISIONS_KEY,
         value: normalized,
-        description: '行政区划节点列表（平铺），level=1/2/3，parentId 指向上一级',
+        description:
+          '行政区划节点列表（平铺），level=1/2/3，parentId 指向上一级',
       },
       userId,
     );
@@ -862,12 +867,16 @@ export class CompanyService implements OnModuleInit {
     return nodes;
   }
 
-  async createWorldDivisionNode(body: CreateWorldDivisionNodeDto, userId?: string) {
+  async createWorldDivisionNode(
+    body: CreateWorldDivisionNodeDto,
+    userId?: string,
+  ) {
     const nodes = await this.loadWorldDivisions();
     const id = String(body.id ?? '').trim();
     const name = String(body.name ?? '').trim();
     const level = body.level;
-    const parentId = body.parentId === undefined ? null : (body.parentId ?? null);
+    const parentId =
+      body.parentId === undefined ? null : (body.parentId ?? null);
 
     if (!id) throw new BadRequestException('id 不能为空');
     if (!name) throw new BadRequestException('name 不能为空');
@@ -880,12 +889,13 @@ export class CompanyService implements OnModuleInit {
 
     const byId = new Map(nodes.map((n) => [n.id, n] as const));
     if (level === 1) {
-      if (parentId) throw new BadRequestException('一级节点不允许设置 parentId');
+      if (parentId)
+        throw new BadRequestException('一级节点不允许设置 parentId');
     } else {
       if (!parentId) throw new BadRequestException('必须设置 parentId');
       const parent = byId.get(parentId);
       if (!parent) throw new BadRequestException('parentId 不存在');
-      if (parent.level !== (level - 1)) {
+      if (parent.level !== level - 1) {
         throw new BadRequestException('parentId 的 level 不匹配');
       }
     }
@@ -935,7 +945,7 @@ export class CompanyService implements OnModuleInit {
       }
       const parent = byId.get(nextParentId);
       if (!parent) throw new BadRequestException('parentId 不存在');
-      if (parent.level !== (current.level - 1)) {
+      if (parent.level !== current.level - 1) {
         throw new BadRequestException('parentId 的 level 不匹配');
       }
 
@@ -1374,7 +1384,9 @@ export class CompanyService implements OnModuleInit {
       application.status === CompanyApplicationStatus.REJECTED ||
       application.status === CompanyApplicationStatus.ARCHIVED
     ) {
-      throw new BadRequestException('Application is no longer pending consents');
+      throw new BadRequestException(
+        'Application is no longer pending consents',
+      );
     }
 
     const now = new Date();
@@ -1579,7 +1591,9 @@ export class CompanyService implements OnModuleInit {
             : null;
       const workflowCode = a.workflowInstance?.definitionCode ?? null;
       const baseName =
-        typeof payload?.name === 'string' ? payload.name : (a.company?.name ?? null);
+        typeof payload?.name === 'string'
+          ? payload.name
+          : (a.company?.name ?? null);
       const requestedName =
         typeof payload?.newName === 'string' ? payload.newName.trim() : null;
       const requestedDomicileAddress =
@@ -1592,7 +1606,8 @@ export class CompanyService implements OnModuleInit {
           : null;
       const requestedNewCapitalRaw = payload?.newRegisteredCapital;
       const requestedNewCapital =
-        typeof requestedNewCapitalRaw === 'number' && Number.isFinite(requestedNewCapitalRaw)
+        typeof requestedNewCapitalRaw === 'number' &&
+        Number.isFinite(requestedNewCapitalRaw)
           ? Math.floor(requestedNewCapitalRaw)
           : typeof requestedNewCapitalRaw === 'string' &&
               requestedNewCapitalRaw.trim() &&
@@ -1614,7 +1629,7 @@ export class CompanyService implements OnModuleInit {
               : workflowCode === DEFAULT_COMPANY_CAPITAL_CHANGE_WORKFLOW_CODE &&
                   requestedNewCapital !== null
                 ? `${baseName ?? '（未命名公司）'}（注册资本变更为：${requestedNewCapital}）`
-              : baseName;
+                : baseName;
       return {
         id: a.id,
         companyId: a.companyId,
@@ -2031,7 +2046,8 @@ export class CompanyService implements OnModuleInit {
 
     return Array.from(byApp.values()).map((entry) => {
       const payload = entry.application?.payload;
-      const workflowCode = entry.application.workflowInstance?.definitionCode ?? null;
+      const workflowCode =
+        entry.application.workflowInstance?.definitionCode ?? null;
       const baseName =
         typeof payload?.name === 'string'
           ? payload.name
@@ -2461,7 +2477,9 @@ export class CompanyService implements OnModuleInit {
       select: { id: true },
     });
     if (existing) {
-      throw new BadRequestException('Domicile change request already submitted');
+      throw new BadRequestException(
+        'Domicile change request already submitted',
+      );
     }
 
     const workflowInstance = await this.workflowService.createInstance({
@@ -2472,7 +2490,9 @@ export class CompanyService implements OnModuleInit {
       context: {
         name: company.name,
         domicileAddress,
-        ...(resolvedAuthorityName ? { registrationAuthorityName: resolvedAuthorityName } : {}),
+        ...(resolvedAuthorityName
+          ? { registrationAuthorityName: resolvedAuthorityName }
+          : {}),
         ...(registrationAuthorityCompanyId
           ? { registrationAuthorityCompanyId }
           : {}),
@@ -2494,7 +2514,8 @@ export class CompanyService implements OnModuleInit {
           domicileDivisionId: dto.domicileDivisionId ?? null,
           domicileDivisionPath: dto.domicileDivisionPath ?? null,
           registrationAuthorityName: resolvedAuthorityName || null,
-          registrationAuthorityCompanyId: registrationAuthorityCompanyId || null,
+          registrationAuthorityCompanyId:
+            registrationAuthorityCompanyId || null,
           reason: dto.reason ?? null,
         }),
         workflowInstanceId: workflowInstance.id,
@@ -2644,7 +2665,10 @@ export class CompanyService implements OnModuleInit {
         actionLabel: '提交经营范围变更申请',
         resultState: workflowInstance.currentState,
         comment: dto.reason ?? undefined,
-        payload: this.toJsonValue({ businessScope, reason: dto.reason ?? null }),
+        payload: this.toJsonValue({
+          businessScope,
+          reason: dto.reason ?? null,
+        }),
       },
     });
 
@@ -2972,7 +2996,9 @@ export class CompanyService implements OnModuleInit {
     const currentFinancialOfficerId = currentFinancialOfficerIds[0] ?? null;
 
     const finalManagerId =
-      dto.managerId !== undefined ? normalizeId(dto.managerId) : currentManagerId;
+      dto.managerId !== undefined
+        ? normalizeId(dto.managerId)
+        : currentManagerId;
     const finalDeputyManagerId =
       dto.deputyManagerId !== undefined
         ? normalizeId(dto.deputyManagerId)
@@ -3088,7 +3114,11 @@ export class CompanyService implements OnModuleInit {
       requiredUserId: string;
       role: ManagementOfficerConsentRole;
     }> = [];
-    if (dto.managerId !== undefined && finalManagerId && finalManagerId !== currentManagerId) {
+    if (
+      dto.managerId !== undefined &&
+      finalManagerId &&
+      finalManagerId !== currentManagerId
+    ) {
       newOfficerConsents.push({
         requiredUserId: finalManagerId,
         role: CompanyApplicationConsentRole.MANAGER,
@@ -3221,7 +3251,9 @@ export class CompanyService implements OnModuleInit {
         ? dto.votingRightsMode
         : 'BY_CAPITAL_RATIO';
 
-    const shareholders = Array.isArray(dto.shareholders) ? dto.shareholders : [];
+    const shareholders = Array.isArray(dto.shareholders)
+      ? dto.shareholders
+      : [];
     if (!shareholders.length) {
       throw new BadRequestException('请填写变更后股东结构');
     }
@@ -3244,7 +3276,11 @@ export class CompanyService implements OnModuleInit {
       ratioSum += ratio;
 
       if (votingMode === 'CUSTOM') {
-        if (!Number.isFinite(votingRatio) || votingRatio < 0 || votingRatio > 100) {
+        if (
+          !Number.isFinite(votingRatio) ||
+          votingRatio < 0 ||
+          votingRatio > 100
+        ) {
           throw new BadRequestException('股东表决权必须在 0%～100% 之间');
         }
         votingSum += votingRatio;
@@ -3265,7 +3301,9 @@ export class CompanyService implements OnModuleInit {
       }
 
       if (kind === 'COMPANY') {
-        const cid = String((s as { companyId?: unknown })?.companyId ?? '').trim();
+        const cid = String(
+          (s as { companyId?: unknown })?.companyId ?? '',
+        ).trim();
         if (!cid) {
           throw new BadRequestException('股东类型为公司时必须填写 companyId');
         }
@@ -3515,7 +3553,11 @@ export class CompanyService implements OnModuleInit {
       },
     });
 
-    await this.initEquityTransferApplicationConsents(application.id, company, dto);
+    await this.initEquityTransferApplicationConsents(
+      application.id,
+      company,
+      dto,
+    );
 
     const settings = await this.getCompanyApplicationSettings(
       DEFAULT_COMPANY_EQUITY_TRANSFER_WORKFLOW_CODE,
@@ -3862,7 +3904,9 @@ export class CompanyService implements OnModuleInit {
       typeId: type?.id ?? null,
       industryId: industry?.id ?? null,
       category:
-        dto.category ?? type?.category ?? CompanyCategory.FOR_PROFIT_LEGAL_PERSON,
+        dto.category ??
+        type?.category ??
+        CompanyCategory.FOR_PROFIT_LEGAL_PERSON,
       legalRepresentativeId,
       legalNameSnapshot:
         legalRepresentative.profile?.displayName ??
@@ -3872,12 +3916,14 @@ export class CompanyService implements OnModuleInit {
         ? {
             administrativeDivisionId: domicileDivisionId,
             administrativeDivisionName: administrativeDivisionName ?? undefined,
-            administrativeDivisionLevel: administrativeDivisionLevel ?? undefined,
+            administrativeDivisionLevel:
+              administrativeDivisionLevel ?? undefined,
             extra: this.toJsonValue({
               registry: {
                 domicileDivisionId,
                 domicileDivisionPath: administrativeDivisionPath,
-                administrativeDivisionLevel: administrativeDivisionLevel ?? undefined,
+                administrativeDivisionLevel:
+                  administrativeDivisionLevel ?? undefined,
               },
             }),
           }
@@ -4102,13 +4148,14 @@ export class CompanyService implements OnModuleInit {
             : workflowCode === DEFAULT_COMPANY_DOMICILE_CHANGE_WORKFLOW_CODE
               ? '公司住所变更自动审批'
               : workflowCode ===
-                    DEFAULT_COMPANY_BUSINESS_SCOPE_CHANGE_WORKFLOW_CODE
+                  DEFAULT_COMPANY_BUSINESS_SCOPE_CHANGE_WORKFLOW_CODE
                 ? '公司经营范围变更自动审批'
                 : workflowCode === DEFAULT_COMPANY_CAPITAL_CHANGE_WORKFLOW_CODE
                   ? '公司注册资本变更自动审批'
-                  : workflowCode === DEFAULT_COMPANY_OFFICER_CHANGE_WORKFLOW_CODE
+                  : workflowCode ===
+                      DEFAULT_COMPANY_OFFICER_CHANGE_WORKFLOW_CODE
                     ? '公司董事/监事变更自动审批'
-                : '公司申请自动审批';
+                    : '公司申请自动审批';
       await this.configService.createEntry(
         namespace.id,
         {
@@ -4447,7 +4494,8 @@ export class CompanyService implements OnModuleInit {
         brandName: llc.brandName,
         industryFeature: llc.industryFeature,
         registrationAuthorityName,
-        registrationAuthorityCompanyId: llc.registrationAuthorityCompanyId ?? null,
+        registrationAuthorityCompanyId:
+          llc.registrationAuthorityCompanyId ?? null,
         domicileAddress: llc.domicileAddress,
         operatingTermType,
         operatingTermYears: operatingTermYears ?? undefined,
@@ -4465,7 +4513,8 @@ export class CompanyService implements OnModuleInit {
         brandName: llc.brandName,
         industryFeature: llc.industryFeature,
         registrationAuthorityName,
-        registrationAuthorityCompanyId: llc.registrationAuthorityCompanyId ?? null,
+        registrationAuthorityCompanyId:
+          llc.registrationAuthorityCompanyId ?? null,
         domicileAddress: llc.domicileAddress,
         operatingTermType,
         operatingTermYears: operatingTermYears ?? undefined,
@@ -4685,7 +4734,8 @@ export class CompanyService implements OnModuleInit {
       }
 
       if (
-        transition.instance.definitionCode === DEFAULT_COMPANY_RENAME_WORKFLOW_CODE &&
+        transition.instance.definitionCode ===
+          DEFAULT_COMPANY_RENAME_WORKFLOW_CODE &&
         resolvedApplicationId
       ) {
         await this.persistCompanyRenameIfNeeded(
@@ -4823,7 +4873,9 @@ export class CompanyService implements OnModuleInit {
     return llcId || null;
   }
 
-  private async resolveRegistrationAuthorityForApplication(applicationId: string) {
+  private async resolveRegistrationAuthorityForApplication(
+    applicationId: string,
+  ) {
     const application = await this.prisma.companyApplication.findUnique({
       where: { id: applicationId },
       select: {
@@ -4849,9 +4901,10 @@ export class CompanyService implements OnModuleInit {
       this.extractRegistrationAuthorityCompanyIdFromApplicationPayload(
         application.payload,
       );
-    const payloadAuthority = this.extractRegistrationAuthorityNameFromApplicationPayload(
-      application.payload,
-    );
+    const payloadAuthority =
+      this.extractRegistrationAuthorityNameFromApplicationPayload(
+        application.payload,
+      );
     if (payloadAuthorityCompanyId || payloadAuthority) {
       return {
         companyId: payloadAuthorityCompanyId,
@@ -4875,9 +4928,8 @@ export class CompanyService implements OnModuleInit {
     applicationId: string,
     actorId: string,
   ) {
-    const authority = await this.resolveRegistrationAuthorityForApplication(
-      applicationId,
-    );
+    const authority =
+      await this.resolveRegistrationAuthorityForApplication(applicationId);
     if (!authority.companyId && !authority.name) {
       throw new BadRequestException('该申请未关联登记机关，无法由登记机关审批');
     }
@@ -4979,13 +5031,18 @@ export class CompanyService implements OnModuleInit {
       select: { id: true, name: true },
       take: 50,
     });
-    return authorities
-      .map((c) => ({ id: c.id, name: String(c.name ?? '').trim() }))
-      // id 必须存在；name 允许为空（仅用于 name-based 兼容匹配）
-      .filter((c) => Boolean(c.id));
+    return (
+      authorities
+        .map((c) => ({ id: c.id, name: String(c.name ?? '').trim() }))
+        // id 必须存在；name 允许为空（仅用于 name-based 兼容匹配）
+        .filter((c) => Boolean(c.id))
+    );
   }
 
-  async listRegistryApplications(userId: string, query: CompanyApplicationListQueryDto) {
+  async listRegistryApplications(
+    userId: string,
+    query: CompanyApplicationListQueryDto,
+  ) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const workflowCode = query.workflowCode?.trim();
@@ -5003,15 +5060,17 @@ export class CompanyService implements OnModuleInit {
         a."consentStatus" = (${CompanyApplicationConsentProgress.APPROVED}::"CompanyApplicationConsentProgress")
         ${query.status ? Prisma.sql`AND a."status" = (${query.status}::"CompanyApplicationStatus")` : Prisma.empty}
         ${workflowCode ? Prisma.sql`AND wi."definitionCode" = ${workflowCode}` : Prisma.empty}
-        ${keyword
-          ? Prisma.sql`
+        ${
+          keyword
+            ? Prisma.sql`
             AND (
               a."notes" ILIKE ${`%${keyword}%`}
               OR targetCompany."name" ILIKE ${`%${keyword}%`}
               OR applicant."name" ILIKE ${`%${keyword}%`}
             )
           `
-          : Prisma.empty}
+            : Prisma.empty
+        }
         AND (
           authCompany."legalRepresentativeId" = ${userId}
           OR EXISTS (
@@ -5168,7 +5227,8 @@ export class CompanyService implements OnModuleInit {
         brandName: llc.brandName,
         industryFeature: llc.industryFeature,
         registrationAuthorityName,
-        registrationAuthorityCompanyId: llc.registrationAuthorityCompanyId ?? null,
+        registrationAuthorityCompanyId:
+          llc.registrationAuthorityCompanyId ?? null,
         domicileAddress: llc.domicileAddress,
         operatingTermType,
         operatingTermYears: operatingTermYears ?? undefined,
@@ -5186,7 +5246,8 @@ export class CompanyService implements OnModuleInit {
         brandName: llc.brandName,
         industryFeature: llc.industryFeature,
         registrationAuthorityName,
-        registrationAuthorityCompanyId: llc.registrationAuthorityCompanyId ?? null,
+        registrationAuthorityCompanyId:
+          llc.registrationAuthorityCompanyId ?? null,
         domicileAddress: llc.domicileAddress,
         operatingTermType,
         operatingTermYears: operatingTermYears ?? undefined,
@@ -5342,7 +5403,11 @@ export class CompanyService implements OnModuleInit {
     if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 100) {
       throw new BadRequestException('Invalid equity transfer ratio');
     }
-    if (!Number.isFinite(votingRatio) || votingRatio <= 0 || votingRatio > 100) {
+    if (
+      !Number.isFinite(votingRatio) ||
+      votingRatio <= 0 ||
+      votingRatio > 100
+    ) {
       throw new BadRequestException('Invalid equity transfer voting ratio');
     }
 
@@ -5393,7 +5458,8 @@ export class CompanyService implements OnModuleInit {
       const from = shareholders.find((s) => {
         if (transferorKind === 'USER') {
           return (
-            s.kind === CompanyLlcShareholderKind.USER && s.userId === transferorUserId
+            s.kind === CompanyLlcShareholderKind.USER &&
+            s.userId === transferorUserId
           );
         }
         return (
@@ -5415,7 +5481,8 @@ export class CompanyService implements OnModuleInit {
       const to = shareholders.find((s) => {
         if (transfereeKind === 'USER') {
           return (
-            s.kind === CompanyLlcShareholderKind.USER && s.userId === transfereeUserId
+            s.kind === CompanyLlcShareholderKind.USER &&
+            s.userId === transfereeUserId
           );
         }
         return (
@@ -5425,7 +5492,10 @@ export class CompanyService implements OnModuleInit {
       });
 
       const nextFromRatio = Math.max(0, Number(from.ratio) - ratio);
-      const nextFromVoting = Math.max(0, Number(from.votingRatio) - votingRatio);
+      const nextFromVoting = Math.max(
+        0,
+        Number(from.votingRatio) - votingRatio,
+      );
       if (nextFromRatio <= eps && nextFromVoting <= eps) {
         await tx.companyLlcRegistrationShareholder.delete({
           where: { id: from.id },
@@ -5460,7 +5530,8 @@ export class CompanyService implements OnModuleInit {
                 ? CompanyLlcShareholderKind.COMPANY
                 : CompanyLlcShareholderKind.USER,
             userId: transfereeKind === 'USER' ? transfereeUserId : null,
-            companyId: transfereeKind === 'COMPANY' ? transfereeCompanyId : null,
+            companyId:
+              transfereeKind === 'COMPANY' ? transfereeCompanyId : null,
             ratio,
             votingRatio,
             createdAt: now,
@@ -5499,7 +5570,9 @@ export class CompanyService implements OnModuleInit {
     }
     const newNameRaw = payload.newName;
     const newName =
-      typeof newNameRaw === 'string' ? newNameRaw.trim() : String(newNameRaw ?? '').trim();
+      typeof newNameRaw === 'string'
+        ? newNameRaw.trim()
+        : String(newNameRaw ?? '').trim();
     if (!newName) {
       throw new BadRequestException('Invalid new company name');
     }
@@ -5586,7 +5659,8 @@ export class CompanyService implements OnModuleInit {
         ? (domicileDivisionPathRaw as Prisma.InputJsonValue)
         : null;
 
-    const registrationAuthorityCompanyIdRaw = payload.registrationAuthorityCompanyId;
+    const registrationAuthorityCompanyIdRaw =
+      payload.registrationAuthorityCompanyId;
     const registrationAuthorityCompanyId =
       typeof registrationAuthorityCompanyIdRaw === 'string'
         ? registrationAuthorityCompanyIdRaw.trim()
@@ -5637,15 +5711,9 @@ export class CompanyService implements OnModuleInit {
       where: { companyId },
       data: {
         domicileAddress,
-        ...(domicileDivisionId
-          ? { domicileDivisionId }
-          : {}),
-        ...(domicileDivisionPath
-          ? { domicileDivisionPath }
-          : {}),
-        ...(registrationAuthorityName
-          ? { registrationAuthorityName }
-          : {}),
+        ...(domicileDivisionId ? { domicileDivisionId } : {}),
+        ...(domicileDivisionPath ? { domicileDivisionPath } : {}),
+        ...(registrationAuthorityName ? { registrationAuthorityName } : {}),
         ...(registrationAuthorityCompanyId
           ? { registrationAuthorityCompanyId }
           : {}),
@@ -5848,9 +5916,11 @@ export class CompanyService implements OnModuleInit {
 
       if (kind === 'USER') {
         const uid = String(s.userId ?? '').trim();
-        if (!uid) throw new BadRequestException('股东类型为用户时必须填写 userId');
+        if (!uid)
+          throw new BadRequestException('股东类型为用户时必须填写 userId');
         const key = `U:${uid}`;
-        if (keySet.has(key)) throw new BadRequestException('股东列表存在重复主体');
+        if (keySet.has(key))
+          throw new BadRequestException('股东列表存在重复主体');
         keySet.add(key);
         normalizedShareholders.push({
           kind: CompanyLlcShareholderKind.USER,
@@ -5870,7 +5940,8 @@ export class CompanyService implements OnModuleInit {
           throw new BadRequestException('公司不能作为自身股东');
         }
         const key = `C:${cid}`;
-        if (keySet.has(key)) throw new BadRequestException('股东列表存在重复主体');
+        if (keySet.has(key))
+          throw new BadRequestException('股东列表存在重复主体');
         keySet.add(key);
         normalizedShareholders.push({
           kind: CompanyLlcShareholderKind.COMPANY,
@@ -5893,8 +5964,8 @@ export class CompanyService implements OnModuleInit {
     }
 
     const now = new Date();
-    const { beforeCapital, beforeShareholders } = await this.prisma.$transaction(
-      async (tx) => {
+    const { beforeCapital, beforeShareholders } =
+      await this.prisma.$transaction(async (tx) => {
         const registration = await tx.companyLlcRegistration.findUnique({
           where: { companyId },
           include: { shareholders: true },
@@ -5904,13 +5975,15 @@ export class CompanyService implements OnModuleInit {
         }
 
         const beforeCapital = Number(registration.registeredCapital ?? 0);
-        const beforeShareholders = (registration.shareholders ?? []).map((s) => ({
-          kind: s.kind,
-          userId: s.userId ?? null,
-          companyId: s.companyId ?? null,
-          ratio: Number(s.ratio),
-          votingRatio: Number(s.votingRatio),
-        }));
+        const beforeShareholders = (registration.shareholders ?? []).map(
+          (s) => ({
+            kind: s.kind,
+            userId: s.userId ?? null,
+            companyId: s.companyId ?? null,
+            ratio: Number(s.ratio),
+            votingRatio: Number(s.votingRatio),
+          }),
+        );
 
         await tx.companyLlcRegistration.update({
           where: { companyId },
@@ -5938,8 +6011,7 @@ export class CompanyService implements OnModuleInit {
         });
 
         return { beforeCapital, beforeShareholders };
-      },
-    );
+      });
 
     await this.prisma.company.update({
       where: { id: companyId },
@@ -6128,7 +6200,10 @@ export class CompanyService implements OnModuleInit {
         resultState: 'APPLIED',
         comment: '公司董事/监事变更已生效',
         payload: this.toJsonValue({
-          from: { directorIds: beforeDirectors, supervisorIds: beforeSupervisors },
+          from: {
+            directorIds: beforeDirectors,
+            supervisorIds: beforeSupervisors,
+          },
           to: { directorIds, supervisorIds },
         }),
         createdAt: now,
@@ -6150,7 +6225,9 @@ export class CompanyService implements OnModuleInit {
     if (
       application.consentStatus !== CompanyApplicationConsentProgress.APPROVED
     ) {
-      throw new BadRequestException('同意未完成，无法生效经理/副经理/财务负责人变更');
+      throw new BadRequestException(
+        '同意未完成，无法生效经理/副经理/财务负责人变更',
+      );
     }
 
     const payload =
@@ -6305,7 +6382,8 @@ export class CompanyService implements OnModuleInit {
       if (
         (llc?.officers ?? []).some((o) => o.userId === viewerId) ||
         (llc?.shareholders ?? []).some(
-          (s) => s.kind === CompanyLlcShareholderKind.USER && s.userId === viewerId,
+          (s) =>
+            s.kind === CompanyLlcShareholderKind.USER && s.userId === viewerId,
         )
       ) {
         return true;
@@ -6550,7 +6628,9 @@ export class CompanyService implements OnModuleInit {
       (o) => o.userId === userId && directorRoles.has(o.role),
     );
     if (!ok) {
-      throw new ForbiddenException('Only directors can request management change');
+      throw new ForbiddenException(
+        'Only directors can request management change',
+      );
     }
   }
 
@@ -6564,7 +6644,8 @@ export class CompanyService implements OnModuleInit {
 
     if (
       transferor.kind === transferee.kind &&
-      ((transferor.kind === 'USER' && transferor.userId === transferee.userId) ||
+      ((transferor.kind === 'USER' &&
+        transferor.userId === transferee.userId) ||
         (transferor.kind === 'COMPANY' &&
           transferor.companyId === transferee.companyId))
     ) {
@@ -6628,7 +6709,8 @@ export class CompanyService implements OnModuleInit {
     const from = shareholders.find((s) => {
       if (transferor.kind === 'USER') {
         return (
-          s.kind === CompanyLlcShareholderKind.USER && s.userId === transferor.userId
+          s.kind === CompanyLlcShareholderKind.USER &&
+          s.userId === transferor.userId
         );
       }
       return (
@@ -6873,7 +6955,9 @@ export class CompanyService implements OnModuleInit {
         }
       }
     } else {
-      throw new BadRequestException('LLC 股东数据缺失，无法初始化注册资本变更同意清单');
+      throw new BadRequestException(
+        'LLC 股东数据缺失，无法初始化注册资本变更同意清单',
+      );
     }
 
     // 2) 新增股东：若变更后股东结构出现“新股东”，则必须额外取得新股东同意
@@ -6890,7 +6974,9 @@ export class CompanyService implements OnModuleInit {
         continue;
       }
       if (kind === 'COMPANY') {
-        const cid = String((raw as { companyId?: unknown })?.companyId ?? '').trim();
+        const cid = String(
+          (raw as { companyId?: unknown })?.companyId ?? '',
+        ).trim();
         if (!cid) continue;
         const key = `C:${cid}`;
         if (!originalKeySet.has(key)) newCompanyIds.add(cid);
@@ -7024,18 +7110,24 @@ export class CompanyService implements OnModuleInit {
         }
       }
     } else {
-      throw new BadRequestException('LLC 股东数据缺失，无法初始化董事/监事变更同意清单');
+      throw new BadRequestException(
+        'LLC 股东数据缺失，无法初始化董事/监事变更同意清单',
+      );
     }
 
     // 2) 新任董事/监事同意（只对“新增人员”发起同意项）
-    for (const uid of Array.from(new Set(newDirectorIds ?? [])).filter(Boolean)) {
+    for (const uid of Array.from(new Set(newDirectorIds ?? [])).filter(
+      Boolean,
+    )) {
       requirements.push({
         requiredUserId: uid,
         role: CompanyApplicationConsentRole.DIRECTOR,
         shareholderUserId: uid,
       });
     }
-    for (const uid of Array.from(new Set(newSupervisorIds ?? [])).filter(Boolean)) {
+    for (const uid of Array.from(new Set(newSupervisorIds ?? [])).filter(
+      Boolean,
+    )) {
       requirements.push({
         requiredUserId: uid,
         role: CompanyApplicationConsentRole.SUPERVISOR,
@@ -7269,7 +7361,8 @@ export class CompanyService implements OnModuleInit {
     let hasExtraPending = false;
     for (const [key, s] of statusByKey.entries()) {
       if (weightByShareholderKey.has(key)) continue;
-      if (s === CompanyApplicationConsentStatus.REJECTED) hasExtraRejected = true;
+      if (s === CompanyApplicationConsentStatus.REJECTED)
+        hasExtraRejected = true;
       else if (s === CompanyApplicationConsentStatus.PENDING)
         hasExtraPending = true;
     }
@@ -7341,7 +7434,11 @@ export class CompanyService implements OnModuleInit {
         c.role === CompanyApplicationConsentRole.DIRECTOR ||
         c.role === CompanyApplicationConsentRole.SUPERVISOR,
     );
-    if (officerConsents.some((c) => c.status === CompanyApplicationConsentStatus.REJECTED)) {
+    if (
+      officerConsents.some(
+        (c) => c.status === CompanyApplicationConsentStatus.REJECTED,
+      )
+    ) {
       return CompanyApplicationConsentProgress.REJECTED;
     }
     const hasOfficerPending = officerConsents.some(
@@ -7398,7 +7495,10 @@ export class CompanyService implements OnModuleInit {
       return 1; // APPROVED
     };
 
-    const shareholderStatusByKey = new Map<string, CompanyApplicationConsentStatus>();
+    const shareholderStatusByKey = new Map<
+      string,
+      CompanyApplicationConsentStatus
+    >();
     for (const c of consents) {
       if (
         c.role !== CompanyApplicationConsentRole.SHAREHOLDER_USER &&
@@ -7423,9 +7523,12 @@ export class CompanyService implements OnModuleInit {
     for (const [key, weight] of weightByShareholderKey.entries()) {
       const w = Number(weight);
       if (!Number.isFinite(w) || w <= 0) continue;
-      const s = shareholderStatusByKey.get(key) ?? CompanyApplicationConsentStatus.PENDING;
+      const s =
+        shareholderStatusByKey.get(key) ??
+        CompanyApplicationConsentStatus.PENDING;
       if (s === CompanyApplicationConsentStatus.APPROVED) approvedVoting += w;
-      else if (s === CompanyApplicationConsentStatus.PENDING) pendingVoting += w;
+      else if (s === CompanyApplicationConsentStatus.PENDING)
+        pendingVoting += w;
     }
 
     const threshold = totalVoting / 2;
@@ -7482,7 +7585,8 @@ export class CompanyService implements OnModuleInit {
     let approvedCount = 0;
     let pendingCount = 0;
     for (const c of directorConsents) {
-      if (c.status === CompanyApplicationConsentStatus.APPROVED) approvedCount += 1;
+      if (c.status === CompanyApplicationConsentStatus.APPROVED)
+        approvedCount += 1;
       else if (c.status === CompanyApplicationConsentStatus.PENDING)
         pendingCount += 1;
     }
@@ -7527,11 +7631,9 @@ export class CompanyService implements OnModuleInit {
     const id = String(divisionId ?? '').trim();
     if (!id) return [];
     const path = await this.getGeoDivisionPath(id);
-    const ids = [
-      path.level1?.id,
-      path.level2?.id,
-      path.level3?.id,
-    ].filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+    const ids = [path.level1?.id, path.level2?.id, path.level3?.id].filter(
+      (x): x is string => typeof x === 'string' && x.trim().length > 0,
+    );
     return Array.from(new Set(ids));
   }
 
@@ -7570,14 +7672,15 @@ export class CompanyService implements OnModuleInit {
    * - 返回顺序：level3 -> level2 -> level1（同一层级内按名称排序）
    */
   async listRegistrationAuthoritiesByDivisionId(divisionId: string) {
-    const divisionIds = await this.resolveAuthorityDivisionIdsByDivisionId(
-      divisionId,
-    );
+    const divisionIds =
+      await this.resolveAuthorityDivisionIdsByDivisionId(divisionId);
     if (!divisionIds.length) return [];
 
     // 注意：Prisma client 类型可能滞后于 schema（Windows 下 generate 时还可能被运行中的进程锁文件）。
     // 这里用 queryRaw 直接按列查询，避免 TS 类型不识别新字段导致编译失败。
-    const companies = await this.prisma.$queryRaw<Array<{ id: string; name: string }>>(
+    const companies = await this.prisma.$queryRaw<
+      Array<{ id: string; name: string }>
+    >(
       Prisma.sql`
         SELECT
           c."id",
@@ -7619,9 +7722,8 @@ export class CompanyService implements OnModuleInit {
     if (!name) {
       throw new BadRequestException('登记机关信息无效');
     }
-    const matchers = await this.resolveAuthorityMatchersByDivisionId(
-      domicileDivisionId,
-    );
+    const matchers =
+      await this.resolveAuthorityMatchersByDivisionId(domicileDivisionId);
     const ok = matchers.some((m) => name.includes(m));
     if (!ok) {
       throw new BadRequestException('登记机关不属于所选行政区划的可选范围');
@@ -7794,7 +7896,7 @@ export class CompanyService implements OnModuleInit {
       const inferredLevel: 1 | 2 | 3 | null =
         domicileDivisionPath && typeof domicileDivisionPath === 'object'
           ? (domicileDivisionPath as { level1?: { id?: string } | null })
-                ?.level1?.id === domicileDivisionId
+              ?.level1?.id === domicileDivisionId
             ? 1
             : (domicileDivisionPath as { level2?: { id?: string } | null })
                   ?.level2?.id === domicileDivisionId
@@ -7814,14 +7916,19 @@ export class CompanyService implements OnModuleInit {
               ).trim()
             : level === 2
               ? String(
-                  (domicileDivisionPath as { level2?: { name?: string } | null })
-                    ?.level2?.name ?? '',
+                  (
+                    domicileDivisionPath as {
+                      level2?: { name?: string } | null;
+                    }
+                  )?.level2?.name ?? '',
                 ).trim()
               : level === 3
                 ? String(
-                    (domicileDivisionPath as {
-                      level3?: { name?: string } | null;
-                    })?.level3?.name ?? '',
+                    (
+                      domicileDivisionPath as {
+                        level3?: { name?: string } | null;
+                      }
+                    )?.level3?.name ?? '',
                   ).trim()
                 : ''
           : '';
@@ -7849,7 +7956,8 @@ export class CompanyService implements OnModuleInit {
     const isShareholder = Boolean(
       viewerId &&
         (company.llcRegistration?.shareholders ?? []).some(
-          (s) => s.kind === CompanyLlcShareholderKind.USER && s.userId === viewerId,
+          (s) =>
+            s.kind === CompanyLlcShareholderKind.USER && s.userId === viewerId,
         ),
     );
 
@@ -7860,7 +7968,8 @@ export class CompanyService implements OnModuleInit {
         viewerOfficerRoles.has(CompanyLlcOfficerRole.DEPUTY_MANAGER));
     const canManageMembers = false;
     const canViewDashboard =
-      Boolean(viewerId) && (canEdit || isShareholder || viewerOfficerRoles.size > 0);
+      Boolean(viewerId) &&
+      (canEdit || isShareholder || viewerOfficerRoles.size > 0);
 
     const attachmentUrlMap =
       await this.attachmentsService.resolvePublicUrlsByIds([
@@ -7955,7 +8064,8 @@ export class CompanyService implements OnModuleInit {
               company.llcRegistration.registrationAuthorityCompanyId ?? null,
             domicileAddress: company.llcRegistration.domicileAddress,
             operatingTermType: company.llcRegistration.operatingTermType,
-            operatingTermYears: company.llcRegistration.operatingTermYears ?? null,
+            operatingTermYears:
+              company.llcRegistration.operatingTermYears ?? null,
             businessScope: company.llcRegistration.businessScope,
             officers: (company.llcRegistration.officers ?? []).map((o) => ({
               role: o.role,
@@ -8018,10 +8128,12 @@ export class CompanyService implements OnModuleInit {
             id: company.legalRepresentative.id,
             name: company.legalRepresentative.name,
             email: company.legalRepresentative.email,
-            displayName: company.legalRepresentative.profile?.displayName ?? null,
+            displayName:
+              company.legalRepresentative.profile?.displayName ?? null,
             avatarUrl: company.legalRepresentative.avatarAttachmentId
-              ? (attachmentUrlMap.get(company.legalRepresentative.avatarAttachmentId) ??
-                null)
+              ? (attachmentUrlMap.get(
+                  company.legalRepresentative.avatarAttachmentId,
+                ) ?? null)
               : null,
           }
         : null,
@@ -8093,7 +8205,10 @@ export class CompanyService implements OnModuleInit {
         if (officer.userId) ids.add(officer.userId);
       }
       for (const shareholder of company.llcRegistration?.shareholders ?? []) {
-        if (shareholder.kind === CompanyLlcShareholderKind.USER && shareholder.userId) {
+        if (
+          shareholder.kind === CompanyLlcShareholderKind.USER &&
+          shareholder.userId
+        ) {
           ids.add(shareholder.userId);
         }
       }
@@ -8107,10 +8222,7 @@ export class CompanyService implements OnModuleInit {
   }
 
   private async ensureBaselineMetadata() {
-    await Promise.all([
-      this.ensureIndustries(),
-      this.ensureTypes(),
-    ]);
+    await Promise.all([this.ensureIndustries(), this.ensureTypes()]);
   }
 
   private async ensureIndustries() {

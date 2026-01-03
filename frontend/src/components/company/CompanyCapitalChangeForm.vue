@@ -187,7 +187,10 @@ watch(
         companySearch: '',
         userCandidates: [],
         companyCandidates: [],
-        holderId: s.kind === 'USER' ? (s.userId ?? undefined) : (s.companyId ?? undefined),
+        holderId:
+          s.kind === 'USER'
+            ? (s.userId ?? undefined)
+            : (s.companyId ?? undefined),
         ratio: Number(s.ratio),
         votingRatio: Number(s.votingRatio),
       }))
@@ -232,16 +235,22 @@ function removeShareholder(index: number) {
   form.shareholders.splice(index, 1)
 }
 
-const shareholderRatioSum = computed(() =>
-  Math.round(
-    form.shareholders.reduce((sum, s) => sum + (Number(s.ratio) || 0), 0) * 1e6,
-  ) / 1e6,
+const shareholderRatioSum = computed(
+  () =>
+    Math.round(
+      form.shareholders.reduce((sum, s) => sum + (Number(s.ratio) || 0), 0) *
+        1e6,
+    ) / 1e6,
 )
 
-const shareholderVotingSum = computed(() =>
-  Math.round(
-    form.shareholders.reduce((sum, s) => sum + (Number(s.votingRatio) || 0), 0) * 1e6,
-  ) / 1e6,
+const shareholderVotingSum = computed(
+  () =>
+    Math.round(
+      form.shareholders.reduce(
+        (sum, s) => sum + (Number(s.votingRatio) || 0),
+        0,
+      ) * 1e6,
+    ) / 1e6,
 )
 
 function buildPayload(): CompanyCapitalChangeApplyPayload | null {
@@ -257,7 +266,10 @@ function buildPayload(): CompanyCapitalChangeApplyPayload | null {
 
   // 校验股东结构
   const eps = 1e-6
-  const ratioSum = form.shareholders.reduce((sum, s) => sum + (Number(s.ratio) || 0), 0)
+  const ratioSum = form.shareholders.reduce(
+    (sum, s) => sum + (Number(s.ratio) || 0),
+    0,
+  )
   if (Math.abs(ratioSum - 100) > eps) {
     toast.add({ title: '所有股东的出资比例之和必须为 100%', color: 'error' })
     return null
@@ -362,7 +374,10 @@ function handleSubmit() {
         <USelectMenu
           v-model="form.votingRightsMode"
           :items="[
-            { value: 'BY_CAPITAL_RATIO', label: '按出资比例行使（表决权=出资比例）' },
+            {
+              value: 'BY_CAPITAL_RATIO',
+              label: '按出资比例行使（表决权=出资比例）',
+            },
             { value: 'CUSTOM', label: '自定义表决权（合计 100%）' },
           ]"
           value-key="value"
@@ -438,7 +453,9 @@ function handleSubmit() {
             searchable
             placeholder="搜索用户"
             :disabled="props.submitting"
-            @update:search-term="(v: string) => handleUserSearchList(s.userCandidates, v)"
+            @update:search-term="
+              (v: string) => handleUserSearchList(s.userCandidates, v)
+            "
           />
 
           <USelectMenu
@@ -491,21 +508,30 @@ function handleSubmit() {
       <div class="text-xs text-slate-500">
         当前合计：<span
           class="font-semibold"
-          :class="shareholderRatioSum === 100 ? 'text-emerald-600' : 'text-rose-600'"
+          :class="
+            shareholderRatioSum === 100 ? 'text-emerald-600' : 'text-rose-600'
+          "
           >{{ shareholderRatioSum }}%</span
         >
       </div>
-      <div v-if="form.votingRightsMode === 'CUSTOM'" class="text-xs text-slate-500">
+      <div
+        v-if="form.votingRightsMode === 'CUSTOM'"
+        class="text-xs text-slate-500"
+      >
         表决权合计：<span
           class="font-semibold"
-          :class="shareholderVotingSum === 100 ? 'text-emerald-600' : 'text-rose-600'"
+          :class="
+            shareholderVotingSum === 100 ? 'text-emerald-600' : 'text-rose-600'
+          "
           >{{ shareholderVotingSum }}%</span
         >
       </div>
     </div>
 
     <div class="space-y-2">
-      <div class="text-sm font-semibold text-slate-900 dark:text-white">备注</div>
+      <div class="text-sm font-semibold text-slate-900 dark:text-white">
+        备注
+      </div>
       <UTextarea
         v-model="form.reason"
         :rows="3"
@@ -526,5 +552,3 @@ function handleSubmit() {
     </div>
   </div>
 </template>
-
-

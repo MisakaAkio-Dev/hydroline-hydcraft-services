@@ -79,15 +79,15 @@ export const useRegistryCompanyApplicationsStore = defineStore(
         if (!auth.token) {
           throw new Error('未登录，无法审批申请')
         }
-        return apiFetch(`/companies/registry/applications/${applicationId}/actions`, {
-          method: 'POST',
-          body: payload,
-          token: auth.token,
-        })
+        return apiFetch(
+          `/companies/registry/applications/${applicationId}/actions`,
+          {
+            method: 'POST',
+            body: payload,
+            token: auth.token,
+          },
+        )
       },
     },
   },
 )
-
-
-

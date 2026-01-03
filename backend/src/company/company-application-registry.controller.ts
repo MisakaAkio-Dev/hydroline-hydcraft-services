@@ -33,7 +33,10 @@ export class CompanyRegistryApplicationController {
 
   @Get()
   @ApiOperation({ summary: '登记机关（法定代表人）分页查询可审批的公司申请' })
-  async list(@Query() query: CompanyApplicationListQueryDto, @Req() req: Request) {
+  async list(
+    @Query() query: CompanyApplicationListQueryDto,
+    @Req() req: Request,
+  ) {
     const userId = this.requireUserId(req);
     return this.companyService.listRegistryApplications(userId, query);
   }
@@ -46,9 +49,10 @@ export class CompanyRegistryApplicationController {
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.registryExecuteApplicationAction(id, userId, body);
+    return this.companyService.registryExecuteApplicationAction(
+      id,
+      userId,
+      body,
+    );
   }
 }
-
-
-

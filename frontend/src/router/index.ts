@@ -115,7 +115,9 @@ export const userRoutes: RouteRecordRaw[] = [
             path: 'dashboard/applications',
             name: 'company.dashboard.applications',
             component: () =>
-              import('@/views/user/Company/CompanyApplicationsProgressView.vue'),
+              import(
+                '@/views/user/Company/CompanyApplicationsProgressView.vue'
+              ),
             meta: {
               requiresAuth: true,
               title: '我的申请/待同意',
@@ -125,7 +127,9 @@ export const userRoutes: RouteRecordRaw[] = [
             path: 'dashboard/registry-applications',
             name: 'company.dashboard.registryApplications',
             component: () =>
-              import('@/views/user/Company/CompanyRegistryApplicationsView.vue'),
+              import(
+                '@/views/user/Company/CompanyRegistryApplicationsView.vue'
+              ),
             meta: {
               requiresAuth: true,
               title: '登记机关审批',

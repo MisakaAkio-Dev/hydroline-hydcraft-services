@@ -1,7 +1,4 @@
-import {
-  CompanyApplicationStatus,
-  CompanyStatus,
-} from '@prisma/client';
+import { CompanyApplicationStatus, CompanyStatus } from '@prisma/client';
 import { UpsertWorkflowDefinitionDto } from '../workflow/dto/upsert-workflow-definition.dto';
 
 export const DEFAULT_COMPANY_WORKFLOW_CODE = 'company.registration';

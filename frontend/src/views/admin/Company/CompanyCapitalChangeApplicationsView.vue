@@ -252,7 +252,10 @@ watch(autoApproveDraft, async (value) => {
           <UButton color="primary" @click="applyFilters"> 查询 </UButton>
           <div class="flex items-center gap-2 text-sm">
             <span>自动审批</span>
-            <USwitch v-model="autoApproveDraft" :disabled="autoApproveLoading" />
+            <USwitch
+              v-model="autoApproveDraft"
+              :disabled="autoApproveLoading"
+            />
           </div>
         </div>
       </div>
@@ -262,7 +265,9 @@ watch(autoApproveDraft, async (value) => {
       class="overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 dark:border-slate-800/60 dark:bg-slate-900/70"
     >
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
+        <table
+          class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800"
+        >
           <thead class="bg-slate-50/60 dark:bg-slate-900/60">
             <tr
               class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
@@ -424,7 +429,9 @@ watch(autoApproveDraft, async (value) => {
           <template #header>
             <div class="flex items-center justify-between gap-3">
               <div>
-                <h3 class="text-base font-semibold text-slate-900 dark:text-white">
+                <h3
+                  class="text-base font-semibold text-slate-900 dark:text-white"
+                >
                   公司注册资本变更审批
                 </h3>
                 <p class="mt-1 text-xs text-slate-500">
@@ -461,8 +468,14 @@ watch(autoApproveDraft, async (value) => {
             </div>
 
             <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-500">备注（可选）</label>
-              <UTextarea v-model="actionComment" :rows="3" :disabled="actionLoading" />
+              <label class="text-xs font-semibold text-slate-500"
+                >备注（可选）</label
+              >
+              <UTextarea
+                v-model="actionComment"
+                :rows="3"
+                :disabled="actionLoading"
+              />
             </div>
 
             <div class="flex justify-end gap-2">
@@ -489,5 +502,3 @@ watch(autoApproveDraft, async (value) => {
     </UModal>
   </section>
 </template>
-
-

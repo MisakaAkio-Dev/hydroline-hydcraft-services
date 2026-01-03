@@ -313,7 +313,11 @@ export class CompanyController {
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.createDomicileChangeApplication(id, userId, body);
+    return this.companyService.createDomicileChangeApplication(
+      id,
+      userId,
+      body,
+    );
   }
 
   @Post(':id/business-scope-change')
@@ -356,7 +360,11 @@ export class CompanyController {
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.createManagementChangeApplication(id, userId, body);
+    return this.companyService.createManagementChangeApplication(
+      id,
+      userId,
+      body,
+    );
   }
 
   @Post(':id/capital-change')
@@ -382,7 +390,11 @@ export class CompanyController {
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.createEquityTransferApplication(id, userId, body);
+    return this.companyService.createEquityTransferApplication(
+      id,
+      userId,
+      body,
+    );
   }
 
   @Get(':id')

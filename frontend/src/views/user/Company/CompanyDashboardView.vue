@@ -6,7 +6,10 @@ import { useCompanyStore } from '@/stores/user/companies'
 import { useUiStore } from '@/stores/shared/ui'
 import CompanyStatusBadge from '@/components/company/CompanyStatusBadge.vue'
 import CompanyApplicationForm from '@/components/company/CompanyApplicationForm.vue'
-import type { CompanyModel, CreateCompanyApplicationPayload } from '@/types/company'
+import type {
+  CompanyModel,
+  CreateCompanyApplicationPayload,
+} from '@/types/company'
 
 const authStore = useAuthStore()
 const companyStore = useCompanyStore()
@@ -148,7 +151,9 @@ const financialOfficerEntities = computed(() =>
 const legalRepresentativePreview = computed(() =>
   legalRepresentativeEntities.value.slice(0, 5),
 )
-const shareholdingPreview = computed(() => shareholdingEntities.value.slice(0, 5))
+const shareholdingPreview = computed(() =>
+  shareholdingEntities.value.slice(0, 5),
+)
 const directorPreview = computed(() => directorEntities.value.slice(0, 5))
 const managerPreview = computed(() => managerEntities.value.slice(0, 5))
 const supervisorPreview = computed(() => supervisorEntities.value.slice(0, 5))

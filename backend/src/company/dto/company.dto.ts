@@ -184,7 +184,9 @@ export class LimitedLiabilityCompanyApplicationDto {
    * - 推荐：前端提交该字段（更精确，审批流也以该字段为主）
    * - 兼容：若未提供，则回退使用 registrationAuthorityName（字符串）
    */
-  @ValidateIf((o: LimitedLiabilityCompanyApplicationDto) => !o.registrationAuthorityName)
+  @ValidateIf(
+    (o: LimitedLiabilityCompanyApplicationDto) => !o.registrationAuthorityName,
+  )
   @IsUUID()
   registrationAuthorityCompanyId?: string;
 
@@ -194,7 +196,8 @@ export class LimitedLiabilityCompanyApplicationDto {
    * - 新前端可不填写，由后端根据 registrationAuthorityCompanyId 自动回填
    */
   @ValidateIf(
-    (o: LimitedLiabilityCompanyApplicationDto) => !o.registrationAuthorityCompanyId,
+    (o: LimitedLiabilityCompanyApplicationDto) =>
+      !o.registrationAuthorityCompanyId,
   )
   @IsString()
   @MinLength(1)
