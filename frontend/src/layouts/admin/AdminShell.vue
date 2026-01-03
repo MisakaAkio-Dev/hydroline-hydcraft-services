@@ -156,6 +156,21 @@ const menuGroups = computed<MenuGroup[]>(() => [
         icon: 'i-lucide-clipboard-check',
       },
       {
+        label: '股权转让审批',
+        to: '/admin/company/equity-transfers',
+        icon: 'i-lucide-swap-horizontal',
+      },
+      {
+        label: '更名审批',
+        to: '/admin/company/name-changes',
+        icon: 'i-lucide-type',
+      },
+      {
+        label: '注册资本变更审批',
+        to: '/admin/company/capital-changes',
+        icon: 'i-lucide-coins',
+      },
+      {
         label: '行业配置',
         to: '/admin/company/industries',
         icon: 'i-lucide-layers-3',

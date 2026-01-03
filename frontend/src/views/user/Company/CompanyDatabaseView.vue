@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCompanyStore } from '@/stores/user/companies'
-import { apiFetch } from '@/utils/http/api'
 import CompanyStatusBadge from '@/components/company/CompanyStatusBadge.vue'
 import type { CompanyModel } from '@/types/company'
 
 const companyStore = useCompanyStore()
-const toast = useToast()
+const router = useRouter()
 
 const filters = reactive({
   typeId: undefined as string | undefined,
@@ -15,42 +15,21 @@ const filters = reactive({
 })
 
 const directory = computed(() => companyStore.directory)
-const detailOpen = ref(false)
-const detailLoading = ref(false)
-const detailCompany = ref<CompanyModel | null>(null)
 
 function ownerUser(company: CompanyModel | null | undefined) {
   if (!company) return null
 
-  const user =
-    company.members?.find(
-      (member) => member.role === 'LEGAL_PERSON' && member.user,
-    )?.user ||
-    company.members?.find((member) => member.role === 'OWNER' && member.user)
-      ?.user ||
-    company.legalRepresentative ||
-    company.legalPerson?.user ||
-    company.owners?.find((member) => member.user)?.user ||
-    company.members?.find((member) => member.user)?.user ||
-    null
+  // 旧“公司成员/岗位角色”系统已移除：不再依赖 members/owners/legalPerson 等字段
+  const user = company.legalRepresentative || null
 
   if (!user) return null
 
   const displayName =
     user.displayName ||
-    (user as any).profile?.displayName ||
     user.name ||
     '未知用户'
 
-  let avatarUrl = user.avatarUrl
-  if (!avatarUrl && user.id && company.members) {
-    const sameUserInMembers = company.members.find(
-      (m) => m.user?.id === user.id && m.user?.avatarUrl,
-    )
-    if (sameUserInMembers) {
-      avatarUrl = sameUserInMembers.user!.avatarUrl
-    }
-  }
+  const avatarUrl = user.avatarUrl ?? null
 
   return {
     ...user,
@@ -92,22 +71,11 @@ function goToPage(target: number) {
   void loadList(safePage)
 }
 
-async function openDetail(companyId: string) {
-  detailOpen.value = true
-  detailLoading.value = true
-  try {
-    detailCompany.value = await apiFetch<CompanyModel>(
-      `/companies/${companyId}`,
-    )
-  } catch (error) {
-    toast.add({
-      title: (error as Error).message || '无法加载公司详情',
-      color: 'error',
-    })
-    detailOpen.value = false
-  } finally {
-    detailLoading.value = false
-  }
+function openDetail(companyId: string) {
+  void router.push({
+    name: 'company.database.detail',
+    params: { companyId },
+  })
 }
 
 onMounted(() => {
@@ -200,7 +168,8 @@ onMounted(() => {
                     v-if="ownerUser(company)?.id"
                     :to="{
                       name: 'player',
-                      params: { playerId: ownerUser(company)?.id },
+                      // v-if 已保证 id 存在；这里用非空断言避免 TS 将其推断为 string | undefined
+                      params: { playerId: ownerUser(company)!.id },
                     }"
                     class="text-sm text-slate-600 hover:text-primary-500"
                   >
@@ -272,120 +241,4 @@ onMounted(() => {
       </div>
     </div>
   </section>
-
-  <UModal
-    :open="detailOpen"
-    @update:open="(value) => (detailOpen = value)"
-    :ui="{ content: 'w-full max-w-3xl w-[calc(100vw-2rem)]' }"
-  >
-    <template #content>
-      <div class="flex h-full flex-col">
-        <div
-          class="flex items-center justify-between border-b border-slate-200 px-6 py-4"
-        >
-          <div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">
-              工商数据库详情
-            </p>
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-              {{ detailCompany?.name || '公司详情' }}
-            </h3>
-          </div>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="detailOpen = false"
-          />
-        </div>
-        <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          <div
-            v-if="detailLoading"
-            class="flex items-center gap-2 text-sm text-slate-500"
-          >
-            <UIcon name="i-lucide-loader-2" class="h-4 w-4 animate-spin" />
-            <span>加载中...</span>
-          </div>
-          <div v-else-if="!detailCompany" class="text-sm text-slate-500">
-            未找到公司信息。
-          </div>
-          <div v-else class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm text-slate-500">
-                  {{ detailCompany.summary || '暂无简介' }}
-                </p>
-              </div>
-              <CompanyStatusBadge :status="detailCompany.status" />
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2">
-              <div class="rounded-xl border border-slate-200/70 p-4 text-sm">
-                <div>行业：{{ detailCompany.industry?.name || '未设置' }}</div>
-                <div class="mt-2">
-                  类型：{{ detailCompany.type?.name || '未设置' }}
-                </div>
-                <div class="mt-2">
-                  注册时间：
-                  {{
-                    detailCompany.approvedAt
-                      ? new Date(detailCompany.approvedAt).toLocaleString()
-                      : '未注册'
-                  }}
-                </div>
-              </div>
-              <div class="rounded-xl border border-slate-200/70 p-4 text-sm">
-                <div class="flex items-center gap-3">
-                  <img
-                    v-if="ownerUser(detailCompany)?.avatarUrl"
-                    :src="ownerUser(detailCompany)?.avatarUrl"
-                    alt="所属人头像"
-                    class="h-10 w-10 rounded-full object-cover"
-                  />
-                  <div
-                    v-else
-                    class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400"
-                  >
-                    <UIcon name="i-lucide-user-round" class="h-5 w-5" />
-                  </div>
-                  <div class="flex flex-col">
-                    <span class="font-medium text-slate-900">
-                      {{
-                        ownerUser(detailCompany)?.displayName ||
-                        ownerUser(detailCompany)?.name ||
-                        '未知法人'
-                      }}
-                    </span>
-                    <RouterLink
-                      v-if="ownerUser(detailCompany)?.id"
-                      :to="{
-                        name: 'player',
-                        params: { playerId: ownerUser(detailCompany)?.id },
-                      }"
-                      class="text-xs text-primary-500 hover:underline"
-                    >
-                      查看个人页面
-                    </RouterLink>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="rounded-xl border border-slate-200/70 p-4 text-sm">
-              <div class="text-xs font-semibold text-slate-500">详细介绍</div>
-              <p class="mt-2 text-slate-600">
-                {{ detailCompany.description || '暂无详细介绍' }}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div class="border-t border-slate-200 px-6 py-4 flex justify-end">
-          <UButton color="neutral" variant="ghost" @click="detailOpen = false">
-            关闭
-          </UButton>
-        </div>
-      </div>
-    </template>
-  </UModal>
 </template>

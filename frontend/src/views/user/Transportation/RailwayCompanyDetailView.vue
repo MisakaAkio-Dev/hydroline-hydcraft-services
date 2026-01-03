@@ -23,14 +23,8 @@ const bindingType = computed(() => {
 
 function ownerUser(target: CompanyModel | null | undefined) {
   if (!target) return null
-  return (
-    target.members?.find((member) => member.role === 'OWNER' && member.user) ||
-    target.legalPerson?.user ||
-    target.legalRepresentative ||
-    target.owners?.find((member) => member.user)?.user ||
-    target.members?.find((member) => member.user)?.user ||
-    null
-  )
+  // 旧“公司成员/岗位角色”体系已移除：不再依赖 legalPerson/owners/members 等字段
+  return target.legalRepresentative || null
 }
 
 function extractDimension(dimensionContext: string | null) {

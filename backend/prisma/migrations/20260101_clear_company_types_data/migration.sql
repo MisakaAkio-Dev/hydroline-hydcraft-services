@@ -22,3 +22,4 @@ DELETE FROM "company_types";
 
 
 
+

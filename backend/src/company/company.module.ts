@@ -9,6 +9,7 @@ import { CompanyController } from './company.controller';
 import { CompanyAdminController } from './company-admin.controller';
 import { CompanyConfigAdminController } from './company-config-admin.controller';
 import { CompanyApplicationAdminController } from './company-application-admin.controller';
+import { CompanyRegistryApplicationController } from './company-application-registry.controller';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CompanyApplicationAdminController } from './company-application-admin.c
     CompanyAdminController,
     CompanyConfigAdminController,
     CompanyApplicationAdminController,
+    CompanyRegistryApplicationController,
   ],
   exports: [CompanyService],
 })

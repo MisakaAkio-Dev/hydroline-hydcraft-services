@@ -28,3 +28,6 @@ ALTER TABLE "invite_codes" ADD CONSTRAINT "invite_codes_usedById_fkey" FOREIGN K
 
 
 
+
+
+

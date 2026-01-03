@@ -19,14 +19,8 @@ import { parseSingleFileMultipart } from '../lib/multipart/parse-single-file-mul
 import {
   CompanyDirectoryQueryDto,
   CompanyResolveDto,
-  CompanyMemberApprovalDto,
-  CompanyMemberRejectDto,
-  CompanyMemberUpdateDto,
-  CompanyMemberInviteDto,
-  CompanyMemberJoinDto,
   CompanyRecommendationsQueryDto,
   CompanyRegistrationStatsQueryDto,
-  CompanySettingsDto,
   CompanyUserSearchDto,
   CompanyUserResolveDto,
   CompanySearchDto,
@@ -34,6 +28,13 @@ import {
   CompanyAttachmentSearchDto,
   CompanyLogoAttachmentDto,
   CompanyDeregistrationApplyDto,
+  CompanyRenameApplyDto,
+  CompanyDomicileChangeApplyDto,
+  CompanyBusinessScopeChangeApplyDto,
+  CompanyOfficerChangeApplyDto,
+  CompanyManagementChangeApplyDto,
+  CompanyCapitalChangeApplyDto,
+  CompanyEquityTransferApplyDto,
   CreateCompanyApplicationDto,
   CompanyApplicationConsentDecisionDto,
   UpdateCompanyProfileDto,
@@ -103,7 +104,7 @@ export class CompanyController {
   }
 
   @Get('geo/divisions/search')
-  @ApiOperation({ summary: '搜索行政区划（三级）' })
+  @ApiOperation({ summary: '搜索行政区划（支持 1/2/3 级）' })
   async searchGeoDivisions(@Query() query: GeoDivisionSearchDto) {
     return this.companyService.searchGeoDivisions(query);
   }
@@ -112,6 +113,12 @@ export class CompanyController {
   @ApiOperation({ summary: '获取行政区划节点的上级路径' })
   async getGeoDivisionPath(@Param('id') id: string) {
     return this.companyService.getGeoDivisionPath(id);
+  }
+
+  @Get('geo/divisions/:id/authorities')
+  @ApiOperation({ summary: '获取某行政区划下可选登记机关（机关法人）列表' })
+  async listDivisionAuthorities(@Param('id') id: string) {
+    return this.companyService.listRegistrationAuthoritiesByDivisionId(id);
   }
 
   @Get('users/search')
@@ -283,73 +290,99 @@ export class CompanyController {
     );
   }
 
-  @Post(':id/members/join')
+  @Post(':id/name-change')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '申请加入公司/个体户' })
-  async joinCompany(
+  @ApiOperation({ summary: '提交公司更名申请' })
+  async applyNameChange(
     @Param('id') id: string,
-    @Body() body: CompanyMemberJoinDto,
+    @Body() body: CompanyRenameApplyDto,
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.joinCompany(id, userId, body);
+    return this.companyService.createRenameApplication(id, userId, body);
   }
 
-  @Post(':id/members/approve')
+  @Post(':id/domicile-change')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '审批入职申请' })
-  async approveJoin(
+  @ApiOperation({ summary: '提交公司住所变更申请' })
+  async applyDomicileChange(
     @Param('id') id: string,
-    @Body() body: CompanyMemberApprovalDto,
+    @Body() body: CompanyDomicileChangeApplyDto,
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.approveJoinRequest(id, userId, body);
+    return this.companyService.createDomicileChangeApplication(id, userId, body);
   }
 
-  @Post(':id/members/reject')
+  @Post(':id/business-scope-change')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '驳回入职申请' })
-  async rejectJoin(
+  @ApiOperation({ summary: '提交公司经营范围变更申请' })
+  async applyBusinessScopeChange(
     @Param('id') id: string,
-    @Body() body: CompanyMemberRejectDto,
+    @Body() body: CompanyBusinessScopeChangeApplyDto,
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.rejectJoinRequest(id, userId, body);
+    return this.companyService.createBusinessScopeChangeApplication(
+      id,
+      userId,
+      body,
+    );
   }
 
-  @Patch(':id/members/:memberId')
+  @Post(':id/officer-change')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '更新成员岗位/权限' })
-  async updateMember(
+  @ApiOperation({ summary: '提交公司董事/监事变更申请' })
+  async applyOfficerChange(
     @Param('id') id: string,
-    @Param('memberId') memberId: string,
-    @Body() body: CompanyMemberUpdateDto,
+    @Body() body: CompanyOfficerChangeApplyDto,
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.updateMember(id, userId, {
-      ...body,
-      memberId,
-    });
+    return this.companyService.createOfficerChangeApplication(id, userId, body);
   }
 
-  @Post(':id/members/invite')
+  @Post(':id/management-change')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '法人邀请用户入职' })
-  async inviteMember(
+  @ApiOperation({ summary: '提交公司经理/副经理/财务负责人变更申请' })
+  async applyManagementChange(
     @Param('id') id: string,
-    @Body() body: CompanyMemberInviteDto,
+    @Body() body: CompanyManagementChangeApplyDto,
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.inviteMember(id, userId, body);
+    return this.companyService.createManagementChangeApplication(id, userId, body);
+  }
+
+  @Post(':id/capital-change')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '提交公司注册资本变更（增资/减资）申请' })
+  async applyCapitalChange(
+    @Param('id') id: string,
+    @Body() body: CompanyCapitalChangeApplyDto,
+    @Req() req: Request,
+  ) {
+    const userId = this.requireUserId(req);
+    return this.companyService.createCapitalChangeApplication(id, userId, body);
+  }
+
+  @Post(':id/equity-transfer')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '提交公司股权/股东变更（股权转让）申请' })
+  async applyEquityTransfer(
+    @Param('id') id: string,
+    @Body() body: CompanyEquityTransferApplyDto,
+    @Req() req: Request,
+  ) {
+    const userId = this.requireUserId(req);
+    return this.companyService.createEquityTransferApplication(id, userId, body);
   }
 
   @Get(':id')
@@ -369,20 +402,7 @@ export class CompanyController {
     @Req() req: Request,
   ) {
     const userId = this.requireUserId(req);
-    return this.companyService.updateCompanyAsMember(id, userId, body);
-  }
-
-  @Patch(':id/settings')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '更新公司入职/岗位设置' })
-  async updateSettings(
-    @Param('id') id: string,
-    @Body() body: CompanySettingsDto,
-    @Req() req: Request,
-  ) {
-    const userId = this.requireUserId(req);
-    return this.companyService.updateCompanySettings(id, userId, body);
+    return this.companyService.updateCompanyAsOfficer(id, userId, body);
   }
 
   @Patch(':id/logo')

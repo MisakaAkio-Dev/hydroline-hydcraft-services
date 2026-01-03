@@ -6,6 +6,29 @@ import { useCompanyStore } from '@/stores/user/companies'
 import CompanyApplicationForm from '@/components/company/CompanyApplicationForm.vue'
 import type { CreateCompanyApplicationPayload } from '@/types/company'
 
+type ApplicationConsentEntry = {
+  id: string
+  role?: string | null
+  status?: string | null
+  comment?: string | null
+  decidedAt?: string | null
+  requiredUser?: {
+    id: string
+    name?: string | null
+    email?: string | null
+    profile?: { displayName?: string | null } | null
+  } | null
+  shareholderCompany?: {
+    id: string
+    name: string
+    slug: string
+  } | null
+}
+
+type ApplicationConsentsDetail = {
+  consents?: ApplicationConsentEntry[]
+}
+
 const authStore = useAuthStore()
 const companyStore = useCompanyStore()
 const toast = useToast()
@@ -20,9 +43,10 @@ const loading = computed(
 )
 
 const selectedApplicationId = ref<string | null>(null)
+const selectedWorkflowCode = ref<string | null>(null)
 const consentDialogOpen = ref(false)
 const consentLoading = ref(false)
-const consentDetail = ref<any>(null)
+const consentDetail = ref<ApplicationConsentsDetail | null>(null)
 
 const actionComment = ref('')
 const actionLoading = ref(false)
@@ -55,11 +79,25 @@ const statusLabel = (status: string) => {
 }
 
 function workflowLabel(code?: string | null) {
-  return code === 'company.deregistration' ? '注销申请' : '注册申请'
+  if (code === 'company.deregistration') return '注销申请'
+  if (code === 'company.rename') return '更名申请'
+  if (code === 'company.change_domicile') return '住所变更申请'
+  if (code === 'company.change_business_scope') return '经营范围变更申请'
+  if (code === 'company.change_management') return '管理层变更申请'
+  if (code === 'company.capital_change') return '注册资本变更申请'
+  if (code === 'company.equity_transfer') return '股权转让'
+  return '注册申请'
 }
 
 function workflowColor(code?: string | null) {
-  return code === 'company.deregistration' ? 'error' : 'neutral'
+  if (code === 'company.deregistration') return 'error'
+  if (code === 'company.rename') return 'primary'
+  if (code === 'company.change_domicile') return 'primary'
+  if (code === 'company.change_business_scope') return 'primary'
+  if (code === 'company.change_management') return 'primary'
+  if (code === 'company.capital_change') return 'primary'
+  if (code === 'company.equity_transfer') return 'primary'
+  return 'neutral'
 }
 
 function canWithdraw(status: string) {
@@ -90,13 +128,20 @@ async function refreshAll() {
   }
 }
 
-async function openConsentDetail(applicationId: string) {
+async function openConsentDetail(
+  applicationId: string,
+  workflowCode?: string | null,
+) {
   selectedApplicationId.value = applicationId
+  selectedWorkflowCode.value = workflowCode ?? null
   consentDialogOpen.value = true
   consentLoading.value = true
   consentDetail.value = null
   try {
-    consentDetail.value = await companyStore.getApplicationConsents(applicationId)
+    consentDetail.value =
+      (await companyStore.getApplicationConsents(
+        applicationId,
+      )) as ApplicationConsentsDetail
   } catch (error) {
     toast.add({
       title: (error as Error).message || '无法加载同意明细',
@@ -177,11 +222,14 @@ async function submitEdit(payload: CreateCompanyApplicationPayload) {
       body: payload as unknown as Record<string, unknown>,
       token: authStore.token,
     })
-    await apiFetch(`/companies/applications/${editApplicationId.value}/resubmit`, {
-      method: 'POST',
-      body: {},
-      token: authStore.token,
-    })
+    await apiFetch(
+      `/companies/applications/${editApplicationId.value}/resubmit`,
+      {
+        method: 'POST',
+        body: {},
+        token: authStore.token,
+      },
+    )
     toast.add({ title: '已重新提交，等待相关人员重新同意', color: 'primary' })
     editDialogOpen.value = false
     await refreshAll()
@@ -214,7 +262,7 @@ async function decide(approve: boolean, applicationId: string) {
     actionComment.value = ''
     await refreshAll()
     if (consentDialogOpen.value) {
-      await openConsentDetail(applicationId)
+      await openConsentDetail(applicationId, selectedWorkflowCode.value)
     }
   } catch (error) {
     toast.add({
@@ -259,9 +307,7 @@ onMounted(() => {
       v-if="!authStore.isAuthenticated"
       class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/70"
     >
-      <p class="text-sm text-slate-600 dark:text-slate-300">
-        请先登录后查看。
-      </p>
+      <p class="text-sm text-slate-600 dark:text-slate-300">请先登录后查看。</p>
     </div>
 
     <div v-else class="grid gap-6 lg:grid-cols-2">
@@ -402,7 +448,7 @@ onMounted(() => {
                 size="xs"
                 variant="soft"
                 color="neutral"
-                @click="openConsentDetail(app.id)"
+                @click="openConsentDetail(app.id, app.workflowCode)"
               >
                 查看同意
               </UButton>
@@ -441,13 +487,16 @@ onMounted(() => {
 
           <div
             v-if="
-              (String(app.status) === 'REJECTED' || String(app.status) === 'NEEDS_CHANGES') &&
+              (String(app.status) === 'REJECTED' ||
+                String(app.status) === 'NEEDS_CHANGES') &&
               app.reviewComment
             "
             class="mt-3 rounded-lg border border-amber-200/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200"
           >
             <div class="font-medium">
-              {{ String(app.status) === 'REJECTED' ? '驳回理由' : '补件/修改要求' }}
+              {{
+                String(app.status) === 'REJECTED' ? '驳回理由' : '补件/修改要求'
+              }}
             </div>
             <div class="mt-1 whitespace-pre-wrap leading-relaxed">
               {{ app.reviewComment }}
@@ -459,17 +508,47 @@ onMounted(() => {
 
     <UModal v-model:open="consentDialogOpen">
       <template #content>
-        <UCard
-          :ui="{ root: 'divide-y divide-gray-100 dark:divide-gray-800' }"
-        >
+        <UCard :ui="{ root: 'divide-y divide-gray-100 dark:divide-gray-800' }">
           <template #header>
             <div class="flex items-center justify-between gap-3">
               <div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+                <h3
+                  class="text-base font-semibold text-gray-900 dark:text-white"
+                >
                   同意明细
                 </h3>
                 <p class="mt-1 text-xs text-gray-500">
                   申请ID：{{ selectedApplicationId }}
+                </p>
+                <p
+                  v-if="selectedWorkflowCode === 'company.deregistration'"
+                  class="mt-1 text-xs text-gray-500"
+                >
+                  注销申请需经享有表决权三分之二以上的股东同意后才会进入审批。
+                </p>
+                <p
+                  v-else-if="selectedWorkflowCode === 'company.rename'"
+                  class="mt-1 text-xs text-gray-500"
+                >
+                  更名申请需经享有表决权三分之二以上的股东同意后才会进入审批。
+                </p>
+                <p
+                  v-else-if="selectedWorkflowCode === 'company.equity_transfer'"
+                  class="mt-1 text-xs text-gray-500"
+                >
+                  股权转让申请需先由受让人同意，随后才会进入管理员审批。
+                </p>
+                <p
+                  v-else-if="selectedWorkflowCode === 'company.capital_change'"
+                  class="mt-1 text-xs text-gray-500"
+                >
+                  注册资本变更申请如涉及新增股东，需新增股东同意 + 享有表决权三分之二以上的原股东同意后才会进入审批。
+                </p>
+                <p
+                  v-else-if="selectedWorkflowCode === 'company.change_management'"
+                  class="mt-1 text-xs text-gray-500"
+                >
+                  管理层变更申请需经半数董事（按人数）同意且新任人员同意后，才会进入管理员审批。
                 </p>
               </div>
               <UButton
@@ -496,24 +575,48 @@ onMounted(() => {
                 class="rounded-lg border border-gray-200/60 bg-white/50 p-3 dark:border-gray-800/60 dark:bg-slate-800/60"
               >
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <div class="text-sm font-medium text-gray-900 dark:text-white">
-                    {{ c.requiredUser?.profile?.displayName || c.requiredUser?.name || c.requiredUser?.email || '未知用户' }}
+                  <div
+                    class="text-sm font-medium text-gray-900 dark:text-white"
+                  >
+                    {{
+                      c.requiredUser?.profile?.displayName ||
+                      c.requiredUser?.name ||
+                      c.requiredUser?.email ||
+                      '未知用户'
+                    }}
                   </div>
                   <div class="flex items-center gap-2 text-xs">
                     <UBadge
                       size="sm"
                       variant="soft"
-                      :color="c.status === 'APPROVED' ? 'primary' : c.status === 'REJECTED' ? 'neutral' : 'neutral'"
+                      :color="
+                        c.status === 'APPROVED'
+                          ? 'primary'
+                          : c.status === 'REJECTED'
+                            ? 'neutral'
+                            : 'neutral'
+                      "
                     >
-                      {{ c.status === 'APPROVED' ? '已同意' : c.status === 'REJECTED' ? '已拒绝' : '待同意' }}
+                      {{
+                        c.status === 'APPROVED'
+                          ? '已同意'
+                          : c.status === 'REJECTED'
+                            ? '已拒绝'
+                            : '待同意'
+                      }}
                     </UBadge>
                     <UBadge size="sm" variant="soft" color="neutral">
                       {{ c.role }}
                     </UBadge>
                   </div>
                 </div>
-                <div v-if="c.shareholderCompany" class="mt-1 text-xs text-gray-500">
-                  股东公司：{{ c.shareholderCompany.name }}（{{ c.shareholderCompany.slug }}）
+                <div
+                  v-if="c.shareholderCompany"
+                  class="mt-1 text-xs text-gray-500"
+                >
+                  股东公司：{{ c.shareholderCompany.name }}（{{
+                    c.shareholderCompany.slug
+                  }}）
                 </div>
                 <div v-if="c.decidedAt" class="mt-1 text-xs text-gray-500">
                   时间：{{ fmtTime(c.decidedAt) }}
@@ -528,13 +631,18 @@ onMounted(() => {
       </template>
     </UModal>
 
-    <UModal v-model:open="withdrawDialogOpen" :ui="{ content: 'w-full max-w-lg w-[calc(100vw-2rem)]' }">
+    <UModal
+      v-model:open="withdrawDialogOpen"
+      :ui="{ content: 'w-full max-w-lg w-[calc(100vw-2rem)]' }"
+    >
       <template #content>
         <UCard>
           <template #header>
             <div class="flex items-center justify-between gap-3">
               <div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+                <h3
+                  class="text-base font-semibold text-gray-900 dark:text-white"
+                >
                   撤回申请
                 </h3>
                 <p class="mt-1 text-xs text-gray-500">
@@ -590,13 +698,17 @@ onMounted(() => {
       :ui="{ content: 'w-full max-w-4xl w-[calc(100vw-2rem)]' }"
     >
       <template #content>
-        <div class="max-h-[80vh] overflow-y-auto rounded-xl bg-white dark:bg-gray-900">
+        <div
+          class="max-h-[80vh] overflow-y-auto rounded-xl bg-white dark:bg-gray-900"
+        >
           <div
             class="sticky top-0 z-10 border-b border-gray-100 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900"
           >
             <div class="flex items-center justify-between gap-3">
               <div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+                <h3
+                  class="text-base font-semibold text-gray-900 dark:text-white"
+                >
                   修改申请并重新提交
                 </h3>
                 <p class="mt-1 text-xs text-gray-500">
@@ -644,5 +756,3 @@ onMounted(() => {
     </UModal>
   </section>
 </template>
-
-

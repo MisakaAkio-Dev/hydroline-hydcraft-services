@@ -229,8 +229,6 @@ onMounted(() => {
               </td>
               <td class="px-4 py-3 text-slate-500">
                 {{
-                  company.legalPerson?.user?.displayName ||
-                  company.legalPerson?.user?.name ||
                   company.legalRepresentative?.displayName ||
                   company.legalRepresentative?.name ||
                   '—'

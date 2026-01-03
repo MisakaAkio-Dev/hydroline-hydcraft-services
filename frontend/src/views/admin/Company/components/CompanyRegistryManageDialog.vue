@@ -198,6 +198,21 @@ const industryOptions = computed(() =>
   props.industries.map((item) => ({ value: item.id, label: item.name })),
 )
 
+function officerRoleLabel(role: string) {
+  const map: Record<string, string> = {
+    LEGAL_REPRESENTATIVE: '法定代表人',
+    CHAIRPERSON: '董事长',
+    VICE_CHAIRPERSON: '副董事长',
+    DIRECTOR: '董事',
+    MANAGER: '经理',
+    DEPUTY_MANAGER: '副经理',
+    SUPERVISOR: '监事',
+    SUPERVISOR_CHAIRPERSON: '监事会主席',
+    FINANCIAL_OFFICER: '财务负责人',
+  }
+  return map[role] || role
+}
+
 watch(
   () => props.company,
   (company) => {
@@ -243,15 +258,22 @@ watch(
 
 const detailTitle = computed(() => props.company?.name ?? '公司管理')
 
-const permissionLabelMap: Record<string, string> = {
-  VIEW_DASHBOARD: '查看公司后台',
-  MANAGE_MEMBERS: '管理员工（HR）',
-  EDIT_COMPANY: '共同修改公司信息',
-}
+const administrativeDivisionPathLabel = computed(() => {
+  const division = props.company?.administrativeDivision
+  const path = division?.domicileDivisionPath
+  if (!path) return ''
+  const parts = [path.level1?.name, path.level2?.name, path.level3?.name].filter(
+    Boolean,
+  ) as string[]
+  return parts.join(' / ')
+})
 
-const positionPermissionEntries = computed(() => {
-  const permissions = props.company?.positionPermissions ?? {}
-  return Object.entries(permissions)
+const administrativeDivisionLevelLabel = computed(() => {
+  const level = props.company?.administrativeDivision?.administrativeDivisionLevel
+  if (level === 1) return '一级（省/自治区/直辖市）'
+  if (level === 2) return '二级（地市/州）'
+  if (level === 3) return '三级（区/县）'
+  return '—'
 })
 
 function closeDialog() {
@@ -373,6 +395,40 @@ function handleSave() {
                     />
                   </div>
                 </div>
+
+                <div
+                  v-if="company?.administrativeDivision"
+                  class="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/40 p-4"
+                >
+                  <div class="flex items-center justify-between">
+                    <h4 class="text-sm font-semibold text-slate-900">
+                      行政区划信息
+                    </h4>
+                    <p class="text-xs text-slate-500">机关法人</p>
+                  </div>
+                  <dl class="mt-3 grid gap-3 md:grid-cols-2 text-sm">
+                    <div>
+                      <dt class="text-xs font-semibold text-slate-500">
+                        所属行政区划
+                      </dt>
+                      <dd class="mt-1 text-slate-900">
+                        {{
+                          administrativeDivisionPathLabel ||
+                          company.administrativeDivision.domicileDivisionId
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-xs font-semibold text-slate-500">
+                        区划级别
+                      </dt>
+                      <dd class="mt-1 text-slate-900">
+                        {{ administrativeDivisionLevelLabel }}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
                 <div class="mt-4 space-y-2">
                   <label class="text-xs font-semibold text-slate-500"
                     >概要</label
@@ -519,52 +575,72 @@ function handleSave() {
               <div
                 class="rounded-2xl border border-slate-200/70 bg-white/80 p-6"
               >
-                <h4 class="text-sm font-semibold text-slate-900">成员与岗位</h4>
+                <h4 class="text-sm font-semibold text-slate-900">
+                  人员结构（LLC）
+                </h4>
                 <div class="mt-3 space-y-2 text-sm text-slate-600">
-                  <div
-                    v-for="member in company?.members ?? []"
-                    :key="member.id"
-                  >
-                    {{
-                      member.user?.displayName ||
-                      member.user?.name ||
-                      member.user?.email ||
-                      '未知成员'
-                    }}
-                    · {{ member.position?.name || member.role }}
-                  </div>
-                  <div
-                    v-if="(company?.members?.length ?? 0) === 0"
-                    class="text-xs text-slate-400"
-                  >
-                    暂无成员数据
-                  </div>
-                </div>
-              </div>
-              <div
-                class="rounded-2xl border border-slate-200/70 bg-white/80 p-6"
-              >
-                <h4 class="text-sm font-semibold text-slate-900">岗位权限</h4>
-                <div class="mt-3 space-y-2 text-sm text-slate-600">
-                  <div
-                    v-for="[code, perms] in positionPermissionEntries"
-                    :key="code"
-                    class="rounded-lg border border-slate-100 px-3 py-2"
-                  >
-                    <div class="text-xs text-slate-500">{{ code }}</div>
-                    <div class="text-sm text-slate-900">
+                  <div>
+                    法定代表人：
+                    <span class="font-medium text-slate-900">
                       {{
-                        perms
-                          .map((perm) => permissionLabelMap[perm] || perm)
-                          .join('、') || '未配置'
+                        company?.legalRepresentative?.displayName ||
+                        company?.legalRepresentative?.name ||
+                        '—'
+                      }}
+                    </span>
+                  </div>
+
+                  <div v-if="company?.llcRegistration">
+                    <div class="mt-2 text-xs font-semibold text-slate-500">
+                      高管
+                    </div>
+                    <div
+                      v-for="officer in company.llcRegistration.officers ?? []"
+                      :key="`${officer.role}-${officer.user?.id ?? 'unknown'}`"
+                    >
+                      {{
+                        officerRoleLabel(officer.role)
+                      }}
+                      ·
+                      {{
+                        officer.user?.displayName ||
+                        officer.user?.name ||
+                        officer.user?.email ||
+                        '—'
                       }}
                     </div>
+                    <div
+                      v-if="(company.llcRegistration.officers?.length ?? 0) === 0"
+                      class="text-xs text-slate-400"
+                    >
+                      暂无高管记录
+                    </div>
+
+                    <div class="mt-3 text-xs font-semibold text-slate-500">
+                      股东
+                    </div>
+                    <div
+                      v-for="sh in company.llcRegistration.shareholders ?? []"
+                      :key="`${sh.kind}-${sh.userId ?? sh.companyId ?? 'unknown'}`"
+                    >
+                      {{
+                        sh.holderName ||
+                        (sh.kind === 'USER' ? sh.userId : sh.companyId) ||
+                        '—'
+                      }}
+                      · 出资 {{ Number(sh.ratio).toFixed(2) }}% · 表决
+                      {{ Number(sh.votingRatio).toFixed(2) }}%
+                    </div>
+                    <div
+                      v-if="(company.llcRegistration.shareholders?.length ?? 0) === 0"
+                      class="text-xs text-slate-400"
+                    >
+                      暂无股东记录
+                    </div>
                   </div>
-                  <div
-                    v-if="positionPermissionEntries.length === 0"
-                    class="text-xs text-slate-400"
-                  >
-                    暂无岗位权限配置
+
+                  <div v-else class="text-xs text-slate-400">
+                    该公司暂无 LLC 结构化登记数据
                   </div>
                 </div>
               </div>

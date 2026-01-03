@@ -9,3 +9,6 @@ SELECT "id", "code", "createdAt", "usedAt" FROM "invite_codes" LIMIT 3;
 
 
 
+
+
+

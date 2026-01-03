@@ -30,18 +30,12 @@ const tabs = [
 ]
 
 const activeTab = computed(() => {
-  if (
-    route.name === 'company.database' ||
-    route.name === 'company.database.detail'
-  ) {
+  const name = String(route.name ?? '')
+  if (name === 'company.database' || name === 'company.database.detail') {
     return 'company.database'
   }
-  if (
-    route.name === 'company.dashboard' ||
-    route.name === 'company.dashboard.owned' ||
-    route.name === 'company.dashboard.join' ||
-    route.name === 'company.dashboard.applications'
-  ) {
+  // 统一把所有 company.dashboard.* 子路由归类到“仪表盘”标签
+  if (name === 'company.dashboard' || name.startsWith('company.dashboard.')) {
     return 'company.dashboard'
   }
   return 'company.overview'

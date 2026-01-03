@@ -58,7 +58,6 @@ model User {
   likesReceived                               PlayerLike[]                          @relation("PlayerLikesReceived")
   rankPlayerSnapshots                         RankPlayerSnapshot[]                  @relation("RankSnapshotsForUser")
   rankSyncJobs                                RankSyncJob[]                         @relation("RankSyncJobsInitiated")
-  companyMemberships                          CompanyMember[]                       @relation("CompanyMemberUser")
   companyApplications                         CompanyApplication[]                  @relation("CompanyApplicationApplicant")
   companyAuditRecords                         CompanyAuditRecord[]                  @relation("CompanyAuditActor")
   companyPoliciesAuthored                     CompanyPolicy[]                       @relation("CompanyPolicyAuthor")
@@ -1297,18 +1296,6 @@ model CompanyType {
   @@map("company_types")
 }
 
-model CompanyPosition {
-  code        String            @id
-  name        String
-  description String?
-  role        CompanyMemberRole
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  members     CompanyMember[]   @relation("CompanyMemberPosition")
-
-  @@map("company_positions")
-}
-
 model Company {
   id                                   String                                @id @default(uuid())
   name                                 String
@@ -1322,6 +1309,14 @@ model Company {
   unifiedSocialCreditCode              String?
   legalNameSnapshot                    String?
   legalIdSnapshot                      String?
+  /**
+   * 机关法人专用：所属行政区划信息（用于查询/展示/统计等）。
+   * - 由后端根据 world.admin_divisions 数据集解析得到
+   * - 非机关法人通常为 NULL
+   */
+  administrativeDivisionId             String?
+  administrativeDivisionName           String?
+  administrativeDivisionLevel          Int?
   category                             CompanyCategory                       @default(FOR_PROFIT_LEGAL_PERSON)
   visibility                           CompanyVisibility                     @default(PRIVATE)
   status                               CompanyStatus                         @default(PENDING_REVIEW)
@@ -1354,40 +1349,19 @@ model Company {
   updatedBy                            User?                                 @relation("CompanyUpdatedBy", fields: [updatedById], references: [id])
   legalRepresentative                  User?                                 @relation("CompanyLegalRepresentative", fields: [legalRepresentativeId], references: [id])
   workflowInstance                     WorkflowInstance?                     @relation("CompanyWorkflowInstance", fields: [workflowInstanceId], references: [id])
-  members                              CompanyMember[]
   policies                             CompanyPolicy[]
   applications                         CompanyApplication[]
   auditRecords                         CompanyAuditRecord[]
   transportationRailwayCompanyBindings TransportationRailwayCompanyBinding[]
   applicationConsentsAsShareholderCompany CompanyApplicationConsent[]               @relation("CompanyApplicationConsentShareholderCompany")
   llcRegistration                          CompanyLlcRegistration?
+  llcRegistrationsAsAuthority              CompanyLlcRegistration[]                @relation("CompanyLlcRegistrationAuthority")
   llcRegistrationShareholdings             CompanyLlcRegistrationShareholder[]      @relation("CompanyLlcRegistrationShareholderCompany")
 
   @@index([status, createdAt], map: "idx_companies_status_created")
   @@index([industryId], map: "idx_companies_industry")
   @@index([typeId], map: "idx_companies_type")
   @@map("companies")
-}
-
-model CompanyMember {
-  id           String            @id @default(uuid())
-  companyId    String
-  userId       String
-  role         CompanyMemberRole
-  positionCode String?
-  title        String?
-  permissions  String[]          @default([])
-  isPrimary    Boolean           @default(false)
-  metadata     Json?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user         User              @relation("CompanyMemberUser", fields: [userId], references: [id], onDelete: Cascade)
-  position     CompanyPosition?  @relation("CompanyMemberPosition", fields: [positionCode], references: [code])
-
-  @@unique([companyId, userId, role], map: "uq_company_member_role")
-  @@index([userId], map: "idx_company_member_user")
-  @@map("company_members")
 }
 
 model CompanyApplication {
@@ -1456,6 +1430,7 @@ model CompanyLlcRegistration {
   brandName                String
   industryFeature          String
   registrationAuthorityName String
+  registrationAuthorityCompanyId String?
   domicileAddress          String
   operatingTermType        CompanyLlcOperatingTermType
   operatingTermYears       Int?
@@ -1464,11 +1439,13 @@ model CompanyLlcRegistration {
   updatedAt                DateTime                  @updatedAt
   company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   application              CompanyApplication         @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  registrationAuthorityCompany Company?              @relation("CompanyLlcRegistrationAuthority", fields: [registrationAuthorityCompanyId], references: [id])
   shareholders             CompanyLlcRegistrationShareholder[]
   officers                 CompanyLlcRegistrationOfficer[]
 
   @@index([companyId], map: "idx_company_llc_reg_company")
   @@index([applicationId], map: "idx_company_llc_reg_application")
+  @@index([registrationAuthorityCompanyId], map: "idx_company_llc_reg_authority_company")
   @@map("company_llc_registrations")
 }
 
@@ -1479,6 +1456,7 @@ model CompanyLlcRegistrationShareholder {
   userId         String?
   companyId      String?
   ratio          Float
+  votingRatio    Float
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
   registration   CompanyLlcRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
@@ -1627,15 +1605,6 @@ enum CompanyVisibility {
   INTERNAL
 }
 
-enum CompanyMemberRole {
-  OWNER
-  LEGAL_PERSON
-  EXECUTIVE
-  MANAGER
-  MEMBER
-  AUDITOR
-}
-
 enum CompanyApplicationStatus {
   SUBMITTED
   UNDER_REVIEW
@@ -1661,6 +1630,8 @@ enum CompanyApplicationConsentRole {
   LEGAL_REPRESENTATIVE
   SHAREHOLDER_USER
   SHAREHOLDER_COMPANY_LEGAL
+  TRANSFEREE_USER
+  TRANSFEREE_COMPANY_LEGAL
   DIRECTOR
   CHAIRPERSON
   VICE_CHAIRPERSON

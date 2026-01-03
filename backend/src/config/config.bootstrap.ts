@@ -49,8 +49,8 @@ const WORLD_ADMIN_DIVISIONS_DEFAULT: Array<{
 }> = [
   // 示例数据（可在配置管理中扩充）
   { id: 'hydrogen', name: '氢气', level: 1, parentId: null },
-  { id: 'qinjing', name: '沁京都', level: 2, parentId: 'hydrogen' },
-  { id: 'jianghu', name: '江户区', level: 3, parentId: 'qinjing' },
+  { id: 'qinjing', name: '沁京', level: 2, parentId: 'hydrogen' },
+  { id: 'jianghu', name: '江户', level: 3, parentId: 'qinjing' },
 ];
 
 @Injectable()
