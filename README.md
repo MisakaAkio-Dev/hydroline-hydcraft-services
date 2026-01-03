@@ -4,6 +4,8 @@
 
 This project is tightly integrated with the broader **Hydroline ecosystem**, and works in coordination with components such as the [Beacon](https://github.com/Hydroline/beacon), [Beacon Provider](https://github.com/Hydroline/beacon-provider), [OAuth Proxy](https://github.com/Hydroline/oauth-proxy), [Minecraft Skin Proxy](https://github.com/Hydroline/minecraft-skin-proxy), [HydCraft Client Agent](https://github.com/Hydroline/hydcraft-client-agent), [HydCraft Client Patcher](https://github.com/Hydroline/hydcraft-client-patcher), [Foundry](https://github.com/Hydroline/foundry) and several auxiliary services (see [Hydroline org repo](https://github.com/orgs/Hydroline/repositories)). Together, they form a unified backend infrastructure for server operation, data collection, and player-facing services.
 
+[Hydroline Services](https://github.com/Hydroline/hydroline-services) is a low-code platform built on this project (`hydroline-hydcraft-services`). Development of Hydroline Services will begin once this project enters maintenance mode.
+
 At its core, the project focuses on **bridging Minecraft runtime data with real-world server management needs**. It provides features including (but not limited to):
 
 - Map & GIS integration (Leaflet-compatible)
