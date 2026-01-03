@@ -1,8 +1,8 @@
 # hydroline-hydcraft-services
 
-> Hydroline HydCraft Services is a **customized service system built specifically for the HydCraft Minecraft server**.
+> [中文](README_zh.md). Hydroline HydCraft Services is a **customized service system built specifically for the HydCraft Minecraft server**.
 
-This project is tightly integrated with the broader **Hydroline ecosystem**, and works in coordination with components such as the Beacon Plugin / Provider, OAuth Proxy, HydCraft Client Agent & Patcher, Hydroline Client Management, and several auxiliary services (see Hydroline org repo). Together, they form a unified backend infrastructure for server operation, data collection, and player-facing services.
+This project is tightly integrated with the broader **Hydroline ecosystem**, and works in coordination with components such as the [Beacon](https://github.com/Hydroline/beacon), [Beacon Provider](https://github.com/Hydroline/beacon-provider), [OAuth Proxy](https://github.com/Hydroline/oauth-proxy), [Minecraft Skin Proxy](https://github.com/Hydroline/minecraft-skin-proxy), [HydCraft Client Agent](https://github.com/Hydroline/hydcraft-client-agent), [HydCraft Client Patcher](https://github.com/Hydroline/hydcraft-client-patcher), [Foundry](https://github.com/Hydroline/foundry) and several auxiliary services (see [Hydroline org repo](https://github.com/orgs/Hydroline/repositories)). Together, they form a unified backend infrastructure for server operation, data collection, and player-facing services.
 
 At its core, the project focuses on **bridging Minecraft runtime data with real-world server management needs**. It provides features including (but not limited to):
 
@@ -70,3 +70,13 @@ Running them in two terminals is recommended (VS Code split terminals work great
    ```
 
    This uses Prettier to keep the entire codebase consistent.
+
+## Ecosystem
+
+This project only includes the web portion. For other features in the project (such as client distribution, viewing Minecraft server data, and Google OAuth proxy), the following additional services are required:
+
+- Minecraft server data collection: [Beacon](https://github.com/Hydroline/beacon), [Beacon Provider](https://github.com/Hydroline/beacon-provider)
+
+- Proxy services: [OAuth Proxy](https://github.com/Hydroline/oauth-proxy), [Minecraft Skin Proxy](https://github.com/Hydroline/minecraft-skin-proxy)
+
+- Minecraft client distribution: [HydCraft Client Agent](https://github.com/Hydroline/hydcraft-client-agent), [HydCraft Client Patcher](https://github.com/Hydroline/hydcraft-client-patcher), [Foundry](https://github.com/Hydroline/foundry)
