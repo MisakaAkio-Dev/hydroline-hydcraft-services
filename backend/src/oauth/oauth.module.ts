@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { ConfigModule } from '../config/config.module';
+import { RedisModule } from '../lib/redis/redis.module';
 import { OAuthProvidersService } from './services/oauth-providers.service';
 import { OAuthLogService } from './services/oauth-log.service';
 import { OAuthFlowService } from './services/oauth-flow.service';
@@ -14,6 +15,7 @@ import { OAuthProxyTestController } from './controllers/oauth-proxy-test.control
 @Module({
   imports: [
     PrismaModule,
+    RedisModule,
     forwardRef(() => AuthModule),
     forwardRef(() => ConfigModule),
   ],

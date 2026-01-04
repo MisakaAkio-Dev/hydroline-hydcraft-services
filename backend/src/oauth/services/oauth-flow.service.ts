@@ -102,6 +102,23 @@ export class OAuthFlowService {
     state: string,
     purpose: 'DEFAULT' | 'XBOX' | 'XBOX_DEVICE',
   ) {
+    if (providerKey === 'qq') {
+      const authorizeUrl =
+        (settings.authorizeUrl as string) ??
+        'https://graph.qq.com/oauth2.0/authorize';
+      const redirectUri = this.resolveRedirectUri(settings, providerKey);
+      const scopes = Array.isArray(settings.scopes)
+        ? settings.scopes
+        : ['get_user_info'];
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: (settings.clientId as string) ?? '',
+        redirect_uri: redirectUri,
+        state,
+        scope: scopes.join(','),
+      });
+      return `${authorizeUrl}?${params.toString()}`;
+    }
     const tenant = (settings.tenantId as string) || 'common';
     const baseAuthorize =
       (settings.authorizeUrl as string) ||

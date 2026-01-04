@@ -124,8 +124,7 @@ export class OAuthPublicController {
     if (!entry) {
       throw new BadRequestException('Device flow state expired');
     }
-    const payload = entry.payload as Record<string, unknown>;
-    const statePayload = payload as {
+    const statePayload = entry.payload as {
       userId?: string;
       accountId?: string;
       purpose?: string;

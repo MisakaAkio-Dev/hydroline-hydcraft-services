@@ -438,13 +438,27 @@ function closeForgot() {
 
 function startQqAuth() {
   if (typeof window === 'undefined' || !qqOauthEnabled.value) return
-  const url = new URL(qqOauthAuthorizeUrl.value)
-  url.searchParams.set('response_type', 'code')
-  url.searchParams.set('client_id', qqOauthClientId.value)
-  url.searchParams.set('redirect_uri', qqOauthRedirectUri.value)
-  url.searchParams.set('state', `hydroline-qq-${Date.now()}`)
-  url.searchParams.set('scope', 'get_user_info')
-  window.open(url.toString(), '_blank')
+  oauthLoadingProvider.value = 'qq'
+  ;(async () => {
+    try {
+      const callbackUrl = `${window.location.origin}/oauth/callback`
+      const result = await oauthStore.startFlow('qq', {
+        mode: 'LOGIN',
+        redirectUri: callbackUrl,
+        rememberMe: loginForm.rememberMe,
+      })
+      window.open(result.authorizeUrl, '_blank')
+    } catch (error) {
+      toast.add({
+        title: '跳转失败',
+        description:
+          error instanceof ApiError ? error.message : '暂时无法连接第三方登录',
+        color: 'error',
+      })
+    } finally {
+      oauthLoadingProvider.value = null
+    }
+  })()
 }
 
 async function sendForgotCode() {
