@@ -20,7 +20,7 @@ const authStore = useAuthStore()
 const portalStore = usePortalStore()
 
 const status = ref<'PENDING' | 'SUCCESS' | 'ERROR'>('PENDING')
-const message = ref('正在完成授权，请稍候…')
+const message = ref('授权中')
 
 function resolveRedirect(input: unknown) {
   if (typeof input !== 'string' || input.length === 0) return '/'
@@ -47,7 +47,7 @@ async function handleResult(providerKey: string, state: string) {
       await authStore.fetchCurrentUser().catch(() => {})
       await portalStore.fetchHome(true)
       status.value = 'SUCCESS'
-      message.value = '登录成功，正在跳转…'
+      message.value = '登录成功'
       setTimeout(() => {
         router.replace(redirectTarget)
       }, 1500)
