@@ -35,7 +35,6 @@ import { parseSingleFileMultipart } from '../../lib/multipart/parse-single-file-
 import { ChangePasswordWithCodeDto } from '../dto/change-password-with-code.dto';
 import { CreateMinecraftProfileDto } from '../dto/create-minecraft-profile.dto';
 import { UpdateMinecraftProfileDto } from '../dto/update-minecraft-profile.dto';
-import { RedisService } from '../../lib/redis/redis.service';
 import {
   AddPhoneContactDto,
   UpdatePhoneContactDto,
@@ -95,11 +94,7 @@ export class AuthController {
     private readonly usersService: UsersService,
     private readonly ipLocationService: IpLocationService,
     private readonly attachmentsService: AttachmentsService,
-    private readonly redis: RedisService,
   ) {}
-
-  private static readonly SESSION_RESPONSE_CACHE_TTL_MS = 30 * 1000;
-  private static readonly SESSION_RESPONSE_CACHE_KEY_VERSION = 'v1';
 
   @Post('signup')
   @ApiOperation({ summary: '邮箱注册' })
@@ -441,16 +436,6 @@ export class AuthController {
     if (!userAny || typeof userAny !== 'object') {
       return { user: null };
     }
-    const sessionToken = req.sessionToken;
-    const cacheKey = sessionToken
-      ? this.buildSessionResponseCacheKey(sessionToken)
-      : null;
-    if (cacheKey) {
-      const cached = await this.redis.get<{ user: unknown }>(cacheKey);
-      if (cached) {
-        return cached;
-      }
-    }
     const user = userAny as Record<string, unknown>;
     const enrichedBindings = this.mapAuthmeBindingsWithLocation(
       user.authmeBindings,
@@ -463,17 +448,9 @@ export class AuthController {
       this.attachmentsService,
       withBindings as any,
     );
-    const payload = {
+    return {
       user: enrichedUser,
     };
-    if (cacheKey) {
-      await this.redis.set(
-        cacheKey,
-        payload,
-        AuthController.SESSION_RESPONSE_CACHE_TTL_MS,
-      );
-    }
-    return payload;
   }
 
   @Get('me')
@@ -920,9 +897,5 @@ export class AuthController {
         regip_location_display: regipLocationDisplay,
       };
     });
-  }
-
-  private buildSessionResponseCacheKey(sessionToken: string) {
-    return `auth:session-response:${AuthController.SESSION_RESPONSE_CACHE_KEY_VERSION}:${sessionToken}`;
   }
 }

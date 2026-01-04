@@ -570,15 +570,6 @@ export class OAuthFlowService {
     try {
       return JSON.parse(payloadText);
     } catch (error) {
-      this.logger.warn(
-        'QQ callback payload parse failed: ' +
-          JSON.stringify({
-            raw: text,
-            normalized,
-            payloadText,
-            error: error instanceof Error ? error.message : String(error),
-          }),
-      );
       throw new UnauthorizedException(
         `Invalid QQ callback payload: ${
           error instanceof Error ? error.message : String(error)
