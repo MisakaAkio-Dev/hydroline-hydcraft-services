@@ -563,11 +563,24 @@ export class OAuthFlowService {
 
   private parseQqCallbackPayload(text: string) {
     const trimmed = text.trim();
-    const match = trimmed.match(/^callback\\(\\s*([\\s\\S]+?)\\s*\\);?$/);
-    const payloadText = match ? match[1] : trimmed;
+    // Normalize BOM and allow QQ's callback wrapper to include whitespace/newlines around punctuation.
+    const normalized = trimmed.replace(/^\uFEFF/, '');
+    const match = normalized.match(
+      /^callback\\s*\\(\\s*([\\s\\S]+?)\\s*\\)\\s*;?$/i,
+    );
+    const payloadText = match ? match[1] : normalized;
     try {
       return JSON.parse(payloadText);
     } catch (error) {
+      this.logger.warn(
+        'QQ callback payload parse failed: ' +
+          JSON.stringify({
+            raw: text,
+            normalized,
+            payloadText,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+      );
       throw new UnauthorizedException(
         `Invalid QQ callback payload: ${
           error instanceof Error ? error.message : String(error)
