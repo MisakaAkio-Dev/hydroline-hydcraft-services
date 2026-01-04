@@ -563,7 +563,7 @@ export class OAuthFlowService {
 
   private parseQqCallbackPayload(text: string) {
     const trimmed = text.trim();
-    const match = trimmed.match(/^callback\\((.*)\\);?$/);
+    const match = trimmed.match(/^callback\\(\\s*([\\s\\S]+?)\\s*\\);?$/);
     const payloadText = match ? match[1] : trimmed;
     try {
       return JSON.parse(payloadText);
