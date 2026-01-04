@@ -2,16 +2,6 @@ name: Backend Build & Deploy
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "backend/**"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "backend/**"
 
 permissions:
   contents: read

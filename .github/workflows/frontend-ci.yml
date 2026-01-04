@@ -1,0 +1,51 @@
+name: Frontend CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "**"
+    paths:
+      - "frontend/**"
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "frontend/**"
+
+permissions:
+  contents: read
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    env:
+      # In forks/PRs from forks, secrets are not available.
+      # We can use a dummy value or skip if empty.
+      # The build might fail if it strictly depends on specific env vars.
+      FRONTEND_ENV_VARS: ${{ secrets.FRONTEND_ENV_VARS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Activate pnpm
+        run: corepack prepare pnpm@9 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write frontend env file for build
+        if: ${{ env.FRONTEND_ENV_VARS != '' }}
+        run: |
+          set -eo pipefail
+          printf '%s\n' "$FRONTEND_ENV_VARS" > frontend/.env.production
+
+      - name: Build frontend
+        run: pnpm --filter @hydroline/frontend build
