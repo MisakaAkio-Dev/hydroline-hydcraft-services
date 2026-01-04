@@ -565,9 +565,7 @@ export class OAuthFlowService {
     const trimmed = text.trim();
     // Normalize BOM and allow QQ's callback wrapper to include whitespace/newlines around punctuation.
     const normalized = trimmed.replace(/^\uFEFF/, '');
-    const match = normalized.match(
-      /^callback\\s*\\(\\s*([\\s\\S]+?)\\s*\\)\\s*;?$/i,
-    );
+    const match = normalized.match(/^callback\s*\(\s*([\s\S]+?)\s*\)\s*;?$/i);
     const payloadText = match ? match[1] : normalized;
     try {
       return JSON.parse(payloadText);
