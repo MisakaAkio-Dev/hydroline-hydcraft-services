@@ -829,7 +829,7 @@ async function confirmForgotReset() {
                       alt="QQ"
                       class="h-4 w-4 object-contain"
                     />
-                    QQ 登录
+                    QQ
                   </UButton>
                 </div>
               </form>
@@ -1077,7 +1077,7 @@ async function confirmForgotReset() {
                       alt="QQ"
                       class="h-4 w-4 object-contain"
                     />
-                    QQ 注册
+                    QQ
                   </UButton>
                 </div>
               </form>
