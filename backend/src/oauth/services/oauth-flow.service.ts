@@ -665,7 +665,7 @@ export class OAuthFlowService {
       where: { id: account.id },
       data: {
         profile: {
-          ...(base as Record<string, unknown>),
+          ...base,
           minecraftAuth,
         } as Prisma.InputJsonValue,
       },

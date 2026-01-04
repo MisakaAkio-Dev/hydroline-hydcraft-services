@@ -3,6 +3,8 @@ import { ConfigService } from './config.service';
 
 const PORTAL_NAV_NAMESPACE = 'portal.navigation';
 const SECURITY_VERIFICATION_NAMESPACE = 'security.verification';
+const WORLD_ADMIN_DIVISIONS_NAMESPACE = 'world.admin_divisions';
+const WORLD_ADMIN_DIVISIONS_KEY = 'divisions_v1';
 const PORTAL_DEFAULT_ENTRIES = [
   {
     key: 'map_six',
@@ -37,6 +39,18 @@ const SECURITY_VERIFICATION_DEFAULT_ENTRIES: Array<{
   { key: 'emailCodeTtlMinutes', value: 10 },
   { key: 'rateLimitPerEmailPerHour', value: 5 },
   { key: 'supportedPhoneRegions', value: ['+86', '+852', '+853', '+886'] },
+];
+
+const WORLD_ADMIN_DIVISIONS_DEFAULT: Array<{
+  id: string;
+  name: string;
+  level: 1 | 2 | 3;
+  parentId?: string | null;
+}> = [
+  // 示例数据（可在配置管理中扩充）
+  { id: 'hydrogen', name: '氢气', level: 1, parentId: null },
+  { id: 'qinjing', name: '沁京', level: 2, parentId: 'hydrogen' },
+  { id: 'jianghu', name: '江户', level: 3, parentId: 'qinjing' },
 ];
 
 @Injectable()
@@ -93,6 +107,24 @@ export class ConfigBootstrap implements OnModuleInit {
         await this.configService.createEntry(securityNs.id, {
           key: def.key,
           value: def.value,
+        });
+      }
+
+      // ---------------- World Administrative Divisions bootstrap ----------------
+      const worldNs = await this.configService.ensureNamespaceByKey(
+        WORLD_ADMIN_DIVISIONS_NAMESPACE,
+        {
+          name: 'World Administrative Divisions',
+          description: '服务器内行政区划（三级）配置，用于企业登记等业务。',
+        },
+      );
+      const worldExisting = await this.configService.listEntries(worldNs.id);
+      const worldKeys = new Set(worldExisting.map((e) => e.key));
+      if (!worldKeys.has(WORLD_ADMIN_DIVISIONS_KEY)) {
+        await this.configService.createEntry(worldNs.id, {
+          key: WORLD_ADMIN_DIVISIONS_KEY,
+          value: WORLD_ADMIN_DIVISIONS_DEFAULT,
+          description: '行政区划数据（数组，包含 id/name/level/parentId）',
         });
       }
     } catch (error) {

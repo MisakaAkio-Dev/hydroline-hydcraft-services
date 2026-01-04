@@ -35,10 +35,10 @@ const company = computed(() => props.company)
       {{ company.summary || '暂无简介，等待完善。' }}
     </p>
     <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-      <span v-if="company.legalPerson?.user">
-        法人：{{
-          company.legalPerson.user.displayName ||
-          company.legalPerson.user.name ||
+      <span v-if="company.legalRepresentative">
+        法定代表人：{{
+          company.legalRepresentative.displayName ||
+          company.legalRepresentative.name ||
           '未知'
         }}
       </span>

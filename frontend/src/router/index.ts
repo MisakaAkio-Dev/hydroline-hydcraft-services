@@ -93,8 +93,9 @@ export const userRoutes: RouteRecordRaw[] = [
           {
             path: 'dashboard/owned',
             name: 'company.dashboard.owned',
-            component: () =>
-              import('@/views/user/Company/CompanyOwnedListView.vue'),
+            // 旧“公司成员/岗位角色（OWNER/LEGAL_PERSON/...）”体系已移除：
+            // 这里保留路由名用于兼容旧链接，但重定向到 LLC 体系的“法定代表人主体列表”。
+            redirect: { name: 'company.dashboard.legalRepresentative' },
             meta: {
               requiresAuth: true,
               title: '我的公司',
@@ -103,11 +104,101 @@ export const userRoutes: RouteRecordRaw[] = [
           {
             path: 'dashboard/join',
             name: 'company.dashboard.join',
-            component: () =>
-              import('@/views/user/Company/CompanyJoinListView.vue'),
+            // 旧“加入公司（成员系统）”入口已废弃，改为跳转到公司名录。
+            redirect: { name: 'company.database' },
             meta: {
               requiresAuth: true,
               title: '加入公司',
+            },
+          },
+          {
+            path: 'dashboard/applications',
+            name: 'company.dashboard.applications',
+            component: () =>
+              import(
+                '@/views/user/Company/CompanyApplicationsProgressView.vue'
+              ),
+            meta: {
+              requiresAuth: true,
+              title: '我的申请/待同意',
+            },
+          },
+          {
+            path: 'dashboard/registry-applications',
+            name: 'company.dashboard.registryApplications',
+            component: () =>
+              import(
+                '@/views/user/Company/CompanyRegistryApplicationsView.vue'
+              ),
+            meta: {
+              requiresAuth: true,
+              title: '登记机关审批',
+            },
+          },
+          {
+            path: 'dashboard/legal-representative',
+            name: 'company.dashboard.legalRepresentative',
+            component: () =>
+              import('@/views/user/Company/CompanyRoleEntityListView.vue'),
+            meta: {
+              requiresAuth: true,
+              title: '由您担任法定代表人的民事主体',
+              roleKey: 'legalRepresentative',
+            },
+          },
+          {
+            path: 'dashboard/shareholding',
+            name: 'company.dashboard.shareholding',
+            component: () =>
+              import('@/views/user/Company/CompanyRoleEntityListView.vue'),
+            meta: {
+              requiresAuth: true,
+              title: '由您持股的民事主体',
+              roleKey: 'shareholding',
+            },
+          },
+          {
+            path: 'dashboard/director',
+            name: 'company.dashboard.director',
+            component: () =>
+              import('@/views/user/Company/CompanyRoleEntityListView.vue'),
+            meta: {
+              requiresAuth: true,
+              title: '由您担任董事的民事主体',
+              roleKey: 'director',
+            },
+          },
+          {
+            path: 'dashboard/manager',
+            name: 'company.dashboard.manager',
+            component: () =>
+              import('@/views/user/Company/CompanyRoleEntityListView.vue'),
+            meta: {
+              requiresAuth: true,
+              title: '由您担任经理（包含副经理）的民事主体',
+              roleKey: 'manager',
+            },
+          },
+          {
+            path: 'dashboard/supervisor',
+            name: 'company.dashboard.supervisor',
+            component: () =>
+              import('@/views/user/Company/CompanyRoleEntityListView.vue'),
+            meta: {
+              requiresAuth: true,
+              title: '由您担任监事的民事主体',
+              roleKey: 'supervisor',
+            },
+          },
+          {
+            path: 'dashboard/financial-officer',
+            name: 'company.dashboard.financialOfficer',
+            component: () =>
+              import('@/views/user/Company/CompanyRoleEntityListView.vue'),
+            meta: {
+              requiresAuth: true,
+              title: '由您担任财务负责人的民事主体',
+              roleKey: 'financialOfficer',
             },
           },
           {
@@ -596,6 +687,46 @@ export const adminRoutes: RouteRecordRaw[] = [
           requiresPermissions: ['company.admin.applications'],
           layout: 'admin',
           title: '注销审批',
+        },
+      },
+      {
+        path: 'company/equity-transfers',
+        name: 'admin.company.equityTransfers',
+        component: () =>
+          import(
+            '@/views/admin/Company/CompanyEquityTransferApplicationsView.vue'
+          ),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['company.admin.applications'],
+          layout: 'admin',
+          title: '股权转让审批',
+        },
+      },
+      {
+        path: 'company/name-changes',
+        name: 'admin.company.nameChanges',
+        component: () =>
+          import('@/views/admin/Company/CompanyRenameApplicationsView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['company.admin.applications'],
+          layout: 'admin',
+          title: '更名审批',
+        },
+      },
+      {
+        path: 'company/capital-changes',
+        name: 'admin.company.capitalChanges',
+        component: () =>
+          import(
+            '@/views/admin/Company/CompanyCapitalChangeApplicationsView.vue'
+          ),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['company.admin.applications'],
+          layout: 'admin',
+          title: '注册资本变更审批',
         },
       },
       {

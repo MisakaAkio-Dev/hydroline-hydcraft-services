@@ -18,23 +18,27 @@ const filters = reactive({
   search: '',
 })
 
-const statusOptions = [
+const statusOptions: Array<{
+  label: string
+  value: CompanyApplicationStatus | undefined
+}> = [
   { label: '全部', value: undefined },
-  { label: '已提交', value: 'SUBMITTED' },
   { label: '审核中', value: 'UNDER_REVIEW' },
   { label: '需补件', value: 'NEEDS_CHANGES' },
   { label: '已通过', value: 'APPROVED' },
   { label: '已驳回', value: 'REJECTED' },
   { label: '已归档', value: 'ARCHIVED' },
-] as const
+]
 
-const statusLabels: Record<CompanyApplicationStatus, string> = {
-  SUBMITTED: '已提交',
-  UNDER_REVIEW: '审核中',
-  NEEDS_CHANGES: '需补件',
-  APPROVED: '已通过',
-  REJECTED: '已驳回',
-  ARCHIVED: '已归档',
+const statusLabel = (status: CompanyApplicationStatus) => {
+  const map: Record<string, string> = {
+    UNDER_REVIEW: '审核中',
+    NEEDS_CHANGES: '需补件',
+    APPROVED: '已通过',
+    REJECTED: '已驳回',
+    ARCHIVED: '已归档',
+  }
+  return map[status] ?? String(status)
 }
 
 const pageInput = ref(store.pagination.page)
@@ -44,7 +48,7 @@ const safePageCount = computed(() =>
 
 const actionDialogOpen = ref(false)
 const actionTarget = ref<AdminCompanyApplicationEntry | null>(null)
-const actionKey = ref<string | null>(null)
+const actionKey = ref<string | undefined>(undefined)
 const actionComment = ref('')
 const actionLoading = ref(false)
 const autoApproveDraft = ref(false)
@@ -99,13 +103,38 @@ const formatApplicant = (entry: AdminCompanyApplicationEntry) => {
   )
 }
 
-function actionsForEntry(entry: AdminCompanyApplicationEntry) {
+function getCompanyName(entry: AdminCompanyApplicationEntry) {
+  if (entry.company?.name) return entry.company.name
+  const payloadName = entry.payload?.name
+  return typeof payloadName === 'string' && payloadName.trim()
+    ? payloadName.trim()
+    : '未知公司'
+}
+
+function getCompanyTypeName(entry: AdminCompanyApplicationEntry) {
+  return entry.company?.type?.name || entry.type?.name || '未绑定类型'
+}
+
+function getRegistrationAuthorityName(entry: AdminCompanyApplicationEntry) {
+  // 登记机关通常存在于申请 payload 的 llc 字段中；公司未入库时 company 可能为空
+  const payload = entry.payload as
+    | { llc?: { registrationAuthorityName?: unknown } }
+    | null
+    | undefined
+  const name = payload?.llc?.registrationAuthorityName
+  return typeof name === 'string' && name.trim() ? name.trim() : '—'
+}
+
+type ApplicationActionOption = {
+  key: string
+  label: string
+  color: 'primary' | 'neutral'
+}
+
+function actionsForEntry(
+  entry: AdminCompanyApplicationEntry,
+): ApplicationActionOption[] {
   switch (entry.status) {
-    case 'SUBMITTED':
-      return [
-        { key: 'route_to_review', label: '进入审核', color: 'primary' },
-        { key: 'reject', label: '直接驳回', color: 'neutral' },
-      ]
     case 'UNDER_REVIEW':
       return [
         { key: 'approve', label: '通过入库', color: 'primary' },
@@ -274,6 +303,7 @@ watch(autoApproveDraft, async (value) => {
               class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
             >
               <th class="px-4 py-3">公司</th>
+              <th class="px-4 py-3">登记机关</th>
               <th class="px-4 py-3">申请人</th>
               <th class="px-4 py-3">状态</th>
               <th class="px-4 py-3">提交时间</th>
@@ -290,11 +320,14 @@ watch(autoApproveDraft, async (value) => {
             >
               <td class="px-4 py-3">
                 <div class="font-medium text-slate-900 dark:text-white">
-                  {{ item.company?.name || '未知公司' }}
+                  {{ getCompanyName(item) }}
                 </div>
                 <p class="text-xs text-slate-500">
-                  {{ item.company?.type?.name || '未绑定类型' }}
+                  {{ getCompanyTypeName(item) }}
                 </p>
+              </td>
+              <td class="px-4 py-3 text-slate-500">
+                {{ getRegistrationAuthorityName(item) }}
               </td>
               <td class="px-4 py-3 text-slate-500">
                 {{ formatApplicant(item) }}
@@ -303,7 +336,7 @@ watch(autoApproveDraft, async (value) => {
                 <span
                   class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"
                 >
-                  {{ statusLabels[item.status] || item.status }}
+                  {{ statusLabel(item.status) }}
                 </span>
               </td>
               <td class="px-4 py-3 text-xs text-slate-500">
@@ -349,7 +382,7 @@ watch(autoApproveDraft, async (value) => {
             </tr>
             <tr v-if="store.items.length === 0">
               <td
-                colspan="7"
+                colspan="8"
                 class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
               >
                 没有匹配的申请记录
@@ -445,7 +478,7 @@ watch(autoApproveDraft, async (value) => {
                 公司申请审批
               </p>
               <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-                {{ actionTarget?.company?.name || '审批操作' }}
+                {{ actionTarget ? getCompanyName(actionTarget) : '审批操作' }}
               </h3>
             </div>
             <UButton
@@ -473,7 +506,7 @@ watch(autoApproveDraft, async (value) => {
               <label class="text-xs font-semibold text-slate-500">备注</label>
               <UTextarea
                 v-model="actionComment"
-                rows="3"
+                :rows="3"
                 placeholder="审批备注（可选）"
               />
             </div>
@@ -485,7 +518,7 @@ watch(autoApproveDraft, async (value) => {
               }}
               ·
               {{
-                actionTarget?.status ? statusLabels[actionTarget.status] : '—'
+                actionTarget?.status ? statusLabel(actionTarget.status) : '—'
               }}
             </div>
           </div>

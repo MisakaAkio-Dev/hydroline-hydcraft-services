@@ -5,14 +5,21 @@ import type {
   CompanyDashboardStats,
   CompanyDailyRegistration,
   CompanyDirectoryResponse,
-  CompanyMemberInvitePayload,
-  CompanyMemberJoinPayload,
-  CompanyMemberUserRef,
+  CompanyUserRef,
+  CompanyRef,
   CompanyMeta,
   CompanyModel,
   CompanyRecommendation,
   CompanyDeregistrationApplyPayload,
+  CompanyRenameApplyPayload,
+  CompanyDomicileChangeApplyPayload,
+  CompanyBusinessScopeChangeApplyPayload,
+  CompanyManagementChangeApplyPayload,
+  CompanyCapitalChangeApplyPayload,
+  CompanyEquityTransferApplyPayload,
   CreateCompanyApplicationPayload,
+  MyCompanyApplicationEntry,
+  MyPendingConsentEntry,
   UpdateCompanyPayload,
 } from '@/types/company'
 
@@ -45,6 +52,10 @@ export const useCompanyStore = defineStore('companies', {
     dailyRegistrations: [] as CompanyDailyRegistration[],
     dailyRegistrationsLoading: false,
     submitting: false,
+    myApplications: [] as MyCompanyApplicationEntry[],
+    myApplicationsLoading: false,
+    pendingConsents: [] as MyPendingConsentEntry[],
+    pendingConsentsLoading: false,
   }),
   getters: {
     hasCompanies(state): boolean {
@@ -95,31 +106,45 @@ export const useCompanyStore = defineStore('companies', {
     recalculateStats() {
       const companyCount = this.dashboard.length
       const individualBusinessCount = this.dashboard.filter(
-        (company) => company.isIndividualBusiness,
+        (company) => company.category === 'INDIVIDUAL',
       ).length
-      const memberCount = this.dashboard.reduce(
-        (sum, company) =>
-          sum +
-          company.members.filter((member) => member.joinStatus !== 'PENDING')
-            .length,
-        0,
-      )
+      const memberCount = this.dashboard.reduce((sum, company) => {
+        const ids = new Set<string>()
+        if (company.legalRepresentative?.id)
+          ids.add(company.legalRepresentative.id)
+        for (const officer of company.llcRegistration?.officers ?? []) {
+          if (officer.user?.id) ids.add(officer.user.id)
+        }
+        for (const sh of company.llcRegistration?.shareholders ?? []) {
+          if (sh.kind === 'USER' && sh.userId) ids.add(sh.userId)
+        }
+        return sum + ids.size
+      }, 0)
       this.dashboardStats = {
         companyCount,
         individualBusinessCount,
         memberCount,
       }
     },
-    async searchUsers(
-      keyword: string,
-      limit = 10,
-    ): Promise<CompanyMemberUserRef[]> {
+    async searchUsers(keyword: string, limit = 10): Promise<CompanyUserRef[]> {
       if (!keyword.trim()) {
         return []
       }
       const authStore = useAuthStore()
-      return apiFetch<CompanyMemberUserRef[]>(
+      return apiFetch<CompanyUserRef[]>(
         `/companies/users/search?query=${encodeURIComponent(keyword)}&limit=${limit}`,
+        {
+          token: authStore.token,
+        },
+      )
+    },
+    async searchCompanies(keyword: string, limit = 10): Promise<CompanyRef[]> {
+      if (!keyword.trim()) {
+        return []
+      }
+      const authStore = useAuthStore()
+      return apiFetch<CompanyRef[]>(
+        `/companies/search?query=${encodeURIComponent(keyword)}&limit=${limit}`,
         {
           token: authStore.token,
         },
@@ -129,17 +154,92 @@ export const useCompanyStore = defineStore('companies', {
       this.submitting = true
       try {
         const authStore = useAuthStore()
-        const company = await apiFetch<CompanyModel>('/companies/apply', {
-          method: 'POST',
-          body: payload,
-          token: authStore.token,
-        })
-        this.dashboard.unshift(company)
-        this.recalculateStats()
-        return company
+        const application = await apiFetch<{ id: string; status: string }>(
+          '/companies/apply',
+          {
+            method: 'POST',
+            body: payload,
+            token: authStore.token,
+          },
+        )
+        // 注册申请在审批通过前不会生成公司记录，因此这里不更新 dashboard
+        return application
       } finally {
         this.submitting = false
       }
+    },
+    async fetchMyApplications() {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法查询我的申请')
+      this.myApplicationsLoading = true
+      try {
+        const result = await apiFetch<MyCompanyApplicationEntry[]>(
+          '/companies/applications/mine',
+          { token: authStore.token },
+        )
+        this.myApplications = result
+        return result
+      } finally {
+        this.myApplicationsLoading = false
+      }
+    },
+    async fetchPendingConsents() {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法查询待同意清单')
+      this.pendingConsentsLoading = true
+      try {
+        const result = await apiFetch<MyPendingConsentEntry[]>(
+          '/companies/consents/pending',
+          { token: authStore.token },
+        )
+        this.pendingConsents = result
+        return result
+      } finally {
+        this.pendingConsentsLoading = false
+      }
+    },
+    async getApplicationConsents(applicationId: string) {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法查看同意明细')
+      return apiFetch(`/companies/applications/${applicationId}/consents`, {
+        token: authStore.token,
+      })
+    },
+    async approveMyApplicationConsents(
+      applicationId: string,
+      comment?: string,
+    ) {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法同意')
+      return apiFetch(
+        `/companies/applications/${applicationId}/consents/approve`,
+        {
+          method: 'POST',
+          body: { comment },
+          token: authStore.token,
+        },
+      )
+    },
+    async rejectMyApplicationConsents(applicationId: string, comment?: string) {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法拒绝')
+      return apiFetch(
+        `/companies/applications/${applicationId}/consents/reject`,
+        {
+          method: 'POST',
+          body: { comment },
+          token: authStore.token,
+        },
+      )
+    },
+    async withdrawMyApplication(applicationId: string, comment?: string) {
+      const authStore = useAuthStore()
+      if (!authStore.token) throw new Error('未登录，无法撤回申请')
+      return apiFetch(`/companies/applications/${applicationId}/withdraw`, {
+        method: 'POST',
+        body: { comment },
+        token: authStore.token,
+      })
     },
     async applyDeregistration(
       companyId: string,
@@ -148,22 +248,123 @@ export const useCompanyStore = defineStore('companies', {
       this.submitting = true
       try {
         const authStore = useAuthStore()
-        const company = await apiFetch<CompanyModel>(
-          `/companies/${companyId}/deregistration`,
-          {
-            method: 'POST',
-            body: payload,
-            token: authStore.token,
-          },
-        )
-        const index = this.dashboard.findIndex((item) => item.id === companyId)
-        if (index !== -1) {
-          this.dashboard[index] = company
-        } else {
-          this.dashboard.unshift(company)
-        }
-        this.recalculateStats()
-        return company
+        if (!authStore.token) throw new Error('未登录，无法提交注销申请')
+        // 后端返回“申请+同意明细”，公司状态不会在提交时立即改变，因此不更新 dashboard
+        return apiFetch(`/companies/${companyId}/deregistration`, {
+          method: 'POST',
+          body: payload as unknown as Record<string, unknown>,
+          token: authStore.token,
+        })
+      } finally {
+        this.submitting = false
+      }
+    },
+    async applyNameChange(
+      companyId: string,
+      payload: CompanyRenameApplyPayload,
+    ) {
+      this.submitting = true
+      try {
+        const authStore = useAuthStore()
+        if (!authStore.token) throw new Error('未登录，无法提交更名申请')
+        // 后端返回“申请+同意明细”，公司状态不会在提交时立即改变，因此不更新 dashboard
+        return apiFetch(`/companies/${companyId}/name-change`, {
+          method: 'POST',
+          body: payload as unknown as Record<string, unknown>,
+          token: authStore.token,
+        })
+      } finally {
+        this.submitting = false
+      }
+    },
+    async applyDomicileChange(
+      companyId: string,
+      payload: CompanyDomicileChangeApplyPayload,
+    ) {
+      this.submitting = true
+      try {
+        const authStore = useAuthStore()
+        if (!authStore.token) throw new Error('未登录，无法提交住所变更申请')
+        // 后端返回“申请+同意明细”，公司状态不会在提交时立即改变，因此不更新 dashboard
+        return apiFetch(`/companies/${companyId}/domicile-change`, {
+          method: 'POST',
+          body: payload as unknown as Record<string, unknown>,
+          token: authStore.token,
+        })
+      } finally {
+        this.submitting = false
+      }
+    },
+    async applyBusinessScopeChange(
+      companyId: string,
+      payload: CompanyBusinessScopeChangeApplyPayload,
+    ) {
+      this.submitting = true
+      try {
+        const authStore = useAuthStore()
+        if (!authStore.token)
+          throw new Error('未登录，无法提交经营范围变更申请')
+        // 后端返回“申请+同意明细”，公司状态不会在提交时立即改变，因此不更新 dashboard
+        return apiFetch(`/companies/${companyId}/business-scope-change`, {
+          method: 'POST',
+          body: payload as unknown as Record<string, unknown>,
+          token: authStore.token,
+        })
+      } finally {
+        this.submitting = false
+      }
+    },
+    async applyCapitalChange(
+      companyId: string,
+      payload: CompanyCapitalChangeApplyPayload,
+    ) {
+      this.submitting = true
+      try {
+        const authStore = useAuthStore()
+        if (!authStore.token)
+          throw new Error('未登录，无法提交注册资本变更申请')
+        // 后端返回“申请+同意明细”，公司状态不会在提交时立即改变，因此不更新 dashboard
+        return apiFetch(`/companies/${companyId}/capital-change`, {
+          method: 'POST',
+          body: payload as unknown as Record<string, unknown>,
+          token: authStore.token,
+        })
+      } finally {
+        this.submitting = false
+      }
+    },
+    async applyEquityTransfer(
+      companyId: string,
+      payload: CompanyEquityTransferApplyPayload,
+    ) {
+      this.submitting = true
+      try {
+        const authStore = useAuthStore()
+        if (!authStore.token) throw new Error('未登录，无法提交股权转让申请')
+        return apiFetch(`/companies/${companyId}/equity-transfer`, {
+          method: 'POST',
+          body: payload as unknown as Record<string, unknown>,
+          token: authStore.token,
+        })
+      } finally {
+        this.submitting = false
+      }
+    },
+
+    async applyManagementChange(
+      companyId: string,
+      payload: CompanyManagementChangeApplyPayload,
+    ) {
+      this.submitting = true
+      try {
+        const authStore = useAuthStore()
+        if (!authStore.token) throw new Error('未登录，无法提交管理层变更申请')
+        // 后端返回“申请+同意明细”，公司状态不会在提交时立即改变，因此不更新 dashboard
+        return apiFetch(`/companies/${companyId}/management-change`, {
+          method: 'POST',
+          body: payload as unknown as Record<string, unknown>,
+          token: authStore.token,
+        })
       } finally {
         this.submitting = false
       }
@@ -196,66 +397,6 @@ export const useCompanyStore = defineStore('companies', {
       this.recalculateStats()
       return detail
     },
-    async inviteMember(companyId: string, payload: CompanyMemberInvitePayload) {
-      const authStore = useAuthStore()
-      const company = await apiFetch<CompanyModel>(
-        `/companies/${companyId}/members/invite`,
-        {
-          method: 'POST',
-          body: payload,
-          token: authStore.token,
-        },
-      )
-      const index = this.dashboard.findIndex((item) => item.id === companyId)
-      if (index !== -1) {
-        this.dashboard[index] = company
-      } else {
-        this.dashboard.unshift(company)
-      }
-      this.recalculateStats()
-      return company
-    },
-    async joinCompany(companyId: string, payload: CompanyMemberJoinPayload) {
-      const authStore = useAuthStore()
-      const company = await apiFetch<CompanyModel>(
-        `/companies/${companyId}/members/join`,
-        {
-          method: 'POST',
-          body: payload,
-          token: authStore.token,
-        },
-      )
-      const index = this.dashboard.findIndex((item) => item.id === companyId)
-      if (index !== -1) {
-        this.dashboard[index] = company
-      } else {
-        this.dashboard.unshift(company)
-      }
-      this.recalculateStats()
-      return company
-    },
-    async updateSettings(
-      companyId: string,
-      payload: {
-        joinPolicy: 'AUTO' | 'REVIEW'
-        positionPermissions: Record<string, string[]>
-      },
-    ) {
-      const authStore = useAuthStore()
-      const company = await apiFetch<CompanyModel>(
-        `/companies/${companyId}/settings`,
-        {
-          method: 'PATCH',
-          body: payload,
-          token: authStore.token,
-        },
-      )
-      const index = this.dashboard.findIndex((item) => item.id === companyId)
-      if (index !== -1) {
-        this.dashboard[index] = company
-      }
-      return company
-    },
     async uploadLogo(companyId: string, file: File) {
       const authStore = useAuthStore()
       const formData = new FormData()
@@ -281,71 +422,6 @@ export const useCompanyStore = defineStore('companies', {
         {
           method: 'PATCH',
           body: { attachmentId },
-          token: authStore.token,
-        },
-      )
-      const index = this.dashboard.findIndex((item) => item.id === companyId)
-      if (index !== -1) {
-        this.dashboard[index] = company
-      }
-      return company
-    },
-    async approveJoinRequest(
-      companyId: string,
-      payload: {
-        memberId: string
-        positionCode?: string | null
-        title?: string
-      },
-    ) {
-      const authStore = useAuthStore()
-      const company = await apiFetch<CompanyModel>(
-        `/companies/${companyId}/members/approve`,
-        {
-          method: 'POST',
-          body: payload,
-          token: authStore.token,
-        },
-      )
-      const index = this.dashboard.findIndex((item) => item.id === companyId)
-      if (index !== -1) {
-        this.dashboard[index] = company
-      }
-      this.recalculateStats()
-      return company
-    },
-    async rejectJoinRequest(companyId: string, payload: { memberId: string }) {
-      const authStore = useAuthStore()
-      const company = await apiFetch<CompanyModel>(
-        `/companies/${companyId}/members/reject`,
-        {
-          method: 'POST',
-          body: payload,
-          token: authStore.token,
-        },
-      )
-      const index = this.dashboard.findIndex((item) => item.id === companyId)
-      if (index !== -1) {
-        this.dashboard[index] = company
-      }
-      this.recalculateStats()
-      return company
-    },
-    async updateMember(
-      companyId: string,
-      payload: {
-        memberId: string
-        positionCode?: string | null
-        title?: string
-        permissions: string[]
-      },
-    ) {
-      const authStore = useAuthStore()
-      const company = await apiFetch<CompanyModel>(
-        `/companies/${companyId}/members/${payload.memberId}`,
-        {
-          method: 'PATCH',
-          body: payload,
           token: authStore.token,
         },
       )

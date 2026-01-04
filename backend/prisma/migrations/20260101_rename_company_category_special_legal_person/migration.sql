@@ -1,0 +1,8 @@
+-- Fix typo in enum value: SPECIAL_LEAGAL -> SPECIAL_LEGAL_PERSON
+ALTER TYPE "CompanyCategory" RENAME VALUE 'SPECIAL_LEAGAL' TO 'SPECIAL_LEGAL_PERSON';
+
+
+
+
+
+

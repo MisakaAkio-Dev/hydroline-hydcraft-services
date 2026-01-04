@@ -150,7 +150,7 @@ export class MicrosoftMinecraftService {
       where: { id: account.id },
       data: {
         profile: {
-          ...(base as Record<string, unknown>),
+          ...base,
           minecraftAuth,
         } as Prisma.InputJsonValue,
       },
@@ -203,7 +203,7 @@ export class MicrosoftMinecraftService {
       Number.isFinite(expiresAt) &&
       expiresAt > Date.now() + 60 * 1000;
     if (stillValid) {
-      return accessToken!;
+      return accessToken;
     }
     const refreshToken = readString(minecraftAuth.refreshToken);
     if (!refreshToken) {
@@ -232,7 +232,7 @@ export class MicrosoftMinecraftService {
       where: { id: account.id },
       data: {
         profile: {
-          ...(base as Record<string, unknown>),
+          ...base,
           minecraftAuth: updatedAuth,
         } as Prisma.InputJsonValue,
       },
@@ -321,7 +321,7 @@ export class MicrosoftMinecraftService {
       settings,
     );
     const xblToken = readString(xbl?.Token);
-    const uhs = readString((xbl?.DisplayClaims as any)?.xui?.[0]?.uhs);
+    const uhs = readString(xbl?.DisplayClaims?.xui?.[0]?.uhs);
     if (!xblToken || !uhs) {
       throw new BadRequestException('Failed to obtain Xbox Live token');
     }
@@ -338,12 +338,8 @@ export class MicrosoftMinecraftService {
       },
       settings,
     );
-    const bedrockXuid = readString(
-      (xstsXbox?.DisplayClaims as any)?.xui?.[0]?.xid,
-    );
-    const bedrockGamertag = readString(
-      (xstsXbox?.DisplayClaims as any)?.xui?.[0]?.gtg,
-    );
+    const bedrockXuid = readString(xstsXbox?.DisplayClaims?.xui?.[0]?.xid);
+    const bedrockGamertag = readString(xstsXbox?.DisplayClaims?.xui?.[0]?.gtg);
 
     const xstsMinecraft = await this.postJson(
       'https://xsts.auth.xboxlive.com/xsts/authorize',
@@ -424,7 +420,7 @@ export class MicrosoftMinecraftService {
         `Request failed (${response.status}) ${url}: ${summary}`,
       );
     }
-    return text ? (JSON.parse(text) as any) : null;
+    return text ? JSON.parse(text) : null;
   }
 
   private async getJson(
@@ -448,7 +444,7 @@ export class MicrosoftMinecraftService {
         `Request failed (${response.status}) ${url}: ${summary}`,
       );
     }
-    return text ? (JSON.parse(text) as any) : null;
+    return text ? JSON.parse(text) : null;
   }
 
   private async updateAccountMinecraftProfile(

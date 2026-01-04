@@ -1137,10 +1137,7 @@ export class TransportationRailwaySnapshotService {
           : null;
         const metadata =
           connection && typeof connection === 'object'
-            ? normalizeRailConnectionMetadata(
-                connection as Record<string, unknown>,
-                targetNodeId ?? '',
-              )
+            ? normalizeRailConnectionMetadata(connection, targetNodeId ?? '')
             : null;
         const hasCurve = Boolean(metadata?.primary || metadata?.secondary);
         if (hasCurve) {
