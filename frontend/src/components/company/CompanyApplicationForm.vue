@@ -1298,8 +1298,8 @@ const handleSubmit = () => {
                 class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 aria-label="清空"
                 @click.stop.prevent="
-                  llcDraft.registrationAuthorityCompanyId = undefined
-                  llcDraft.registrationAuthorityName = ''
+                  ((llcDraft.registrationAuthorityCompanyId = undefined),
+                  (llcDraft.registrationAuthorityName = ''))
                 "
               >
                 ×
