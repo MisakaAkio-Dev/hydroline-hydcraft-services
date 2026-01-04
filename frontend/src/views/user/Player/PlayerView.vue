@@ -375,7 +375,7 @@ function formatIpLocation(location: string | null | undefined) {
   <Transition name="opacity-motion">
     <div
       v-if="summary?.avatarUrl"
-      class="absolute top-0 left-0 lg:left-16 right-0 h-1/5 md:h-2/3 pointer-events-none select-none mask-[linear-gradient(to_bottom,#fff_-20%,transparent_80%)] filter-[blur(32px)_saturate(250%)_opacity(0.2)] dark:filter-[blur(48px)_saturate(200%)_opacity(0.8)]"
+      class="absolute top-0 left-0 lg:left-16 right-0 h-1/5 md:h-2/3 pointer-events-none select-none mask-[linear-gradient(to_bottom,#fff_-20%,transparent_80%)] filter-[blur(48px)_saturate(250%)_opacity(0.2)] dark:filter-[blur(128px)_saturate(200%)_opacity(0.7)]"
     >
       <img
         :src="summary.avatarUrl"

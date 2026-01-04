@@ -215,7 +215,7 @@ async function handleLikeToggle() {
         </div>
 
         <template v-if="props.summary">
-          <div class="text-xs text-slate-500 dark:text-slate-500 mt-1">
+          <div class="text-xs text-slate-500 dark:text-slate-300 mt-1">
             {{ props.summary.id }}
           </div>
         </template>

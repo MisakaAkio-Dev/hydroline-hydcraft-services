@@ -797,7 +797,10 @@ async function confirmForgotReset() {
                   </div>
                 </div>
 
-                <div v-if="oauthProviders.length" class="space-y-2 rounded-xl">
+                <div
+                  v-if="oauthProviders.length"
+                  class="flex gap-2 items-center flex-col md:flex-row"
+                >
                   <UButton
                     v-for="provider in oauthProviders"
                     :key="provider.key"
@@ -1045,7 +1048,10 @@ async function confirmForgotReset() {
                   </div>
                 </div>
 
-                <div v-if="oauthProviders.length" class="space-y-2 rounded-xl">
+                <div
+                  v-if="oauthProviders.length"
+                  class="flex gap-2 items-center flex-col md:flex-row"
+                >
                   <UButton
                     v-for="provider in oauthProviders"
                     :key="provider.key"
