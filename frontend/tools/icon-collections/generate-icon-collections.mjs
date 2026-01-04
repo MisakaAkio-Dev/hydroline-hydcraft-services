@@ -27,7 +27,13 @@ const frontendRoot =
   path.basename(cwd) === 'frontend' ? cwd : path.join(cwd, 'frontend')
 const srcRoot = path.join(frontendRoot, 'src')
 
-const iconRegex = /(?:icon|name)="(i-[^"]+)"/g
+// Match any string starting with "i-" or "logos:" inside quotes
+// This catches:
+// - icon="i-lucide-home"
+// - name="i-lucide-home"
+// - :icon="condition ? 'i-lucide-sun' : 'i-lucide-moon'"
+// - { icon: 'i-lucide-settings' }
+const iconRegex = /['"]((?:i-|logos:)[\w:-]+)['"]/g
 const brandFile = path.join(srcRoot, 'utils/oauth/brand.ts')
 const outputDir = path.join(srcRoot, 'icons')
 

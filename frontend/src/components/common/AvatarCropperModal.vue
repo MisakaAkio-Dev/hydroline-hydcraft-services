@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Cropper from 'cropperjs'
-import '@/assets/cropper.css'
+import '@/assets/styles/cropper.css'
 
 let cropperModalInstance = 0
 
