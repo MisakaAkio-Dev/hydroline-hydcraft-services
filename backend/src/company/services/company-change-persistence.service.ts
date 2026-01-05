@@ -414,9 +414,16 @@ export class CompanyChangePersistenceService {
     const deputyManagerId = String(payload.deputyManagerId ?? '').trim();
     const financialOfficerId = String(payload.financialOfficerId ?? '').trim();
 
+    const registration = await this.prisma.companyLlcRegistration.findUnique({
+      where: { companyId },
+    });
+    if (!registration) {
+      throw new BadRequestException('No LLC registration found');
+    }
+
     await this.prisma.companyLlcRegistrationOfficer.deleteMany({
       where: {
-        registrationId: companyId,
+        registrationId: registration.id,
         role: {
           in: [
             CompanyLlcOfficerRole.MANAGER,
@@ -439,7 +446,7 @@ export class CompanyChangePersistenceService {
     if (managerId) {
       rows.push({
         id: randomUUID(),
-        registrationId: companyId,
+        registrationId: registration.id,
         userId: managerId,
         role: CompanyLlcOfficerRole.MANAGER,
         createdAt: now,
@@ -449,7 +456,7 @@ export class CompanyChangePersistenceService {
     if (deputyManagerId) {
       rows.push({
         id: randomUUID(),
-        registrationId: companyId,
+        registrationId: registration.id,
         userId: deputyManagerId,
         role: CompanyLlcOfficerRole.DEPUTY_MANAGER,
         createdAt: now,
@@ -459,7 +466,7 @@ export class CompanyChangePersistenceService {
     if (financialOfficerId) {
       rows.push({
         id: randomUUID(),
-        registrationId: companyId,
+        registrationId: registration.id,
         userId: financialOfficerId,
         role: CompanyLlcOfficerRole.FINANCIAL_OFFICER,
         createdAt: now,
