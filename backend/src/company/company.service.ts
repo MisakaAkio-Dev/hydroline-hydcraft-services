@@ -15,7 +15,6 @@ import {
   CompanyVisibility,
   Prisma,
 } from '@prisma/client';
-import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 
@@ -40,7 +39,6 @@ import {
   CompanyOfficerChangeApplyDto,
   CompanyManagementChangeApplyDto,
   CompanyCapitalChangeApplyDto,
-  LimitedLiabilityCompanyApplicationDto,
   UpdateCompanyProfileDto,
   WithdrawCompanyApplicationDto,
 } from './dto/company.dto';
@@ -48,26 +46,6 @@ import {
   CreateWorldDivisionNodeDto,
   UpdateWorldDivisionNodeDto,
 } from './dto/admin-geo-division.dto';
-import {
-  DEFAULT_COMPANY_DEREGISTRATION_WORKFLOW_CODE,
-  DEFAULT_COMPANY_DEREGISTRATION_WORKFLOW_DEFINITION,
-  DEFAULT_COMPANY_DOMICILE_CHANGE_WORKFLOW_CODE,
-  DEFAULT_COMPANY_DOMICILE_CHANGE_WORKFLOW_DEFINITION,
-  DEFAULT_COMPANY_EQUITY_TRANSFER_WORKFLOW_CODE,
-  DEFAULT_COMPANY_EQUITY_TRANSFER_WORKFLOW_DEFINITION,
-  DEFAULT_COMPANY_BUSINESS_SCOPE_CHANGE_WORKFLOW_CODE,
-  DEFAULT_COMPANY_BUSINESS_SCOPE_CHANGE_WORKFLOW_DEFINITION,
-  DEFAULT_COMPANY_CAPITAL_CHANGE_WORKFLOW_CODE,
-  DEFAULT_COMPANY_CAPITAL_CHANGE_WORKFLOW_DEFINITION,
-  DEFAULT_COMPANY_OFFICER_CHANGE_WORKFLOW_CODE,
-  DEFAULT_COMPANY_OFFICER_CHANGE_WORKFLOW_DEFINITION,
-  DEFAULT_COMPANY_MANAGEMENT_CHANGE_WORKFLOW_CODE,
-  DEFAULT_COMPANY_MANAGEMENT_CHANGE_WORKFLOW_DEFINITION,
-  DEFAULT_COMPANY_RENAME_WORKFLOW_CODE,
-  DEFAULT_COMPANY_RENAME_WORKFLOW_DEFINITION,
-  DEFAULT_COMPANY_WORKFLOW_CODE,
-  DEFAULT_COMPANY_WORKFLOW_DEFINITION,
-} from './company.constants';
 import { AttachmentsService } from '../attachments/attachments.service';
 import type { UploadedStreamFile } from '../attachments/attachments.service';
 import type { StoredUploadedFile } from '../attachments/uploaded-file.interface';
@@ -77,10 +55,6 @@ import {
   UpsertCompanyIndustryDto,
   UpsertCompanyTypeDto,
 } from './dto/admin-config.dto';
-import type {
-  WorkflowDefinitionWithConfig,
-  WorkflowTransitionResult,
-} from '../workflow/workflow.types';
 import { SYSTEM_USER_EMAIL } from '../lib/shared/system-user';
 import { CompanyMetaService } from './services/company-meta.service';
 import { CompanyGeoService } from './services/company-geo.service';
@@ -91,7 +65,6 @@ import { CompanySerializerService } from './services/company-serializer.service'
 import { CompanyPermissionService } from './services/company-permission.service';
 import { CompanySupportService } from './services/company-support.service';
 import { CompanyAdminService } from './services/company-admin.service';
-import { companyInclude, CompanyWithRelations } from './types/company.types';
 type CompanyMetaResult = {
   industries: CompanyIndustry[];
   types: CompanyType[];
@@ -347,7 +320,7 @@ export class CompanyService implements OnModuleInit {
 
   async getCompanyDetail(id: string, viewerId?: string | null) {
     const company = await this.findCompanyOrThrow(id);
-    if (!this.canViewCompany(company, viewerId)) {
+    if (!this.permissionService.canViewCompany(company, viewerId)) {
       throw new ForbiddenException(
         'No permission to view this company information',
       );
@@ -836,29 +809,6 @@ export class CompanyService implements OnModuleInit {
 
   async deleteCompanyAsAdmin(companyId: string, userId: string) {
     return this.adminService.deleteCompanyAsAdmin(companyId, userId);
-  }
-
-  private canViewCompany(
-    company: CompanyWithRelations,
-    viewerId?: string | null,
-  ) {
-    if (viewerId) {
-      if (company.legalRepresentativeId === viewerId) return true;
-      const llc = company.llcRegistration;
-      if (
-        (llc?.officers ?? []).some((o) => o.userId === viewerId) ||
-        (llc?.shareholders ?? []).some(
-          (s) =>
-            s.kind === CompanyLlcShareholderKind.USER && s.userId === viewerId,
-        )
-      ) {
-        return true;
-      }
-    }
-    if (company.visibility === CompanyVisibility.PUBLIC) {
-      return company.status !== CompanyStatus.REJECTED;
-    }
-    return false;
   }
 
   private async findCompanyOrThrow(id: string) {

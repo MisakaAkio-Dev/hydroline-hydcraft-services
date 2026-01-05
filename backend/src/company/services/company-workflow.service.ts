@@ -294,7 +294,7 @@ export class CompanyWorkflowService {
           DEFAULT_COMPANY_EQUITY_TRANSFER_WORKFLOW_CODE &&
         resolvedApplicationId
       ) {
-        await this.registrationPersistenceService.persistEquityTransferIfNeeded(
+        await this.changePersistenceService.persistEquityTransferIfNeeded(
           company.id,
           resolvedApplicationId,
           instanceId,
@@ -522,63 +522,68 @@ export class CompanyWorkflowService {
     const slug = await this.supportService.generateUniqueSlug(dto.name);
     const now = new Date();
 
-    const company = await this.prisma.company.create({
-      data: {
-        name: dto.name,
-        slug,
-        summary: dto.summary,
-        description: dto.description,
-        typeId: application.typeId ?? null,
-        industryId: application.industryId ?? null,
-        category: dto.category ?? type?.category ?? undefined,
-        legalRepresentativeId,
-        legalNameSnapshot:
-          legalRepresentative.profile?.displayName ??
-          legalRepresentative.name ??
-          undefined,
-        workflowDefinitionCode: workflowCode,
-        workflowInstanceId: instanceId,
-        workflowState: 'approved',
-        status: CompanyStatus.ACTIVE,
-        visibility: CompanyVisibility.PUBLIC,
-        createdById: application.applicantId,
-        updatedById: actorId,
-        lastActiveAt: now,
-        approvedAt: now,
-      },
-    });
+    const companyId = await this.prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({
+        data: {
+          name: dto.name,
+          slug,
+          summary: dto.summary,
+          description: dto.description,
+          typeId: application.typeId ?? null,
+          industryId: application.industryId ?? null,
+          category: dto.category ?? type?.category ?? undefined,
+          legalRepresentativeId,
+          legalNameSnapshot:
+            legalRepresentative.profile?.displayName ??
+            legalRepresentative.name ??
+            undefined,
+          workflowDefinitionCode: workflowCode,
+          workflowInstanceId: instanceId,
+          workflowState: 'approved',
+          status: CompanyStatus.ACTIVE,
+          visibility: CompanyVisibility.PUBLIC,
+          createdById: application.applicantId,
+          updatedById: actorId,
+          lastActiveAt: now,
+          approvedAt: now,
+        },
+      });
 
-    await this.prisma.workflowInstance.update({
-      where: { id: instanceId },
-      data: { targetType: 'company', targetId: company.id },
-    });
+      await tx.workflowInstance.update({
+        where: { id: instanceId },
+        data: { targetType: 'company', targetId: company.id },
+      });
 
-    await this.prisma.companyApplication.update({
-      where: { id: applicationId },
-      data: { companyId: company.id },
-    });
+      await tx.companyApplication.update({
+        where: { id: applicationId },
+        data: { companyId: company.id },
+      });
 
-    await this.prisma.companyAuditRecord.create({
-      data: {
-        id: randomUUID(),
-        companyId: company.id,
+      await tx.companyAuditRecord.create({
+        data: {
+          id: randomUUID(),
+          companyId: company.id,
+          applicationId,
+          actorId,
+          actionKey: 'approve',
+          actionLabel: '批准并入库',
+          resultState: 'approved',
+          comment: 'approved',
+          payload: Prisma.JsonNull,
+          createdAt: now,
+        },
+      });
+
+      await this.registrationPersistenceService.persistLlcRegistrationFromApplication(
         applicationId,
-        actorId,
-        actionKey: 'approve',
-        actionLabel: '批准并入库',
-        resultState: 'approved',
-        comment: 'approved',
-        payload: Prisma.JsonNull,
-        createdAt: now,
-      },
+        company.id,
+        tx,
+      );
+
+      return company.id;
     });
 
-    await this.registrationPersistenceService.persistLlcRegistrationFromApplication(
-      applicationId,
-      company.id,
-    );
-
-    return company.id;
+    return companyId;
   }
 
   private extractRegistrationAuthorityNameFromApplicationPayload(

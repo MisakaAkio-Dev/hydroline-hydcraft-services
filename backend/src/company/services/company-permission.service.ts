@@ -7,6 +7,7 @@ import {
   CompanyLlcOfficerRole,
   CompanyLlcShareholderKind,
   CompanyStatus,
+  CompanyVisibility,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { CompanyEquityTransferApplyDto } from '../dto/company.dto';
@@ -31,6 +32,26 @@ export class CompanyPermissionService {
         'Only legal representative or authorized officers can edit company profile',
       );
     }
+  }
+
+  canViewCompany(company: CompanyWithRelations, viewerId?: string | null) {
+    if (viewerId) {
+      if (company.legalRepresentativeId === viewerId) return true;
+      const llc = company.llcRegistration;
+      if (
+        (llc?.officers ?? []).some((o) => o.userId === viewerId) ||
+        (llc?.shareholders ?? []).some(
+          (s) =>
+            s.kind === CompanyLlcShareholderKind.USER && s.userId === viewerId,
+        )
+      ) {
+        return true;
+      }
+    }
+    if (company.visibility === CompanyVisibility.PUBLIC) {
+      return company.status !== CompanyStatus.REJECTED;
+    }
+    return false;
   }
 
   async assertCanInitiateDeregistration(
