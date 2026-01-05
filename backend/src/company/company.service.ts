@@ -65,6 +65,7 @@ import { CompanySerializerService } from './services/company-serializer.service'
 import { CompanyPermissionService } from './services/company-permission.service';
 import { CompanySupportService } from './services/company-support.service';
 import { CompanyAdminService } from './services/company-admin.service';
+import { companyInclude, CompanyWithRelations } from './types/company.types';
 type CompanyMetaResult = {
   industries: CompanyIndustry[];
   types: CompanyType[];
