@@ -4,9 +4,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompanyLlcOfficerRole, CompanyStatus, Prisma } from '@prisma/client';
+import {
+  CompanyCategory,
+  CompanyLlcOfficerRole,
+  CompanyStatus,
+  CompanyVisibility,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '../../config/config.service';
+import { CompanySupportService } from './company-support.service';
+import { SYSTEM_USER_EMAIL } from '../../lib/shared/system-user';
 import {
   GeoDivisionSearchDto,
   LimitedLiabilityCompanyApplicationDto,
@@ -18,6 +26,9 @@ import {
 
 const WORLD_ADMIN_DIVISIONS_NAMESPACE = 'world.admin_divisions';
 const WORLD_ADMIN_DIVISIONS_KEY = 'divisions_v1';
+const COMPANY_CONFIG_NAMESPACE = 'company';
+const COMPANY_SUPER_AUTHORITY_COMPANY_ID_KEY =
+  'registry_super_authority_company_id';
 
 export type WorldDivisionNode = {
   id: string;
@@ -28,12 +39,86 @@ export type WorldDivisionNode = {
 
 @Injectable()
 export class CompanyGeoService {
-  private readonly SUPER_AUTHORITY_NAME = '氢气市场监督管理总局';
+  private readonly SUPER_AUTHORITY_NAME = '服务器市场监督管理总局';
+  private readonly LEGACY_SUPER_AUTHORITY_NAME = '氢气市场监督管理总局';
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly supportService: CompanySupportService,
   ) {}
+
+  /**
+   * 确保最高登记机关（总局）公司存在，并将其 companyId 持久化到配置项。
+   * - 只记录 UUID，不依赖 name，避免后续更名导致重复创建
+   */
+  async ensureSuperAuthorityCompany() {
+    const systemUser = await this.resolveSystemUser();
+    const configured = await this.readSuperAuthorityCompanyId();
+
+    if (configured) {
+      const exists = await this.prisma.company.findFirst({
+        where: {
+          id: configured,
+          status: { not: CompanyStatus.ARCHIVED },
+        },
+        select: { id: true, name: true },
+      });
+      if (exists) {
+        return exists;
+      }
+    }
+
+    const fallback = await this.prisma.company.findFirst({
+      where: {
+        status: { not: CompanyStatus.ARCHIVED },
+        type: { is: { code: 'state_organ_legal_person' } },
+        OR: [
+          { name: this.SUPER_AUTHORITY_NAME },
+          { name: this.LEGACY_SUPER_AUTHORITY_NAME },
+        ],
+      },
+      select: { id: true, name: true },
+    });
+    if (fallback) {
+      await this.writeSuperAuthorityCompanyId(fallback.id, systemUser.id);
+      return fallback;
+    }
+
+    const type = await this.prisma.companyType.findFirst({
+      where: { code: 'state_organ_legal_person' },
+      select: { id: true, category: true },
+    });
+    if (!type) {
+      throw new BadRequestException(
+        '缺少 company type: state_organ_legal_person',
+      );
+    }
+
+    const now = new Date();
+    const created = await this.prisma.company.create({
+      data: {
+        name: this.SUPER_AUTHORITY_NAME,
+        slug: await this.supportService.generateUniqueSlug(
+          this.SUPER_AUTHORITY_NAME,
+        ),
+        typeId: type.id,
+        category: type.category ?? CompanyCategory.SPECIAL_LEGAL_PERSON,
+        visibility: CompanyVisibility.PUBLIC,
+        status: CompanyStatus.ACTIVE,
+        legalRepresentativeId: systemUser.id,
+        legalNameSnapshot: systemUser.name ?? 'System',
+        createdById: systemUser.id,
+        updatedById: systemUser.id,
+        approvedAt: now,
+        activatedAt: now,
+        lastActiveAt: now,
+      },
+      select: { id: true, name: true },
+    });
+    await this.writeSuperAuthorityCompanyId(created.id, systemUser.id);
+    return created;
+  }
 
   async listWorldDivisions() {
     const nodes = await this.loadWorldDivisions();
@@ -266,6 +351,23 @@ export class CompanyGeoService {
       seen.add(c.id);
       uniq.push({ id: c.id, name });
     }
+
+    // 总局（最高登记机关）：无论行政区划如何都应可选
+    try {
+      const superAuthority = await this.ensureSuperAuthorityCompany();
+      if (!seen.has(superAuthority.id)) {
+        uniq.unshift({
+          id: superAuthority.id,
+          name:
+            String(superAuthority.name ?? '').trim() ||
+            this.SUPER_AUTHORITY_NAME,
+        });
+      }
+    } catch {
+      // best-effort: 不影响常规列表
+    }
+
+    if (uniq.length > 200) return uniq.slice(0, 200);
     return uniq;
   }
 
@@ -598,5 +700,71 @@ export class CompanyGeoService {
     if (!ok) {
       throw new BadRequestException('登记机关不属于所选行政区划的可选范围');
     }
+  }
+
+  private async resolveSystemUser() {
+    const systemUser =
+      (await this.prisma.user.findFirst({
+        where: { email: SYSTEM_USER_EMAIL },
+        select: { id: true, name: true },
+      })) ??
+      (await this.prisma.user.create({
+        data: {
+          email: SYSTEM_USER_EMAIL,
+          name: 'System',
+        },
+        select: { id: true, name: true },
+      }));
+    return systemUser;
+  }
+
+  private normalizeCompanyId(value: unknown) {
+    if (typeof value === 'string') return value.trim() || null;
+    if (typeof value === 'object' && value !== null) {
+      const raw = (value as { companyId?: unknown }).companyId;
+      if (typeof raw === 'string') return raw.trim() || null;
+    }
+    return null;
+  }
+
+  private async readSuperAuthorityCompanyId() {
+    const entry = await this.configService.getEntry(
+      COMPANY_CONFIG_NAMESPACE,
+      COMPANY_SUPER_AUTHORITY_COMPANY_ID_KEY,
+    );
+    return this.normalizeCompanyId(entry?.value);
+  }
+
+  private async writeSuperAuthorityCompanyId(
+    companyId: string,
+    userId: string,
+  ) {
+    const id = String(companyId ?? '').trim();
+    if (!id) return;
+    const namespace = await this.configService.ensureNamespaceByKey(
+      COMPANY_CONFIG_NAMESPACE,
+      {
+        name: '工商系统配置',
+        description: '工商系统全局设置',
+      },
+    );
+    const entry = await this.configService.getEntry(
+      COMPANY_CONFIG_NAMESPACE,
+      COMPANY_SUPER_AUTHORITY_COMPANY_ID_KEY,
+    );
+    if (entry) {
+      await this.configService.updateEntry(entry.id, { value: id }, userId);
+      return;
+    }
+    await this.configService.createEntry(
+      namespace.id,
+      {
+        key: COMPANY_SUPER_AUTHORITY_COMPANY_ID_KEY,
+        value: id,
+        description:
+          '最高登记机关（总局）companyId（UUID），避免更名导致重复创建',
+      },
+      userId,
+    );
   }
 }

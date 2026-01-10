@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRegistryCompanyApplicationsStore } from '@/stores/user/registryCompanyApplications'
+import { useAuthStore } from '@/stores/user/auth'
 import { ApiError } from '@/utils/http/api'
 import type {
   AdminCompanyApplicationEntry,
@@ -9,6 +10,7 @@ import type {
 } from '@/types/company'
 
 const store = useRegistryCompanyApplicationsStore()
+const authStore = useAuthStore()
 const router = useRouter()
 const toast = useToast()
 
@@ -134,6 +136,10 @@ function entryOf(row: unknown): AdminCompanyApplicationEntry {
 }
 
 function actionsForEntry(entry: AdminCompanyApplicationEntry) {
+  const canManage =
+    authStore.hasPermission('company.admin.applications.manage') ||
+    authStore.hasPermission('company.admin.manage')
+  if (!canManage) return []
   switch (entry.status) {
     case 'UNDER_REVIEW':
       return [
@@ -195,18 +201,12 @@ onMounted(() => {
 
 <template>
   <section class="space-y-5">
-    <div
-      class="rounded-xl border border-slate-200 bg-white/90 p-5 dark:border-slate-800 dark:bg-slate-900/70"
-    >
+    <div>
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+          <h2 class="text-2xl font-semibold text-slate-900 dark:text-white">
             登记机关审批
           </h2>
-          <p class="text-xs text-slate-500 dark:text-slate-400">
-            若您是申请 payload 中 registrationAuthorityCompanyId
-            对应主体的法定代表人，则会在此展示并可审批（参与人同意完成后才会出现）。
-          </p>
         </div>
         <div class="flex flex-wrap items-end gap-2">
           <USelectMenu
@@ -231,7 +231,7 @@ onMounted(() => {
     </div>
 
     <div
-      class="rounded-xl border border-slate-200 bg-white/90 p-5 dark:border-slate-800 dark:bg-slate-900/70"
+      class="rounded-xl border border-slate-200 bg-white/90 dark:border-slate-800 dark:bg-slate-900/70"
     >
       <UTable
         :data="store.items"
@@ -289,7 +289,7 @@ onMounted(() => {
         </template>
       </UTable>
 
-      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="p-3 mt-4 flex flex-wrap items-center justify-between gap-3">
         <div class="text-xs text-slate-500 dark:text-slate-400">
           共 {{ store.pagination.total }} 条 · 第 {{ store.pagination.page }} /
           {{ store.pagination.pageCount }} 页

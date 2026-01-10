@@ -98,6 +98,12 @@ export class CompanyService implements OnModuleInit {
     } catch (error) {
       this.logger.warn(`加载工商基础配置失败: ${error}`);
     }
+
+    try {
+      await this.geoService.ensureSuperAuthorityCompany();
+    } catch (error) {
+      this.logger.warn(`初始化最高登记机关失败: ${error}`);
+    }
   }
 
   async getMeta(): Promise<CompanyMetaResult> {

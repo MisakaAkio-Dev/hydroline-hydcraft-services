@@ -58,15 +58,8 @@ const legalRepresentativeEntities = computed(() =>
 )
 
 const hasRegistryApprovalRole = computed(() => {
-  const userId = currentUserId.value
-  if (!userId) return false
-  return companyStore.dashboard.some(
-    (company) =>
-      company.status === 'ACTIVE' &&
-      company.type?.code === 'state_organ_legal_person' &&
-      (company.legalRepresentative?.id === userId ||
-        hasOfficerRole(company, userId, ['LEGAL_REPRESENTATIVE'])),
-  )
+  if (!authStore.isAuthenticated) return false
+  return authStore.hasPermission('company.admin.applications')
 })
 
 const categoryCards = computed(() => {

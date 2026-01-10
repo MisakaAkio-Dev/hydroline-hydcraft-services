@@ -120,10 +120,10 @@ export class CompanyRegistrationPersistenceService {
       },
     });
 
-    await this.prisma.companyLlcRegistrationShareholder.deleteMany({
+    await tx.companyLlcRegistrationShareholder.deleteMany({
       where: { registrationId: registration.id },
     });
-    await this.prisma.companyLlcRegistrationOfficer.deleteMany({
+    await tx.companyLlcRegistrationOfficer.deleteMany({
       where: { registrationId: registration.id },
     });
 
@@ -151,7 +151,7 @@ export class CompanyRegistrationPersistenceService {
       updatedAt: now,
     }));
     if (shareholders.length) {
-      await this.prisma.companyLlcRegistrationShareholder.createMany({
+      await tx.companyLlcRegistrationShareholder.createMany({
         data: shareholders,
       });
     }

@@ -10,6 +10,7 @@ import {
   CompanyLlcOfficerRole,
   CompanyStatus,
   CompanyVisibility,
+  WorkflowInstanceStatus,
   Prisma,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -166,6 +167,30 @@ export class CompanyWorkflowService {
     instanceId: string,
     actorRoles: string[],
   ): Promise<CompanyWorkflowActionResult> {
+    if (dto.actionKey === 'approve') {
+      const existing = await this.prisma.companyApplication.findUnique({
+        where: { id: applicationId },
+        select: {
+          id: true,
+          companyId: true,
+          workflowInstanceId: true,
+          workflowInstance: { select: { currentState: true } },
+        },
+      });
+      if (
+        existing?.workflowInstanceId === instanceId &&
+        existing.workflowInstance?.currentState === 'approved' &&
+        !existing.companyId
+      ) {
+        const companyId = await this.createCompanyFromApprovedApplication(
+          applicationId,
+          instanceId,
+          actorId,
+        );
+        return { type: 'company', companyId };
+      }
+    }
+
     if (dto.actionKey === 'route_to_review' || dto.actionKey === 'approve') {
       const app = await this.prisma.companyApplication.findUnique({
         where: { id: applicationId },
@@ -219,12 +244,41 @@ export class CompanyWorkflowService {
     }
 
     if (dto.actionKey === 'approve') {
-      const companyId = await this.createCompanyFromApprovedApplication(
-        applicationId,
-        instanceId,
-        actorId,
-      );
-      return { type: 'company', companyId };
+      try {
+        const companyId = await this.createCompanyFromApprovedApplication(
+          applicationId,
+          instanceId,
+          actorId,
+        );
+        return { type: 'company', companyId };
+      } catch (error) {
+        const data: Prisma.CompanyApplicationUpdateInput = {
+          currentStage: transition.previousState.key,
+          resolvedAt: null,
+          rejectReason: null,
+        };
+        const previousStatus = transition.previousState.business
+          ?.applicationStatus as CompanyApplicationStatus | undefined;
+        if (previousStatus) {
+          data.status = previousStatus;
+        }
+        await this.prisma.$transaction([
+          this.prisma.workflowInstance.update({
+            where: { id: instanceId },
+            data: {
+              currentState: transition.previousState.key,
+              status: WorkflowInstanceStatus.ACTIVE,
+              completedAt: null,
+              cancelledAt: null,
+            },
+          }),
+          this.prisma.companyApplication.update({
+            where: { id: applicationId },
+            data,
+          }),
+        ]);
+        throw error;
+      }
     }
 
     const application = await this.prisma.companyApplication.findUnique({
