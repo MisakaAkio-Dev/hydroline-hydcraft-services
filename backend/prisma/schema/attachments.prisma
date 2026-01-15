@@ -1,0 +1,95 @@
+model AttachmentFolder {
+  id               String                   @id @default(uuid())
+  name             String
+  slug             String
+  description      String?
+  parentId         String?
+  path             String
+  createdById      String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  visibilityLabels String[]                 @default([])
+  visibilityMode   AttachmentVisibilityMode @default(PUBLIC)
+  visibilityRoles  String[]                 @default([])
+  createdBy        User?                    @relation("AttachmentFolderCreator", fields: [createdById], references: [id])
+  parent           AttachmentFolder?        @relation("AttachmentFolderHierarchy", fields: [parentId], references: [id])
+  children         AttachmentFolder[]       @relation("AttachmentFolderHierarchy")
+  attachments      Attachment[]
+
+  @@unique([parentId, name], map: "uq_attachment_folder_parent_name")
+  @@map("attachment_folders")
+}
+
+model Attachment {
+  id                               String                        @id @default(uuid())
+  folderId                         String?
+  ownerId                          String?
+  name                             String
+  originalName                     String
+  fileName                         String
+  mimeType                         String?
+  size                             Int
+  storageKey                       String
+  hash                             String?
+  isPublic                         Boolean                       @default(true)
+  externalUrl                      String?
+  metadata                         Json?
+  createdAt                        DateTime                      @default(now())
+  updatedAt                        DateTime                      @updatedAt
+  deletedAt                        DateTime?
+  uploaderNameSnapshot             String?
+  uploaderEmailSnapshot            String?
+  visibilityLabels                 String[]                      @default([])
+  visibilityMode                   AttachmentVisibilityMode      @default(INHERIT)
+  visibilityRoles                  String[]                      @default([])
+  shareTokens                      AttachmentShareToken[]
+  tags                             AttachmentTagging[]
+  folder                           AttachmentFolder?             @relation(fields: [folderId], references: [id])
+  owner                            User?                         @relation("AttachmentUploader", fields: [ownerId], references: [id])
+  transportationRailwaySystemLogos TransportationRailwaySystem[] @relation("TransportationRailwaySystemLogo")
+
+  @@index([folderId], map: "idx_attachments_folder")
+  @@index([ownerId], map: "idx_attachments_owner")
+  @@map("attachments")
+}
+
+model AttachmentTag {
+  id          String              @id @default(uuid())
+  key         String              @unique
+  name        String
+  description String?
+  createdById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  taggings    AttachmentTagging[]
+  createdBy   User?               @relation("AttachmentTagCreator", fields: [createdById], references: [id])
+
+  @@map("attachment_tags")
+}
+
+model AttachmentTagging {
+  attachmentId String
+  tagId        String
+  assignedById String?
+  assignedAt   DateTime      @default(now())
+  assignedBy   User?         @relation("AttachmentTaggingAssignee", fields: [assignedById], references: [id])
+  attachment   Attachment    @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  tag          AttachmentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([attachmentId, tagId])
+  @@map("attachment_tagging")
+}
+
+model AttachmentShareToken {
+  id           String     @id @default(uuid())
+  attachmentId String
+  token        String     @unique
+  expiresAt    DateTime
+  createdById  String?
+  createdAt    DateTime   @default(now())
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  createdBy    User?      @relation("AttachmentShareCreator", fields: [createdById], references: [id])
+
+  @@index([attachmentId], map: "idx_attachment_share_tokens_attachment")
+  @@map("attachment_share_tokens")
+}

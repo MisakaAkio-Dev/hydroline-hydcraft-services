@@ -1,0 +1,13 @@
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation("AdminAuditActor", fields: [actorId], references: [id])
+
+  @@index([targetType, targetId], map: "idx_admin_audit_target")
+  @@map("admin_audit_log")
+}

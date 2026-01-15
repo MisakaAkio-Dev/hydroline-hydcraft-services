@@ -1,0 +1,64 @@
+model MinecraftServer {
+  id                            String                         @id @default(uuid())
+  displayName                   String
+  internalCodeCn                String                         @unique(map: "uq_minecraft_server_cn")
+  internalCodeEn                String                         @unique
+  host                          String
+  port                          Int                            @default(25565)
+  edition                       MinecraftServerEdition         @default(JAVA)
+  description                   String?
+  isActive                      Boolean                        @default(true)
+  displayOrder                  Int                            @default(0)
+  metadata                      Json?
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  createdById                   String?
+  updatedById                   String?
+  mcsmApiKey                    String?
+  mcsmDaemonId                  String?
+  mcsmInstanceUuid              String?
+  mcsmPanelUrl                  String?
+  mcsmRequestTimeoutMs          Int?
+  beaconEnabled                 Boolean?                       @default(false)
+  beaconEndpoint                String?
+  beaconKey                     String?
+  dynmapTileUrl                 String?
+  transportationRailwayMod      TransportationRailwayMod       @default(MTR)
+  beaconRequestTimeoutMs        Int?
+  pingRecords                   MinecraftServerPingRecord[]
+  createdBy                     User?                          @relation("MinecraftServerCreatedBy", fields: [createdById], references: [id])
+  updatedBy                     User?                          @relation("MinecraftServerUpdatedBy", fields: [updatedById], references: [id])
+  rankPlayerSnapshots           RankPlayerSnapshot[]           @relation("RankSnapshotsPerServer")
+  rankSyncJobs                  RankSyncJob[]                  @relation("RankSyncJobsPerServer")
+  transportationRailwaySyncJobs TransportationRailwaySyncJob[] @relation("TransportationRailwaySyncServer")
+
+  @@index([displayOrder], map: "idx_minecraft_server_order")
+  @@map("minecraft_servers")
+}
+
+model MinecraftServerPingRecord {
+  id            String                 @id @default(uuid())
+  serverId      String
+  edition       MinecraftServerEdition
+  latency       Int?
+  onlinePlayers Int?
+  maxPlayers    Int?
+  motd          String?
+  raw           Json?
+  createdAt     DateTime               @default(now())
+  server        MinecraftServer        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId], map: "idx_minecraft_ping_server")
+  @@index([createdAt], map: "idx_minecraft_ping_created")
+  @@map("minecraft_server_ping_records")
+}
+
+model MinecraftPingSettings {
+  id              String   @id @default(uuid())
+  intervalMinutes Int      @default(5)
+  retentionDays   Int      @default(30)
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@map("minecraft_ping_settings")
+}

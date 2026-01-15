@@ -1,0 +1,268 @@
+model CompanyIndustry {
+  id           String               @id @default(uuid())
+  code         String               @unique
+  name         String
+  description  String?
+  icon         String?
+  color        String?
+  metadata     Json?
+  parentId     String?
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  parent       CompanyIndustry?     @relation("IndustryHierarchy", fields: [parentId], references: [id])
+  children     CompanyIndustry[]    @relation("IndustryHierarchy")
+  companies    Company[]
+  applications CompanyApplication[] @relation("IndustryApplications")
+
+  @@map("company_industries")
+}
+
+model CompanyType {
+  id                String               @id @default(uuid())
+  code              String               @unique
+  name              String
+  description       String?
+  category          CompanyCategory      @default(FOR_PROFIT_LEGAL_PERSON)
+  isDefault         Boolean              @default(false)
+  defaultWorkflow   String?
+  requiredDocuments String[]             @default([])
+  config            Json?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  companies         Company[]
+  applications      CompanyApplication[]
+
+  @@map("company_types")
+}
+
+model Company {
+  id                                      String                                @id @default(uuid())
+  name                                    String
+  slug                                    String                                @unique
+  headline                                String?
+  summary                                 String?
+  description                             String?
+  profile                                 Json?
+  logoAttachmentId                        String?
+  registrationNumber                      String?
+  unifiedSocialCreditCode                 String?
+  legalNameSnapshot                       String?
+  legalIdSnapshot                         String?
+  /**
+   * 机关法人专用：所属行政区划信息（用于查询/展示/统计等）。
+   * - 由后端根据 world.admin_divisions 数据集解析得到
+   * - 非机关法人通常为 NULL
+   */
+  administrativeDivisionId                String?
+  administrativeDivisionName              String?
+  administrativeDivisionLevel             Int?
+  category                                CompanyCategory                       @default(FOR_PROFIT_LEGAL_PERSON)
+  visibility                              CompanyVisibility                     @default(PRIVATE)
+  status                                  CompanyStatus                         @default(PENDING_REVIEW)
+  typeId                                  String?
+  industryId                              String?
+  legalRepresentativeId                   String?
+  createdById                             String?
+  updatedById                             String?
+  workflowInstanceId                      String?                               @unique
+  workflowDefinitionCode                  String?
+  workflowState                           String?
+  settings                                Json?
+  extra                                   Json?
+  contactEmail                            String?
+  contactPhone                            String?
+  contactAddress                          String?
+  homepageUrl                             String?
+  establishedAt                           DateTime?
+  approvedAt                              DateTime?
+  activatedAt                             DateTime?
+  archivedAt                              DateTime?
+  lastActiveAt                            DateTime?
+  recommendationScore                     Int                                   @default(0)
+  highlighted                             Boolean                               @default(false)
+  createdAt                               DateTime                              @default(now())
+  updatedAt                               DateTime                              @updatedAt
+  type                                    CompanyType?                          @relation(fields: [typeId], references: [id])
+  industry                                CompanyIndustry?                      @relation(fields: [industryId], references: [id])
+  createdBy                               User?                                 @relation("CompanyCreatedBy", fields: [createdById], references: [id])
+  updatedBy                               User?                                 @relation("CompanyUpdatedBy", fields: [updatedById], references: [id])
+  legalRepresentative                     User?                                 @relation("CompanyLegalRepresentative", fields: [legalRepresentativeId], references: [id])
+  workflowInstance                        WorkflowInstance?                     @relation("CompanyWorkflowInstance", fields: [workflowInstanceId], references: [id])
+  policies                                CompanyPolicy[]
+  applications                            CompanyApplication[]
+  auditRecords                            CompanyAuditRecord[]
+  transportationRailwayCompanyBindings    TransportationRailwayCompanyBinding[]
+  applicationConsentsAsShareholderCompany CompanyApplicationConsent[]           @relation("CompanyApplicationConsentShareholderCompany")
+  llcRegistration                         CompanyLlcRegistration?
+  llcRegistrationsAsAuthority             CompanyLlcRegistration[]              @relation("CompanyLlcRegistrationAuthority")
+  llcRegistrationShareholdings            CompanyLlcRegistrationShareholder[]   @relation("CompanyLlcRegistrationShareholderCompany")
+
+  @@index([status, createdAt], map: "idx_companies_status_created")
+  @@index([industryId], map: "idx_companies_industry")
+  @@index([typeId], map: "idx_companies_type")
+  @@map("companies")
+}
+
+model CompanyApplication {
+  id                 String                            @id @default(uuid())
+  companyId          String?
+  applicantId        String
+  typeId             String?
+  industryId         String?
+  status             CompanyApplicationStatus          @default(SUBMITTED)
+  currentStage       String?
+  consentStatus      CompanyApplicationConsentProgress @default(PENDING)
+  consentCompletedAt DateTime?
+  payload            Json?
+  attachments        Json?
+  notes              String?
+  rejectReason       String?
+  submittedAt        DateTime                          @default(now())
+  resolvedAt         DateTime?
+  updatedAt          DateTime                          @updatedAt
+  workflowInstanceId String?                           @unique
+  company            Company?                          @relation(fields: [companyId], references: [id])
+  applicant          User                              @relation("CompanyApplicationApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  workflowInstance   WorkflowInstance?                 @relation("ApplicationWorkflowInstance", fields: [workflowInstanceId], references: [id])
+  type               CompanyType?                      @relation(fields: [typeId], references: [id])
+  industry           CompanyIndustry?                  @relation("IndustryApplications", fields: [industryId], references: [id])
+  auditRecords       CompanyAuditRecord[]
+  consents           CompanyApplicationConsent[]
+  llcRegistration    CompanyLlcRegistration?
+
+  @@index([applicantId], map: "idx_company_applications_applicant")
+  @@index([status], map: "idx_company_applications_status")
+  @@map("company_applications")
+}
+
+model CompanyApplicationConsent {
+  id                   String                          @id @default(uuid())
+  applicationId        String
+  requiredUserId       String
+  role                 CompanyApplicationConsentRole
+  shareholderCompanyId String?
+  shareholderUserId    String?
+  status               CompanyApplicationConsentStatus @default(PENDING)
+  decidedAt            DateTime?
+  comment              String?
+  createdAt            DateTime                        @default(now())
+  updatedAt            DateTime                        @updatedAt
+  application          CompanyApplication              @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  requiredUser         User                            @relation("CompanyApplicationConsentUser", fields: [requiredUserId], references: [id], onDelete: Cascade)
+  shareholderCompany   Company?                        @relation("CompanyApplicationConsentShareholderCompany", fields: [shareholderCompanyId], references: [id])
+  shareholderUser      User?                           @relation("CompanyApplicationConsentShareholderUser", fields: [shareholderUserId], references: [id])
+
+  @@unique([applicationId, requiredUserId, role, shareholderCompanyId, shareholderUserId], map: "uq_company_application_consent_unique")
+  @@index([applicationId, status], map: "idx_company_application_consents_app_status")
+  @@index([requiredUserId, status], map: "idx_company_application_consents_user_status")
+  @@map("company_application_consents")
+}
+
+model CompanyLlcRegistration {
+  id                             String                              @id @default(uuid())
+  companyId                      String                              @unique
+  applicationId                  String                              @unique
+  domicileDivisionId             String
+  domicileDivisionPath           Json?
+  registeredCapital              Int
+  administrativeDivisionLevel    Int
+  brandName                      String
+  industryFeature                String
+  registrationAuthorityName      String
+  registrationAuthorityCompanyId String?
+  domicileAddress                String
+  operatingTermType              CompanyLlcOperatingTermType
+  operatingTermYears             Int?
+  businessScope                  String
+  createdAt                      DateTime                            @default(now())
+  updatedAt                      DateTime                            @updatedAt
+  company                        Company                             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  application                    CompanyApplication                  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  registrationAuthorityCompany   Company?                            @relation("CompanyLlcRegistrationAuthority", fields: [registrationAuthorityCompanyId], references: [id])
+  shareholders                   CompanyLlcRegistrationShareholder[]
+  officers                       CompanyLlcRegistrationOfficer[]
+
+  @@index([companyId], map: "idx_company_llc_reg_company")
+  @@index([applicationId], map: "idx_company_llc_reg_application")
+  @@index([registrationAuthorityCompanyId], map: "idx_company_llc_reg_authority_company")
+  @@map("company_llc_registrations")
+}
+
+model CompanyLlcRegistrationShareholder {
+  id             String                    @id @default(uuid())
+  registrationId String
+  kind           CompanyLlcShareholderKind
+  userId         String?
+  companyId      String?
+  ratio          Float
+  votingRatio    Float
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  registration   CompanyLlcRegistration    @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user           User?                     @relation("CompanyLlcRegistrationShareholderUser", fields: [userId], references: [id])
+  company        Company?                  @relation("CompanyLlcRegistrationShareholderCompany", fields: [companyId], references: [id])
+
+  @@index([registrationId], map: "idx_company_llc_reg_shareholders_reg")
+  @@map("company_llc_registration_shareholders")
+}
+
+model CompanyLlcRegistrationOfficer {
+  id             String                 @id @default(uuid())
+  registrationId String
+  userId         String
+  role           CompanyLlcOfficerRole
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  registration   CompanyLlcRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user           User                   @relation("CompanyLlcRegistrationOfficerUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([registrationId, userId, role], map: "uq_company_llc_reg_officer")
+  @@index([registrationId], map: "idx_company_llc_reg_officers_reg")
+  @@index([userId], map: "idx_company_llc_reg_officers_user")
+  @@map("company_llc_registration_officers")
+}
+
+model CompanyAuditRecord {
+  id            String              @id @default(uuid())
+  companyId     String
+  applicationId String?
+  actorId       String?
+  actionKey     String
+  actionLabel   String?
+  resultState   String?
+  comment       String?
+  payload       Json?
+  createdAt     DateTime            @default(now())
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  application   CompanyApplication? @relation(fields: [applicationId], references: [id])
+  actor         User?               @relation("CompanyAuditActor", fields: [actorId], references: [id])
+
+  @@index([companyId], map: "idx_company_audit_company")
+  @@index([applicationId], map: "idx_company_audit_application")
+  @@map("company_audit_records")
+}
+
+model CompanyPolicy {
+  id          String              @id @default(uuid())
+  companyId   String
+  code        String?
+  title       String
+  summary     String?
+  content     String
+  status      CompanyPolicyStatus @default(DRAFT)
+  version     Int                 @default(1)
+  effectiveAt DateTime?
+  retiredAt   DateTime?
+  metadata    Json?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User?               @relation("CompanyPolicyAuthor", fields: [createdById], references: [id])
+  updatedBy   User?               @relation("CompanyPolicyEditor", fields: [updatedById], references: [id])
+
+  @@index([companyId], map: "idx_company_policies_company")
+  @@map("company_policies")
+}

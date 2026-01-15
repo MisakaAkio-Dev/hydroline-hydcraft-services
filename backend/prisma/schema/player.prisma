@@ -1,0 +1,52 @@
+model PlayerBiography {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  markdown    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  user        User     @relation("PlayerBiographyOwner", fields: [userId], references: [id], onDelete: Cascade)
+  updatedBy   User?    @relation("PlayerBiographyUpdater", fields: [updatedById], references: [id])
+
+  @@map("player_biographies")
+}
+
+model PlayerMessage {
+  id           String                  @id @default(uuid())
+  targetUserId String
+  authorId     String
+  content      String
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  targetUser   User                    @relation("PlayerMessagesReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
+  author       User                    @relation("PlayerMessagesAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  reactions    PlayerMessageReaction[]
+
+  @@map("player_messages")
+}
+
+model PlayerMessageReaction {
+  id        String                    @id @default(uuid())
+  messageId String
+  userId    String
+  reaction  PlayerMessageReactionType
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+  message   PlayerMessage             @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId], name: "uq_player_message_reaction_user")
+  @@map("player_message_reactions")
+}
+
+model PlayerLike {
+  id        String   @id @default(uuid())
+  likerId   String
+  targetId  String
+  createdAt DateTime @default(now())
+  liker     User     @relation("PlayerLikesGiven", fields: [likerId], references: [id], onDelete: Cascade)
+  target    User     @relation("PlayerLikesReceived", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([likerId, targetId])
+  @@index([targetId])
+}

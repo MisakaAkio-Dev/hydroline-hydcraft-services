@@ -1,0 +1,93 @@
+model Role {
+  id              String           @id @default(uuid())
+  key             String           @unique
+  name            String
+  description     String?
+  isSystem        Boolean          @default(false)
+  metadata        Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id               String                      @id @default(uuid())
+  key              String                      @unique
+  description      String?
+  metadata         Json?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  labelPermissions PermissionLabelPermission[]
+  rolePermissions  RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId], map: "uq_role_permission")
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id           String   @id @default(uuid())
+  userId       String
+  roleId       String
+  assignedById String?
+  assignedAt   DateTime @default(now())
+  metadata     Json?
+  role         Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId], map: "uq_user_role")
+  @@index([roleId], map: "idx_user_roles_role")
+  @@map("user_roles")
+}
+
+model PermissionLabel {
+  id          String                      @id @default(uuid())
+  key         String                      @unique
+  name        String
+  description String?
+  color       String?
+  metadata    Json?
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  permissions PermissionLabelPermission[]
+  assignments UserPermissionLabel[]
+
+  @@map("permission_labels")
+}
+
+model PermissionLabelPermission {
+  id           String          @id @default(uuid())
+  labelId      String
+  permissionId String
+  label        PermissionLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  permission   Permission      @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([labelId, permissionId], map: "uq_label_permission")
+  @@map("permission_label_permissions")
+}
+
+model UserPermissionLabel {
+  id           String          @id @default(uuid())
+  userId       String
+  labelId      String
+  assignedById String?
+  assignedAt   DateTime        @default(now())
+  assignedBy   User?           @relation("PermissionLabelOperator", fields: [assignedById], references: [id])
+  label        PermissionLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, labelId], map: "uq_user_permission_label")
+  @@map("user_permission_labels")
+}

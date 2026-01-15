@@ -1,0 +1,49 @@
+model UserAuthmeBinding {
+  authmeRealname      String?
+  authmeUsername      String
+  authmeUsernameLower String                 @unique
+  boundAt             DateTime               @default(now())
+  boundByIp           String?
+  boundByUserId       String?
+  updatedAt           DateTime               @updatedAt
+  userId              String
+  id                  String                 @id @default(uuid())
+  authmeUuid          String?                @unique
+  lastSyncedAt        DateTime?
+  metadata            Json?
+  notes               String?
+  status              AuthmeBindingStatus    @default(ACTIVE)
+  historyEntries      AuthmeBindingHistory[]
+  boundBy             User?                  @relation("AuthmeBindingOperator", fields: [boundByUserId], references: [id])
+  user                User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  minecraftProfiles   UserMinecraftProfile[]
+  primaryProfileFor   UserProfile[]          @relation("PrimaryAuthmeBinding")
+  rankPlayerSnapshots RankPlayerSnapshot[]   @relation("RankSnapshotsForBinding")
+
+  @@index([authmeUsernameLower], map: "idx_authme_binding_username_lower")
+  @@map("user_authme_binding")
+}
+
+model AuthmeBindingHistory {
+  id                  String              @id @default(uuid())
+  bindingId           String?
+  authmeUsername      String
+  authmeUsernameLower String
+  authmeRealname      String?
+  authmeUuid          String?
+  userId              String?
+  operatorId          String?
+  action              AuthmeBindingAction
+  reason              String?
+  payload             Json?
+  createdAt           DateTime            @default(now())
+  binding             UserAuthmeBinding?  @relation(fields: [bindingId], references: [id])
+  operator            User?               @relation("AuthmeBindingHistoryOperator", fields: [operatorId], references: [id])
+  user                User?               @relation("AuthmeBindingHistoryUser", fields: [userId], references: [id])
+
+  @@index([authmeUsernameLower], map: "idx_authme_history_username_lower")
+  @@index([authmeUuid], map: "idx_authme_history_uuid")
+  @@index([userId], map: "idx_authme_history_user")
+  @@index([bindingId], map: "idx_authme_history_binding")
+  @@map("authme_binding_history")
+}

@@ -1,0 +1,51 @@
+model OAuthProvider {
+  id          String     @id @default(uuid())
+  key         String     @unique
+  name        String
+  type        String
+  description String?
+  enabled     Boolean    @default(true)
+  settings    Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  logs        OAuthLog[]
+
+  @@map("oauth_providers")
+}
+
+model OAuthLog {
+  id           String         @id @default(uuid())
+  providerId   String?
+  providerKey  String
+  providerType String
+  action       OAuthLogAction
+  status       OAuthLogStatus
+  userId       String?
+  accountId    String?
+  ip           String?
+  userAgent    String?
+  message      String?
+  metadata     Json?
+  createdAt    DateTime       @default(now())
+  account      Account?       @relation(fields: [accountId], references: [id])
+  provider     OAuthProvider? @relation(fields: [providerId], references: [id])
+  user         User?          @relation(fields: [userId], references: [id])
+
+  @@index([providerKey, createdAt], map: "idx_oauth_log_provider_key")
+  @@index([userId, createdAt], map: "idx_oauth_log_user")
+  @@map("oauth_logs")
+}
+
+model OAuthState {
+  id         String    @id @default(uuid())
+  state      String    @unique
+  payload    Json
+  result     Json?
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([expiresAt], map: "idx_oauth_state_expiry")
+  @@map("oauth_states")
+}

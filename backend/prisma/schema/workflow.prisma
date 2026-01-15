@@ -1,0 +1,60 @@
+model WorkflowDefinition {
+  id           String             @id @default(uuid())
+  code         String             @unique
+  name         String
+  description  String?
+  version      Int                @default(1)
+  isActive     Boolean            @default(true)
+  initialState String
+  states       String[]
+  roles        String[]           @default([])
+  category     String?
+  config       Json?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  instances    WorkflowInstance[]
+
+  @@map("workflow_definitions")
+}
+
+model WorkflowInstance {
+  id             String                 @id @default(uuid())
+  definitionId   String
+  definitionCode String
+  status         WorkflowInstanceStatus @default(ACTIVE)
+  currentState   String
+  targetType     String
+  targetId       String
+  context        Json?
+  createdById    String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  completedAt    DateTime?
+  cancelledAt    DateTime?
+  definition     WorkflowDefinition     @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  createdBy      User?                  @relation("WorkflowInstanceCreator", fields: [createdById], references: [id])
+  actions        WorkflowAction[]
+  company        Company?               @relation("CompanyWorkflowInstance")
+  application    CompanyApplication?    @relation("ApplicationWorkflowInstance")
+
+  @@index([targetType, targetId], map: "idx_workflow_instances_target")
+  @@map("workflow_instances")
+}
+
+model WorkflowAction {
+  id         String           @id @default(uuid())
+  instanceId String
+  state      String
+  actionKey  String
+  actionName String?
+  actorId    String?
+  actorRole  String?
+  comment    String?
+  payload    Json?
+  createdAt  DateTime         @default(now())
+  instance   WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  actor      User?            @relation("WorkflowActionActor", fields: [actorId], references: [id])
+
+  @@index([instanceId], map: "idx_workflow_actions_instance")
+  @@map("workflow_actions")
+}

@@ -1,0 +1,81 @@
+model Account {
+  id                    String                   @id @default(uuid())
+  userId                String
+  type                  String
+  provider              String
+  providerAccountId     String
+  scope                 String?
+  accountId             String                   @unique
+  createdAt             DateTime                 @default(now())
+  password              String?
+  providerId            String
+  updatedAt             DateTime                 @updatedAt
+  accessToken           String?
+  accessTokenExpiresAt  DateTime?
+  idToken               String?
+  refreshToken          String?
+  refreshTokenExpiresAt DateTime?
+  profile               Json?
+  minecraftProfile      AccountMinecraftProfile?
+  user                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthLogs             OAuthLog[]
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model AccountMinecraftProfile {
+  id              String   @id @default(uuid())
+  accountId       String   @unique
+  javaName        String?
+  javaUuid        String?
+  bedrockGamertag String?
+  bedrockXuid     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("account_minecraft_profiles")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  ipAddress String?
+  token     String   @unique
+  updatedAt DateTime @updatedAt
+  userAgent String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, value])
+  @@map("verifications")
+}
+
+model InviteCode {
+  id          String    @id @default(uuid())
+  code        String    @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  usedById    String?
+  usedAt      DateTime?
+  createdBy   User?     @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  usedBy      User?     @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([createdById])
+  @@index([usedById])
+  @@map("invite_codes")
+}

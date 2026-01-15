@@ -1,0 +1,221 @@
+model User {
+  id                                          String                                @id @default(uuid())
+  name                                        String?
+  email                                       String                                @unique
+  password                                    String?
+  image                                       String?
+  createdAt                                   DateTime                              @default(now())
+  updatedAt                                   DateTime                              @updatedAt
+  emailVerified                               Boolean                               @default(false)
+  nameChangedAt                               DateTime?
+  joinDate                                    DateTime?
+  lastLoginAt                                 DateTime?
+  lastLoginIp                                 String?
+  passwordNeedsReset                          Boolean                               @default(false)
+  passwordUpdatedAt                           DateTime?
+  avatarAttachmentId                          String?
+  accounts                                    Account[]
+  adminAuditLogs                              AdminAuditLog[]                       @relation("AdminAuditActor")
+  createdFolders                              AttachmentFolder[]                    @relation("AttachmentFolderCreator")
+  shareTokens                                 AttachmentShareToken[]                @relation("AttachmentShareCreator")
+  tagAssignments                              AttachmentTagging[]                   @relation("AttachmentTaggingAssignee")
+  createdTags                                 AttachmentTag[]                       @relation("AttachmentTagCreator")
+  uploadedAttachments                         Attachment[]                          @relation("AttachmentUploader")
+  authmeBindingHistoryOps                     AuthmeBindingHistory[]                @relation("AuthmeBindingHistoryOperator")
+  authmeBindingHistory                        AuthmeBindingHistory[]                @relation("AuthmeBindingHistoryUser")
+  updatedConfigEntries                        ConfigEntry[]                         @relation("ConfigEntryUpdater")
+  createdMinecraftServers                     MinecraftServer[]                     @relation("MinecraftServerCreatedBy")
+  updatedMinecraftServers                     MinecraftServer[]                     @relation("MinecraftServerUpdatedBy")
+  oauthLogs                                   OAuthLog[]
+  sessions                                    Session[]
+  authmeBindingOperations                     UserAuthmeBinding[]                   @relation("AuthmeBindingOperator")
+  authmeBindings                              UserAuthmeBinding[]
+  contacts                                    UserContact[]
+  lifecycle                                   UserLifecycleEvent[]
+  minecraftIds                                UserMinecraftProfile[]
+  permissionLabelOps                          UserPermissionLabel[]                 @relation("PermissionLabelOperator")
+  permissionLabels                            UserPermissionLabel[]
+  piicHistory                                 UserPiicHistory[]
+  profile                                     UserProfile?
+  biography                                   PlayerBiography?                      @relation("PlayerBiographyOwner")
+  biographyUpdates                            PlayerBiography[]                     @relation("PlayerBiographyUpdater")
+  roles                                       UserRole[]
+  messagesSent                                PlayerMessage[]                       @relation("PlayerMessagesAuthor")
+  messagesReceived                            PlayerMessage[]                       @relation("PlayerMessagesReceived")
+  messageReactions                            PlayerMessageReaction[]
+  statusEvents                                UserStatusEvent[]
+  statusSnapshot                              UserStatusSnapshot?
+  likesGiven                                  PlayerLike[]                          @relation("PlayerLikesGiven")
+  likesReceived                               PlayerLike[]                          @relation("PlayerLikesReceived")
+  rankPlayerSnapshots                         RankPlayerSnapshot[]                  @relation("RankSnapshotsForUser")
+  rankSyncJobs                                RankSyncJob[]                         @relation("RankSyncJobsInitiated")
+  companyApplications                         CompanyApplication[]                  @relation("CompanyApplicationApplicant")
+  companyAuditRecords                         CompanyAuditRecord[]                  @relation("CompanyAuditActor")
+  companyPoliciesAuthored                     CompanyPolicy[]                       @relation("CompanyPolicyAuthor")
+  companyPoliciesUpdated                      CompanyPolicy[]                       @relation("CompanyPolicyEditor")
+  workflowActions                             WorkflowAction[]                      @relation("WorkflowActionActor")
+  companiesCreated                            Company[]                             @relation("CompanyCreatedBy")
+  companiesUpdated                            Company[]                             @relation("CompanyUpdatedBy")
+  legalRepresentativeCompanies                Company[]                             @relation("CompanyLegalRepresentative")
+  companyApplicationConsentsRequired          CompanyApplicationConsent[]           @relation("CompanyApplicationConsentUser")
+  companyApplicationConsentsAsShareholderUser CompanyApplicationConsent[]           @relation("CompanyApplicationConsentShareholderUser")
+  llcRegistrationShareholdings                CompanyLlcRegistrationShareholder[]   @relation("CompanyLlcRegistrationShareholderUser")
+  llcRegistrationOfficerRoles                 CompanyLlcRegistrationOfficer[]       @relation("CompanyLlcRegistrationOfficerUser")
+  workflowInstancesCreated                    WorkflowInstance[]                    @relation("WorkflowInstanceCreator")
+  transportationRailwayFeaturedCreated        TransportationRailwayFeaturedItem[]   @relation("TransportationRailwayFeaturedCreatedBy")
+  transportationRailwayFeaturedUpdated        TransportationRailwayFeaturedItem[]   @relation("TransportationRailwayFeaturedUpdatedBy")
+  transportationRailwaySyncJobs               TransportationRailwaySyncJob[]        @relation("TransportationRailwaySyncInitiator")
+  transportationRailwaySystemsCreated         TransportationRailwaySystem[]         @relation("TransportationRailwaySystemCreatedBy")
+  transportationRailwaySystemsUpdated         TransportationRailwaySystem[]         @relation("TransportationRailwaySystemUpdatedBy")
+  transportationRailwayCompanyBindingsCreated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingCreatedBy")
+  transportationRailwayCompanyBindingsUpdated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingUpdatedBy")
+  transportationRailwaySystemLogs             TransportationRailwaySystemLog[]      @relation("RailwaySystemLogActor")
+  invitesCreated                              InviteCode[]                          @relation("InviteCreatedBy")
+  invitesUsed                                 InviteCode[]                          @relation("InviteUsedBy")
+
+  @@map("users")
+}
+
+model UserProfile {
+  id                        String                @id @default(uuid())
+  userId                    String                @unique
+  primaryMinecraftProfileId String?
+  piic                      String?               @unique
+  piicAssignedAt            DateTime?
+  displayName               String?
+  birthday                  DateTime?
+  gender                    GenderType?           @default(UNSPECIFIED)
+  motto                     String?
+  timezone                  String?
+  locale                    String?
+  extra                     Json?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  primaryAuthmeBindingId    String?
+  primaryAuthmeBinding      UserAuthmeBinding?    @relation("PrimaryAuthmeBinding", fields: [primaryAuthmeBindingId], references: [id])
+  primaryMinecraftProfile   UserMinecraftProfile? @relation("PrimaryMinecraftProfile", fields: [primaryMinecraftProfileId], references: [id])
+  user                      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model UserPiicHistory {
+  id            String     @id @default(uuid())
+  userId        String
+  piic          String
+  status        PIICStatus @default(ACTIVE)
+  reason        String?
+  metadata      Json?
+  generatedAt   DateTime   @default(now())
+  revokedAt     DateTime?
+  generatedById String?
+  revokedById   String?
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([piic], map: "idx_user_piic_history_piic")
+  @@index([userId, generatedAt], map: "idx_user_piic_history_user")
+  @@map("user_piic_history")
+}
+
+model UserMinecraftProfile {
+  id                String                 @id @default(uuid())
+  userId            String
+  nickname          String?
+  isPrimary         Boolean                @default(false)
+  source            MinecraftProfileSource @default(MANUAL)
+  verifiedAt        DateTime?
+  verificationNote  String?
+  metadata          Json?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  authmeBindingId   String?
+  authmeUuid        String?
+  authmeBinding     UserAuthmeBinding?     @relation(fields: [authmeBindingId], references: [id])
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primaryProfileFor UserProfile[]          @relation("PrimaryMinecraftProfile")
+
+  @@index([userId, isPrimary], map: "idx_user_minecraft_primary")
+  @@index([authmeBindingId], map: "idx_user_minecraft_binding")
+  @@index([authmeUuid], map: "idx_user_minecraft_authme_uuid")
+  @@map("user_minecraft_profiles")
+}
+
+model UserStatusEvent {
+  id           String              @id @default(uuid())
+  userId       String
+  status       PlayerStatus
+  reasonCode   String?
+  reasonDetail String?
+  source       StatusSource        @default(SYSTEM)
+  metadata     Json?
+  createdAt    DateTime            @default(now())
+  createdById  String?
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshot     UserStatusSnapshot? @relation("StatusSnapshotEvent")
+
+  @@index([userId, createdAt], map: "idx_user_status_user_time")
+  @@map("user_status_events")
+}
+
+model UserStatusSnapshot {
+  userId        String          @id
+  statusEventId String          @unique
+  status        PlayerStatus
+  updatedAt     DateTime        @updatedAt
+  event         UserStatusEvent @relation("StatusSnapshotEvent", fields: [statusEventId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_status_snapshot")
+}
+
+model UserLifecycleEvent {
+  id          String             @id @default(uuid())
+  userId      String
+  eventType   LifecycleEventType
+  occurredAt  DateTime
+  source      String?
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+  createdById String?
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, eventType], map: "idx_user_lifecycle_type")
+  @@map("user_lifecycle_events")
+}
+
+model ContactChannel {
+  id              String        @id @default(uuid())
+  key             String        @unique
+  displayName     String
+  description     String?
+  validationRegex String?
+  isRequired      Boolean       @default(false)
+  allowMultiple   Boolean       @default(true)
+  isVerifiable    Boolean       @default(false)
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  contacts        UserContact[]
+
+  @@map("contact_channels")
+}
+
+model UserContact {
+  id               String                    @id @default(uuid())
+  userId           String
+  channelId        String
+  value            String
+  isPrimary        Boolean                   @default(false)
+  verification     ContactVerificationStatus @default(UNVERIFIED)
+  verifiedAt       DateTime?
+  verificationCode String?
+  metadata         Json?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  channel          ContactChannel            @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user             User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId, value], map: "uq_user_contact_value")
+  @@map("user_contacts")
+}

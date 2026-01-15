@@ -1,0 +1,372 @@
+model TransportationRailwayFeaturedItem {
+  id           String                            @id @default(uuid())
+  entityType   TransportationRailwayFeaturedType
+  serverId     String
+  railwayMod   TransportationRailwayMod          @default(MTR)
+  entityId     String
+  displayOrder Int                               @default(0)
+  createdAt    DateTime                          @default(now())
+  updatedAt    DateTime                          @updatedAt
+  createdById  String?
+  updatedById  String?
+  createdBy    User?                             @relation("TransportationRailwayFeaturedCreatedBy", fields: [createdById], references: [id])
+  updatedBy    User?                             @relation("TransportationRailwayFeaturedUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([entityType, serverId, railwayMod, entityId], map: "uq_transportation_railway_featured_scope")
+  @@index([displayOrder, createdAt], map: "idx_transportation_railway_featured_order")
+  @@map("transportation_railway_mtr_featured_items")
+}
+
+model TransportationRailwayRoute {
+  id                  String                             @id @default(uuid())
+  serverId            String
+  railwayMod          TransportationRailwayMod           @default(MTR)
+  entityId            String
+  dimensionContext    String?
+  transportMode       String?
+  name                String?
+  color               Int?
+  filePath            String?
+  payload             Json
+  lastBeaconUpdatedAt DateTime?
+  syncedAt            DateTime
+  createdAt           DateTime                           @default(now())
+  updatedAt           DateTime                           @updatedAt
+  systemRoutes        TransportationRailwaySystemRoute[]
+
+  @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_route")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_route_scope")
+  @@map("transportation_railway_mtr_routes")
+}
+
+model TransportationRailwayStation {
+  id                  String                   @id @default(uuid())
+  serverId            String
+  railwayMod          TransportationRailwayMod @default(MTR)
+  entityId            String
+  dimensionContext    String?
+  transportMode       String?
+  name                String?
+  color               Int?
+  filePath            String?
+  payload             Json
+  lastBeaconUpdatedAt DateTime?
+  syncedAt            DateTime
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_station")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_station_scope")
+  @@map("transportation_railway_mtr_stations")
+}
+
+model TransportationRailwayPlatform {
+  id                  String                   @id @default(uuid())
+  serverId            String
+  railwayMod          TransportationRailwayMod @default(MTR)
+  entityId            String
+  dimensionContext    String?
+  transportMode       String?
+  name                String?
+  color               Int?
+  filePath            String?
+  payload             Json
+  lastBeaconUpdatedAt DateTime?
+  syncedAt            DateTime
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_platform")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_platform_scope")
+  @@map("transportation_railway_mtr_platforms")
+}
+
+model TransportationRailwayDepot {
+  id                  String                   @id @default(uuid())
+  serverId            String
+  railwayMod          TransportationRailwayMod @default(MTR)
+  entityId            String
+  dimensionContext    String?
+  transportMode       String?
+  name                String?
+  color               Int?
+  filePath            String?
+  payload             Json
+  lastBeaconUpdatedAt DateTime?
+  syncedAt            DateTime
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_depot")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_depot_scope")
+  @@map("transportation_railway_mtr_depots")
+}
+
+model TransportationRailwaySystem {
+  id               String                             @id @default(uuid())
+  name             String
+  englishName      String?
+  logoAttachmentId String?
+  serverId         String
+  dimensionContext String?
+  createdAt        DateTime                           @default(now())
+  updatedAt        DateTime                           @updatedAt
+  createdById      String?
+  updatedById      String?
+  createdBy        User?                              @relation("TransportationRailwaySystemCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?                              @relation("TransportationRailwaySystemUpdatedBy", fields: [updatedById], references: [id])
+  logoAttachment   Attachment?                        @relation("TransportationRailwaySystemLogo", fields: [logoAttachmentId], references: [id])
+  routes           TransportationRailwaySystemRoute[]
+  logs             TransportationRailwaySystemLog[]
+
+  @@index([serverId, dimensionContext], map: "idx_transportation_railway_system_scope")
+  @@map("transportation_railway_systems")
+}
+
+model TransportationRailwaySystemLog {
+  id        String                      @id @default(uuid())
+  systemId  String
+  userId    String
+  action    String // CREATE, EDIT, DELETE
+  createdAt DateTime                    @default(now())
+  system    TransportationRailwaySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  user      User                        @relation("RailwaySystemLogActor", fields: [userId], references: [id])
+
+  @@index([systemId])
+  @@map("transportation_railway_system_logs")
+}
+
+model TransportationRailwaySystemRoute {
+  id        String                      @id @default(uuid())
+  systemId  String
+  routeId   String
+  createdAt DateTime                    @default(now())
+  system    TransportationRailwaySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  route     TransportationRailwayRoute  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([systemId, routeId], map: "uq_transportation_railway_system_route")
+  @@index([routeId], map: "idx_transportation_railway_system_route_route")
+  @@map("transportation_railway_system_routes")
+}
+
+model TransportationRailwayCompanyBinding {
+  id               String                                  @id @default(uuid())
+  bindingType      TransportationRailwayCompanyBindingType
+  entityType       TransportationRailwayBindingEntityType
+  entityId         String
+  serverId         String?
+  railwayMod       TransportationRailwayMod?
+  dimensionContext String?
+  companyId        String
+  createdAt        DateTime                                @default(now())
+  updatedAt        DateTime                                @updatedAt
+  createdById      String?
+  updatedById      String?
+  company          Company                                 @relation(fields: [companyId], references: [id])
+  createdBy        User?                                   @relation("TransportationRailwayCompanyBindingCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?                                   @relation("TransportationRailwayCompanyBindingUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([bindingType, entityType, entityId, companyId], map: "uq_transportation_railway_company_binding")
+  @@index([companyId], map: "idx_transportation_railway_company_binding_company")
+  @@index([entityType, entityId], map: "idx_transportation_railway_company_binding_entity")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_company_binding_scope")
+  @@map("transportation_railway_mtr_company_bindings")
+}
+
+model TransportationRailwayRail {
+  id                  String                   @id @default(uuid())
+  serverId            String
+  railwayMod          TransportationRailwayMod @default(MTR)
+  entityId            String
+  dimensionContext    String?
+  transportMode       String?
+  name                String?
+  color               Int?
+  filePath            String?
+  payload             Json
+  lastBeaconUpdatedAt DateTime?
+  syncedAt            DateTime
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_rail")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_rail_scope")
+  @@map("transportation_railway_mtr_rails")
+}
+
+model TransportationRailwaySignalBlock {
+  id                  String                   @id @default(uuid())
+  serverId            String
+  railwayMod          TransportationRailwayMod @default(MTR)
+  entityId            String
+  dimensionContext    String?
+  transportMode       String?
+  name                String?
+  color               Int?
+  filePath            String?
+  payload             Json
+  lastBeaconUpdatedAt DateTime?
+  syncedAt            DateTime
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, entityId], map: "uq_transportation_railway_signal_block")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_signal_scope")
+  @@map("transportation_railway_mtr_signal_blocks")
+}
+
+model TransportationRailwayDimension {
+  id               String                   @id @default(uuid())
+  serverId         String
+  railwayMod       TransportationRailwayMod @default(MTR)
+  dimensionContext String
+  namespace        String?
+  dimension        String?
+  lastUpdated      DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, dimensionContext], map: "uq_transportation_railway_dimension")
+  @@map("transportation_railway_mtr_dimensions")
+}
+
+model TransportationRailwaySyncJob {
+  id            String                          @id @default(uuid())
+  serverId      String
+  status        TransportationRailwaySyncStatus @default(PENDING)
+  message       String?
+  initiatedById String?
+  createdAt     DateTime                        @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  server    MinecraftServer @relation("TransportationRailwaySyncServer", fields: [serverId], references: [id], onDelete: Cascade)
+  initiator User?           @relation("TransportationRailwaySyncInitiator", fields: [initiatedById], references: [id])
+
+  @@index([serverId, status], map: "idx_transportation_railway_sync_jobs")
+  @@map("transportation_railway_mtr_sync_jobs")
+}
+
+model TransportationRailwayRouteGeometrySnapshot {
+  id                String                   @id @default(uuid())
+  serverId          String
+  railwayMod        TransportationRailwayMod @default(MTR)
+  dimensionContext  String
+  routeEntityId     String
+  sourceFingerprint String
+  status            String
+  errorMessage      String?
+  geometry2d        Json
+  bounds            Json?
+  stops             Json?
+  pathNodes3d       Json?
+  pathEdges         Json?
+  generatedAt       DateTime
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, dimensionContext, routeEntityId], map: "uq_transportation_railway_route_geometry_snapshot")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_route_geometry_scope")
+  @@map("transportation_railway_mtr_route_geometry_snapshots")
+}
+
+model TransportationRailwayRouteCalculate {
+  id                  String                   @id @default(uuid())
+  serverId            String
+  railwayMod          TransportationRailwayMod @default(MTR)
+  dimensionContext    String
+  dimension           String?
+  routeEntityId       String
+  status              String
+  errorMessage        String?
+  sourceFingerprint   String
+  pathSource          String
+  persistedSnapshot   Boolean                  @default(false)
+  report              Json?
+  snapshot            Json?
+  dataset             Json?
+  fallbackDiagnostics Json?
+  curveDiagnostics    Json?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, dimensionContext, routeEntityId], map: "uq_transportation_railway_route_calculate")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_route_calculate_scope")
+  @@map("transportation_railway_mtr_routes_calculate")
+}
+
+model TransportationRailwayStationMapSnapshot {
+  id                String                   @id @default(uuid())
+  serverId          String
+  railwayMod        TransportationRailwayMod @default(MTR)
+  dimensionContext  String
+  stationEntityId   String
+  sourceFingerprint String
+  payload           Json
+  generatedAt       DateTime
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, dimensionContext, stationEntityId], map: "uq_transportation_railway_station_map_snapshot")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_station_map_scope")
+  @@map("transportation_railway_mtr_station_map_snapshots")
+}
+
+model TransportationRailwayComputeScope {
+  id               String                   @id @default(uuid())
+  serverId         String
+  railwayMod       TransportationRailwayMod @default(MTR)
+  dimensionContext String
+  fingerprint      String
+  status           String
+  message          String?
+  computedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@unique([serverId, railwayMod, dimensionContext], map: "uq_transportation_railway_compute_scope")
+  @@index([serverId, railwayMod, fingerprint], map: "idx_transportation_railway_compute_scope_fingerprint")
+  @@map("transportation_railway_mtr_compute_scopes")
+}
+
+model TransportationRailwayLog {
+  id               String                   @id @default(uuid())
+  serverId         String
+  railwayMod       TransportationRailwayMod @default(MTR)
+  beaconLogId      Int
+  timestamp        String?
+  playerName       String?
+  playerUuid       String?
+  className        String?
+  entryId          String?
+  entryName        String?
+  position         String?
+  changeType       String?
+  oldData          String?
+  newData          String?
+  sourceFilePath   String?
+  sourceLine       Int?
+  dimensionContext String?
+  syncedAt         DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@unique([serverId, beaconLogId], map: "uq_transportation_railway_mtr_log_beacon")
+  @@index([serverId, railwayMod, entryId], map: "idx_transportation_railway_mtr_log_entry")
+  @@index([serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_mtr_log_dimension")
+  @@index([serverId, railwayMod, beaconLogId], map: "idx_transportation_railway_mtr_log_beacon")
+  @@map("transportation_railway_mtr_logs")
+}
+
+model TransportationRailwayLogSyncJob {
+  id          String                          @id @default(uuid())
+  serverId    String
+  mode        String
+  status      TransportationRailwaySyncStatus @default(PENDING)
+  message     String?
+  createdAt   DateTime                        @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  @@index([serverId, status], map: "idx_transportation_railway_mtr_log_sync_jobs")
+  @@map("transportation_railway_mtr_log_sync_jobs")
+}

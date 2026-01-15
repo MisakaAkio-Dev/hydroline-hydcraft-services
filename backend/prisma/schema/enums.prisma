@@ -1,0 +1,234 @@
+enum RankSyncStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum CompanyStatus {
+  DRAFT
+  PENDING_REVIEW
+  UNDER_REVIEW
+  NEEDS_REVISION
+  ACTIVE
+  SUSPENDED
+  REJECTED
+  ARCHIVED
+}
+
+enum CompanyVisibility {
+  PUBLIC
+  PRIVATE
+  INTERNAL
+}
+
+enum CompanyApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  NEEDS_CHANGES
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum CompanyApplicationConsentProgress {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CompanyApplicationConsentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CompanyApplicationConsentRole {
+  LEGAL_REPRESENTATIVE
+  SHAREHOLDER_USER
+  SHAREHOLDER_COMPANY_LEGAL
+  TRANSFEREE_USER
+  TRANSFEREE_COMPANY_LEGAL
+  DIRECTOR
+  CHAIRPERSON
+  VICE_CHAIRPERSON
+  MANAGER
+  DEPUTY_MANAGER
+  SUPERVISOR
+  SUPERVISOR_CHAIRPERSON
+  FINANCIAL_OFFICER
+}
+
+enum CompanyLlcOperatingTermType {
+  LONG_TERM
+  YEARS
+}
+
+enum CompanyLlcShareholderKind {
+  USER
+  COMPANY
+}
+
+enum CompanyLlcOfficerRole {
+  LEGAL_REPRESENTATIVE
+  DIRECTOR
+  CHAIRPERSON
+  VICE_CHAIRPERSON
+  MANAGER
+  DEPUTY_MANAGER
+  SUPERVISOR
+  SUPERVISOR_CHAIRPERSON
+  FINANCIAL_OFFICER
+}
+
+enum CompanyPolicyStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum CompanyCategory {
+  FOR_PROFIT_LEGAL_PERSON
+  NON_PROFIT_LEGAL_PERSON
+  SPECIAL_LEGAL_PERSON
+  UNINCORPORATED_ORGANIZATION
+  INDIVIDUAL
+}
+
+enum WorkflowInstanceStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PlayerStatus {
+  ACTIVE
+  AWAY
+  UNKNOWN
+  BANNED
+  ABNORMAL
+}
+
+enum StatusSource {
+  SYSTEM
+  ADMIN
+  EXTERNAL
+}
+
+enum LifecycleEventType {
+  REGISTERED
+  MC_JOIN
+  MC_LEAVE
+  ACCOUNT_BIND
+  ACCOUNT_UNBIND
+  STATUS_CHANGE
+  PROFILE_UPDATE
+  CONTACT_UPDATE
+  OTHER
+}
+
+enum AuthmeBindingAction {
+  BIND
+  UNBIND
+  PRIMARY_SET
+  PRIMARY_UNSET
+  TRANSFER
+  SYNC
+  MANUAL_ENTRY
+}
+
+enum AuthmeBindingStatus {
+  ACTIVE
+  DETACHED
+  TRANSFERRED
+}
+
+enum ContactVerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum MinecraftProfileSource {
+  MANUAL
+  LUCKPERMS
+  AUTHME
+  MOJANG
+  IMPORT
+  OTHER
+}
+
+enum MinecraftServerEdition {
+  JAVA
+  BEDROCK
+}
+
+enum GenderType {
+  UNSPECIFIED
+  MALE
+  FEMALE
+  NON_BINARY
+  OTHER
+}
+
+enum PIICStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum PlayerMessageReactionType {
+  UP
+  DOWN
+}
+
+enum AttachmentVisibilityMode {
+  INHERIT
+  PUBLIC
+  RESTRICTED
+}
+
+enum OAuthLogAction {
+  AUTHORIZE
+  TOKEN
+  LOGIN
+  REGISTER
+  BIND
+  UNBIND
+  ERROR
+}
+
+enum OAuthLogStatus {
+  SUCCESS
+  FAILURE
+}
+
+enum TransportationRailwayMod {
+  MTR
+}
+
+enum TransportationRailwayFeaturedType {
+  ROUTE
+  STATION
+  DEPOT
+}
+
+enum TransportationRailwayBindingEntityType {
+  ROUTE
+  STATION
+  DEPOT
+  SYSTEM
+}
+
+enum TransportationRailwayCompanyBindingType {
+  OPERATOR
+  BUILDER
+}
+
+enum TransportationRailwaySyncStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}

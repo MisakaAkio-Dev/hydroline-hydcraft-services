@@ -1,0 +1,47 @@
+model RankPlayerSnapshot {
+  id                  String             @id @default(uuid())
+  serverId            String
+  playerUuid          String?
+  playerName          String?
+  bindingId           String?
+  userId              String?
+  displayName         String?
+  lastLoginAt         DateTime?
+  registeredAt        DateTime?
+  walkDistanceKm      Float?
+  flyDistanceKm       Float?
+  swimDistanceKm      Float?
+  achievements        Int?
+  deaths              Int?
+  playerKilledByCount Int?
+  jumpCount           Int?
+  playTimeHours       Float?
+  useWandCount        Int?
+  logoutCount         Int?
+  mtrBalance          Int?
+  metrics             Json?
+  stats               Json?
+  updatedAt           DateTime           @updatedAt
+  server              MinecraftServer    @relation("RankSnapshotsPerServer", fields: [serverId], references: [id], onDelete: Cascade)
+  authmeBinding       UserAuthmeBinding? @relation("RankSnapshotsForBinding", fields: [bindingId], references: [id])
+  user                User?              @relation("RankSnapshotsForUser", fields: [userId], references: [id])
+
+  @@unique([serverId, playerUuid], map: "uq_rank_snapshot_server_player")
+  @@index([serverId], map: "idx_rank_snapshot_server")
+  @@map("rank_player_snapshot")
+}
+
+model RankSyncJob {
+  id            String           @id @default(uuid())
+  serverId      String?
+  initiatedById String?
+  status        RankSyncStatus   @default(PENDING)
+  startedAt     DateTime
+  completedAt   DateTime?
+  message       String?
+  createdAt     DateTime         @default(now())
+  server        MinecraftServer? @relation("RankSyncJobsPerServer", fields: [serverId], references: [id])
+  user          User?            @relation("RankSyncJobsInitiated", fields: [initiatedById], references: [id])
+
+  @@map("rank_sync_jobs")
+}

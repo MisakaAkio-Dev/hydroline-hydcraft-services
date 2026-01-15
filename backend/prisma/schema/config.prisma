@@ -1,0 +1,29 @@
+model ConfigNamespace {
+  id          String        @id @default(uuid())
+  key         String        @unique
+  name        String
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  entries     ConfigEntry[]
+
+  @@map("config_namespaces")
+}
+
+model ConfigEntry {
+  id          String          @id @default(uuid())
+  namespaceId String
+  key         String
+  value       Json
+  description String?
+  version     Int             @default(1)
+  updatedById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  namespace   ConfigNamespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade)
+  updatedBy   User?           @relation("ConfigEntryUpdater", fields: [updatedById], references: [id])
+
+  @@unique([namespaceId, key], map: "uq_config_entry_namespace_key")
+  @@index([namespaceId], map: "idx_config_entries_namespace")
+  @@map("config_entries")
+}
