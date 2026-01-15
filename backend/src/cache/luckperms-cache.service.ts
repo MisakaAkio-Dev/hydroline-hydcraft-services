@@ -27,8 +27,9 @@ export class LuckpermsCacheService {
     if (!key) {
       return null;
     }
-    return this.prisma.luckpermsPlayerCache.findUnique({
+    return this.prisma.luckpermsPlayerCache.findFirst({
       where: { usernameLower: key },
+      orderBy: { syncedAt: 'desc' },
     });
   }
 
@@ -36,38 +37,43 @@ export class LuckpermsCacheService {
     if (!players.length) {
       return;
     }
-    const operations = players.map((player) => {
+    const payloads = new Map<
+      string,
+      Prisma.LuckpermsPlayerCacheCreateManyInput
+    >();
+    for (const player of players) {
       const normalized = this.normalizeUsername(player.username);
       if (!normalized) {
-        return null;
+        continue;
       }
       const groupsPayload = JSON.parse(
         JSON.stringify(player.groups ?? []),
       ) as Prisma.InputJsonValue;
-      const payload = {
+      payloads.set(player.uuid, {
         uuid: player.uuid,
-        username: player.username,
         usernameLower: normalized,
         primaryGroup: player.primaryGroup,
         groups: groupsPayload,
         syncedAt: new Date(),
-      };
-      return this.prisma.luckpermsPlayerCache.upsert({
-        where: { uuid: player.uuid },
-        create: payload,
-        update: payload,
       });
-    });
-    const tasks = operations.filter(
-      (
-        operation,
-      ): operation is Prisma.PrismaPromise<LuckpermsPlayerCacheRecord> =>
-        Boolean(operation),
-    );
-    if (tasks.length === 0) {
+    }
+    if (payloads.size === 0) {
       return;
     }
-    await this.prisma.$transaction(tasks);
+    const batch = Array.from(payloads.values());
+    const uuids = batch.map((payload) => payload.uuid);
+    const usernameLowers = batch.map((payload) => payload.usernameLower);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.luckpermsPlayerCache.deleteMany({
+        where: {
+          OR: [
+            { uuid: { in: uuids } },
+            { usernameLower: { in: usernameLowers } },
+          ],
+        },
+      });
+      await tx.luckpermsPlayerCache.createMany({ data: batch });
+    });
   }
 
   async getLastSyncedAt(): Promise<Date | null> {

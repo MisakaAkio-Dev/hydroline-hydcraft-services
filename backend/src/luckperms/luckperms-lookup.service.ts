@@ -71,7 +71,7 @@ export class LuckpermsLookupService {
     }
     return {
       uuid: entry.uuid,
-      username: entry.username,
+      username: entry.usernameLower,
       primaryGroup: entry.primaryGroup,
       groups,
     };

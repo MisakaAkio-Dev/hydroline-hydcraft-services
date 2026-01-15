@@ -22,8 +22,7 @@ model AuthmeAccountCache {
 model LuckpermsPlayerCache {
   id            String   @id @default(uuid())
   uuid          String   @unique
-  username      String
-  usernameLower String   @unique(map: "uq_luckperms_cache_username_lower")
+  usernameLower String
   primaryGroup  String?
   groups        Json?
   syncedAt      DateTime @default(now())
