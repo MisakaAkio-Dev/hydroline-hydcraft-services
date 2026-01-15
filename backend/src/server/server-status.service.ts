@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { MinecraftServer, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MinecraftServerService } from '../minecraft/minecraft-server.service';
-import { HydrolineBeaconPoolService } from '../lib/hydroline-beacon';
+import {
+  BeaconLibService,
+  HydrolineBeaconPoolService,
+} from '../lib/hydroline-beacon';
 
 export type ServerStatusHistoryPoint = {
   timestamp: string;
@@ -48,6 +51,7 @@ export class ServerStatusService {
     private readonly prisma: PrismaService,
     private readonly minecraftServers: MinecraftServerService,
     private readonly beaconPool: HydrolineBeaconPoolService,
+    private readonly beaconLib: BeaconLibService,
   ) {}
 
   async getPublicServerStatus(): Promise<{ servers: ServerStatusItem[] }> {
@@ -68,8 +72,29 @@ export class ServerStatusService {
     server: MinecraftServer,
   ): Promise<ServerStatusItem> {
     const pingSummary = await this.loadServerPingSummary(server.id);
+    const beaconPlayersOverride = await this.loadBeaconPlayersOverride(server);
     const mcsm = await this.loadMcsmStatusPreview(server);
     const beacon = this.buildBeaconStatus(server);
+
+    if (beaconPlayersOverride && pingSummary.latest) {
+      pingSummary.latest = {
+        ...pingSummary.latest,
+        onlinePlayers:
+          beaconPlayersOverride.onlinePlayers ??
+          pingSummary.latest.onlinePlayers,
+        maxPlayers:
+          beaconPlayersOverride.maxPlayers ?? pingSummary.latest.maxPlayers,
+      };
+    } else if (beaconPlayersOverride && !pingSummary.latest) {
+      pingSummary.latest = {
+        latency: null,
+        onlinePlayers: beaconPlayersOverride.onlinePlayers ?? null,
+        maxPlayers: beaconPlayersOverride.maxPlayers ?? null,
+        versionLabel: null,
+        fetchedAt: new Date().toISOString(),
+      };
+    }
+
     return {
       id: server.id,
       displayName: server.displayName,
@@ -85,6 +110,39 @@ export class ServerStatusService {
       mcsm,
       beacon,
     };
+  }
+
+  private async loadBeaconPlayersOverride(server: MinecraftServer): Promise<{
+    onlinePlayers: number | null;
+    maxPlayers: number | null;
+  } | null> {
+    const configured =
+      Boolean(server.beaconEnabled) &&
+      Boolean(server.beaconEndpoint) &&
+      Boolean(server.beaconKey);
+    if (!configured) return null;
+
+    try {
+      const payload = await this.beaconLib.fetchStatusNow(server.id);
+      if (!payload || !(payload as any).success) return null;
+      const anyPayload = payload as any;
+      const onlinePlayers =
+        typeof anyPayload.online_player_count === 'number'
+          ? anyPayload.online_player_count
+          : null;
+      const maxPlayers =
+        typeof anyPayload.server_max_players === 'number'
+          ? anyPayload.server_max_players
+          : null;
+
+      if (onlinePlayers == null && maxPlayers == null) return null;
+      return { onlinePlayers, maxPlayers };
+    } catch (error) {
+      this.logger.debug(
+        `Beacon status override failed for ${server.id}: ${String(error)}`,
+      );
+      return null;
+    }
   }
 
   private async loadServerPingSummary(serverId: string) {
