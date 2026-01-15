@@ -48,9 +48,7 @@ const formattedBirthday = computed(() => {
 const fallbackRegion = computed(() => props.summary?.profileExtra ?? {})
 const regionCountryCode = computed(
   () =>
-    props.region?.region?.country ??
-    fallbackRegion.value.regionCountry ??
-    'OTHER',
+    props.region?.region?.country ?? fallbackRegion.value.regionCountry ?? '',
 )
 const regionCountryLabel = computed(() => {
   if (!regionCountryCode.value) {
@@ -103,6 +101,13 @@ const hasRegionData = computed(() => {
 })
 
 const hasSummary = computed(() => Boolean(props.summary))
+const showRegionSection = computed(
+  () => !hasSummary.value || hasRegionData.value,
+)
+
+const showBirthdaySection = computed(
+  () => !hasSummary.value || Boolean(formattedBirthday.value),
+)
 
 const showCityLevel = computed(() => {
   if (!isChina.value) return false
@@ -258,7 +263,7 @@ function handleEditBiography() {
           </template>
         </div>
       </div>
-      <div>
+      <div v-if="showRegionSection">
         <div class="text-xs text-slate-500 dark:text-slate-500">地区</div>
         <div
           class="text-base font-semibold text-slate-800 dark:text-slate-300 space-y-0"
@@ -309,7 +314,7 @@ function handleEditBiography() {
           </template>
         </div>
       </div>
-      <div>
+      <div v-if="showBirthdaySection">
         <div class="text-xs text-slate-500 dark:text-slate-500">生日</div>
         <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
           <template v-if="formattedBirthday">
@@ -325,7 +330,9 @@ function handleEditBiography() {
       </div>
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">注册时间</div>
-        <div class="text-base font-semibold text-slate-800 dark:text-slate-300">
+        <div
+          class="text-base font-semibold text-slate-800 dark:text-slate-300 break-all"
+        >
           <template v-if="props.summary?.createdAt">
             {{ props.formatDateTime(props.summary.createdAt) }}
           </template>
@@ -340,7 +347,7 @@ function handleEditBiography() {
       <div>
         <div class="text-xs text-slate-500 dark:text-slate-500">最近登录</div>
         <div
-          class="text-base font-semibold text-slate-800 dark:text-slate-300 flex flex-col"
+          class="text-base font-semibold text-slate-800 dark:text-slate-300 break-all flex flex-col"
         >
           <template v-if="props.summary?.lastLoginAt">
             <span>{{ props.formatDateTime(props.summary.lastLoginAt) }}</span>

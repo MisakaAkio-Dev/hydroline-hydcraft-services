@@ -158,7 +158,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
       {
         label: '股权转让审批',
         to: '/admin/company/equity-transfers',
-        icon: 'i-lucide-swap-horizontal',
+        icon: 'i-lucide-arrow-left-right',
       },
       {
         label: '更名审批',
