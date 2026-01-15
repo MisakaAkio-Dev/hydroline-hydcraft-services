@@ -27,6 +27,7 @@ const toast = useToast()
 const system = ref<RailwaySystemDetail | null>(null)
 const loading = ref(true)
 const routeDetails = ref<RailwayRouteDetail[]>([])
+const routeDetailsLoading = ref(false)
 const fullscreenOpen = ref(false)
 const bindingPayload = ref({
   operatorCompanyIds: [] as string[],
@@ -61,6 +62,13 @@ const systemName = computed(() =>
   extractPrimaryRouteName(system.value?.name ?? null, '线路系统'),
 )
 
+function resolveSystemRouteId(
+  routeInfo: RailwaySystemDetail['routes'][number],
+) {
+  const value = routeInfo.routeId ?? routeInfo.entityId ?? null
+  return value == null ? null : String(value)
+}
+
 const systemDimension = computed(() => {
   const context = system.value?.dimensionContext
   if (!context) return null
@@ -86,9 +94,12 @@ const totalLengthKm = computed(() => {
 
 async function fetchSystemDetail() {
   loading.value = true
+  routeDetailsLoading.value = false
   try {
     const detail = await systemsStore.fetchSystemDetail(systemId.value)
     system.value = detail
+    routeDetails.value = []
+    routeDetailsLoading.value = false
 
     if (detail.bindings) {
       bindingPayload.value = detail.bindings
@@ -98,6 +109,7 @@ async function fetchSystemDetail() {
 
     if (detail.routeDetails) {
       routeDetails.value = detail.routeDetails
+      routeDetailsLoading.value = false
     } else {
       await fetchRouteDetails(detail)
     }
@@ -253,12 +265,20 @@ async function handleDelete() {
 }
 
 async function fetchRouteDetails(detail: RailwaySystemDetail) {
+  if (!detail.routes.length) {
+    routeDetails.value = []
+    routeDetailsLoading.value = false
+    return
+  }
+  routeDetailsLoading.value = true
   const results: RailwayRouteDetail[] = []
   for (const routeInfo of detail.routes) {
     try {
+      const routeId = resolveSystemRouteId(routeInfo)
+      if (!routeId) continue
       const routeDetail = await railwayStore.fetchRouteDetail(
         {
-          routeId: routeInfo.entityId,
+          routeId,
           serverId: routeInfo.server.id,
           railwayType: routeInfo.railwayType.toLowerCase(),
           dimension: routeInfo.dimension ?? undefined,
@@ -271,6 +291,7 @@ async function fetchRouteDetails(detail: RailwaySystemDetail) {
     }
   }
   routeDetails.value = results
+  routeDetailsLoading.value = false
 }
 
 watch(
@@ -334,7 +355,7 @@ onMounted(() => {
       >
         <RailwaySystemMapPanel
           :routes="routeDetails"
-          :loading="routeDetails.length === 0"
+          :loading="routeDetailsLoading"
           height="520px"
         />
 

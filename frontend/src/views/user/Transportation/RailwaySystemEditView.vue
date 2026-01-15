@@ -51,6 +51,15 @@ const logoUploadProgress = ref(0)
 const cropperOpen = ref(false)
 const cropperImageUrl = ref<string | null>(null)
 
+function resolveRouteId(route: {
+  id?: string | null
+  entityId?: string | null
+  routeId?: string | null
+}) {
+  const value = route.routeId ?? route.entityId ?? route.id ?? null
+  return value == null ? null : String(value)
+}
+
 function extractBaseKey(name: string | null | undefined) {
   if (!name) return null
   const primary = name.split('||')[0] ?? ''
@@ -108,7 +117,12 @@ const groupedSearchResults = computed(() => {
 })
 
 const selectedRouteIds = computed(
-  () => new Set(selectedRoutes.value.map((item) => item.entityId)),
+  () =>
+    new Set(
+      selectedRoutes.value
+        .map((item) => resolveRouteId(item))
+        .filter((item): item is string => Boolean(item)),
+    ),
 )
 
 const selectedGroups = computed(() => {
@@ -117,11 +131,11 @@ const selectedGroups = computed(() => {
     { groupKey: string; groupName: string; routes: RailwaySystemRouteSummary[] }
   >()
   for (const route of selectedRoutes.value) {
-    const key = buildGroupKey(route.name, route.entityId)
+    const key = buildGroupKey(route.name, resolveRouteId(route))
     if (!map.has(key)) {
       map.set(key, {
         groupKey: key,
-        groupName: buildGroupName(route.name, route.entityId),
+        groupName: buildGroupName(route.name, resolveRouteId(route)),
         routes: [],
       })
     }
@@ -165,7 +179,7 @@ watch(
 const selectedCountByGroup = computed(() => {
   const map = new Map<string, number>()
   for (const route of selectedRoutes.value) {
-    const key = buildGroupKey(route.name, route.entityId)
+    const key = buildGroupKey(route.name, resolveRouteId(route))
     map.set(key, (map.get(key) ?? 0) + 1)
   }
   return map
@@ -189,6 +203,7 @@ function normalizeRouteSummary(
   }
   return {
     entityId: route.id,
+    routeId: resolveRouteId(route),
     name: route.name,
     color: route.color ?? null,
     transportMode: null,
@@ -256,7 +271,7 @@ function addRoute(route: RailwayRoute) {
 
 function removeRoute(routeId: string) {
   selectedRoutes.value = selectedRoutes.value.filter(
-    (item) => item.entityId !== routeId,
+    (item) => resolveRouteId(item) !== routeId,
   )
 }
 
@@ -341,7 +356,8 @@ async function saveSystem() {
       name: formState.value.name.trim(),
       englishName: formState.value.englishName.trim(),
       routes: selectedRoutes.value.map((item) => ({
-        entityId: item.entityId,
+        entityId: resolveRouteId(item) ?? item.entityId,
+        routeId: resolveRouteId(item) ?? undefined,
         railwayType: item.railwayType,
         serverId: item.server.id,
         dimension: item.dimension ?? null,

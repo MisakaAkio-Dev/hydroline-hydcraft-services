@@ -33,6 +33,15 @@ const searchTotal = ref(0)
 const selectedPage = ref(1)
 const selectedPageSize = ref(10)
 
+function resolveRouteId(route: {
+  id?: string | null
+  entityId?: string | null
+  routeId?: string | null
+}) {
+  const value = route.routeId ?? route.entityId ?? route.id ?? null
+  return value == null ? null : String(value)
+}
+
 function extractBaseKey(name: string | null | undefined) {
   if (!name) return null
   const primary = name.split('||')[0] ?? ''
@@ -291,7 +300,8 @@ async function createSystem() {
       name: formState.value.name.trim(),
       englishName: formState.value.englishName.trim(),
       routes: selectedRoutes.value.map((route) => ({
-        entityId: route.id,
+        entityId: resolveRouteId(route) ?? route.id,
+        routeId: resolveRouteId(route) ?? undefined,
         railwayType: route.railwayType,
         serverId: route.server.id,
         dimension: route.dimension ?? null,

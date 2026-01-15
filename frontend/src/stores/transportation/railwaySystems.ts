@@ -9,6 +9,7 @@ import type {
 
 export type RailwaySystemRouteInput = {
   entityId: string
+  routeId?: string
   railwayType: string
   serverId: string
   dimension?: string | null

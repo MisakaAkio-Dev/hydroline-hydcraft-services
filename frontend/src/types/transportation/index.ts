@@ -520,6 +520,7 @@ export interface RailwayRailDiagnosticsPage {
 
 export interface RailwaySystemRouteSummary {
   entityId: string
+  routeId?: string | null
   name: string | null
   color: number | null
   transportMode: string | null
