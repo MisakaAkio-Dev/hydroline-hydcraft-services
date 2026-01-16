@@ -23,13 +23,19 @@ import type {
   WorldDivisionNode,
 } from '@/types/company'
 
-const props = defineProps<{
-  industries: CompanyIndustry[]
-  types: CompanyType[]
-  submitting?: boolean
-  initial?: CreateCompanyApplicationPayload | null
-  submitLabel?: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    industries: CompanyIndustry[]
+    types: CompanyType[]
+    submitting?: boolean
+    initial?: CreateCompanyApplicationPayload | null
+    submitLabel?: string
+    showEntrySelectors?: boolean
+  }>(),
+  {
+    showEntrySelectors: true,
+  },
+)
 
 const emit = defineEmits<{
   (event: 'submit', payload: CreateCompanyApplicationPayload): void
@@ -111,28 +117,35 @@ const domicileDivision = computed(() => {
   return null
 })
 const authorityCompanies = ref<Array<{ id: string; name: string }>>([])
+const authorityLoading = ref(false)
 const applyingInitial = ref(false)
 const labelPrefillDone = ref(false)
 let level1SearchTimer: number | undefined
 
 async function refreshAuthorityCompanies() {
-  const divisionId = divisionLevelSelectedIds.value[0]
   const serverId = selectedServerId.value
-  if (!divisionId) {
-    authorityCompanies.value = []
-    return
-  }
-  if (!serverId) {
-    authorityCompanies.value = []
-    return
-  }
+  const divisionId = divisionLevelSelectedIds.value[0] ?? 'all'
+  const query = new URLSearchParams()
+  if (serverId) query.set('serverId', serverId)
+  authorityLoading.value = true
   try {
     authorityCompanies.value = await apiFetch<
       Array<{ id: string; name: string }>
-    >(`/companies/geo/divisions/${divisionId}/authorities?serverId=${serverId}`)
+    >(
+      `/companies/geo/divisions/${divisionId}/authorities${
+        query.toString() ? `?${query.toString()}` : ''
+      }`,
+    )
   } catch {
     authorityCompanies.value = []
+  } finally {
+    authorityLoading.value = false
   }
+}
+
+function handleAuthorityOpen() {
+  if (authorityCompanies.value.length > 0 || authorityLoading.value) return
+  void refreshAuthorityCompanies()
 }
 
 async function prefillSelectedLabels(
@@ -349,6 +362,7 @@ watch(selectedServerId, (value) => {
   llcDraft.administrativeDivisionLevel = 1
   llcDraft.registrationAuthorityCompanyId = undefined
   llcDraft.registrationAuthorityName = ''
+  authorityCompanies.value = []
   if (!value) {
     initDivisionLevels(0)
     authorityCompanies.value = []
@@ -364,6 +378,7 @@ watch(selectedServerId, (value) => {
   void loadDivisionOptions({ serverId: value, levelIndex: 1 }).catch(() => {
     divisionLevelOptions.value[0] = []
   })
+  void refreshAuthorityCompanies()
 })
 
 watch(
@@ -379,7 +394,9 @@ watch(
 
     if (!selectedId) {
       if (changedIndex === 0) {
-        authorityCompanies.value = []
+        llcDraft.registrationAuthorityCompanyId = undefined
+        llcDraft.registrationAuthorityName = ''
+        void refreshAuthorityCompanies()
       }
       return
     }
@@ -453,6 +470,7 @@ const llcDraft = reactive<{
   administrativeDivisionLevel: 1 | 2 | 3
   brandName: string
   industryFeature: string
+  companyNameDivisionLevels: number[]
   registrationAuthorityCompanyId: string | undefined
   registrationAuthorityName: string
   domicileAddress: string
@@ -498,6 +516,7 @@ const llcDraft = reactive<{
   administrativeDivisionLevel: 1,
   brandName: '',
   industryFeature: '',
+  companyNameDivisionLevels: [],
   registrationAuthorityCompanyId: undefined,
   registrationAuthorityName: '',
   domicileAddress: '',
@@ -718,11 +737,6 @@ const authorityCandidatesFiltered = computed(() => {
   const items = authorityCompanies.value
     .map((c) => ({ id: c.id, name: String(c.name ?? '').trim() }))
     .filter((c) => Boolean(c.id) && Boolean(c.name))
-    .filter((c) => {
-      const name = c.name
-      // 后端已按行政区划 ID 精确筛选；前端仅保留关键词兜底
-      return name.includes('市场监督')
-    })
 
   // 去重（按 id）
   const seen = new Set<string>()
@@ -744,11 +758,42 @@ const authorityOptions = computed(() =>
   ),
 )
 
+const availableNameDivisionLevels = computed(() =>
+  divisionLevelNodes.value
+    .map((node, index) => (node?.id ? index + 1 : null))
+    .filter((level): level is number => typeof level === 'number'),
+)
+
+watch(
+  availableNameDivisionLevels,
+  (levels) => {
+    if (levels.length === 0) {
+      llcDraft.companyNameDivisionLevels = []
+      return
+    }
+    const next = llcDraft.companyNameDivisionLevels.filter((level) =>
+      levels.includes(level),
+    )
+    if (next.length === 0) {
+      llcDraft.companyNameDivisionLevels = [levels[0]]
+      return
+    }
+    if (next.length !== llcDraft.companyNameDivisionLevels.length) {
+      llcDraft.companyNameDivisionLevels = next
+    }
+  },
+  { immediate: true },
+)
+
 const fullCompanyName = computed(() => {
-  const division = domicileDivision.value?.name
+  const divisions = llcDraft.companyNameDivisionLevels
+    .slice()
+    .sort((a, b) => a - b)
+    .map((level) => divisionLevelNodes.value[level - 1]?.name)
+    .filter((name): name is string => Boolean(name))
   const brand = llcDraft.brandName.trim()
   const feature = llcDraft.industryFeature.trim()
-  const pieces = [division, brand, feature].filter(Boolean)
+  const pieces = [...divisions, brand, feature].filter(Boolean)
   return `${pieces.join('') || ''}有限公司`
 })
 
@@ -1029,6 +1074,13 @@ const industryOptions = computed(() =>
     label: industry.name,
   })),
 )
+const selectedIndustryLabel = computed(() => {
+  if (!formState.industryId) return '未选择'
+  const matched = resolvedIndustries.value.find(
+    (industry) => industry.id === formState.industryId,
+  )
+  return matched?.name || '未选择'
+})
 
 const showCompanyTypeField = computed(() => true)
 const isCompanyTypeLocked = computed(
@@ -1290,7 +1342,10 @@ const handleSubmit = () => {
 
 <template>
   <form class="space-y-6" @submit.prevent="handleSubmit">
-    <div class="space-y-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div
+      v-if="props.showEntrySelectors"
+      class="space-y-4 grid grid-cols-1 gap-4 md:grid-cols-2"
+    >
       <div v-if="showCompanyTypeField" class="space-y-2">
         <label class="text-xs text-slate-500 dark:text-slate-500">类型</label>
         <p v-if="isCompanyTypeLocked" class="text-xs text-slate-500">
@@ -1376,9 +1431,11 @@ const handleSubmit = () => {
       :division-level-options="divisionLevelOptions"
       :level1-search="level1Search"
       :has-active-regime="hasActiveRegime"
+      :industry-label="selectedIndustryLabel"
       :domicile-division="domicileDivision"
       :full-company-name="fullCompanyName"
       :authority-options="authorityOptions"
+      :authority-loading="authorityLoading"
       :llc-draft="llcDraft"
       :shareholder-ratio-sum="shareholderRatioSum"
       :shareholder-voting-sum="shareholderVotingSum"
@@ -1397,6 +1454,7 @@ const handleSubmit = () => {
       :add-supervisor="addSupervisor"
       :remove-supervisor="removeSupervisor"
       :active-section="llcActiveSection"
+      @request-authorities="handleAuthorityOpen"
       @update:selected-server-id="selectedServerId = $event"
       @update:server-search="serverSearch = $event"
       @update:level1-search="level1Search = $event"

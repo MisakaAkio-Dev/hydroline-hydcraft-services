@@ -23,6 +23,7 @@ type LlcDraft = {
   administrativeDivisionLevel: number
   brandName: string
   industryFeature: string
+  companyNameDivisionLevels: number[]
   registrationAuthorityCompanyId: string | undefined
   registrationAuthorityName: string
   domicileAddress: string
@@ -76,9 +77,11 @@ const props = defineProps<{
   divisionLevelOptions: WorldDivisionNode[][]
   level1Search: string
   hasActiveRegime: boolean
+  industryLabel: string
   domicileDivision: WorldDivisionNode | null
   fullCompanyName: string
   authorityOptions: SelectItem[]
+  authorityLoading?: boolean
   llcDraft: LlcDraft
   shareholderRatioSum: number
   shareholderVotingSum: number
@@ -114,6 +117,7 @@ const emit = defineEmits<{
     value: Array<string | undefined>,
   ): void
   (event: 'update:activeSection', value: string): void
+  (event: 'request-authorities'): void
 }>()
 
 const selectedServerModel = computed({
@@ -308,6 +312,27 @@ const divisionLabel = computed(() => {
   const parts = [resolveDivisionName(0), resolveDivisionName(1)].filter(Boolean)
   return parts.length > 0 ? parts.join(' / ') : '未选择'
 })
+const nameDivisionEnabled = computed(() =>
+  Boolean(props.divisionLevelSelectedIds[0]),
+)
+const nameDivisionOptions = computed(() => {
+  const items: Array<{ label: string; value: number }> = []
+  for (
+    let level = 1;
+    level <= props.divisionLevelSelectedIds.length;
+    level += 1
+  ) {
+    const selectedId = props.divisionLevelSelectedIds[level - 1]
+    if (!selectedId) continue
+    const name = resolveDivisionName(level - 1)
+    if (!name) continue
+    items.push({ label: name, value: level })
+  }
+  return items
+})
+const industryDisplay = computed(() =>
+  props.industryLabel?.trim() ? props.industryLabel.trim() : '未选择',
+)
 
 const authorityLabel = computed(() => {
   const selected = props.authorityOptions.find(
@@ -402,7 +427,7 @@ const supervisorSummary = computed(() => {
       <UTimeline :items="basicTimelineItems" size="xs">
         <template #basic-1-description>
           <div class="space-y-3">
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div class="flex gap-3 flex-col w-full">
               <div class="space-y-2">
                 <label class="text-xs text-slate-500">所属服务端</label>
                 <USelectMenu
@@ -553,12 +578,18 @@ const supervisorSummary = computed(() => {
           <div class="space-y-3">
             <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div class="space-y-2">
-                <label class="text-xs text-slate-500">行政区划</label>
-                <UInput
+                <label class="text-xs text-slate-500"
+                  >出现在公司名中的行政区</label
+                >
+                <USelectMenu
+                  v-model="llcDraft.companyNameDivisionLevels"
+                  :items="nameDivisionOptions"
+                  value-key="value"
+                  label-key="label"
+                  multiple
+                  :disabled="!nameDivisionEnabled"
+                  placeholder="选择需要拼接的行政区"
                   class="w-full"
-                  :model-value="domicileDivision?.name || ''"
-                  disabled
-                  placeholder="请选择行政区"
                 />
               </div>
               <div class="space-y-2">
@@ -589,8 +620,10 @@ const supervisorSummary = computed(() => {
             :items="authorityOptions"
             value-key="value"
             label-key="label"
+            :loading="authorityLoading"
             searchable
             placeholder="选择登记机关（机关法人）"
+            @update:open="(open) => open && emit('request-authorities')"
           >
             <template #trailing="{ modelValue }">
               <div class="flex items-center gap-1">
@@ -1331,6 +1364,12 @@ const supervisorSummary = computed(() => {
               <p class="text-xs text-slate-500">行政区划</p>
               <p class="text-sm" :class="placeholderClass(divisionLabel)">
                 {{ divisionLabel }}
+              </p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-xs text-slate-500">所属行业</p>
+              <p class="text-sm" :class="placeholderClass(industryDisplay)">
+                {{ industryDisplay }}
               </p>
             </div>
             <div class="space-y-1">

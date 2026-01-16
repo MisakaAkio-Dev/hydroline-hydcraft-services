@@ -17,9 +17,113 @@ const router = useRouter()
 const uiStore = useUiStore()
 const toast = useToast()
 
-const applicationModalOpen = ref(false)
+const LIMITED_LIABILITY_CODE = 'limited_liability_company'
+const SHARES_CODE = 'join_stock_company_limited_by_shares'
+const SPECIAL_LEGAL_PERSON_CODE = 'special_legal_person'
+const INDIVIDUAL_BUSINESS_CODE =
+  'individual-run_industrial_and_commercial_households'
+const UNINCORPORATED_ORGANIZATION_CODE = 'unincorporated_organization'
+
+const applicationGatewayOpen = ref(false)
+const applicationFormOpen = ref(false)
+const selectedRegistrationType = ref(LIMITED_LIABILITY_CODE)
+const selectedIndustryId = ref<string | undefined>(undefined)
 
 const industries = computed(() => companyStore.meta?.industries ?? [])
+const industryOptions = computed(() =>
+  industries.value.map((item) => ({ label: item.name, value: item.id })),
+)
+const limitedLiabilityType = computed(() =>
+  (companyStore.meta?.types ?? []).find(
+    (type) => type.code === LIMITED_LIABILITY_CODE,
+  ),
+)
+const individualBusinessType = computed(() =>
+  (companyStore.meta?.types ?? []).find(
+    (type) => type.code === INDIVIDUAL_BUSINESS_CODE,
+  ),
+)
+const unincorporatedType = computed(() =>
+  (companyStore.meta?.types ?? []).find(
+    (type) => type.category === 'UNINCORPORATED_ORGANIZATION',
+  ),
+)
+const registrationTypeOptions = computed(() => {
+  const types = companyStore.meta?.types ?? []
+  const shares = types.find((type) => type.code === SHARES_CODE)
+  const special = types.find((type) => type.category === 'SPECIAL_LEGAL_PERSON')
+  return [
+    {
+      value: LIMITED_LIABILITY_CODE,
+      label: limitedLiabilityType.value?.name || '有限责任公司',
+      available: true,
+      typeId: limitedLiabilityType.value?.id,
+    },
+    {
+      value: SHARES_CODE,
+      label: shares?.name || '股份有限公司',
+      available: false,
+      typeId: shares?.id,
+    },
+    {
+      value: SPECIAL_LEGAL_PERSON_CODE,
+      label: '特别法人',
+      available: false,
+      typeId: special?.id,
+    },
+    {
+      value: INDIVIDUAL_BUSINESS_CODE,
+      label: individualBusinessType.value?.name || '个体工商户',
+      available: false,
+      typeId: individualBusinessType.value?.id,
+    },
+    {
+      value: UNINCORPORATED_ORGANIZATION_CODE,
+      label: '非法人组织',
+      available: false,
+      typeId: unincorporatedType.value?.id,
+    },
+  ]
+})
+const selectedRegistrationTypeOption = computed(() =>
+  registrationTypeOptions.value.find(
+    (option) => option.value === selectedRegistrationType.value,
+  ),
+)
+const selectedRegistrationTypeLabel = computed(
+  () => selectedRegistrationTypeOption.value?.label || '单位注册',
+)
+const selectedTypeAvailable = computed(
+  () =>
+    selectedRegistrationType.value === LIMITED_LIABILITY_CODE &&
+    Boolean(selectedRegistrationTypeOption.value?.typeId),
+)
+const showIndustrySelector = computed(
+  () => selectedRegistrationType.value !== SPECIAL_LEGAL_PERSON_CODE,
+)
+const industryRequired = computed(() => showIndustrySelector.value)
+const canEnterRegistration = computed(() => {
+  if (!selectedTypeAvailable.value) return false
+  if (!industryRequired.value) return true
+  return Boolean(selectedIndustryId.value)
+})
+const applicationFormInitial = computed<CreateCompanyApplicationPayload | null>(
+  () => {
+    if (industryRequired.value && !selectedIndustryId.value) return null
+    const typeId = selectedTypeAvailable.value
+      ? selectedRegistrationTypeOption.value?.typeId
+      : undefined
+    return {
+      name: '',
+      typeId,
+      industryId: selectedIndustryId.value,
+      typeCode:
+        selectedRegistrationType.value === LIMITED_LIABILITY_CODE
+          ? LIMITED_LIABILITY_CODE
+          : undefined,
+    }
+  },
+)
 
 const currentUserId = computed<string | null>(() => {
   const user = authStore.user as { id?: string } | null
@@ -167,7 +271,18 @@ function openApplicationModal() {
     uiStore.openLoginDialog()
     return
   }
-  applicationModalOpen.value = true
+  applicationGatewayOpen.value = true
+}
+
+function openRegistrationForm() {
+  if (!canEnterRegistration.value) return
+  applicationGatewayOpen.value = false
+  applicationFormOpen.value = true
+}
+
+function returnToGateway() {
+  applicationFormOpen.value = false
+  applicationGatewayOpen.value = true
 }
 
 async function handleApply(payload: CreateCompanyApplicationPayload) {
@@ -182,7 +297,8 @@ async function handleApply(payload: CreateCompanyApplicationPayload) {
       color: 'primary',
     })
     // 仅在提交成功后关闭表单；失败/校验报错时保持打开，避免用户重填
-    applicationModalOpen.value = false
+    applicationFormOpen.value = false
+    applicationGatewayOpen.value = false
     await router.push('/company/dashboard/applications')
   } catch (error) {
     toast.add({
@@ -591,8 +707,143 @@ watch(
     </div>
 
     <UModal
-      :open="applicationModalOpen"
-      @update:open="(value) => (applicationModalOpen = value)"
+      :open="applicationGatewayOpen"
+      @update:open="(value) => (applicationGatewayOpen = value)"
+      :ui="{ content: 'w-full max-w-2xl w-[calc(100vw-2rem)]' }"
+    >
+      <template #content>
+        <div
+          class="relative overflow-hidden bg-white/90 p-6 shadow-sm dark:bg-slate-900/80"
+        >
+          <div
+            class="pointer-events-none absolute -top-24 right-0 h-48 w-48 rounded-full bg-linear-to-br from-sky-200/70 via-emerald-200/50 to-transparent blur-3xl dark:from-sky-500/20 dark:via-emerald-500/10"
+          ></div>
+          <UButton
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            class="absolute right-4 top-4 z-20"
+            @click="applicationGatewayOpen = false"
+          />
+          <div class="relative z-10 space-y-6">
+            <div class="flex flex-col gap-5 md:flex-row md:items-center">
+              <div
+                class="relative flex h-20 w-20 items-center justify-center rounded-full bg-slate-100/80 shadow-sm dark:bg-slate-800/80"
+              >
+                <span class="registry-orbit"></span>
+                <svg
+                  class="registry-icon h-10 w-10 text-sky-500 dark:text-sky-300"
+                  viewBox="0 0 48 48"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <circle
+                    cx="24"
+                    cy="24"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                  />
+                  <path
+                    d="M24 9c6.8 0 12.5 5.1 13.4 11.7"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M24 39c-6.8 0-12.5-5.1-13.4-11.7"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </div>
+              <div class="space-y-2">
+                <h3
+                  class="text-2xl font-semibold text-slate-900 dark:text-white"
+                >
+                  单位注册
+                </h3>
+                <p class="text-sm text-slate-600 dark:text-slate-300">
+                  本系统的相关概念以中华人民共和国《公司法》等工商法律为依据构建。虽名为“工商系统”，但“法人”并非仅属于工商环节的概念，而是所有单位、机构、组织的通用身份与基本组织单元。系统中的法人类别划分（营利法人、非营利法人、特别法人）与我国相关法律保持一致。
+                </p>
+              </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="space-y-2">
+                <label
+                  class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                >
+                  类型
+                </label>
+                <USelectMenu
+                  v-model="selectedRegistrationType"
+                  :items="registrationTypeOptions"
+                  value-key="value"
+                  label-key="label"
+                  :searchable="false"
+                  class="w-full"
+                  :class="selectedTypeAvailable ? '' : 'opacity-70'"
+                >
+                  <template #option="{ item }">
+                    <div
+                      class="flex items-center justify-between"
+                      :class="
+                        item.available
+                          ? 'text-slate-900 dark:text-slate-100'
+                          : 'text-slate-400 dark:text-slate-500'
+                      "
+                    >
+                      <span class="text-sm">{{ item.label }}</span>
+                      <span v-if="!item.available" class="text-xs">
+                        即将开放
+                      </span>
+                    </div>
+                  </template>
+                </USelectMenu>
+              </div>
+              <div v-if="showIndustrySelector" class="space-y-2">
+                <label
+                  class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                >
+                  行业
+                </label>
+                <USelectMenu
+                  v-model="selectedIndustryId"
+                  :items="industryOptions"
+                  value-key="value"
+                  searchable
+                  clearable
+                  placeholder="选择所属行业"
+                  class="w-full"
+                />
+              </div>
+            </div>
+
+            <div
+              class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                当前仅开放有限责任公司登记。
+              </p>
+              <UButton
+                color="primary"
+                :disabled="!canEnterRegistration"
+                @click="openRegistrationForm"
+              >
+                进入注册流程
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      :open="applicationFormOpen"
+      @update:open="(value) => (applicationFormOpen = value)"
       :ui="{ content: 'w-full max-w-3xl w-[calc(100vw-2rem)]' }"
     >
       <template #content>
@@ -604,10 +855,10 @@ watch(
               <p
                 class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
               >
-                提交注册申请
+                {{ selectedRegistrationTypeLabel }}
               </p>
               <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-                注册单位
+                注册流程
               </h3>
             </div>
             <UButton
@@ -615,13 +866,16 @@ watch(
               color="neutral"
               variant="ghost"
               size="xs"
-              @click="applicationModalOpen = false"
+              @click="returnToGateway"
             />
           </div>
           <div class="flex-1 overflow-y-auto px-6 py-4">
             <CompanyApplicationForm
+              v-if="applicationFormOpen"
               :industries="industries"
               :types="companyStore.meta?.types ?? []"
+              :initial="applicationFormInitial"
+              :show-entry-selectors="false"
               :submitting="companyStore.submitting"
               @submit="handleApply"
             />
@@ -631,3 +885,53 @@ watch(
     </UModal>
   </section>
 </template>
+
+<style scoped>
+.registry-orbit {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  border: 1px dashed rgba(56, 189, 248, 0.5);
+  transform-origin: 50% 50%;
+  animation: registry-spin 10s linear infinite;
+}
+
+.registry-orbit::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: 6px;
+  height: 6px;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  background: rgba(56, 189, 248, 0.9);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
+}
+
+.registry-icon {
+  transform-origin: 50% 50%;
+  animation: registry-spin-reverse 9s linear infinite;
+}
+
+@keyframes registry-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes registry-spin-reverse {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+</style>

@@ -320,7 +320,7 @@ export class CompanyService implements OnModuleInit {
 
   async listRegistrationAuthoritiesByDivisionId(
     divisionId: string,
-    serverId: string,
+    serverId?: string,
   ) {
     return this.geoService.listRegistrationAuthoritiesByDivisionId(
       divisionId,

@@ -198,14 +198,8 @@ export class CompanyGeoService {
 
   async listRegistrationAuthoritiesByDivisionId(
     divisionId: string,
-    serverId: string,
+    serverId?: string,
   ) {
-    const divisionIds = await this.resolveAuthorityDivisionIdsByDivisionId(
-      divisionId,
-      serverId,
-    );
-    if (!divisionIds.length) return [];
-
     const companies = await this.prisma.$queryRaw<
       Array<{ id: string; name: string }>
     >(
@@ -214,12 +208,8 @@ export class CompanyGeoService {
           c."id",
           c."name"
         FROM "companies" c
-        JOIN "company_types" t
-          ON t."id" = c."typeId"
         WHERE
           c."status"::text = ${CompanyStatus.ACTIVE}
-          AND t."code" = ${'state_organ_legal_person'}
-          AND c."administrativeDivisionId" IN (${Prisma.join(divisionIds)})
           AND c."isAuthority" = true
         ORDER BY
           c."administrativeDivisionLevel" DESC NULLS LAST,

@@ -199,13 +199,15 @@ onMounted(() => {
     </div>
 
     <div
-      class="overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80"
+      class="overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 dark:border-slate-700/70 dark:bg-slate-900/70"
     >
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
-          <thead class="bg-slate-50/60">
+        <table
+          class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-700"
+        >
+          <thead class="bg-slate-50/60 dark:bg-slate-800/60">
             <tr
-              class="text-left text-xs uppercase tracking-wide text-slate-500"
+              class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300"
             >
               <th class="px-4 py-3">名称</th>
               <th class="px-4 py-3">状态</th>
@@ -217,45 +219,45 @@ onMounted(() => {
               <th class="px-4 py-3 text-right">操作</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             <tr
               v-for="company in adminStore.items"
               :key="company.id"
-              class="transition hover:bg-slate-50/80"
+              class="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/60"
             >
               <td class="px-4 py-3">
-                <div class="font-medium text-slate-900">
+                <div class="font-medium text-slate-900 dark:text-white">
                   {{ company.name }}
                 </div>
-                <p class="text-xs text-slate-500">
+                <p class="text-xs text-slate-500 dark:text-slate-400">
                   {{ company.summary || '暂无简介' }}
                 </p>
               </td>
               <td class="px-4 py-3">
                 <CompanyStatusBadge :status="company.status" />
               </td>
-              <td class="px-4 py-3 text-slate-500">
+              <td class="px-4 py-3 text-slate-500 dark:text-slate-300">
                 {{ company.type?.name || '—' }}
               </td>
-              <td class="px-4 py-3 text-slate-500">
+              <td class="px-4 py-3 text-slate-500 dark:text-slate-300">
                 {{ company.industry?.name || '—' }}
               </td>
-              <td class="px-4 py-3 text-slate-500">
+              <td class="px-4 py-3 text-slate-500 dark:text-slate-300">
                 {{
                   company.legalRepresentative?.displayName ||
                   company.legalRepresentative?.name ||
                   '—'
                 }}
               </td>
-              <td class="px-4 py-3 text-slate-500">
-                <div class="font-medium text-slate-900">
+              <td class="px-4 py-3 text-slate-500 dark:text-slate-300">
+                <div class="font-medium text-slate-900 dark:text-white">
                   {{ company.workflow?.definitionName || '未绑定流程' }}
                 </div>
-                <p class="text-xs text-slate-500">
+                <p class="text-xs text-slate-500 dark:text-slate-400">
                   {{ company.workflow?.state || '—' }}
                 </p>
               </td>
-              <td class="px-4 py-3 text-xs text-slate-500">
+              <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
                 <span v-if="company.approvedAt">
                   {{ new Date(company.approvedAt).toLocaleString() }}
                 </span>
@@ -294,7 +296,7 @@ onMounted(() => {
             <tr v-if="adminStore.items.length === 0">
               <td
                 colspan="8"
-                class="px-4 py-10 text-center text-sm text-slate-500"
+                class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400"
               >
                 暂无公司数据
               </td>
@@ -303,7 +305,7 @@ onMounted(() => {
         </table>
       </div>
       <div
-        class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600"
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
       >
         <span>
           第 {{ adminStore.page }} / {{ pageCount }} 页，共
@@ -375,9 +377,11 @@ onMounted(() => {
       <template #content>
         <div class="space-y-4 p-6 text-sm">
           <header class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-slate-900">删除公司</h3>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+              删除公司
+            </h3>
           </header>
-          <p class="text-sm text-slate-600">
+          <p class="text-sm text-slate-600 dark:text-slate-300">
             确定删除 {{ deleteTarget?.name || '该公司' }} 吗？该操作无法撤销。
           </p>
           <div class="flex justify-end gap-2">

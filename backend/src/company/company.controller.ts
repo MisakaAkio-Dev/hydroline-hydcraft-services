@@ -133,9 +133,6 @@ export class CompanyController {
     @Param('id') id: string,
     @Query('serverId') serverId?: string,
   ) {
-    if (!serverId) {
-      throw new BadRequestException('serverId is required');
-    }
     return this.companyService.listRegistrationAuthoritiesByDivisionId(
       id,
       serverId,
