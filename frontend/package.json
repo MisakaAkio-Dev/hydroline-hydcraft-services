@@ -19,7 +19,7 @@
     "@iconify-json/lucide": "^1.2.71",
     "@iconify/vue": "^5.0.0",
     "@internationalized/date": "^3.10.0",
-    "@nuxt/ui": "^4.1.0",
+    "@nuxt/ui": "^4.3.0",
     "@tailwindcss/vite": "^4.1.16",
     "@unhead/vue": "^2.0.19",
     "china-division": "^2.7.0",

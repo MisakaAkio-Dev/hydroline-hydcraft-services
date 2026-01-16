@@ -49,6 +49,7 @@ export interface WorldDivisionPath {
   level1: WorldDivisionNode | null
   level2: WorldDivisionNode | null
   level3: WorldDivisionNode | null
+  [key: string]: WorldDivisionNode | null
 }
 
 export type LlcShareholderKind = 'USER' | 'COMPANY'

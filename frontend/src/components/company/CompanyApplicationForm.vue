@@ -11,6 +11,7 @@ import {
 import { apiFetch } from '@/utils/http/api'
 import { useCompanyStore } from '@/stores/user/companies'
 import { useAuthStore } from '@/stores/user/auth'
+import CompanyLlcRegistrationForm from '@/components/company/CompanyLlcRegistrationForm.vue'
 import type {
   CompanyIndustry,
   CompanyType,
@@ -18,6 +19,7 @@ import type {
   CompanyRef,
   CreateCompanyApplicationPayload,
   LimitedLiabilityCompanyApplicationPayload,
+  WorldDivisionPath,
   WorldDivisionNode,
 } from '@/types/company'
 
@@ -92,21 +94,29 @@ const formState = reactive<CreateCompanyApplicationPayload>({
 })
 let searchTimer: number | undefined
 let companySearchTimer: number | undefined
-let divisionSearchTimer: number | undefined
 
 // ---------- 有限责任公司：行政区（服务端 + 行政区搜索） ----------
 const serverSearch = ref('')
 const selectedServerId = ref<string | undefined>(undefined)
-const divisionSearch = ref('')
-const divisionOptions = ref<WorldDivisionNode[]>([])
-const domicileDivisionId = ref<string | undefined>(undefined)
-const domicileDivision = ref<WorldDivisionNode | null>(null)
+const level1Search = ref('')
+const divisionLevelOptions = ref<WorldDivisionNode[][]>([])
+const divisionLevelSelectedIds = ref<Array<string | undefined>>([])
+const divisionLevelNodes = ref<Array<WorldDivisionNode | null>>([])
+const domicileDivisionId = computed(() => divisionLevelSelectedIds.value[0])
+const domicileDivision = computed(() => {
+  for (let i = divisionLevelNodes.value.length - 1; i >= 0; i -= 1) {
+    const node = divisionLevelNodes.value[i]
+    if (node) return node
+  }
+  return null
+})
 const authorityCompanies = ref<Array<{ id: string; name: string }>>([])
 const applyingInitial = ref(false)
 const labelPrefillDone = ref(false)
+let level1SearchTimer: number | undefined
 
 async function refreshAuthorityCompanies() {
-  const divisionId = domicileDivisionId.value
+  const divisionId = divisionLevelSelectedIds.value[0]
   const serverId = selectedServerId.value
   if (!divisionId) {
     authorityCompanies.value = []
@@ -184,95 +194,245 @@ async function prefillSelectedLabels(
   return { usersDone, companiesDone }
 }
 
-async function searchDivisions(params: { q?: string; serverId: string }) {
+async function searchDivisions(params: {
+  q?: string
+  serverId: string
+  level?: number
+  parentId?: string
+}) {
   const qp = new URLSearchParams()
   if (params.q?.trim()) qp.set('q', params.q.trim())
+  if (params.level) qp.set('level', String(params.level))
+  if (params.parentId) qp.set('parentId', params.parentId)
   return apiFetch<WorldDivisionNode[]>(
     `/administration/servers/${params.serverId}/divisions/search?${qp.toString()}`,
   )
 }
 
-async function loadSelectedDivision(serverId: string, divisionId: string) {
-  const data = await apiFetch<{
-    id: string
-    fullName: string
-    levelIndex: number
-    parentId?: string | null
-  }>(`/administration/servers/${serverId}/divisions/${divisionId}`)
-  domicileDivision.value = {
-    id: data.id,
-    name: data.fullName,
-    level: data.levelIndex,
-    parentId: data.parentId ?? null,
+async function loadDivisionPath(serverId: string, divisionId: string) {
+  return apiFetch<WorldDivisionNode[]>(
+    `/administration/servers/${serverId}/divisions/${divisionId}/path`,
+  )
+}
+
+function normalizeDivisionPath(
+  path?: Record<string, { id: string; name: string } | null>,
+): WorldDivisionNode[] {
+  if (!path) return []
+  const nodes: WorldDivisionNode[] = []
+  for (const [key, value] of Object.entries(path)) {
+    if (!value) continue
+    const match = key.match(/^level(\d+)$/)
+    if (!match) continue
+    const level = Number(match[1])
+    if (!Number.isFinite(level) || level < 1) continue
+    nodes.push({ id: value.id, name: value.name, level, parentId: null })
   }
-  domicileDivisionId.value = data.id
-  llcDraft.administrativeDivisionLevel = data.levelIndex
-  if (!divisionOptions.value.some((n) => n.id === data.id)) {
-    divisionOptions.value.unshift({
+  return nodes.sort((a, b) => a.level - b.level)
+}
+
+function initDivisionLevels(levelCount: number) {
+  const cappedCount = Math.min(levelCount, 2)
+  divisionLevelOptions.value = Array.from({ length: cappedCount }, () => [])
+  divisionLevelSelectedIds.value = Array.from(
+    { length: cappedCount },
+    () => undefined,
+  )
+  divisionLevelNodes.value = Array.from({ length: cappedCount }, () => null)
+}
+
+function clearDivisionLevels(fromLevelIndex: number) {
+  for (
+    let i = fromLevelIndex;
+    i < divisionLevelSelectedIds.value.length;
+    i += 1
+  ) {
+    divisionLevelSelectedIds.value[i] = undefined
+    divisionLevelNodes.value[i] = null
+    divisionLevelOptions.value[i] = []
+  }
+}
+
+function ensureDivisionOption(
+  levelIndex: number,
+  node: WorldDivisionNode | null,
+) {
+  if (!node) return
+  const options = divisionLevelOptions.value[levelIndex] ?? []
+  if (!options.some((item) => item.id === node.id)) {
+    divisionLevelOptions.value[levelIndex] = [node, ...options]
+  }
+}
+
+async function resolveDivisionNode(
+  serverId: string,
+  divisionId: string,
+): Promise<WorldDivisionNode | null> {
+  try {
+    const data = await apiFetch<{
+      id: string
+      fullName: string
+      levelIndex: number
+      parentId?: string | null
+    }>(`/administration/servers/${serverId}/divisions/${divisionId}`)
+    return {
       id: data.id,
       name: data.fullName,
       level: data.levelIndex,
       parentId: data.parentId ?? null,
-    })
+    }
+  } catch {
+    return null
   }
+}
+
+async function loadDivisionOptions(params: {
+  serverId: string
+  levelIndex: number
+  parentId?: string
+  q?: string
+}) {
+  const options = await searchDivisions({
+    serverId: params.serverId,
+    q: params.q,
+    level: params.levelIndex,
+    parentId: params.parentId,
+  })
+  divisionLevelOptions.value[params.levelIndex - 1] = options
+}
+
+async function applyDivisionPath(serverId: string, nodes: WorldDivisionNode[]) {
+  const regimeEntry = administrationByServer.value.get(serverId)
+  const nodeLevels = nodes.map((n) => n.level)
+  const inferredCount =
+    Math.max(regimeEntry?.levelCount ?? 0, ...nodeLevels, 0) || 0
+  const cappedCount = Math.min(inferredCount, 2)
+  initDivisionLevels(cappedCount)
+
+  const nodeMap = new Map(nodes.map((node) => [node.level, node]))
+  for (let level = 1; level <= cappedCount; level += 1) {
+    const node = nodeMap.get(level) ?? null
+    divisionLevelNodes.value[level - 1] = node
+    divisionLevelSelectedIds.value[level - 1] = node?.id
+  }
+
+  try {
+    await loadDivisionOptions({ serverId, levelIndex: 1 })
+  } catch {
+    divisionLevelOptions.value[0] = []
+  }
+  ensureDivisionOption(0, divisionLevelNodes.value[0])
+
+  for (let level = 2; level <= cappedCount; level += 1) {
+    const parent = divisionLevelNodes.value[level - 2]
+    if (!parent) break
+    try {
+      await loadDivisionOptions({
+        serverId,
+        levelIndex: level,
+        parentId: parent.id,
+      })
+    } catch {
+      divisionLevelOptions.value[level - 1] = []
+    }
+    ensureDivisionOption(level - 1, divisionLevelNodes.value[level - 1])
+    if (!divisionLevelNodes.value[level - 1]) break
+  }
+
+  llcDraft.administrativeDivisionLevel = 1
+  void refreshAuthorityCompanies()
 }
 
 watch(selectedServerId, (value) => {
   if (applyingInitial.value) return
-  domicileDivisionId.value = undefined
-  domicileDivision.value = null
-  divisionOptions.value = []
-  divisionSearch.value = ''
+  level1Search.value = ''
   llcDraft.administrativeDivisionLevel = 1
-  void refreshAuthorityCompanies()
   llcDraft.registrationAuthorityCompanyId = undefined
   llcDraft.registrationAuthorityName = ''
-  if (value) {
-    void searchDivisions({ serverId: value })
-      .then((list) => (divisionOptions.value = list))
-      .catch(() => {
-        divisionOptions.value = []
-      })
-  }
-})
-
-watch(domicileDivisionId, async (value) => {
   if (!value) {
-    domicileDivision.value = null
-    llcDraft.administrativeDivisionLevel = 1
+    initDivisionLevels(0)
+    authorityCompanies.value = []
     return
   }
-  if (!value || !selectedServerId.value) return
-  if (!applyingInitial.value) {
-    void refreshAuthorityCompanies()
-    llcDraft.registrationAuthorityCompanyId = undefined
-    llcDraft.registrationAuthorityName = ''
-  }
-  const cached = divisionOptions.value.find((n) => n.id === value)
-  if (cached) {
-    domicileDivision.value = cached
-    llcDraft.administrativeDivisionLevel = cached.level
+  const regime = administrationByServer.value.get(value)
+  if (!regime?.hasActiveRegime || !regime.levelCount) {
+    initDivisionLevels(0)
+    authorityCompanies.value = []
     return
   }
-  try {
-    await loadSelectedDivision(selectedServerId.value, value)
-  } catch {
-    // ignore
-  }
+  initDivisionLevels(regime.levelCount)
+  void loadDivisionOptions({ serverId: value, levelIndex: 1 }).catch(() => {
+    divisionLevelOptions.value[0] = []
+  })
 })
 
-watch(divisionSearch, (value) => {
-  if (!selectedServerId.value) return
-  if (divisionSearchTimer) window.clearTimeout(divisionSearchTimer)
-  divisionSearchTimer = window.setTimeout(async () => {
+watch(
+  () => divisionLevelSelectedIds.value.slice(),
+  async (next, prev) => {
+    if (applyingInitial.value) return
+    const serverId = selectedServerId.value
+    if (!serverId) return
+    const changedIndex = next.findIndex((id, index) => id !== prev?.[index])
+    if (changedIndex < 0) return
+    const selectedId = next[changedIndex]
+    clearDivisionLevels(changedIndex + 1)
+
+    if (!selectedId) {
+      if (changedIndex === 0) {
+        authorityCompanies.value = []
+      }
+      return
+    }
+
+    const cached = divisionLevelOptions.value[changedIndex]?.find(
+      (n) => n.id === selectedId,
+    )
+    if (cached) {
+      divisionLevelNodes.value[changedIndex] = cached
+    } else {
+      divisionLevelNodes.value[changedIndex] = await resolveDivisionNode(
+        serverId,
+        selectedId,
+      )
+      ensureDivisionOption(changedIndex, divisionLevelNodes.value[changedIndex])
+    }
+
+    if (changedIndex === 0) {
+      void refreshAuthorityCompanies()
+      llcDraft.registrationAuthorityCompanyId = undefined
+      llcDraft.registrationAuthorityName = ''
+    }
+
+    const nextLevelIndex = changedIndex + 2
+    if (divisionLevelOptions.value.length >= nextLevelIndex) {
+      try {
+        await loadDivisionOptions({
+          serverId,
+          levelIndex: nextLevelIndex,
+          parentId: selectedId,
+        })
+      } catch {
+        divisionLevelOptions.value[nextLevelIndex - 1] = []
+      }
+    }
+  },
+)
+
+watch(level1Search, (value) => {
+  const serverId = selectedServerId.value
+  if (!serverId || !hasActiveRegime.value) return
+  if (level1SearchTimer) window.clearTimeout(level1SearchTimer)
+  level1SearchTimer = window.setTimeout(async () => {
     try {
-      divisionOptions.value = await searchDivisions({
-        serverId: selectedServerId.value as string,
+      await loadDivisionOptions({
+        serverId,
+        levelIndex: 1,
         q: value,
       })
     } catch {
-      divisionOptions.value = []
+      divisionLevelOptions.value[0] = []
     }
+    ensureDivisionOption(0, divisionLevelNodes.value[0])
   }, 240)
 })
 
@@ -414,11 +574,9 @@ watch(
         }
 
         selectedServerId.value = value.llc.serverId
-        domicileDivisionId.value = value.llc.domicileDivisionId
 
         llcDraft.registeredCapital = value.llc.registeredCapital ?? null
-        llcDraft.administrativeDivisionLevel =
-          Number(value.llc.administrativeDivisionLevel ?? 1) || 1
+        llcDraft.administrativeDivisionLevel = 1
         llcDraft.brandName = value.llc.brandName ?? ''
         llcDraft.industryFeature = value.llc.industryFeature ?? ''
         llcDraft.registrationAuthorityCompanyId =
@@ -489,14 +647,43 @@ watch(
 
         llcDraft.financialOfficer.userId = value.llc.financialOfficerId
 
-        if (selectedServerId.value && domicileDivisionId.value) {
-          try {
-            await loadSelectedDivision(
-              selectedServerId.value,
-              domicileDivisionId.value,
-            )
-          } catch {
-            // ignore
+        if (selectedServerId.value) {
+          if (!companyStore.registrationMeta) {
+            await companyStore.fetchRegistrationMeta()
+          }
+          const regime = administrationByServer.value.get(
+            selectedServerId.value,
+          )
+          const pathFromPayload = normalizeDivisionPath(
+            value.llc.domicileDivisionPath as
+              | Record<string, { id: string; name: string } | null>
+              | undefined,
+          )
+          let nodes = pathFromPayload
+          if (!nodes.length && value.llc.domicileDivisionId) {
+            try {
+              nodes = await loadDivisionPath(
+                selectedServerId.value,
+                value.llc.domicileDivisionId,
+              )
+            } catch {
+              nodes = []
+            }
+          }
+          if (nodes.length > 0) {
+            await applyDivisionPath(selectedServerId.value, nodes)
+          } else if (regime?.hasActiveRegime && regime.levelCount) {
+            initDivisionLevels(regime.levelCount)
+            try {
+              await loadDivisionOptions({
+                serverId: selectedServerId.value,
+                levelIndex: 1,
+              })
+            } catch {
+              divisionLevelOptions.value[0] = []
+            }
+          } else {
+            initDivisionLevels(0)
           }
         }
       }
@@ -548,6 +735,8 @@ const authorityCandidatesFiltered = computed(() => {
   return uniq
 })
 
+const llcActiveSection = ref('basic')
+
 const authorityOptions = computed(() =>
   buildCompanyItems(
     authorityCandidatesFiltered.value as unknown as CompanyRef[],
@@ -562,6 +751,29 @@ const fullCompanyName = computed(() => {
   const pieces = [division, brand, feature].filter(Boolean)
   return `${pieces.join('') || ''}有限公司`
 })
+
+function buildDivisionPathPayload(): WorldDivisionPath | undefined {
+  const path: WorldDivisionPath = {
+    level1: null,
+    level2: null,
+    level3: null,
+  }
+  if (!divisionLevelNodes.value.some(Boolean)) return undefined
+  const baseCount = Math.max(divisionLevelNodes.value.length, 3)
+  for (let index = 0; index < baseCount; index += 1) {
+    const node = divisionLevelNodes.value[index] ?? null
+    if (!node && index >= 3) continue
+    path[`level${index + 1}`] = node
+      ? {
+          id: node.id,
+          name: node.name,
+          level: node.level,
+          parentId: node.parentId ?? null,
+        }
+      : null
+  }
+  return path
+}
 
 const shareholderRatioSum = computed(() =>
   llcDraft.shareholders.reduce((sum, s) => sum + (s.ratio ?? 0), 0),
@@ -685,8 +897,8 @@ onBeforeUnmount(() => {
   if (companySearchTimer) {
     window.clearTimeout(companySearchTimer)
   }
-  if (divisionSearchTimer) {
-    window.clearTimeout(divisionSearchTimer)
+  if (level1SearchTimer) {
+    window.clearTimeout(level1SearchTimer)
   }
 })
 
@@ -717,12 +929,25 @@ const registrationServers = computed(
   () => companyStore.registrationMeta?.servers ?? [],
 )
 
-const serverOptions = computed(() =>
-  registrationServers.value.map((server) => ({
-    value: server.id,
-    label: server.name,
-  })),
-)
+const serverOptions = computed(() => {
+  const regimeMap = new Map(
+    companyStore.registrationMeta?.administration?.map((entry) => [
+      entry.serverId,
+      entry,
+    ]) ?? [],
+  )
+  return registrationServers.value.map((server) => {
+    const regime = regimeMap.get(server.id)
+    const levelSuffix =
+      regime?.hasActiveRegime && regime.levelCount
+        ? ` / ${regime.levelCount}级`
+        : ''
+    return {
+      value: server.id,
+      label: `${server.name}${levelSuffix}`,
+    }
+  })
+})
 
 const administrationByServer = computed(() => {
   const map = new Map<
@@ -733,6 +958,44 @@ const administrationByServer = computed(() => {
     map.set(entry.serverId, entry)
   }
   return map
+})
+
+const selectedRegime = computed(() => {
+  const serverId = selectedServerId.value
+  if (!serverId) return null
+  return administrationByServer.value.get(serverId) ?? null
+})
+
+const hasActiveRegime = computed(() =>
+  Boolean(selectedRegime.value?.hasActiveRegime),
+)
+
+const regimeLevelCount = computed(() => selectedRegime.value?.levelCount ?? 0)
+
+const visibleDivisionLevels = computed(() => {
+  if (!selectedServerId.value || !hasActiveRegime.value) return []
+  const count = regimeLevelCount.value
+  if (!count) return []
+  const levels: number[] = []
+  levels.push(1)
+  if (count >= 2) {
+    const options = divisionLevelOptions.value[1] ?? []
+    const selectedId = divisionLevelSelectedIds.value[1]
+    if (options.length > 0 || selectedId) levels.push(2)
+  }
+  return levels
+})
+
+watch(selectedRegime, (regime) => {
+  if (applyingInitial.value) return
+  const serverId = selectedServerId.value
+  if (!serverId) return
+  if (!regime?.hasActiveRegime || !regime.levelCount) return
+  if (divisionLevelOptions.value.length > 0) return
+  initDivisionLevels(regime.levelCount)
+  void loadDivisionOptions({ serverId, levelIndex: 1 }).catch(() => {
+    divisionLevelOptions.value[0] = []
+  })
 })
 
 const typeOptions = computed(() => {
@@ -950,8 +1213,9 @@ const handleSubmit = () => {
     const llcPayload: LimitedLiabilityCompanyApplicationPayload = {
       serverId: selectedServerId.value as string,
       domicileDivisionId: domicileDivisionId.value as string,
+      domicileDivisionPath: buildDivisionPathPayload(),
       registeredCapital: llcDraft.registeredCapital ?? 0,
-      administrativeDivisionLevel: llcDraft.administrativeDivisionLevel,
+      administrativeDivisionLevel: 1,
       brandName: llcDraft.brandName.trim(),
       industryFeature: llcDraft.industryFeature.trim(),
       registrationAuthorityCompanyId: llcDraft.registrationAuthorityCompanyId,
@@ -1066,10 +1330,12 @@ const handleSubmit = () => {
       </div>
 
       <div class="space-y-2">
-        <label class="text-xs text-slate-500 dark:text-slate-500">行业</label>
-        <p v-if="isCompanyTypeLocked" class="text-xs text-slate-500">
-          行业没有锁定哦~随便选~
-        </p>
+        <label class="text-xs text-slate-500 dark:text-slate-500">
+          <span>行业</span>
+          <UBadge v-if="isCompanyTypeLocked" variant="soft" size="xs"
+            >未锁定</UBadge
+          >
+        </label>
         <USelectMenu
           class="w-full"
           v-model="formState.industryId"
@@ -1100,864 +1366,45 @@ const handleSubmit = () => {
       </div>
     </div>
 
-    <div
+    <CompanyLlcRegistrationForm
       v-if="isLlcSelected"
-      class="space-y-6 rounded-2xl border border-slate-200/70 bg-white/90 p-4"
-    >
-      <div class="space-y-2">
-        <p class="text-sm font-semibold text-slate-900">有限责任公司登记信息</p>
-        <p class="text-xs text-slate-500">
-          先选择所属服务端与行政区，再填写公司名称各组成部分与人员信息。
-        </p>
-      </div>
+      :selected-server-id="selectedServerId"
+      :server-search="serverSearch"
+      :server-options="serverOptions"
+      :visible-division-levels="visibleDivisionLevels"
+      :division-level-selected-ids="divisionLevelSelectedIds"
+      :division-level-options="divisionLevelOptions"
+      :level1-search="level1Search"
+      :has-active-regime="hasActiveRegime"
+      :domicile-division="domicileDivision"
+      :full-company-name="fullCompanyName"
+      :authority-options="authorityOptions"
+      :llc-draft="llcDraft"
+      :shareholder-ratio-sum="shareholderRatioSum"
+      :shareholder-voting-sum="shareholderVotingSum"
+      :director-ids="directorIds"
+      :legal-representative-options="legalRepresentativeOptions"
+      :user-label-cache="userLabelCache"
+      :forbidden-supervisor-ids="forbiddenSupervisorIds"
+      :build-user-items="buildUserItems"
+      :build-company-items="buildCompanyItems"
+      :handle-user-search-list="handleUserSearchList"
+      :handle-company-search-list="handleCompanySearchList"
+      :add-shareholder="addShareholder"
+      :remove-shareholder="removeShareholder"
+      :add-director="addDirector"
+      :remove-director="removeDirector"
+      :add-supervisor="addSupervisor"
+      :remove-supervisor="removeSupervisor"
+      :active-section="llcActiveSection"
+      @update:selected-server-id="selectedServerId = $event"
+      @update:server-search="serverSearch = $event"
+      @update:level1-search="level1Search = $event"
+      @update:division-level-selected-ids="divisionLevelSelectedIds = $event"
+      @update:active-section="llcActiveSection = $event"
+    />
 
-      <!-- 1 所属服务端与行政区 -->
-      <div class="space-y-3">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          1. 所属服务端与行政区
-        </p>
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <USelectMenu
-            class="w-full"
-            v-model="selectedServerId"
-            v-model:search-term="serverSearch"
-            :items="serverOptions"
-            value-key="value"
-            searchable
-            placeholder="选择所属服务端"
-          >
-            <template #trailing="{ modelValue }">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="
-                    modelValue !== undefined &&
-                    modelValue !== null &&
-                    String(modelValue) !== ''
-                  "
-                  type="button"
-                  class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label="清空"
-                  @click.stop.prevent="selectedServerId = undefined"
-                >
-                  ×
-                </button>
-                <span class="select-none text-slate-400">▾</span>
-              </div>
-            </template>
-          </USelectMenu>
-          <USelectMenu
-            class="w-full"
-            v-model="domicileDivisionId"
-            v-model:search-term="divisionSearch"
-            :items="
-              divisionOptions.map((n) => ({ value: n.id, label: n.name }))
-            "
-            value-key="value"
-            searchable
-            :disabled="
-              !selectedServerId ||
-              !administrationByServer.get(selectedServerId)?.hasActiveRegime
-            "
-            placeholder="搜索行政区"
-          >
-            <template #trailing="{ modelValue }">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="
-                    modelValue !== undefined &&
-                    modelValue !== null &&
-                    String(modelValue) !== ''
-                  "
-                  type="button"
-                  class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label="清空"
-                  @click.stop.prevent="domicileDivisionId = undefined"
-                >
-                  ×
-                </button>
-                <span class="select-none text-slate-400">▾</span>
-              </div>
-            </template>
-          </USelectMenu>
-        </div>
-        <p
-          v-if="
-            selectedServerId &&
-            !administrationByServer.get(selectedServerId)?.hasActiveRegime
-          "
-          class="text-xs text-amber-600"
-        >
-          当前服务端尚未配置行政制度，暂时无法选择行政区。
-        </p>
-      </div>
-
-      <!-- 2 注册资本 -->
-      <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          2. 注册资本
-        </p>
-        <UInput
-          class="w-full"
-          v-model.number="llcDraft.registeredCapital"
-          type="number"
-          placeholder="填写数值"
-        />
-      </div>
-
-      <!-- 3 公司名称 -->
-      <div class="space-y-3">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          3. 公司名称
-        </p>
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div class="space-y-2">
-            <label class="text-xs text-slate-500">（1）行政区划</label>
-            <UInput
-              class="w-full"
-              :model-value="domicileDivision?.name || ''"
-              disabled
-              placeholder="请选择行政区"
-            />
-          </div>
-          <div class="space-y-2">
-            <label class="text-xs text-slate-500">（2）字号</label>
-            <UInput class="w-full" v-model="llcDraft.brandName" />
-          </div>
-          <div class="space-y-2">
-            <label class="text-xs text-slate-500">（3）行业或经营特点</label>
-            <UInput class="w-full" v-model="llcDraft.industryFeature" />
-          </div>
-          <div class="space-y-2">
-            <label class="text-xs text-slate-500">（4）组织形式</label>
-            <UInput class="w-full" model-value="有限公司" disabled />
-          </div>
-        </div>
-        <div class="text-xs text-slate-500">
-          预览：<span class="font-semibold text-slate-900">{{
-            fullCompanyName
-          }}</span>
-        </div>
-      </div>
-
-      <!-- 4 登记机关 -->
-      <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          4. 选择登记机关
-        </p>
-        <USelectMenu
-          class="w-full"
-          v-model="llcDraft.registrationAuthorityCompanyId"
-          :items="authorityOptions"
-          value-key="value"
-          label-key="label"
-          searchable
-          placeholder="选择登记机关（机关法人）"
-        >
-          <template #trailing="{ modelValue }">
-            <div class="flex items-center gap-1">
-              <button
-                v-if="
-                  modelValue !== undefined &&
-                  modelValue !== null &&
-                  String(modelValue) !== ''
-                "
-                type="button"
-                class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                aria-label="清空"
-                @click.stop.prevent="
-                  ((llcDraft.registrationAuthorityCompanyId = undefined),
-                  (llcDraft.registrationAuthorityName = ''))
-                "
-              >
-                ×
-              </button>
-              <span class="select-none text-slate-400">▾</span>
-            </div>
-          </template>
-        </USelectMenu>
-      </div>
-
-      <!-- 5 住所地 -->
-      <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          5. 住所地（详细地址）
-        </p>
-        <UInput class="w-full" v-model="llcDraft.domicileAddress" />
-      </div>
-
-      <!-- 6 经营期限 -->
-      <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          6. 经营期限
-        </p>
-        <div class="flex items-center gap-3">
-          <USwitch v-model="llcDraft.operatingTermLong" />
-          <span class="text-xs text-slate-600">{{
-            llcDraft.operatingTermLong ? '长期' : '按年限'
-          }}</span>
-          <UInput
-            v-if="!llcDraft.operatingTermLong"
-            class="w-36"
-            v-model.number="llcDraft.operatingTermYears"
-            type="number"
-            placeholder="xx年"
-          />
-        </div>
-      </div>
-
-      <!-- 7 经营范围 -->
-      <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          7. 经营范围
-        </p>
-        <UTextarea class="w-full" v-model="llcDraft.businessScope" :rows="3" />
-      </div>
-
-      <!-- 8 股东 -->
-      <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            8. 添加股东（出资比例合计 100%）
-          </p>
-          <UButton
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            @click="addShareholder"
-          >
-            添加股东
-          </UButton>
-        </div>
-
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div class="space-y-1">
-            <label class="text-xs text-slate-500">股东表决权行使方式</label>
-            <USelectMenu
-              class="w-full"
-              v-model="llcDraft.votingRightsMode"
-              :items="[
-                {
-                  value: 'BY_CAPITAL_RATIO',
-                  label: '按出资比例行使（表决权=出资比例）',
-                },
-                {
-                  value: 'CUSTOM',
-                  label: '自定义（填写各股东表决权，合计 100%）',
-                },
-              ]"
-              value-key="value"
-              label-key="label"
-            />
-          </div>
-          <div class="text-xs text-slate-500 md:self-end">
-            <span v-if="llcDraft.votingRightsMode === 'BY_CAPITAL_RATIO'">
-              当前模式下无需单独填写表决权，系统将使用出资比例作为表决权比例。
-            </span>
-            <span v-else> 请确保所有股东表决权（%）相加为 100%。 </span>
-          </div>
-        </div>
-
-        <div
-          v-for="(s, idx) in llcDraft.shareholders"
-          :key="idx"
-          class="rounded-xl border border-slate-200/70 p-3 space-y-3"
-        >
-          <div class="flex items-center justify-between">
-            <p class="text-xs font-semibold text-slate-700">
-              股东 #{{ idx + 1 }}
-            </p>
-            <UButton
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              :disabled="llcDraft.shareholders.length <= 1"
-              @click="removeShareholder(idx)"
-            >
-              删除
-            </UButton>
-          </div>
-
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <USelectMenu
-              class="w-full"
-              v-model="s.kind"
-              :items="[
-                { value: 'USER', label: '用户' },
-                { value: 'COMPANY', label: '公司' },
-              ]"
-              value-key="value"
-            />
-
-            <USelectMenu
-              v-if="s.kind === 'USER'"
-              class="w-full md:col-span-2"
-              v-model="s.holderId"
-              v-model:search-term="s.userSearch"
-              :items="buildUserItems(s.userCandidates, s.holderId)"
-              value-key="value"
-              label-key="label"
-              searchable
-              placeholder="搜索用户"
-              @update:search-term="
-                (v: string) => handleUserSearchList(s.userCandidates, v)
-              "
-            >
-              <template #trailing="{ modelValue }">
-                <div class="flex items-center gap-1">
-                  <button
-                    v-if="
-                      modelValue !== undefined &&
-                      modelValue !== null &&
-                      String(modelValue) !== ''
-                    "
-                    type="button"
-                    class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                    aria-label="清空"
-                    @click.stop.prevent="s.holderId = undefined"
-                  >
-                    ×
-                  </button>
-                  <span class="select-none text-slate-400">▾</span>
-                </div>
-              </template>
-            </USelectMenu>
-
-            <USelectMenu
-              v-else
-              class="w-full md:col-span-2"
-              v-model="s.holderId"
-              v-model:search-term="s.companySearch"
-              :items="buildCompanyItems(s.companyCandidates, s.holderId)"
-              value-key="value"
-              label-key="label"
-              searchable
-              placeholder="搜索公司"
-              @update:search-term="
-                (v: string) => handleCompanySearchList(s.companyCandidates, v)
-              "
-            >
-              <template #trailing="{ modelValue }">
-                <div class="flex items-center gap-1">
-                  <button
-                    v-if="
-                      modelValue !== undefined &&
-                      modelValue !== null &&
-                      String(modelValue) !== ''
-                    "
-                    type="button"
-                    class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                    aria-label="清空"
-                    @click.stop.prevent="s.holderId = undefined"
-                  >
-                    ×
-                  </button>
-                  <span class="select-none text-slate-400">▾</span>
-                </div>
-              </template>
-            </USelectMenu>
-          </div>
-
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div class="space-y-1">
-              <label class="text-xs text-slate-500">出资比例（%）</label>
-              <UInput class="w-full" v-model.number="s.ratio" type="number" />
-            </div>
-            <div class="space-y-1">
-              <label class="text-xs text-slate-500">表决权（%）</label>
-              <UInput
-                v-if="llcDraft.votingRightsMode === 'CUSTOM'"
-                class="w-full"
-                v-model.number="s.votingRatio"
-                type="number"
-                placeholder="自定义表决权"
-              />
-              <UInput
-                v-else
-                class="w-full"
-                :model-value="s.ratio ?? 0"
-                disabled
-              />
-            </div>
-          </div>
-        </div>
-
-        <div class="text-xs text-slate-500">
-          当前合计：<span
-            class="font-semibold"
-            :class="
-              shareholderRatioSum === 100 ? 'text-emerald-600' : 'text-rose-600'
-            "
-            >{{ shareholderRatioSum }}%</span
-          >
-        </div>
-
-        <div
-          v-if="llcDraft.votingRightsMode === 'CUSTOM'"
-          class="text-xs text-slate-500"
-        >
-          表决权合计：<span
-            class="font-semibold"
-            :class="
-              shareholderVotingSum === 100
-                ? 'text-emerald-600'
-                : 'text-rose-600'
-            "
-            >{{ shareholderVotingSum }}%</span
-          >
-        </div>
-      </div>
-
-      <!-- 9 董事 -->
-      <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            9. 添加董事信息（1 人或 3 人及以上）
-          </p>
-          <UButton
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            @click="addDirector"
-          >
-            添加董事
-          </UButton>
-        </div>
-
-        <div
-          v-for="(d, idx) in llcDraft.directors.items"
-          :key="idx"
-          class="rounded-xl border border-slate-200/70 p-3 space-y-2"
-        >
-          <div class="flex items-center justify-between">
-            <p class="text-xs font-semibold text-slate-700">
-              董事 #{{ idx + 1 }}
-            </p>
-            <UButton
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              :disabled="llcDraft.directors.items.length <= 1"
-              @click="removeDirector(idx)"
-            >
-              删除
-            </UButton>
-          </div>
-          <USelectMenu
-            class="w-full"
-            v-model="d.userId"
-            v-model:search-term="d.search"
-            :items="buildUserItems(d.candidates, d.userId)"
-            value-key="value"
-            label-key="label"
-            searchable
-            placeholder="搜索用户"
-            @update:search-term="
-              (v: string) => handleUserSearchList(d.candidates, v)
-            "
-          >
-            <template #trailing="{ modelValue }">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="
-                    modelValue !== undefined &&
-                    modelValue !== null &&
-                    String(modelValue) !== ''
-                  "
-                  type="button"
-                  class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label="清空"
-                  @click.stop.prevent="d.userId = undefined"
-                >
-                  ×
-                </button>
-                <span class="select-none text-slate-400">▾</span>
-              </div>
-            </template>
-          </USelectMenu>
-        </div>
-
-        <div
-          v-if="directorIds.length > 1"
-          class="grid grid-cols-1 gap-3 md:grid-cols-2"
-        >
-          <USelectMenu
-            class="w-full"
-            v-model="llcDraft.directors.chairpersonId"
-            :items="
-              directorIds.map((id) => ({
-                value: id,
-                label: userLabelCache[id] ?? id,
-              }))
-            "
-            value-key="value"
-            label-key="label"
-            placeholder="选择董事长（必选）"
-          >
-            <template #trailing="{ modelValue }">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="
-                    modelValue !== undefined &&
-                    modelValue !== null &&
-                    String(modelValue) !== ''
-                  "
-                  type="button"
-                  class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label="清空"
-                  @click.stop.prevent="
-                    llcDraft.directors.chairpersonId = undefined
-                  "
-                >
-                  ×
-                </button>
-                <span class="select-none text-slate-400">▾</span>
-              </div>
-            </template>
-          </USelectMenu>
-          <USelectMenu
-            class="w-full"
-            v-model="llcDraft.directors.viceChairpersonId"
-            :items="
-              directorIds.map((id) => ({
-                value: id,
-                label: userLabelCache[id] ?? id,
-              }))
-            "
-            value-key="value"
-            label-key="label"
-            placeholder="选择副董事长（可选）"
-          >
-            <template #trailing="{ modelValue }">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="
-                    modelValue !== undefined &&
-                    modelValue !== null &&
-                    String(modelValue) !== ''
-                  "
-                  type="button"
-                  class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label="清空"
-                  @click.stop.prevent="
-                    llcDraft.directors.viceChairpersonId = undefined
-                  "
-                >
-                  ×
-                </button>
-                <span class="select-none text-slate-400">▾</span>
-              </div>
-            </template>
-          </USelectMenu>
-        </div>
-      </div>
-
-      <!-- 10 经理/副经理 -->
-      <div class="space-y-3">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          10. 添加经理信息（可选，最多各 1 人）
-        </p>
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <USelectMenu
-            class="w-full"
-            v-model="llcDraft.managers.managerId"
-            v-model:search-term="llcDraft.managers.managerSearch"
-            :items="
-              buildUserItems(
-                llcDraft.managers.managerCandidates,
-                llcDraft.managers.managerId,
-              )
-            "
-            value-key="value"
-            label-key="label"
-            searchable
-            placeholder="选择经理（可选）"
-            @update:search-term="
-              (v: string) =>
-                handleUserSearchList(llcDraft.managers.managerCandidates, v)
-            "
-          >
-            <template #trailing="{ modelValue }">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="
-                    modelValue !== undefined &&
-                    modelValue !== null &&
-                    String(modelValue) !== ''
-                  "
-                  type="button"
-                  class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label="清空"
-                  @click.stop.prevent="llcDraft.managers.managerId = undefined"
-                >
-                  ×
-                </button>
-                <span class="select-none text-slate-400">▾</span>
-              </div>
-            </template>
-          </USelectMenu>
-          <USelectMenu
-            class="w-full"
-            v-model="llcDraft.managers.deputyManagerId"
-            v-model:search-term="llcDraft.managers.deputySearch"
-            :items="
-              buildUserItems(
-                llcDraft.managers.deputyCandidates,
-                llcDraft.managers.deputyManagerId,
-              )
-            "
-            value-key="value"
-            label-key="label"
-            searchable
-            placeholder="选择副经理（可选）"
-            @update:search-term="
-              (v: string) =>
-                handleUserSearchList(llcDraft.managers.deputyCandidates, v)
-            "
-          >
-            <template #trailing="{ modelValue }">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="
-                    modelValue !== undefined &&
-                    modelValue !== null &&
-                    String(modelValue) !== ''
-                  "
-                  type="button"
-                  class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label="清空"
-                  @click.stop.prevent="
-                    llcDraft.managers.deputyManagerId = undefined
-                  "
-                >
-                  ×
-                </button>
-                <span class="select-none text-slate-400">▾</span>
-              </div>
-            </template>
-          </USelectMenu>
-        </div>
-      </div>
-
-      <!-- 11 法定代表人 -->
-      <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          11. 添加法定代表人信息（必须从董事或经理中选择）
-        </p>
-        <USelectMenu
-          class="w-full"
-          v-model="llcDraft.legalRepresentativeId"
-          :items="
-            legalRepresentativeOptions.map((id) => ({
-              value: id,
-              label: userLabelCache[id] ?? id,
-            }))
-          "
-          value-key="value"
-          label-key="label"
-          placeholder="选择法定代表人"
-        >
-          <template #trailing="{ modelValue }">
-            <div class="flex items-center gap-1">
-              <button
-                v-if="
-                  modelValue !== undefined &&
-                  modelValue !== null &&
-                  String(modelValue) !== ''
-                "
-                type="button"
-                class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                aria-label="清空"
-                @click.stop.prevent="llcDraft.legalRepresentativeId = undefined"
-              >
-                ×
-              </button>
-              <span class="select-none text-slate-400">▾</span>
-            </div>
-          </template>
-        </USelectMenu>
-      </div>
-
-      <!-- 12 监事 -->
-      <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            12. 添加监事信息（可不填；不得由董事/经理/副经理/财务负责人兼任）
-          </p>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-slate-500">{{
-              llcDraft.supervisors.enabled ? '已启用' : '未填写'
-            }}</span>
-            <USwitch v-model="llcDraft.supervisors.enabled" />
-          </div>
-        </div>
-
-        <div v-if="llcDraft.supervisors.enabled" class="space-y-3">
-          <div class="flex justify-end">
-            <UButton
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              @click="addSupervisor"
-            >
-              添加监事
-            </UButton>
-          </div>
-
-          <div
-            v-for="(s, idx) in llcDraft.supervisors.items"
-            :key="idx"
-            class="rounded-xl border border-slate-200/70 p-3 space-y-2"
-          >
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold text-slate-700">
-                监事 #{{ idx + 1 }}
-              </p>
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                :disabled="llcDraft.supervisors.items.length <= 1"
-                @click="removeSupervisor(idx)"
-              >
-                删除
-              </UButton>
-            </div>
-            <USelectMenu
-              class="w-full"
-              v-model="s.userId"
-              v-model:search-term="s.search"
-              :items="buildUserItems(s.candidates, s.userId)"
-              value-key="value"
-              label-key="label"
-              searchable
-              placeholder="搜索用户"
-              @update:search-term="
-                (v: string) => handleUserSearchList(s.candidates, v)
-              "
-            >
-              <template #trailing="{ modelValue }">
-                <div class="flex items-center gap-1">
-                  <button
-                    v-if="
-                      modelValue !== undefined &&
-                      modelValue !== null &&
-                      String(modelValue) !== ''
-                    "
-                    type="button"
-                    class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                    aria-label="清空"
-                    @click.stop.prevent="s.userId = undefined"
-                  >
-                    ×
-                  </button>
-                  <span class="select-none text-slate-400">▾</span>
-                </div>
-              </template>
-            </USelectMenu>
-            <p
-              v-if="s.userId && forbiddenSupervisorIds.has(s.userId)"
-              class="text-xs text-rose-600"
-            >
-              该用户当前已担任董事/经理/副经理/财务负责人，不能兼任监事
-            </p>
-          </div>
-
-          <USelectMenu
-            v-if="llcDraft.supervisors.items.filter((x) => x.userId).length > 1"
-            class="w-full"
-            v-model="llcDraft.supervisors.chairpersonId"
-            :items="
-              llcDraft.supervisors.items
-                .map((x) => x.userId)
-                .filter(Boolean)
-                .map((id) => ({
-                  value: id as string,
-                  label: userLabelCache[id as string] ?? (id as string),
-                }))
-            "
-            value-key="value"
-            label-key="label"
-            placeholder="选择监事会主席（可选）"
-          >
-            <template #trailing="{ modelValue }">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="
-                    modelValue !== undefined &&
-                    modelValue !== null &&
-                    String(modelValue) !== ''
-                  "
-                  type="button"
-                  class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label="清空"
-                  @click.stop.prevent="
-                    llcDraft.supervisors.chairpersonId = undefined
-                  "
-                >
-                  ×
-                </button>
-                <span class="select-none text-slate-400">▾</span>
-              </div>
-            </template>
-          </USelectMenu>
-        </div>
-      </div>
-
-      <!-- 13 财务负责人 -->
-      <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          13. 添加财务负责人信息（可选，最多 1 人）
-        </p>
-        <USelectMenu
-          class="w-full"
-          v-model="llcDraft.financialOfficer.userId"
-          v-model:search-term="llcDraft.financialOfficer.search"
-          :items="
-            buildUserItems(
-              llcDraft.financialOfficer.candidates,
-              llcDraft.financialOfficer.userId,
-            )
-          "
-          value-key="value"
-          label-key="label"
-          searchable
-          placeholder="选择财务负责人（可选）"
-          @update:search-term="
-            (v: string) =>
-              handleUserSearchList(llcDraft.financialOfficer.candidates, v)
-          "
-        >
-          <template #trailing="{ modelValue }">
-            <div class="flex items-center gap-1">
-              <button
-                v-if="
-                  modelValue !== undefined &&
-                  modelValue !== null &&
-                  String(modelValue) !== ''
-                "
-                type="button"
-                class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                aria-label="清空"
-                @click.stop.prevent="
-                  llcDraft.financialOfficer.userId = undefined
-                "
-              >
-                ×
-              </button>
-              <span class="select-none text-slate-400">▾</span>
-            </div>
-          </template>
-        </USelectMenu>
-      </div>
-    </div>
-
-    <div class="flex justify-end">
+    <div v-if="!isLlcSelected" class="flex justify-end">
       <UButton type="submit" color="primary" :loading="submitting">
         {{ props.submitLabel || '提交注册申请' }}
       </UButton>
