@@ -229,6 +229,7 @@ export class CompanySerializerService {
       category: company.category,
       status: company.status,
       visibility: company.visibility,
+      isAuthority: company.isAuthority,
       logoUrl,
       legalRepresentative: company.legalRepresentative,
       llcRegistration: company.llcRegistration,

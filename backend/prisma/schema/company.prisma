@@ -57,6 +57,11 @@ model Company {
   administrativeDivisionId                String?
   administrativeDivisionName              String?
   administrativeDivisionLevel             Int?
+  /**
+   * 标记是否具备登记/审批权力的机关法人。
+   * - 用于登记机关筛选，不依赖名称关键词
+   */
+  isAuthority                             Boolean                               @default(false)
   category                                CompanyCategory                       @default(FOR_PROFIT_LEGAL_PERSON)
   visibility                              CompanyVisibility                     @default(PRIVATE)
   status                                  CompanyStatus                         @default(PENDING_REVIEW)

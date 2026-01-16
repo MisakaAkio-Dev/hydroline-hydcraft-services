@@ -21,6 +21,7 @@ import { CompanyService } from './company.service';
 import {
   AdminCompanyListQueryDto,
   AdminCreateCompanyDto,
+  AdminUpdateCompanyLlcMembersDto,
   AdminUpdateCompanyDto,
   CompanyActionDto,
 } from './dto/company.dto';
@@ -64,6 +65,18 @@ export class CompanyAdminController {
   ) {
     const userId = this.getUserId(req);
     return this.companyService.updateCompanyAsAdmin(id, userId, body);
+  }
+
+  @Patch(':id/llc-members')
+  @RequirePermissions(PERMISSIONS.COMPANY_MANAGE_ADMIN)
+  @ApiOperation({ summary: '管理员直接更新 LLC 成员信息' })
+  async updateLlcMembers(
+    @Param('id') id: string,
+    @Body() body: AdminUpdateCompanyLlcMembersDto,
+    @Req() req: Request,
+  ) {
+    const userId = this.getUserId(req);
+    return this.companyService.updateCompanyLlcMembersAsAdmin(id, userId, body);
   }
 
   @Post()

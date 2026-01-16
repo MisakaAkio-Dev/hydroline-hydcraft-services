@@ -404,6 +404,10 @@ export class AdminUpdateCompanyDto extends UpdateCompanyProfileDto {
   highlighted?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isAuthority?: boolean;
+
+  @IsOptional()
   @IsInt()
   @Type(() => Number)
   recommendationScore?: number;
@@ -427,6 +431,44 @@ export class AdminUpdateCompanyDto extends UpdateCompanyProfileDto {
   @IsOptional()
   @IsString()
   auditReason?: string;
+}
+
+export class AdminUpdateCompanyLlcMembersDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LlcShareholderDto)
+  shareholders!: LlcShareholderDto[];
+
+  @IsOptional()
+  @IsIn(['BY_CAPITAL_RATIO', 'CUSTOM'])
+  votingRightsMode?: 'BY_CAPITAL_RATIO' | 'CUSTOM';
+
+  @ValidateNested()
+  @Type(() => LlcDirectorsDto)
+  directors!: LlcDirectorsDto;
+
+  @ValidateNested()
+  @Type(() => LlcManagersDto)
+  managers!: LlcManagersDto;
+
+  @IsString()
+  @MinLength(1)
+  legalRepresentativeId!: string;
+
+  @ValidateNested()
+  @Type(() => LlcSupervisorsDto)
+  @IsOptional()
+  supervisors?: LlcSupervisorsDto;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  financialOfficerId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  comment?: string;
 }
 
 export class AdminCreateCompanyDto {
@@ -481,6 +523,10 @@ export class AdminCreateCompanyDto {
   @IsOptional()
   @IsEnum(CompanyVisibility)
   visibility?: CompanyVisibility;
+
+  @IsOptional()
+  @IsBoolean()
+  isAuthority?: boolean;
 
   /**
    * 机关法人专用：所属行政区划节点 id（支持 1/2/3 级）。

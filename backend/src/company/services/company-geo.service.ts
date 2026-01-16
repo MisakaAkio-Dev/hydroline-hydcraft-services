@@ -57,14 +57,24 @@ export class CompanyGeoService {
           id: configured,
           status: { not: CompanyStatus.ARCHIVED },
         },
-        select: { id: true, name: true },
+        select: { id: true, name: true, isAuthority: true },
       });
       if (exists) {
+        if (!exists.isAuthority) {
+          return this.prisma.company.update({
+            where: { id: exists.id },
+            data: {
+              isAuthority: true,
+              updatedById: systemUser.id,
+            },
+            select: { id: true, name: true, isAuthority: true },
+          });
+        }
         return exists;
       }
     }
 
-    const fallback = await this.prisma.company.findFirst({
+    let fallback = await this.prisma.company.findFirst({
       where: {
         status: { not: CompanyStatus.ARCHIVED },
         type: { is: { code: 'state_organ_legal_person' } },
@@ -73,9 +83,19 @@ export class CompanyGeoService {
           { name: this.LEGACY_SUPER_AUTHORITY_NAME },
         ],
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, isAuthority: true },
     });
     if (fallback) {
+      if (!fallback.isAuthority) {
+        fallback = await this.prisma.company.update({
+          where: { id: fallback.id },
+          data: {
+            isAuthority: true,
+            updatedById: systemUser.id,
+          },
+          select: { id: true, name: true, isAuthority: true },
+        });
+      }
       await this.writeSuperAuthorityCompanyId(fallback.id, systemUser.id);
       return fallback;
     }
@@ -101,6 +121,7 @@ export class CompanyGeoService {
         category: type.category ?? CompanyCategory.SPECIAL_LEGAL_PERSON,
         visibility: CompanyVisibility.PUBLIC,
         status: CompanyStatus.ACTIVE,
+        isAuthority: true,
         legalRepresentativeId: systemUser.id,
         legalNameSnapshot: systemUser.name ?? 'System',
         createdById: systemUser.id,
@@ -199,7 +220,7 @@ export class CompanyGeoService {
           c."status"::text = ${CompanyStatus.ACTIVE}
           AND t."code" = ${'state_organ_legal_person'}
           AND c."administrativeDivisionId" IN (${Prisma.join(divisionIds)})
-          AND c."name" ILIKE ${'%市场监督%'}
+          AND c."isAuthority" = true
         ORDER BY
           c."administrativeDivisionLevel" DESC NULLS LAST,
           c."name" ASC
@@ -257,37 +278,40 @@ export class CompanyGeoService {
       );
     }
 
+    const authorities = await this.listRegistrationAuthoritiesByDivisionId(
+      domicileDivisionId,
+      serverId,
+    );
+
     if (authorityCompanyId) {
-      const authorityCompany = await this.prisma.company.findFirst({
-        where: {
-          id: authorityCompanyId,
-          status: CompanyStatus.ACTIVE,
-          type: { is: { code: 'state_organ_legal_person' } },
-        },
-        select: { id: true, name: true },
-      });
-      if (!authorityCompany) {
+      const matched = authorities.find(
+        (item) => item.id === authorityCompanyId,
+      );
+      if (!matched) {
         throw new BadRequestException('登记机关不存在或不可用');
       }
-      const authorityName = String(authorityCompany.name ?? '').trim();
-      await this.assertAuthorityNameAllowedForDivision(
-        authorityName,
-        domicileDivisionId,
-        serverId,
-      );
-      llc.registrationAuthorityName = authorityName;
+      llc.registrationAuthorityName = matched.name;
       return;
     }
 
     if (!authorityNameRaw) {
       throw new BadRequestException('请选择登记机关（市场监督管理局）');
     }
-    await this.assertAuthorityNameAllowedForDivision(
-      authorityNameRaw,
-      domicileDivisionId,
-      serverId,
+    const matchedByName = authorities.find(
+      (item) => item.name.trim() === authorityNameRaw,
     );
-    llc.registrationAuthorityName = authorityNameRaw;
+    if (!matchedByName) {
+      throw new BadRequestException('登记机关不属于所选行政区划的可选范围');
+    }
+    llc.registrationAuthorityName = matchedByName.name;
+    if (
+      !(llc as unknown as { registrationAuthorityCompanyId?: string | null })
+        .registrationAuthorityCompanyId
+    ) {
+      (
+        llc as unknown as { registrationAuthorityCompanyId?: string | null }
+      ).registrationAuthorityCompanyId = matchedByName.id;
+    }
   }
 
   async resolveRegistrationAuthorityForApplication(applicationId: string) {
@@ -503,11 +527,11 @@ export class CompanyGeoService {
         : await this.administrationService.getDivisionServerId(
             domicileDivisionId,
           );
-    const matchers = await this.resolveAuthorityMatchersByDivisionId(
+    const authorities = await this.listRegistrationAuthoritiesByDivisionId(
       domicileDivisionId,
       resolvedServerId,
     );
-    const ok = matchers.some((m) => name.includes(m));
+    const ok = authorities.some((item) => item.name.trim() === name);
     if (!ok) {
       throw new BadRequestException('登记机关不属于所选行政区划的可选范围');
     }

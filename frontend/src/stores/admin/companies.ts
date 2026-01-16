@@ -3,6 +3,7 @@ import { apiFetch } from '@/utils/http/api'
 import { useAuthStore } from '@/stores/user/auth'
 import type {
   AdminCreateCompanyPayload,
+  AdminUpdateCompanyMembersPayload,
   CompanyModel,
   CompanyStatus,
 } from '@/types/company'
@@ -77,6 +78,26 @@ export const useAdminCompanyStore = defineStore('admin-companies', {
         body: payload,
         token: authStore.token,
       })
+      this.selected = result
+      const index = this.items.findIndex((item) => item.id === id)
+      if (index !== -1) {
+        this.items[index] = result
+      }
+      return result
+    },
+    async updateCompanyMembers(
+      id: string,
+      payload: AdminUpdateCompanyMembersPayload,
+    ) {
+      const authStore = useAuthStore()
+      const result = await apiFetch<CompanyModel>(
+        `/admin/companies/${id}/llc-members`,
+        {
+          method: 'PATCH',
+          body: payload,
+          token: authStore.token,
+        },
+      )
       this.selected = result
       const index = this.items.findIndex((item) => item.id === id)
       if (index !== -1) {

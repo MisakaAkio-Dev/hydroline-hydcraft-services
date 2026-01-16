@@ -1404,6 +1404,7 @@ export class CompanyApplicationService {
           id: registrationAuthorityCompanyId,
           status: CompanyStatus.ACTIVE,
           type: { is: { code: 'state_organ_legal_person' } },
+          isAuthority: true,
         },
         select: { id: true, name: true },
       });

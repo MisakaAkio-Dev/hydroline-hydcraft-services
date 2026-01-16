@@ -676,11 +676,11 @@ const supervisorSummary = computed(() => {
                   :items="[
                     {
                       value: 'BY_CAPITAL_RATIO',
-                      label: '按出资比例行使（表决权 = 出资比例）',
+                      label: '按出资比例行使',
                     },
                     {
                       value: 'CUSTOM',
-                      label: '自定义（填写各股东表决权，合计 100%）',
+                      label: '自定义',
                     },
                   ]"
                   value-key="value"
@@ -828,7 +828,7 @@ const supervisorSummary = computed(() => {
               </div>
             </div>
 
-            <div class="text-xs text-slate-500">
+            <div v-if="shareholderRatioSum > 0" class="text-xs text-slate-500">
               当前合计：<span
                 class="font-semibold"
                 :class="
@@ -1009,6 +1009,7 @@ const supervisorSummary = computed(() => {
         </template>
 
         <template #member-10-description>
+          <p class="text-xs text-slate-500 mb-3">经理与副经理可选。</p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
             <USelectMenu
               class="w-full"
@@ -1098,6 +1099,7 @@ const supervisorSummary = computed(() => {
         </template>
 
         <template #member-11-description>
+          <p class="text-xs text-slate-500 mb-3">法定代表人必须填写。</p>
           <USelectMenu
             class="w-full"
             v-model="llcDraft.legalRepresentativeId"
@@ -1265,6 +1267,7 @@ const supervisorSummary = computed(() => {
         </template>
 
         <template #member-13-description>
+          <p class="text-xs text-slate-500 mb-3">财务负责人可选。</p>
           <USelectMenu
             class="w-full"
             v-model="llcDraft.financialOfficer.userId"

@@ -7,6 +7,7 @@ import {
 import {
   AdminCompanyListQueryDto,
   AdminCreateCompanyDto,
+  AdminUpdateCompanyLlcMembersDto,
   AdminUpdateCompanyDto,
   CompanyActionDto,
 } from '../dto/company.dto';
@@ -19,11 +20,13 @@ import {
   CompanyApplicationConsentProgress,
   CompanyCategory,
   CompanyLlcOfficerRole,
+  CompanyLlcShareholderKind,
   CompanyStatus,
   CompanyVisibility,
   WorkflowInstanceStatus,
 } from '@prisma/client';
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WorkflowService } from '../../workflow/workflow.service';
 import { AttachmentsService } from '../../attachments/attachments.service';
@@ -105,6 +108,7 @@ export class CompanyAdminService {
         status: dto.status,
         visibility: dto.visibility,
         highlighted: dto.highlighted,
+        isAuthority: dto.isAuthority,
         recommendationScore: dto.recommendationScore,
         logoAttachmentId: dto.logoAttachmentId,
         updatedById: userId,
@@ -121,6 +125,228 @@ export class CompanyAdminService {
       },
     });
     return this.serializerService.serializeCompany(updated, userId);
+  }
+
+  async updateCompanyLlcMembersAsAdmin(
+    companyId: string,
+    userId: string,
+    dto: AdminUpdateCompanyLlcMembersDto,
+  ) {
+    const company = await this.findCompanyOrThrow(companyId);
+    if (!company.llcRegistration) {
+      throw new BadRequestException('该公司暂无 LLC 登记信息');
+    }
+
+    this.validateAdminLlcMembers(dto);
+
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      const registration = await tx.companyLlcRegistration.findUnique({
+        where: { companyId },
+        select: { id: true },
+      });
+      if (!registration) {
+        throw new BadRequestException('该公司暂无 LLC 登记信息');
+      }
+
+      const userIds = Array.from(
+        new Set(
+          [
+            dto.legalRepresentativeId,
+            ...(dto.directors?.directorIds ?? []),
+            dto.directors?.chairpersonId,
+            dto.directors?.viceChairpersonId,
+            dto.managers?.managerId,
+            dto.managers?.deputyManagerId,
+            ...(dto.supervisors?.supervisorIds ?? []),
+            dto.supervisors?.chairpersonId,
+            dto.financialOfficerId,
+            ...(dto.shareholders ?? [])
+              .filter((s) => s.kind === 'USER')
+              .map((s) => s.userId),
+          ].filter((id): id is string => Boolean(id && id.trim())),
+        ),
+      );
+      const companyIds = Array.from(
+        new Set(
+          (dto.shareholders ?? [])
+            .filter((s) => s.kind === 'COMPANY')
+            .map((s) => s.companyId)
+            .filter((id): id is string => Boolean(id && id.trim())),
+        ),
+      );
+
+      if (userIds.length) {
+        const users = await tx.user.findMany({
+          where: { id: { in: userIds } },
+          select: {
+            id: true,
+            name: true,
+            profile: { select: { displayName: true } },
+          },
+        });
+        if (users.length !== userIds.length) {
+          throw new BadRequestException('成员列表包含无效用户');
+        }
+      }
+
+      if (companyIds.length) {
+        const companies = await tx.company.findMany({
+          where: {
+            id: { in: companyIds },
+            status: { not: CompanyStatus.ARCHIVED },
+          },
+          select: { id: true },
+        });
+        if (companies.length !== companyIds.length) {
+          throw new BadRequestException('股东公司不存在或不可用');
+        }
+      }
+
+      const legalRepresentative = await tx.user.findUnique({
+        where: { id: dto.legalRepresentativeId },
+        select: {
+          id: true,
+          name: true,
+          profile: { select: { displayName: true } },
+        },
+      });
+      if (!legalRepresentative) {
+        throw new BadRequestException('法定代表人不存在');
+      }
+
+      await tx.company.update({
+        where: { id: companyId },
+        data: {
+          legalRepresentativeId: dto.legalRepresentativeId,
+          legalNameSnapshot:
+            legalRepresentative.profile?.displayName ??
+            legalRepresentative.name ??
+            undefined,
+          updatedById: userId,
+        },
+      });
+
+      await tx.companyLlcRegistration.update({
+        where: { id: registration.id },
+        data: { updatedAt: now },
+      });
+
+      await tx.companyLlcRegistrationShareholder.deleteMany({
+        where: { registrationId: registration.id },
+      });
+      await tx.companyLlcRegistrationOfficer.deleteMany({
+        where: { registrationId: registration.id },
+      });
+
+      const votingMode =
+        dto.votingRightsMode === 'CUSTOM' ? 'CUSTOM' : 'BY_CAPITAL_RATIO';
+      const shareholders = (dto.shareholders ?? []).map((s) => ({
+        id: randomUUID(),
+        registrationId: registration.id,
+        kind:
+          s.kind === 'COMPANY'
+            ? CompanyLlcShareholderKind.COMPANY
+            : CompanyLlcShareholderKind.USER,
+        userId: s.kind === 'USER' ? (s.userId ?? null) : null,
+        companyId: s.kind === 'COMPANY' ? (s.companyId ?? null) : null,
+        ratio: Number(s.ratio),
+        votingRatio:
+          votingMode === 'CUSTOM'
+            ? Number(s.votingRatio ?? s.ratio)
+            : Number(s.ratio),
+        createdAt: now,
+        updatedAt: now,
+      }));
+      if (shareholders.length) {
+        await tx.companyLlcRegistrationShareholder.createMany({
+          data: shareholders,
+        });
+      }
+
+      const officers: Array<{ userId: string; role: CompanyLlcOfficerRole }> =
+        [];
+      officers.push({
+        userId: dto.legalRepresentativeId,
+        role: CompanyLlcOfficerRole.LEGAL_REPRESENTATIVE,
+      });
+      for (const id of dto.directors?.directorIds ?? []) {
+        officers.push({ userId: id, role: CompanyLlcOfficerRole.DIRECTOR });
+      }
+      if (dto.directors?.chairpersonId) {
+        officers.push({
+          userId: dto.directors.chairpersonId,
+          role: CompanyLlcOfficerRole.CHAIRPERSON,
+        });
+      }
+      if (dto.directors?.viceChairpersonId) {
+        officers.push({
+          userId: dto.directors.viceChairpersonId,
+          role: CompanyLlcOfficerRole.VICE_CHAIRPERSON,
+        });
+      }
+      if (dto.managers?.managerId) {
+        officers.push({
+          userId: dto.managers.managerId,
+          role: CompanyLlcOfficerRole.MANAGER,
+        });
+      }
+      if (dto.managers?.deputyManagerId) {
+        officers.push({
+          userId: dto.managers.deputyManagerId,
+          role: CompanyLlcOfficerRole.DEPUTY_MANAGER,
+        });
+      }
+      for (const id of dto.supervisors?.supervisorIds ?? []) {
+        officers.push({ userId: id, role: CompanyLlcOfficerRole.SUPERVISOR });
+      }
+      if (dto.supervisors?.chairpersonId) {
+        officers.push({
+          userId: dto.supervisors.chairpersonId,
+          role: CompanyLlcOfficerRole.SUPERVISOR_CHAIRPERSON,
+        });
+      }
+      if (dto.financialOfficerId) {
+        officers.push({
+          userId: dto.financialOfficerId,
+          role: CompanyLlcOfficerRole.FINANCIAL_OFFICER,
+        });
+      }
+
+      const unique = new Map<
+        string,
+        { userId: string; role: CompanyLlcOfficerRole }
+      >();
+      for (const o of officers) {
+        unique.set(`${o.userId}:${o.role}`, o);
+      }
+      const officerRows = Array.from(unique.values()).map((o) => ({
+        id: randomUUID(),
+        registrationId: registration.id,
+        userId: o.userId,
+        role: o.role,
+        createdAt: now,
+        updatedAt: now,
+      }));
+      if (officerRows.length) {
+        await tx.companyLlcRegistrationOfficer.createMany({
+          data: officerRows,
+        });
+      }
+    });
+
+    await this.prisma.companyAuditRecord.create({
+      data: {
+        companyId,
+        actorId: userId,
+        actionKey: 'admin_update_llc_members',
+        actionLabel: '管理员更新公司成员',
+        comment: dto.comment ?? '管理员更新公司成员',
+      },
+    });
+
+    const refreshed = await this.findCompanyOrThrow(companyId);
+    return this.serializerService.serializeCompany(refreshed, userId);
   }
 
   async createCompanyAsAdmin(actorId: string, dto: AdminCreateCompanyDto) {
@@ -219,6 +445,7 @@ export class CompanyAdminService {
       workflowDefinitionCode: workflowCode,
       status: dto.status ?? CompanyStatus.ACTIVE,
       visibility: dto.visibility ?? CompanyVisibility.PUBLIC,
+      isAuthority: dto.isAuthority ?? false,
       createdById: ownerId,
       updatedById: actorId,
       lastActiveAt: new Date(),
@@ -587,6 +814,134 @@ export class CompanyAdminService {
     await this.prisma.company.delete({ where: { id: companyId } });
     this.logger.log(`Company ${companyId} deleted by ${userId}`);
     return { success: true };
+  }
+
+  private validateAdminLlcMembers(dto: AdminUpdateCompanyLlcMembersDto) {
+    const errors: string[] = [];
+
+    const shareholders = Array.isArray(dto.shareholders)
+      ? dto.shareholders
+      : [];
+    const normalized = shareholders
+      .map((s) => ({
+        kind: s.kind,
+        userId: s.userId,
+        companyId: s.companyId,
+        ratio: typeof s.ratio === 'number' ? s.ratio : Number(s.ratio),
+      }))
+      .filter((s) => Number.isFinite(s.ratio));
+    const sum = normalized.reduce((acc, s) => acc + (s.ratio ?? 0), 0);
+    if (Math.abs(sum - 100) > 1e-6) {
+      errors.push('所有股东的出资比例之和必须为 100%');
+    }
+    for (const s of normalized) {
+      if (s.kind === 'USER' && !s.userId) {
+        errors.push('股东类型为用户时必须选择 userId');
+      }
+      if (s.kind === 'COMPANY' && !s.companyId) {
+        errors.push('股东类型为公司时必须选择 companyId');
+      }
+    }
+
+    const votingMode =
+      dto.votingRightsMode === 'CUSTOM' ||
+      dto.votingRightsMode === 'BY_CAPITAL_RATIO'
+        ? dto.votingRightsMode
+        : 'BY_CAPITAL_RATIO';
+    if (votingMode === 'CUSTOM') {
+      const votingNormalized = (dto.shareholders ?? [])
+        .map((s) => ({
+          votingRatio:
+            typeof s.votingRatio === 'number'
+              ? s.votingRatio
+              : Number(s.votingRatio),
+        }))
+        .filter((s) => Number.isFinite(s.votingRatio));
+
+      if (votingNormalized.length !== (dto.shareholders ?? []).length) {
+        errors.push('自定义表决权时必须为每个股东填写表决权比例');
+      } else {
+        const votingSum = votingNormalized.reduce(
+          (acc, s) => acc + (s.votingRatio ?? 0),
+          0,
+        );
+        if (Math.abs(votingSum - 100) > 1e-6) {
+          errors.push('所有股东的表决权之和必须为 100%');
+        }
+        for (const s of votingNormalized) {
+          if ((s.votingRatio ?? 0) < 0 || (s.votingRatio ?? 0) > 100) {
+            errors.push('股东表决权必须在 0%～100% 之间');
+            break;
+          }
+        }
+      }
+    }
+
+    const directorIds = dto.directors?.directorIds ?? [];
+    const uniqueDirectorIds = Array.from(new Set(directorIds));
+    if (uniqueDirectorIds.length !== directorIds.length) {
+      errors.push('董事名单不能重复');
+    }
+    if (!(directorIds.length === 1 || directorIds.length >= 3)) {
+      errors.push('董事人数必须为 1 人或 3 人及以上');
+    }
+    if (directorIds.length > 1) {
+      if (!dto.directors?.chairpersonId) {
+        errors.push('董事人数大于 1 人时必须指定董事长');
+      } else if (!directorIds.includes(dto.directors.chairpersonId)) {
+        errors.push('董事长必须从董事中选择');
+      }
+      if (
+        dto.directors?.viceChairpersonId &&
+        !directorIds.includes(dto.directors.viceChairpersonId)
+      ) {
+        errors.push('副董事长必须从董事中选择');
+      }
+    }
+
+    if (
+      dto.managers?.managerId &&
+      dto.managers?.deputyManagerId &&
+      dto.managers.managerId === dto.managers.deputyManagerId
+    ) {
+      errors.push('经理与副经理不能为同一人');
+    }
+
+    const legal = dto.legalRepresentativeId;
+    const legalCandidates = new Set<string>([
+      ...directorIds,
+      ...(dto.managers?.managerId ? [dto.managers.managerId] : []),
+    ]);
+    if (!legalCandidates.has(legal)) {
+      errors.push('法定代表人必须从董事或经理中选择');
+    }
+
+    const supervisorIds = dto.supervisors?.supervisorIds ?? [];
+    const uniqueSupervisorIds = Array.from(new Set(supervisorIds));
+    if (uniqueSupervisorIds.length !== supervisorIds.length) {
+      errors.push('监事名单不能重复');
+    }
+    if (supervisorIds.length > 1 && dto.supervisors?.chairpersonId) {
+      if (!supervisorIds.includes(dto.supervisors.chairpersonId)) {
+        errors.push('监事会主席必须从监事中选择');
+      }
+    }
+    const forbidden = new Set<string>([
+      ...directorIds,
+      ...(dto.managers?.managerId ? [dto.managers.managerId] : []),
+      ...(dto.managers?.deputyManagerId ? [dto.managers.deputyManagerId] : []),
+      ...(dto.financialOfficerId ? [dto.financialOfficerId] : []),
+    ]);
+    for (const sid of supervisorIds) {
+      if (forbidden.has(sid)) {
+        errors.push('监事不得由董事、经理、副经理或财务负责人兼任');
+        break;
+      }
+    }
+
+    if (errors.length) {
+      throw new BadRequestException(errors.join('；'));
+    }
   }
 
   private async findCompanyOrThrow(id: string) {

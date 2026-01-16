@@ -22,6 +22,7 @@ import {
   AdminCompanyListQueryDto,
   AdminCreateCompanyDto,
   AdminUpdateCompanyDto,
+  AdminUpdateCompanyLlcMembersDto,
   CompanyActionDto,
   CompanyAttachmentSearchDto,
   CompanyDeregistrationApplyDto,
@@ -734,6 +735,18 @@ export class CompanyService implements OnModuleInit {
     dto: AdminUpdateCompanyDto,
   ) {
     return this.adminService.updateCompanyAsAdmin(companyId, userId, dto);
+  }
+
+  async updateCompanyLlcMembersAsAdmin(
+    companyId: string,
+    userId: string,
+    dto: AdminUpdateCompanyLlcMembersDto,
+  ) {
+    return this.adminService.updateCompanyLlcMembersAsAdmin(
+      companyId,
+      userId,
+      dto,
+    );
   }
 
   async createCompanyAsAdmin(actorId: string, dto: AdminCreateCompanyDto) {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import CompanyStatusBadge from '@/components/company/CompanyStatusBadge.vue'
+import CompanyRegistryMembersDialog from './CompanyRegistryMembersDialog.vue'
 import { apiFetch } from '@/utils/http/api'
 import { useAuthStore } from '@/stores/user/auth'
 import type {
@@ -8,6 +9,7 @@ import type {
   CompanyModel,
   CompanyType,
   CompanyVisibility,
+  AdminUpdateCompanyMembersPayload,
 } from '@/types/company'
 
 const props = defineProps<{
@@ -24,7 +26,11 @@ const toast = useToast()
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void
   (event: 'save', payload: Record<string, unknown>): void
+  (event: 'save-members', payload: AdminUpdateCompanyMembersPayload): void
 }>()
+
+const editDialogOpen = ref(false)
+const membersDialogOpen = ref(false)
 
 const formState = reactive({
   name: '',
@@ -32,13 +38,10 @@ const formState = reactive({
   description: '',
   typeId: undefined as string | undefined,
   industryId: undefined as string | undefined,
-  contactEmail: '',
-  contactPhone: '',
-  contactAddress: '',
-  homepageUrl: '',
   visibility: undefined as CompanyVisibility | undefined,
   status: undefined as CompanyModel['status'] | undefined,
   logoAttachmentId: '',
+  isAuthority: false,
   auditReason: '',
 })
 
@@ -48,89 +51,14 @@ const visibilityOptions = [
   { value: 'INTERNAL', label: '内部' },
 ]
 
-type AttachmentSearchResult = {
+type AttachmentUploadResult = {
   id: string
-  name: string
-  originalName: string
-  size: number
-  isPublic: boolean
   publicUrl: string | null
-  folder: {
-    id: string
-    name: string
-    path: string
-  } | null
 }
 
-type AttachmentSelectOption = {
-  id: string
-  label: string
-  description: string
-}
-
-const attachmentOptions = ref<AttachmentSelectOption[]>([])
-const attachmentSearchTerm = ref('')
-const attachmentLoading = ref(false)
-const attachmentMap = ref<Record<string, AttachmentSearchResult>>({})
 const logoUploadInput = ref<HTMLInputElement | null>(null)
 const logoUploading = ref(false)
-let attachmentSearchTimer: ReturnType<typeof setTimeout> | null = null
-let attachmentAbort: AbortController | null = null
-
-function formatFileSize(bytes: number) {
-  if (!Number.isFinite(bytes)) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / 1024 / 1024).toFixed(2)} MB`
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
-}
-
-function buildAttachmentOption(
-  item: AttachmentSearchResult,
-): AttachmentSelectOption {
-  const label = item.name?.trim() || item.originalName || item.id
-  const segments = [`ID: ${item.id}`, formatFileSize(item.size)]
-  if (item.folder?.path) {
-    segments.push(item.folder.path)
-  }
-  segments.push(item.isPublic ? '公开' : '需设为公开')
-  return {
-    id: item.id,
-    label,
-    description: segments.join(' · '),
-  }
-}
-
-async function fetchAttachmentOptions(keyword: string) {
-  if (!authStore.token) return
-  attachmentLoading.value = true
-  attachmentAbort?.abort()
-  const controller = new AbortController()
-  attachmentAbort = controller
-  const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
-  try {
-    const results = await apiFetch<AttachmentSearchResult[]>(
-      `/portal/attachments/search${query ? `${query}&` : '?'}publicOnly=false`,
-      { token: authStore.token, signal: controller.signal, noDedupe: true },
-    )
-    if (attachmentAbort !== controller) return
-    attachmentMap.value = results.reduce<
-      Record<string, AttachmentSearchResult>
-    >((acc, record) => {
-      acc[record.id] = record
-      return acc
-    }, {})
-    attachmentOptions.value = results.map((item) => buildAttachmentOption(item))
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') return
-  } finally {
-    if (attachmentAbort === controller) {
-      attachmentAbort = null
-    }
-    attachmentLoading.value = false
-  }
-}
+const logoPreviewUrl = ref<string | null>(null)
 
 function triggerLogoUpload() {
   logoUploadInput.value?.click()
@@ -145,20 +73,17 @@ async function handleLogoUploadChange(event: Event) {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('isPublic', 'true')
-    const attachment = await apiFetch<AttachmentSearchResult>('/attachments', {
+    const attachment = await apiFetch<AttachmentUploadResult>('/attachments', {
       method: 'POST',
       body: formData,
       token: authStore.token,
     })
     formState.logoAttachmentId = attachment.id
-    attachmentMap.value = {
-      ...attachmentMap.value,
-      [attachment.id]: attachment,
-    }
-    attachmentOptions.value = [
-      buildAttachmentOption(attachment),
-      ...attachmentOptions.value.filter((item) => item.id !== attachment.id),
-    ]
+    logoPreviewUrl.value = attachment.publicUrl ?? null
+    emit('save', {
+      logoAttachmentId: attachment.id,
+      auditReason: '管理员更新公司 Logo',
+    })
     toast.add({ title: 'Logo 已上传', color: 'primary' })
   } catch (error) {
     toast.add({
@@ -171,13 +96,9 @@ async function handleLogoUploadChange(event: Event) {
   }
 }
 
-const selectedLogoPreview = computed(() => {
-  const selectedId = formState.logoAttachmentId?.trim()
-  if (!selectedId) return props.company?.logoUrl ?? null
-  return (
-    attachmentMap.value[selectedId]?.publicUrl ?? props.company?.logoUrl ?? null
-  )
-})
+const selectedLogoPreview = computed(
+  () => logoPreviewUrl.value ?? props.company?.logoUrl ?? null,
+)
 
 const statusOptions = [
   { value: 'DRAFT', label: '草稿' },
@@ -198,63 +119,41 @@ const industryOptions = computed(() =>
   props.industries.map((item) => ({ value: item.id, label: item.name })),
 )
 
-function officerRoleLabel(role: string) {
-  const map: Record<string, string> = {
-    LEGAL_REPRESENTATIVE: '法定代表人',
-    CHAIRPERSON: '董事长',
-    VICE_CHAIRPERSON: '副董事长',
-    DIRECTOR: '董事',
-    MANAGER: '经理',
-    DEPUTY_MANAGER: '副经理',
-    SUPERVISOR: '监事',
-    SUPERVISOR_CHAIRPERSON: '监事会主席',
-    FINANCIAL_OFFICER: '财务负责人',
-  }
-  return map[role] || role
+const selectedType = computed(() =>
+  props.types.find((type) => type.id === formState.typeId),
+)
+
+const displayType = computed(
+  () => props.company?.type ?? selectedType.value ?? null,
+)
+
+const isStateOrganLegalPerson = computed(
+  () => displayType.value?.code === 'state_organ_legal_person',
+)
+
+const isLimitedLiabilityCompany = computed(
+  () => displayType.value?.code === 'limited_liability_company',
+)
+
+const isEditStateOrganLegalPerson = computed(
+  () => selectedType.value?.code === 'state_organ_legal_person',
+)
+
+const showAdministrativeDivision = computed(
+  () =>
+    isStateOrganLegalPerson.value ||
+    Boolean(props.company?.administrativeDivision),
+)
+
+const showLlcSection = computed(
+  () =>
+    isLimitedLiabilityCompany.value || Boolean(props.company?.llcRegistration),
+)
+
+function displayText(value?: string | null) {
+  const text = String(value ?? '').trim()
+  return text || '—'
 }
-
-watch(
-  () => props.company,
-  (company) => {
-    if (!company) return
-    formState.name = company.name
-    formState.summary = company.summary ?? ''
-    formState.description = company.description ?? ''
-    formState.typeId = company.type?.id
-    formState.industryId = company.industry?.id
-    formState.contactEmail = company.contactEmail ?? ''
-    formState.contactPhone = company.contactPhone ?? ''
-    formState.contactAddress = company.contactAddress ?? ''
-    formState.homepageUrl = company.homepageUrl ?? ''
-    formState.visibility = company.visibility
-    formState.status = company.status
-    formState.logoAttachmentId = company.logoAttachmentId ?? ''
-    formState.auditReason = ''
-  },
-  { immediate: true },
-)
-
-watch(
-  () => props.modelValue,
-  (open) => {
-    if (!open) return
-    attachmentSearchTerm.value = ''
-    void fetchAttachmentOptions('')
-  },
-)
-
-watch(
-  () => attachmentSearchTerm.value,
-  (keyword) => {
-    if (attachmentSearchTimer) {
-      clearTimeout(attachmentSearchTimer)
-    }
-    attachmentSearchTimer = setTimeout(() => {
-      attachmentSearchTimer = null
-      void fetchAttachmentOptions(keyword.trim())
-    }, 300)
-  },
-)
 
 const detailTitle = computed(() => props.company?.name ?? '公司管理')
 
@@ -279,8 +178,109 @@ const administrativeDivisionLevelLabel = computed(() => {
   return '—'
 })
 
+const companyVisibilityLabel = computed(() => {
+  const value = props.company?.visibility
+  return (
+    visibilityOptions.find((option) => option.value === value)?.label || '—'
+  )
+})
+
+const companyStatusLabel = computed(() => {
+  const value = props.company?.status
+  return statusOptions.find((option) => option.value === value)?.label || '—'
+})
+
+const companyTypeLabel = computed(() => displayType.value?.name ?? '—')
+
+const companyIndustryLabel = computed(
+  () => props.company?.industry?.name ?? '—',
+)
+
+const authorityLabel = computed(() =>
+  props.company?.isAuthority ? '已启用' : '未启用',
+)
+
+const summaryDisplay = computed(() => displayText(props.company?.summary))
+const descriptionDisplay = computed(() =>
+  displayText(props.company?.description),
+)
+
+const llcOfficerCount = computed(
+  () => props.company?.llcRegistration?.officers?.length ?? 0,
+)
+const llcShareholderCount = computed(
+  () => props.company?.llcRegistration?.shareholders?.length ?? 0,
+)
+
+const auditPreview = computed(() =>
+  (props.company?.auditTrail ?? []).slice(0, 5),
+)
+
+function syncFormState(company: CompanyModel | null) {
+  if (!company) return
+  formState.name = company.name
+  formState.summary = company.summary ?? ''
+  formState.description = company.description ?? ''
+  formState.typeId = company.type?.id
+  formState.industryId = company.industry?.id
+  formState.visibility = company.visibility
+  formState.status = company.status
+  formState.logoAttachmentId = company.logoAttachmentId ?? ''
+  formState.isAuthority = company.isAuthority ?? false
+  formState.auditReason = ''
+  logoPreviewUrl.value = null
+}
+
+watch(
+  () => props.company,
+  (company) => {
+    syncFormState(company)
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) return
+    editDialogOpen.value = false
+    membersDialogOpen.value = false
+  },
+)
+
+watch(
+  () => editDialogOpen.value,
+  (open) => {
+    if (!open) return
+    syncFormState(props.company)
+  },
+)
+
+watch(
+  () => formState.typeId,
+  () => {
+    if (isEditStateOrganLegalPerson.value) {
+      formState.industryId = undefined
+      return
+    }
+    formState.isAuthority = false
+  },
+)
+
 function closeDialog() {
   emit('update:modelValue', false)
+}
+
+function openEditDialog() {
+  editDialogOpen.value = true
+}
+
+function openMembersDialog() {
+  membersDialogOpen.value = true
+}
+
+function closeEditDialog() {
+  editDialogOpen.value = false
 }
 
 function handleSave() {
@@ -290,14 +290,13 @@ function handleSave() {
     summary: formState.summary,
     description: formState.description,
     typeId: formState.typeId,
-    industryId: formState.industryId,
-    contactEmail: formState.contactEmail,
-    contactPhone: formState.contactPhone,
-    contactAddress: formState.contactAddress,
-    homepageUrl: formState.homepageUrl,
+    industryId: isEditStateOrganLegalPerson.value
+      ? undefined
+      : formState.industryId,
     visibility: formState.visibility,
     status: formState.status,
     logoAttachmentId: formState.logoAttachmentId || undefined,
+    isAuthority: formState.isAuthority,
     auditReason: formState.auditReason || '管理员更新公司信息',
   })
 }
@@ -307,20 +306,51 @@ function handleSave() {
   <UModal
     :open="modelValue"
     @update:open="closeDialog"
-    :ui="{ content: 'w-full max-w-6xl w-[calc(100vw-2rem)]' }"
+    :ui="{ content: 'w-full max-w-3xl w-[calc(100vw-2rem)]' }"
   >
     <template #content>
       <div class="flex h-full flex-col">
         <div
-          class="flex items-center justify-between border-b border-slate-200 px-6 py-4"
+          class="flex items-start justify-between border-b border-slate-200 px-6 py-4"
         >
-          <div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">
-              公司管理
-            </p>
-            <h3 class="text-lg font-semibold text-slate-900">
-              {{ detailTitle }}
-            </h3>
+          <div class="flex items-center gap-4">
+            <div class="group relative">
+              <div
+                class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50"
+              >
+                <img
+                  v-if="selectedLogoPreview"
+                  :src="selectedLogoPreview"
+                  alt="公司 Logo"
+                  class="h-full w-full object-cover"
+                />
+                <span v-else class="text-xs text-slate-400">暂无 Logo</span>
+              </div>
+              <button
+                type="button"
+                class="absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-900/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
+                :disabled="logoUploading"
+                @click="triggerLogoUpload"
+              >
+                {{ logoUploading ? '上传中...' : '更换' }}
+              </button>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-slate-500">
+                公司管理
+              </p>
+              <h3 class="text-lg font-semibold text-slate-900">
+                {{ detailTitle }}
+              </h3>
+              <div class="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                <span>类型：{{ companyTypeLabel }}</span>
+                <span>状态：{{ companyStatusLabel }}</span>
+                <span>可见性：{{ companyVisibilityLabel }}</span>
+                <span v-if="isStateOrganLegalPerson || company?.isAuthority">
+                  审批权限：{{ authorityLabel }}
+                </span>
+              </div>
+            </div>
           </div>
           <div class="flex items-center gap-3">
             <CompanyStatusBadge :status="company?.status ?? 'DRAFT'" />
@@ -334,360 +364,174 @@ function handleSave() {
           </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto px-6 py-4">
-          <div
-            class="grid gap-6 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]"
-          >
-            <div class="space-y-6">
+        <input
+          ref="logoUploadInput"
+          type="file"
+          accept="image/*"
+          class="hidden"
+          @change="handleLogoUploadChange"
+        />
+
+        <div class="px-6 py-4 space-y-4">
+          <div class="rounded-2xl border border-slate-200/70 bg-white/80 p-6">
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold text-slate-900">基础信息</h4>
+              <UButton size="sm" variant="ghost" @click="openEditDialog">
+                编辑信息
+              </UButton>
+            </div>
+            <div class="mt-4 grid gap-4 md:grid-cols-2">
+              <div class="space-y-1">
+                <p class="text-xs text-slate-500">公司类型</p>
+                <p class="text-sm text-slate-900">{{ companyTypeLabel }}</p>
+              </div>
+              <div v-if="!isStateOrganLegalPerson" class="space-y-1">
+                <p class="text-xs text-slate-500">行业</p>
+                <p class="text-sm text-slate-900">{{ companyIndustryLabel }}</p>
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs text-slate-500">公司状态</p>
+                <p class="text-sm text-slate-900">{{ companyStatusLabel }}</p>
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs text-slate-500">可见性</p>
+                <p class="text-sm text-slate-900">
+                  {{ companyVisibilityLabel }}
+                </p>
+              </div>
               <div
-                class="rounded-2xl border border-slate-200/70 bg-white/80 p-6"
+                v-if="isStateOrganLegalPerson || company?.isAuthority"
+                class="space-y-1"
               >
-                <div class="grid gap-4 md:grid-cols-2">
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >公司名称</label
-                    >
-                    <UInput v-model="formState.name" />
-                  </div>
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >可见性</label
-                    >
-                    <USelectMenu
-                      v-model="formState.visibility"
-                      :items="visibilityOptions"
-                      value-key="value"
-                      placeholder="选择可见性"
-                    />
-                  </div>
-                </div>
-                <div class="mt-4 grid gap-4 md:grid-cols-2">
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >公司类型</label
-                    >
-                    <USelectMenu
-                      v-model="formState.typeId"
-                      :items="typeOptions"
-                      value-key="value"
-                      placeholder="公司类型"
-                    />
-                  </div>
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >行业</label
-                    >
-                    <USelectMenu
-                      v-model="formState.industryId"
-                      :items="industryOptions"
-                      value-key="value"
-                      placeholder="行业"
-                    />
-                  </div>
-                </div>
-                <div class="mt-4 grid gap-4 md:grid-cols-2">
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >公司状态</label
-                    >
-                    <USelectMenu
-                      v-model="formState.status"
-                      :items="statusOptions"
-                      value-key="value"
-                      placeholder="选择状态"
-                    />
-                  </div>
-                </div>
-
-                <div
-                  v-if="company?.administrativeDivision"
-                  class="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/40 p-4"
-                >
-                  <div class="flex items-center justify-between">
-                    <h4 class="text-sm font-semibold text-slate-900">
-                      行政区划信息
-                    </h4>
-                    <p class="text-xs text-slate-500">机关法人</p>
-                  </div>
-                  <dl class="mt-3 grid gap-3 md:grid-cols-2 text-sm">
-                    <div>
-                      <dt class="text-xs font-semibold text-slate-500">
-                        所属行政区划
-                      </dt>
-                      <dd class="mt-1 text-slate-900">
-                        {{
-                          administrativeDivisionPathLabel ||
-                          company.administrativeDivision.domicileDivisionId
-                        }}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt class="text-xs font-semibold text-slate-500">
-                        区划级别
-                      </dt>
-                      <dd class="mt-1 text-slate-900">
-                        {{ administrativeDivisionLevelLabel }}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-
-                <div class="mt-4 space-y-2">
-                  <label class="text-xs font-semibold text-slate-500"
-                    >概要</label
-                  >
-                  <UInput
-                    v-model="formState.summary"
-                    placeholder="一句话说明公司定位"
-                  />
-                </div>
-                <div class="mt-4 space-y-2">
-                  <label class="text-xs font-semibold text-slate-500"
-                    >详细介绍</label
-                  >
-                  <UTextarea v-model="formState.description" rows="4" />
-                </div>
-                <div class="mt-4 grid gap-4 md:grid-cols-2">
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >联系邮箱</label
-                    >
-                    <UInput v-model="formState.contactEmail" />
-                  </div>
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >联系电话</label
-                    >
-                    <UInput v-model="formState.contactPhone" />
-                  </div>
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >联系地址</label
-                    >
-                    <UInput v-model="formState.contactAddress" />
-                  </div>
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >官网链接</label
-                    >
-                    <UInput v-model="formState.homepageUrl" />
-                  </div>
-                </div>
-                <div class="mt-4 space-y-2">
-                  <label class="text-xs font-semibold text-slate-500"
-                    >修改原因</label
-                  >
-                  <UTextarea
-                    v-model="formState.auditReason"
-                    rows="2"
-                    placeholder="请输入修改原因"
-                  />
-                </div>
-                <div class="mt-4 flex justify-end">
-                  <UButton
-                    color="primary"
-                    :loading="saving"
-                    @click="handleSave"
-                  >
-                    保存修改
-                  </UButton>
-                </div>
+                <p class="text-xs text-slate-500">审批权限</p>
+                <p class="text-sm text-slate-900">{{ authorityLabel }}</p>
               </div>
             </div>
-            <div class="space-y-4">
-              <div
-                class="rounded-2xl border border-slate-200/70 bg-white/80 p-6"
+            <div class="mt-4 space-y-1">
+              <p class="text-xs text-slate-500">概要</p>
+              <p
+                class="text-sm"
+                :class="
+                  summaryDisplay === '—' ? 'text-slate-400' : 'text-slate-900'
+                "
               >
-                <h4 class="text-sm font-semibold text-slate-900">公司 Logo</h4>
-                <div class="mt-3">
-                  <img
-                    v-if="selectedLogoPreview"
-                    :src="selectedLogoPreview"
-                    alt="公司 Logo"
-                    class="h-24 w-24 rounded-xl object-cover"
-                  />
-                  <div
-                    v-else
-                    class="h-24 w-24 rounded-xl border border-dashed border-slate-200/70 text-center text-xs text-slate-400 flex items-center justify-center"
-                  >
-                    暂无 Logo
-                  </div>
-                </div>
-                <div class="mt-4 space-y-3 text-sm">
-                  <div class="space-y-2">
-                    <label class="text-xs font-semibold text-slate-500"
-                      >选择已有附件</label
-                    >
-                    <USelectMenu
-                      v-model="formState.logoAttachmentId"
-                      :items="attachmentOptions"
-                      :loading="attachmentLoading"
-                      value-key="id"
-                      label-key="label"
-                      :searchable="true"
-                      placeholder="搜索或选择附件"
-                      v-model:search-term="attachmentSearchTerm"
-                    >
-                      <template #option="{ item }">
-                        <div class="flex flex-col">
-                          <span class="text-sm text-slate-900">{{
-                            item.label
-                          }}</span>
-                          <span class="text-[11px] text-slate-500">{{
-                            item.description
-                          }}</span>
-                        </div>
-                      </template>
-                    </USelectMenu>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <input
-                      ref="logoUploadInput"
-                      type="file"
-                      accept="image/*"
-                      class="hidden"
-                      @change="handleLogoUploadChange"
-                    />
-                    <UButton
-                      color="primary"
-                      variant="soft"
-                      size="sm"
-                      :loading="logoUploading"
-                      @click="triggerLogoUpload"
-                    >
-                      上传新 Logo
-                    </UButton>
-                  </div>
-                </div>
+                {{ summaryDisplay }}
+              </p>
+            </div>
+            <div class="mt-4 space-y-1">
+              <p class="text-xs text-slate-500">详细介绍</p>
+              <p
+                class="text-sm whitespace-pre-line"
+                :class="
+                  descriptionDisplay === '—'
+                    ? 'text-slate-400'
+                    : 'text-slate-900'
+                "
+              >
+                {{ descriptionDisplay }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="showAdministrativeDivision"
+            class="rounded-2xl border border-slate-200/70 bg-slate-50/40 p-4"
+          >
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold text-slate-900">机关法人信息</h4>
+              <p class="text-xs text-slate-500">行政区划</p>
+            </div>
+            <dl class="mt-3 grid gap-3 md:grid-cols-2 text-sm">
+              <div>
+                <dt class="text-xs font-semibold text-slate-500">
+                  所属行政区划
+                </dt>
+                <dd class="mt-1 text-slate-900">
+                  {{
+                    administrativeDivisionPathLabel ||
+                    company?.administrativeDivision?.domicileDivisionId ||
+                    '—'
+                  }}
+                </dd>
               </div>
-              <div
-                class="rounded-2xl border border-slate-200/70 bg-white/80 p-6"
+              <div>
+                <dt class="text-xs font-semibold text-slate-500">区划级别</dt>
+                <dd class="mt-1 text-slate-900">
+                  {{ administrativeDivisionLevelLabel }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <div
+            v-if="showLlcSection"
+            class="rounded-2xl border border-slate-200/70 bg-white/80 p-6"
+          >
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold text-slate-900">
+                人员结构（LLC）
+              </h4>
+              <UButton
+                size="sm"
+                variant="ghost"
+                :disabled="!company?.llcRegistration"
+                @click="openMembersDialog"
               >
-                <h4 class="text-sm font-semibold text-slate-900">注册信息</h4>
-                <div class="mt-3 space-y-2 text-sm text-slate-600">
-                  <div>
-                    注册时间：
+                管理成员
+              </UButton>
+            </div>
+            <div class="mt-3 grid gap-4 md:grid-cols-2 text-sm">
+              <div class="space-y-1">
+                <p class="text-xs text-slate-500">法定代表人</p>
+                <p class="text-sm text-slate-900">
+                  {{
+                    company?.legalRepresentative?.displayName ||
+                    company?.legalRepresentative?.name ||
+                    '—'
+                  }}
+                </p>
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs text-slate-500">高管数量</p>
+                <p class="text-sm text-slate-900">{{ llcOfficerCount }}</p>
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs text-slate-500">股东数量</p>
+                <p class="text-sm text-slate-900">{{ llcShareholderCount }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200/70 bg-white/80 p-6">
+            <h4 class="text-sm font-semibold text-slate-900">审计记录</h4>
+            <div class="mt-3 space-y-2 text-sm">
+              <div
+                v-for="record in auditPreview"
+                :key="record.id"
+                class="rounded-xl border border-slate-200/70 p-3"
+              >
+                <div
+                  class="flex items-center justify-between text-xs text-slate-500"
+                >
+                  <span>
                     {{
-                      company?.approvedAt
-                        ? new Date(company.approvedAt).toLocaleString()
-                        : '未注册'
+                      record.actor?.profile?.displayName ||
+                      record.actor?.name ||
+                      record.actor?.email ||
+                      '系统'
                     }}
-                  </div>
+                  </span>
+                  <span>{{ new Date(record.createdAt).toLocaleString() }}</span>
                 </div>
+                <p class="text-slate-900">
+                  {{ record.comment || record.actionLabel || '公司信息更新' }}
+                </p>
               </div>
               <div
-                class="rounded-2xl border border-slate-200/70 bg-white/80 p-6"
+                v-if="auditPreview.length === 0"
+                class="rounded-xl border border-dashed border-slate-200/70 p-4 text-center text-xs text-slate-500"
               >
-                <h4 class="text-sm font-semibold text-slate-900">
-                  人员结构（LLC）
-                </h4>
-                <div class="mt-3 space-y-2 text-sm text-slate-600">
-                  <div>
-                    法定代表人：
-                    <span class="font-medium text-slate-900">
-                      {{
-                        company?.legalRepresentative?.displayName ||
-                        company?.legalRepresentative?.name ||
-                        '—'
-                      }}
-                    </span>
-                  </div>
-
-                  <div v-if="company?.llcRegistration">
-                    <div class="mt-2 text-xs font-semibold text-slate-500">
-                      高管
-                    </div>
-                    <div
-                      v-for="officer in company.llcRegistration.officers ?? []"
-                      :key="`${officer.role}-${officer.user?.id ?? 'unknown'}`"
-                    >
-                      {{ officerRoleLabel(officer.role) }}
-                      ·
-                      {{
-                        officer.user?.displayName ||
-                        officer.user?.name ||
-                        officer.user?.email ||
-                        '—'
-                      }}
-                    </div>
-                    <div
-                      v-if="
-                        (company.llcRegistration.officers?.length ?? 0) === 0
-                      "
-                      class="text-xs text-slate-400"
-                    >
-                      暂无高管记录
-                    </div>
-
-                    <div class="mt-3 text-xs font-semibold text-slate-500">
-                      股东
-                    </div>
-                    <div
-                      v-for="sh in company.llcRegistration.shareholders ?? []"
-                      :key="`${sh.kind}-${sh.userId ?? sh.companyId ?? 'unknown'}`"
-                    >
-                      {{
-                        sh.holderName ||
-                        (sh.kind === 'USER' ? sh.userId : sh.companyId) ||
-                        '—'
-                      }}
-                      · 出资 {{ Number(sh.ratio).toFixed(2) }}% · 表决
-                      {{ Number(sh.votingRatio).toFixed(2) }}%
-                    </div>
-                    <div
-                      v-if="
-                        (company.llcRegistration.shareholders?.length ?? 0) ===
-                        0
-                      "
-                      class="text-xs text-slate-400"
-                    >
-                      暂无股东记录
-                    </div>
-                  </div>
-
-                  <div v-else class="text-xs text-slate-400">
-                    该公司暂无 LLC 结构化登记数据
-                  </div>
-                </div>
-              </div>
-              <div
-                class="rounded-2xl border border-slate-200/70 bg-white/80 p-6"
-              >
-                <h4 class="text-sm font-semibold text-slate-900">审计记录</h4>
-                <div class="mt-3 space-y-2 text-sm">
-                  <div
-                    v-for="record in company?.auditTrail ?? []"
-                    :key="record.id"
-                    class="rounded-xl border border-slate-200/70 p-3"
-                  >
-                    <div
-                      class="flex items-center justify-between text-xs text-slate-500"
-                    >
-                      <span>
-                        {{
-                          record.actor?.profile?.displayName ||
-                          record.actor?.name ||
-                          record.actor?.email ||
-                          '系统'
-                        }}
-                      </span>
-                      <span>{{
-                        new Date(record.createdAt).toLocaleString()
-                      }}</span>
-                    </div>
-                    <p class="text-slate-900">
-                      {{
-                        record.comment || record.actionLabel || '公司信息更新'
-                      }}
-                    </p>
-                  </div>
-                  <div
-                    v-if="(company?.auditTrail?.length ?? 0) === 0"
-                    class="rounded-xl border border-dashed border-slate-200/70 p-4 text-center text-xs text-slate-500"
-                  >
-                    暂无审计记录
-                  </div>
-                </div>
+                暂无审计记录
               </div>
             </div>
           </div>
@@ -695,4 +539,128 @@ function handleSave() {
       </div>
     </template>
   </UModal>
+
+  <UModal
+    :open="editDialogOpen"
+    @update:open="closeEditDialog"
+    :ui="{ content: 'w-full max-w-xl w-[calc(100vw-2rem)]' }"
+  >
+    <template #content>
+      <div class="flex h-full flex-col">
+        <div
+          class="flex items-center justify-between border-b border-slate-200 px-6 py-4"
+        >
+          <div>
+            <p class="text-xs uppercase tracking-wide text-slate-500">
+              编辑信息
+            </p>
+            <h3 class="text-lg font-semibold text-slate-900">
+              {{ detailTitle }}
+            </h3>
+          </div>
+          <UButton
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            @click="closeEditDialog"
+          />
+        </div>
+        <div class="px-6 py-4 space-y-3">
+          <div class="grid grid-cols-[96px,1fr] items-center gap-4">
+            <label class="text-xs font-semibold text-slate-500">公司名称</label>
+            <UInput v-model="formState.name" />
+          </div>
+          <div class="grid grid-cols-[96px,1fr] items-center gap-4">
+            <label class="text-xs font-semibold text-slate-500">公司类型</label>
+            <USelectMenu
+              v-model="formState.typeId"
+              :items="typeOptions"
+              value-key="value"
+              placeholder="公司类型"
+            />
+          </div>
+          <div
+            v-if="!isEditStateOrganLegalPerson"
+            class="grid grid-cols-[96px,1fr] items-center gap-4"
+          >
+            <label class="text-xs font-semibold text-slate-500">行业</label>
+            <USelectMenu
+              v-model="formState.industryId"
+              :items="industryOptions"
+              value-key="value"
+              placeholder="行业"
+            />
+          </div>
+          <div class="grid grid-cols-[96px,1fr] items-center gap-4">
+            <label class="text-xs font-semibold text-slate-500">公司状态</label>
+            <USelectMenu
+              v-model="formState.status"
+              :items="statusOptions"
+              value-key="value"
+              placeholder="选择状态"
+            />
+          </div>
+          <div class="grid grid-cols-[96px,1fr] items-center gap-4">
+            <label class="text-xs font-semibold text-slate-500">可见性</label>
+            <USelectMenu
+              v-model="formState.visibility"
+              :items="visibilityOptions"
+              value-key="value"
+              placeholder="选择可见性"
+            />
+          </div>
+          <div
+            v-if="isEditStateOrganLegalPerson"
+            class="grid grid-cols-[96px,1fr] items-center gap-4"
+          >
+            <label class="text-xs font-semibold text-slate-500">审批权限</label>
+            <div class="flex items-center gap-2">
+              <USwitch v-model="formState.isAuthority" />
+              <span class="text-xs text-slate-500">标记为可审批机关</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-[96px,1fr] items-center gap-4">
+            <label class="text-xs font-semibold text-slate-500">概要</label>
+            <UInput
+              v-model="formState.summary"
+              placeholder="一句话说明公司定位"
+            />
+          </div>
+          <div class="grid grid-cols-[96px,1fr] items-start gap-4">
+            <label class="pt-2 text-xs font-semibold text-slate-500">
+              详细介绍
+            </label>
+            <UTextarea v-model="formState.description" rows="4" />
+          </div>
+          <div class="grid grid-cols-[96px,1fr] items-start gap-4">
+            <label class="pt-2 text-xs font-semibold text-slate-500">
+              修改原因
+            </label>
+            <UTextarea
+              v-model="formState.auditReason"
+              rows="2"
+              placeholder="请输入修改原因"
+            />
+          </div>
+        </div>
+        <div class="border-t border-slate-200 px-6 py-4 flex justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="closeEditDialog">
+            取消
+          </UButton>
+          <UButton color="primary" :loading="saving" @click="handleSave">
+            保存修改
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <CompanyRegistryMembersDialog
+    :model-value="membersDialogOpen"
+    :company="company"
+    :saving="saving"
+    @update:modelValue="(value) => (membersDialogOpen = value)"
+    @save="(payload) => emit('save-members', payload)"
+  />
 </template>

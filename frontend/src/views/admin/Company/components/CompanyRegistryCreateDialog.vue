@@ -34,6 +34,7 @@ const formState = reactive<AdminCreateCompanyPayload>({
   legalRepresentativeId: undefined,
   domicileDivisionId: undefined,
   serverId: undefined,
+  isAuthority: false,
 })
 
 const selectedType = computed(() =>
@@ -160,6 +161,7 @@ watch(
       return
     }
     // 切出“机关法人”时清理专用字段
+    formState.isAuthority = false
     selectedServerId.value = undefined
     serverSearchKeyword.value = ''
     divisionSearchKeyword.value = ''
@@ -341,6 +343,16 @@ onMounted(() => {
               >
                 路径：{{ selectedDivisionPathLabel }}
               </p>
+            </div>
+
+            <div
+              class="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2"
+            >
+              <div>
+                <p class="text-xs font-semibold text-slate-700">审批权限</p>
+                <p class="text-xs text-slate-400">标记为可审批机关</p>
+              </div>
+              <USwitch v-model="formState.isAuthority" />
             </div>
           </div>
 

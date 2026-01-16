@@ -94,6 +94,19 @@ async function handleSaveAdmin(payload: Record<string, unknown>) {
   }
 }
 
+async function handleSaveMembers(payload: Record<string, unknown>) {
+  if (!selectedCompany.value) return
+  try {
+    await adminStore.updateCompanyMembers(
+      selectedCompany.value.id,
+      payload as any,
+    )
+    toast.add({ title: '公司成员已更新', color: 'primary' })
+  } catch (error) {
+    toast.add({ title: (error as Error).message || '更新失败', color: 'error' })
+  }
+}
+
 function openDeleteConfirm(company: CompanyModel) {
   deleteTarget.value = company
   deleteConfirmOpen.value = true
@@ -346,6 +359,7 @@ onMounted(() => {
       :saving="adminStore.detailLoading"
       @update:modelValue="(value) => (manageDialogOpen = value)"
       @save="handleSaveAdmin"
+      @save-members="handleSaveMembers"
     />
 
     <CompanyRegistryWorkflowDialog

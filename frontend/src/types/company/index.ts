@@ -314,6 +314,7 @@ export interface CompanyModel {
   category?: string | null
   recommendationScore?: number | null
   highlighted?: boolean | null
+  isAuthority?: boolean | null
   lastActiveAt?: string | null
   approvedAt?: string | null
   /**
@@ -431,6 +432,7 @@ export interface AdminCreateCompanyPayload {
   typeId?: string
   industryId?: string
   legalRepresentativeId?: string
+  isAuthority?: boolean
   /**
    * 机关法人专用：所属行政区划节点 id（支持 1/2/3 级）。
    */
@@ -440,6 +442,33 @@ export interface AdminCreateCompanyPayload {
   category?: string
   status?: CompanyStatus
   visibility?: CompanyVisibility
+}
+
+export interface AdminUpdateCompanyMembersPayload {
+  shareholders: Array<{
+    kind: 'USER' | 'COMPANY'
+    userId?: string
+    companyId?: string
+    ratio: number
+    votingRatio?: number
+  }>
+  votingRightsMode?: 'BY_CAPITAL_RATIO' | 'CUSTOM'
+  directors: {
+    directorIds: string[]
+    chairpersonId?: string
+    viceChairpersonId?: string
+  }
+  managers: {
+    managerId?: string
+    deputyManagerId?: string
+  }
+  legalRepresentativeId: string
+  supervisors?: {
+    supervisorIds?: string[]
+    chairpersonId?: string
+  }
+  financialOfficerId?: string
+  comment?: string
 }
 
 export interface CreateCompanyApplicationPayload {
