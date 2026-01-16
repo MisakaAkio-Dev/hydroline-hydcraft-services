@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AttachmentsModule } from '../attachments/attachments.module';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { ConfigModule } from '../config/config.module';
+import { AdministrationModule } from '../administration/administration.module';
 import { CompanyService } from './company.service';
 import { CompanyMetaService } from './services/company-meta.service';
 import { CompanySupportService } from './services/company-support.service';
@@ -30,6 +31,7 @@ import { CompanyRegistryApplicationController } from './company-application-regi
     AttachmentsModule,
     WorkflowModule,
     ConfigModule,
+    AdministrationModule,
   ],
   providers: [
     CompanyService,

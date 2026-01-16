@@ -12,6 +12,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AdministrationService } from '../../administration/administration.service';
 import { ConfigService } from '../../config/config.service';
 import { CompanySupportService } from './company-support.service';
 import { SYSTEM_USER_EMAIL } from '../../lib/shared/system-user';
@@ -19,13 +20,6 @@ import {
   GeoDivisionSearchDto,
   LimitedLiabilityCompanyApplicationDto,
 } from '../dto/company.dto';
-import {
-  CreateWorldDivisionNodeDto,
-  UpdateWorldDivisionNodeDto,
-} from '../dto/admin-geo-division.dto';
-
-const WORLD_ADMIN_DIVISIONS_NAMESPACE = 'world.admin_divisions';
-const WORLD_ADMIN_DIVISIONS_KEY = 'divisions_v1';
 const COMPANY_CONFIG_NAMESPACE = 'company';
 const COMPANY_SUPER_AUTHORITY_COMPANY_ID_KEY =
   'registry_super_authority_company_id';
@@ -33,7 +27,7 @@ const COMPANY_SUPER_AUTHORITY_COMPANY_ID_KEY =
 export type WorldDivisionNode = {
   id: string;
   name: string;
-  level: 1 | 2 | 3;
+  level: number;
   parentId?: string | null;
 };
 
@@ -45,6 +39,7 @@ export class CompanyGeoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly administrationService: AdministrationService,
     private readonly supportService: CompanySupportService,
   ) {}
 
@@ -120,168 +115,23 @@ export class CompanyGeoService {
     return created;
   }
 
-  async listWorldDivisions() {
-    const nodes = await this.loadWorldDivisions();
-    nodes.sort((a, b) => {
-      if (a.level !== b.level) return a.level - b.level;
-      return a.name.localeCompare(b.name, 'zh-Hans-CN');
-    });
-    return nodes;
-  }
-
-  async createWorldDivisionNode(
-    body: CreateWorldDivisionNodeDto,
-    userId?: string,
-  ) {
-    const nodes = await this.loadWorldDivisions();
-    const id = String(body.id ?? '').trim();
-    const name = String(body.name ?? '').trim();
-    const level = body.level;
-    const parentId =
-      body.parentId === undefined ? null : (body.parentId ?? null);
-
-    if (!id) throw new BadRequestException('id 不能为空');
-    if (!name) throw new BadRequestException('name 不能为空');
-    if (![1, 2, 3].includes(level as any)) {
-      throw new BadRequestException('level 必须为 1/2/3');
-    }
-    if (nodes.some((n) => n.id === id)) {
-      throw new BadRequestException('id 已存在');
-    }
-
-    const byId = new Map(nodes.map((n) => [n.id, n] as const));
-    if (level === 1) {
-      if (parentId)
-        throw new BadRequestException('一级节点不允许设置 parentId');
-    } else {
-      if (!parentId) throw new BadRequestException('必须设置 parentId');
-      const parent = byId.get(parentId);
-      if (!parent) throw new BadRequestException('parentId 不存在');
-      if (parent.level !== level - 1) {
-        throw new BadRequestException('parentId 的 level 不匹配');
-      }
-    }
-
-    const created: WorldDivisionNode = {
-      id,
-      name,
-      level: level as 1 | 2 | 3,
-      parentId,
-    };
-    nodes.push(created);
-    await this.saveWorldDivisions(nodes, userId);
-    return created;
-  }
-
-  async updateWorldDivisionNode(
-    id: string,
-    body: UpdateWorldDivisionNodeDto,
-    userId?: string,
-  ) {
-    const nodes = await this.loadWorldDivisions();
-    const targetId = String(id ?? '').trim();
-    const idx = nodes.findIndex((n) => n.id === targetId);
-    if (idx < 0) throw new BadRequestException('Division node not found');
-
-    const current = nodes[idx]!;
-    const byId = new Map(nodes.map((n) => [n.id, n] as const));
-
-    const nextName =
-      body.name !== undefined ? String(body.name ?? '').trim() : current.name;
-    if (!nextName) throw new BadRequestException('name 不能为空');
-
-    let nextParentId = current.parentId ?? null;
-    if (body.parentId !== undefined) {
-      nextParentId = body.parentId ?? null;
-    }
-
-    if (current.level === 1) {
-      if (nextParentId) {
-        throw new BadRequestException('一级节点不允许设置 parentId');
-      }
-    } else {
-      if (!nextParentId) throw new BadRequestException('必须设置 parentId');
-      if (nextParentId === current.id) {
-        throw new BadRequestException('parentId 不能等于自身');
-      }
-      const parent = byId.get(nextParentId);
-      if (!parent) throw new BadRequestException('parentId 不存在');
-      if (parent.level !== current.level - 1) {
-        throw new BadRequestException('parentId 的 level 不匹配');
-      }
-
-      const seen = new Set<string>();
-      let cursor: WorldDivisionNode | undefined = parent;
-      while (cursor) {
-        if (seen.has(cursor.id)) break;
-        seen.add(cursor.id);
-        if (cursor.id === current.id) {
-          throw new BadRequestException('parentId 会导致循环引用');
-        }
-        const pid = cursor.parentId ?? null;
-        cursor = pid ? byId.get(pid) : undefined;
-      }
-    }
-
-    const updated: WorldDivisionNode = {
-      ...current,
-      name: nextName,
-      parentId: nextParentId,
-    };
-    nodes[idx] = updated;
-    await this.saveWorldDivisions(nodes, userId);
-    return updated;
-  }
-
-  async deleteWorldDivisionNode(id: string, userId?: string) {
-    const nodes = await this.loadWorldDivisions();
-    const targetId = String(id ?? '').trim();
-    const exists = nodes.some((n) => n.id === targetId);
-    if (!exists) throw new BadRequestException('Division node not found');
-
-    const hasChildren = nodes.some((n) => (n.parentId ?? null) === targetId);
-    if (hasChildren) {
-      throw new BadRequestException('仅允许删除叶子节点');
-    }
-
-    const next = nodes.filter((n) => n.id !== targetId);
-    await this.saveWorldDivisions(next, userId);
-  }
-
   async searchGeoDivisions(query: GeoDivisionSearchDto) {
     const q = query.q?.trim().toLowerCase() ?? '';
     const limit =
       query.limit && query.limit > 0 ? Math.min(query.limit, 50) : 20;
-    const nodes = await this.loadWorldDivisions();
-    const filtered = nodes.filter((n) => {
-      if (query.level && n.level !== query.level) return false;
-      if (query.parentId && (n.parentId ?? null) !== query.parentId)
-        return false;
-      if (q && !n.name.toLowerCase().includes(q)) return false;
-      return true;
+    if (!query.serverId) {
+      throw new BadRequestException('serverId is required');
+    }
+    return this.administrationService.searchDivisions(query.serverId, {
+      q,
+      level: query.level,
+      parentId: query.parentId,
+      limit,
     });
-    filtered.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
-    return filtered.slice(0, limit);
   }
 
-  async getGeoDivisionPath(id: string) {
-    const nodes = await this.loadWorldDivisions();
-    const byId = new Map(nodes.map((n) => [n.id, n]));
-    const current = byId.get(id);
-    if (!current) {
-      throw new BadRequestException('Division node not found');
-    }
-    const path: WorldDivisionNode[] = [];
-    let cursor: WorldDivisionNode | undefined = current;
-    const seen = new Set<string>();
-    while (cursor) {
-      if (seen.has(cursor.id)) break;
-      seen.add(cursor.id);
-      path.push(cursor);
-      const parentId = cursor.parentId ?? null;
-      cursor = parentId ? byId.get(parentId) : undefined;
-    }
-    path.sort((a, b) => a.level - b.level);
+  async getGeoDivisionPath(id: string, serverId: string) {
+    const path = await this.getGeoDivisionPathNodes(id, serverId);
     return {
       level1: path.find((n) => n.level === 1) ?? null,
       level2: path.find((n) => n.level === 2) ?? null,
@@ -289,34 +139,50 @@ export class CompanyGeoService {
     };
   }
 
-  async resolveAuthorityDivisionIdsByDivisionId(divisionId: string) {
+  async resolveAuthorityDivisionIdsByDivisionId(
+    divisionId: string,
+    serverId: string,
+  ) {
     const id = String(divisionId ?? '').trim();
     if (!id) return [];
-    const path = await this.getGeoDivisionPath(id);
-    const ids = [path.level1?.id, path.level2?.id, path.level3?.id].filter(
-      (x): x is string => typeof x === 'string' && x.trim().length > 0,
+    const path = await this.getGeoDivisionPathNodes(id, serverId);
+    return Array.from(
+      new Set(
+        path
+          .map((n) => n.id)
+          .filter(
+            (x): x is string => typeof x === 'string' && x.trim().length > 0,
+          ),
+      ),
     );
-    return Array.from(new Set(ids));
   }
 
-  async resolveAuthorityMatchersByDivisionId(divisionId: string) {
+  async resolveAuthorityMatchersByDivisionId(
+    divisionId: string,
+    serverId: string,
+  ) {
     const id = String(divisionId ?? '').trim();
     if (!id) {
       return [this.SUPER_AUTHORITY_NAME, '市场监督管理总局'];
     }
-    const path = await this.getGeoDivisionPath(id);
+    const path = await this.getGeoDivisionPathNodes(id, serverId);
     const items: string[] = [];
-    if (path.level3?.name) items.push(`${path.level3.name}`);
-    if (path.level2?.name) items.push(`${path.level2.name}`);
-    if (path.level1?.name) items.push(`${path.level1.name}`);
+    for (const node of path.slice().reverse()) {
+      if (node?.name) items.push(`${node.name}`);
+    }
     items.push(this.SUPER_AUTHORITY_NAME);
     items.push('市场监督管理总局');
     return Array.from(new Set(items.filter((v) => v.trim().length > 0)));
   }
 
-  async listRegistrationAuthoritiesByDivisionId(divisionId: string) {
-    const divisionIds =
-      await this.resolveAuthorityDivisionIdsByDivisionId(divisionId);
+  async listRegistrationAuthoritiesByDivisionId(
+    divisionId: string,
+    serverId: string,
+  ) {
+    const divisionIds = await this.resolveAuthorityDivisionIdsByDivisionId(
+      divisionId,
+      serverId,
+    );
     if (!divisionIds.length) return [];
 
     const companies = await this.prisma.$queryRaw<
@@ -375,6 +241,7 @@ export class CompanyGeoService {
     llc: LimitedLiabilityCompanyApplicationDto,
   ) {
     const domicileDivisionId = String(llc.domicileDivisionId ?? '').trim();
+    const serverId = String(llc.serverId ?? '').trim();
     const authorityCompanyId = String(
       (llc as unknown as { registrationAuthorityCompanyId?: string | null })
         .registrationAuthorityCompanyId ?? '',
@@ -383,6 +250,11 @@ export class CompanyGeoService {
 
     if (!domicileDivisionId) {
       throw new BadRequestException('缺少住所地行政区划，无法校验登记机关');
+    }
+    if (!serverId) {
+      throw new BadRequestException(
+        'Missing serverId for registration authority validation',
+      );
     }
 
     if (authorityCompanyId) {
@@ -401,6 +273,7 @@ export class CompanyGeoService {
       await this.assertAuthorityNameAllowedForDivision(
         authorityName,
         domicileDivisionId,
+        serverId,
       );
       llc.registrationAuthorityName = authorityName;
       return;
@@ -412,6 +285,7 @@ export class CompanyGeoService {
     await this.assertAuthorityNameAllowedForDivision(
       authorityNameRaw,
       domicileDivisionId,
+      serverId,
     );
     llc.registrationAuthorityName = authorityNameRaw;
   }
@@ -564,80 +438,8 @@ export class CompanyGeoService {
       .filter((c) => Boolean(c.id));
   }
 
-  private async loadWorldDivisions(): Promise<WorldDivisionNode[]> {
-    const entry = await this.configService.getEntry(
-      WORLD_ADMIN_DIVISIONS_NAMESPACE,
-      WORLD_ADMIN_DIVISIONS_KEY,
-    );
-    if (!entry || !Array.isArray(entry.value)) {
-      return [];
-    }
-    const raw = entry.value as unknown[];
-    const items: WorldDivisionNode[] = [];
-    for (const node of raw) {
-      if (!node || typeof node !== 'object') continue;
-      const n = node as Record<string, unknown>;
-      if (typeof n.id !== 'string' || typeof n.name !== 'string') continue;
-      const level = Number(n.level) as 1 | 2 | 3;
-      if (![1, 2, 3].includes(level)) continue;
-      items.push({
-        id: n.id,
-        name: n.name,
-        level,
-        parentId:
-          typeof n.parentId === 'string'
-            ? n.parentId
-            : n.parentId === null || n.parentId === undefined
-              ? null
-              : null,
-      });
-    }
-    return items;
-  }
-
-  private async saveWorldDivisions(
-    nodes: WorldDivisionNode[],
-    userId?: string,
-  ): Promise<void> {
-    const namespace = await this.configService.ensureNamespaceByKey(
-      WORLD_ADMIN_DIVISIONS_NAMESPACE,
-      {
-        name: '世界行政区划',
-        description: '用于公司登记机关/住所等行政区划选择（三级）',
-      },
-    );
-
-    const normalized = nodes.map((n) => ({
-      id: String(n.id).trim(),
-      name: String(n.name).trim(),
-      level: n.level,
-      parentId: n.parentId ?? null,
-    }));
-
-    const entry = await this.configService.getEntry(
-      WORLD_ADMIN_DIVISIONS_NAMESPACE,
-      WORLD_ADMIN_DIVISIONS_KEY,
-    );
-
-    if (entry) {
-      await this.configService.updateEntry(
-        entry.id,
-        { value: normalized },
-        userId,
-      );
-      return;
-    }
-
-    await this.configService.createEntry(
-      namespace.id,
-      {
-        key: WORLD_ADMIN_DIVISIONS_KEY,
-        value: normalized,
-        description:
-          '行政区划节点列表（平铺），level=1/2/3，parentId 指向上一级',
-      },
-      userId,
-    );
+  private async getGeoDivisionPathNodes(id: string, serverId: string) {
+    return this.administrationService.getDivisionPath(serverId, id);
   }
 
   private extractRegistrationAuthorityNameFromApplicationPayload(
@@ -689,13 +491,22 @@ export class CompanyGeoService {
   async assertAuthorityNameAllowedForDivision(
     authorityName: string,
     domicileDivisionId: string,
+    serverId?: string,
   ) {
     const name = String(authorityName ?? '').trim();
     if (!name) {
       throw new BadRequestException('登记机关信息无效');
     }
-    const matchers =
-      await this.resolveAuthorityMatchersByDivisionId(domicileDivisionId);
+    const resolvedServerId =
+      serverId && serverId.trim().length > 0
+        ? serverId
+        : await this.administrationService.getDivisionServerId(
+            domicileDivisionId,
+          );
+    const matchers = await this.resolveAuthorityMatchersByDivisionId(
+      domicileDivisionId,
+      resolvedServerId,
+    );
     const ok = matchers.some((m) => name.includes(m));
     if (!ok) {
       throw new BadRequestException('登记机关不属于所选行政区划的可选范围');

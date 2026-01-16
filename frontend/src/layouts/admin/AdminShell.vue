@@ -135,6 +135,29 @@ const menuGroups = computed<MenuGroup[]>(() => [
     ],
   },
   {
+    key: 'administration',
+    label: '行政系统',
+    collapsible: true,
+    defaultCollapsed: false,
+    items: [
+      {
+        label: '行政制度',
+        to: '/admin/administration/regimes',
+        icon: 'i-lucide-layers-3',
+      },
+      {
+        label: '行政类别',
+        to: '/admin/administration/types',
+        icon: 'i-lucide-shapes',
+      },
+      {
+        label: '行政区管理',
+        to: '/admin/administration/divisions',
+        icon: 'i-lucide-map',
+      },
+    ],
+  },
+  {
     key: 'company',
     label: '工商系统',
     collapsible: true,

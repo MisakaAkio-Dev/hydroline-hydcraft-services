@@ -160,6 +160,22 @@ enum MinecraftProfileSource {
   OTHER
 }
 
+enum AdministrationGovernanceMode {
+  INHERIT
+  OVERRIDE
+}
+
+enum AdministrationDivisionStatus {
+  ACTIVE
+  UNMANAGED
+  ARCHIVED
+}
+
+enum AdministrationDivisionManagerRole {
+  LOCAL_ADMIN
+  LOCAL_EDITOR
+}
+
 enum MinecraftServerEdition {
   JAVA
   BEDROCK

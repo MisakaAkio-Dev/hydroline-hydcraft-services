@@ -51,7 +51,7 @@ model Company {
   legalIdSnapshot                         String?
   /**
    * 机关法人专用：所属行政区划信息（用于查询/展示/统计等）。
-   * - 由后端根据 world.admin_divisions 数据集解析得到
+   * - 由后端根据 administration_divisions 数据集解析得到
    * - 非机关法人通常为 NULL
    */
   administrativeDivisionId                String?

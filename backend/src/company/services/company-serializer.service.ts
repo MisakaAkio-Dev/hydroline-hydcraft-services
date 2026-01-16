@@ -53,10 +53,8 @@ export class CompanySerializerService {
         (company as unknown as { administrativeDivisionLevel?: unknown })
           .administrativeDivisionLevel,
       );
-      const levelFromColumn: 1 | 2 | 3 | null = [1, 2, 3].includes(
-        levelFromColumnRaw,
-      )
-        ? (levelFromColumnRaw as 1 | 2 | 3)
+      const levelFromColumn = Number.isFinite(levelFromColumnRaw)
+        ? levelFromColumnRaw
         : null;
 
       const domicileDivisionIdRaw = registryExtra?.domicileDivisionId;
@@ -74,10 +72,8 @@ export class CompanySerializerService {
           ? domicileDivisionPathRaw
           : null;
       const levelRaw = Number(registryExtra?.administrativeDivisionLevel);
-      const levelFromExtra: 1 | 2 | 3 | null = [1, 2, 3].includes(levelRaw)
-        ? (levelRaw as 1 | 2 | 3)
-        : null;
-      const inferredLevel: 1 | 2 | 3 | null =
+      const levelFromExtra = Number.isFinite(levelRaw) ? levelRaw : null;
+      const inferredLevel: number | null =
         domicileDivisionPath && typeof domicileDivisionPath === 'object'
           ? (domicileDivisionPath as { level1?: { id?: string } | null })
               ?.level1?.id === domicileDivisionId

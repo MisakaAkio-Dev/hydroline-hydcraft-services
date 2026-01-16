@@ -26,6 +26,11 @@ model User {
   updatedConfigEntries                        ConfigEntry[]                         @relation("ConfigEntryUpdater")
   createdMinecraftServers                     MinecraftServer[]                     @relation("MinecraftServerCreatedBy")
   updatedMinecraftServers                     MinecraftServer[]                     @relation("MinecraftServerUpdatedBy")
+  administrationRegimesCreated                AdministrationRegime[]                @relation("AdministrationRegimeCreatedBy")
+  administrationRegimesUpdated                AdministrationRegime[]                @relation("AdministrationRegimeUpdatedBy")
+  administrationDivisionsCreated              AdministrationDivision[]              @relation("AdministrationDivisionCreatedBy")
+  administrationDivisionsUpdated              AdministrationDivision[]              @relation("AdministrationDivisionUpdatedBy")
+  administrationDivisionManagers              AdministrationDivisionManager[]
   oauthLogs                                   OAuthLog[]
   sessions                                    Session[]
   authmeBindingOperations                     UserAuthmeBinding[]                   @relation("AuthmeBindingOperator")

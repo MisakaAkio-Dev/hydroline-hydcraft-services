@@ -1,0 +1,137 @@
+model AdministrationRegime {
+  id         String   @id @default(uuid())
+  serverId   String
+  name       String
+  version    Int      @default(1)
+  levelCount Int
+  isActive   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  server    MinecraftServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  createdBy User?           @relation("AdministrationRegimeCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?           @relation("AdministrationRegimeUpdatedBy", fields: [updatedById], references: [id])
+  levels    AdministrationRegimeLevel[]
+  divisions AdministrationDivision[]
+  rules     AdministrationGovernanceRule[]
+
+  @@index([serverId, isActive], map: "idx_admin_regime_server_active")
+  @@map("administration_regimes")
+}
+
+model AdministrationRegimeLevel {
+  id                     String   @id @default(uuid())
+  regimeId               String
+  levelIndex             Int
+  displayName            String?
+  allowOverrideGovernance Boolean @default(false)
+
+  regime       AdministrationRegime               @relation(fields: [regimeId], references: [id], onDelete: Cascade)
+  allowedTypes AdministrationRegimeLevelAllowedType[]
+
+  @@unique([regimeId, levelIndex], map: "uq_admin_regime_level")
+  @@map("administration_regime_levels")
+}
+
+model AdministrationDivisionType {
+  id         String   @id @default(uuid())
+  serverId   String
+  name       String
+  suffix     String
+  abbrSuffix String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  server    MinecraftServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  divisions AdministrationDivision[]
+  allowedIn AdministrationRegimeLevelAllowedType[]
+  governanceRules AdministrationGovernanceRule[] @relation("AdministrationGovernanceRuleDivisionType")
+
+  @@index([serverId, sortOrder], map: "idx_admin_division_type_server_sort")
+  @@map("administration_division_types")
+}
+
+model AdministrationRegimeLevelAllowedType {
+  regimeLevelId  String
+  divisionTypeId String
+
+  regimeLevel  AdministrationRegimeLevel  @relation(fields: [regimeLevelId], references: [id], onDelete: Cascade)
+  divisionType AdministrationDivisionType @relation(fields: [divisionTypeId], references: [id], onDelete: Cascade)
+
+  @@id([regimeLevelId, divisionTypeId])
+  @@map("administration_regime_level_allowed_types")
+}
+
+model AdministrationGovernanceModel {
+  code        String  @id
+  name        String
+  description String?
+  isSystem    Boolean @default(true)
+
+  @@map("administration_governance_models")
+}
+
+model AdministrationGovernanceRule {
+  id                  String  @id @default(uuid())
+  regimeId            String
+  appliesLevelIndex   Int?
+  appliesDivisionTypeId String?
+  parentModelCode     String?
+  allowedModelCode    String
+
+  regime          AdministrationRegime         @relation(fields: [regimeId], references: [id], onDelete: Cascade)
+  appliesDivisionType AdministrationDivisionType? @relation("AdministrationGovernanceRuleDivisionType", fields: [appliesDivisionTypeId], references: [id])
+
+  @@index([regimeId], map: "idx_admin_governance_rule_regime")
+  @@map("administration_governance_rules")
+}
+
+model AdministrationDivision {
+  id                         String                       @id @default(uuid())
+  serverId                   String
+  regimeId                   String
+  levelIndex                 Int
+  divisionTypeId             String
+  properName                 String
+  fullName                   String
+  abbrName                   String?
+  parentId                   String?
+  governanceMode             AdministrationGovernanceMode @default(INHERIT)
+  governanceModelCodeEffective String?
+  status                     AdministrationDivisionStatus @default(ACTIVE)
+  pathIds                    String
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  createdById                String?
+  updatedById                String?
+
+  server     MinecraftServer        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  regime     AdministrationRegime   @relation(fields: [regimeId], references: [id], onDelete: Cascade)
+  divisionType AdministrationDivisionType @relation(fields: [divisionTypeId], references: [id], onDelete: Cascade)
+  parent     AdministrationDivision? @relation("AdministrationDivisionParent", fields: [parentId], references: [id])
+  children   AdministrationDivision[] @relation("AdministrationDivisionParent")
+  createdBy  User?                   @relation("AdministrationDivisionCreatedBy", fields: [createdById], references: [id])
+  updatedBy  User?                   @relation("AdministrationDivisionUpdatedBy", fields: [updatedById], references: [id])
+  managers   AdministrationDivisionManager[]
+
+  @@index([serverId, parentId], map: "idx_admin_division_server_parent")
+  @@index([serverId, fullName], map: "idx_admin_division_server_fullname")
+  @@index([serverId, pathIds], map: "idx_admin_division_server_path")
+  @@map("administration_divisions")
+}
+
+model AdministrationDivisionManager {
+  divisionId String
+  userId     String
+  role       AdministrationDivisionManagerRole @default(LOCAL_ADMIN)
+  createdAt  DateTime @default(now())
+
+  division AdministrationDivision @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  user     User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([divisionId, userId])
+  @@map("administration_division_managers")
+}

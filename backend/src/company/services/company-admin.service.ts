@@ -141,6 +141,7 @@ export class CompanyAdminService {
     const legalRepresentativeId = dto.legalRepresentativeId ?? ownerId;
     const isStateOrganLegalPerson = type?.code === 'state_organ_legal_person';
     const domicileDivisionId = String(dto.domicileDivisionId ?? '').trim();
+    const serverId = String(dto.serverId ?? '').trim();
     let administrativeDivisionPath: unknown | null = null;
     let administrativeDivisionLevel: 1 | 2 | 3 | null = null;
     let administrativeDivisionName: string | null = null;
@@ -151,7 +152,13 @@ export class CompanyAdminService {
       if (!domicileDivisionId) {
         throw new BadRequestException('请选择所属行政区划');
       }
-      const path = await this.geoService.getGeoDivisionPath(domicileDivisionId);
+      if (!serverId) {
+        throw new BadRequestException('Server is required');
+      }
+      const path = await this.geoService.getGeoDivisionPath(
+        domicileDivisionId,
+        serverId,
+      );
       administrativeDivisionPath = path;
       administrativeDivisionLevel =
         path.level1?.id === domicileDivisionId
@@ -230,6 +237,7 @@ export class CompanyAdminService {
                 domicileDivisionPath: administrativeDivisionPath,
                 administrativeDivisionLevel:
                   administrativeDivisionLevel ?? undefined,
+                serverId,
               },
             }),
           }

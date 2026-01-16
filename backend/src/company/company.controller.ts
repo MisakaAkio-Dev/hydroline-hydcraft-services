@@ -61,6 +61,12 @@ export class CompanyController {
     return this.companyService.getMeta();
   }
 
+  @Get('registration/meta')
+  @ApiOperation({ summary: '公司注册表单元数据（服务端/行政区）' })
+  async registrationMeta() {
+    return this.companyService.getRegistrationMeta();
+  }
+
   @Get('public/recommendations')
   @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: '获取推荐公司（最近注册、活跃）' })
@@ -111,14 +117,29 @@ export class CompanyController {
 
   @Get('geo/divisions/:id/path')
   @ApiOperation({ summary: '获取行政区划节点的上级路径' })
-  async getGeoDivisionPath(@Param('id') id: string) {
-    return this.companyService.getGeoDivisionPath(id);
+  async getGeoDivisionPath(
+    @Param('id') id: string,
+    @Query('serverId') serverId?: string,
+  ) {
+    if (!serverId) {
+      throw new BadRequestException('serverId is required');
+    }
+    return this.companyService.getGeoDivisionPath(id, serverId);
   }
 
   @Get('geo/divisions/:id/authorities')
   @ApiOperation({ summary: '获取某行政区划下可选登记机关（机关法人）列表' })
-  async listDivisionAuthorities(@Param('id') id: string) {
-    return this.companyService.listRegistrationAuthoritiesByDivisionId(id);
+  async listDivisionAuthorities(
+    @Param('id') id: string,
+    @Query('serverId') serverId?: string,
+  ) {
+    if (!serverId) {
+      throw new BadRequestException('serverId is required');
+    }
+    return this.companyService.listRegistrationAuthoritiesByDivisionId(
+      id,
+      serverId,
+    );
   }
 
   @Get('users/search')

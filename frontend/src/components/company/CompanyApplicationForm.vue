@@ -19,7 +19,6 @@ import type {
   CreateCompanyApplicationPayload,
   LimitedLiabilityCompanyApplicationPayload,
   WorldDivisionNode,
-  WorldDivisionPath,
 } from '@/types/company'
 
 const props = defineProps<{
@@ -95,32 +94,32 @@ let searchTimer: number | undefined
 let companySearchTimer: number | undefined
 let divisionSearchTimer: number | undefined
 
-// ---------- 有限责任公司：行政区（三级搜索） ----------
-const level1Search = ref('')
-const level2Search = ref('')
-const level3Search = ref('')
-const level1Options = ref<WorldDivisionNode[]>([])
-const level2Options = ref<WorldDivisionNode[]>([])
-const level3Options = ref<WorldDivisionNode[]>([])
-const domicileLevel1Id = ref<string | undefined>(undefined)
-const domicileLevel2Id = ref<string | undefined>(undefined)
-const domicileLevel3Id = ref<string | undefined>(undefined)
-const domicilePath = ref<WorldDivisionPath | null>(null)
+// ---------- 有限责任公司：行政区（服务端 + 行政区搜索） ----------
+const serverSearch = ref('')
+const selectedServerId = ref<string | undefined>(undefined)
+const divisionSearch = ref('')
+const divisionOptions = ref<WorldDivisionNode[]>([])
+const domicileDivisionId = ref<string | undefined>(undefined)
+const domicileDivision = ref<WorldDivisionNode | null>(null)
 const authorityCompanies = ref<Array<{ id: string; name: string }>>([])
 const applyingInitial = ref(false)
 const labelPrefillDone = ref(false)
 
 async function refreshAuthorityCompanies() {
-  const divisionId =
-    domicileLevel3Id.value ?? domicileLevel2Id.value ?? domicileLevel1Id.value
+  const divisionId = domicileDivisionId.value
+  const serverId = selectedServerId.value
   if (!divisionId) {
+    authorityCompanies.value = []
+    return
+  }
+  if (!serverId) {
     authorityCompanies.value = []
     return
   }
   try {
     authorityCompanies.value = await apiFetch<
       Array<{ id: string; name: string }>
-    >(`/companies/geo/divisions/${divisionId}/authorities`)
+    >(`/companies/geo/divisions/${divisionId}/authorities?serverId=${serverId}`)
   } catch {
     authorityCompanies.value = []
   }
@@ -185,95 +184,94 @@ async function prefillSelectedLabels(
   return { usersDone, companiesDone }
 }
 
-async function searchDivisions(params: {
-  q?: string
-  level: 1 | 2 | 3
-  parentId?: string | null
-}) {
+async function searchDivisions(params: { q?: string; serverId: string }) {
   const qp = new URLSearchParams()
   if (params.q?.trim()) qp.set('q', params.q.trim())
-  qp.set('level', String(params.level))
-  if (params.parentId) qp.set('parentId', params.parentId)
   return apiFetch<WorldDivisionNode[]>(
-    `/companies/geo/divisions/search?${qp.toString()}`,
+    `/administration/servers/${params.serverId}/divisions/search?${qp.toString()}`,
   )
 }
 
-async function refreshDomicilePath() {
-  if (!domicileLevel3Id.value) {
-    domicilePath.value = null
+async function loadSelectedDivision(serverId: string, divisionId: string) {
+  const data = await apiFetch<{
+    id: string
+    fullName: string
+    levelIndex: number
+    parentId?: string | null
+  }>(`/administration/servers/${serverId}/divisions/${divisionId}`)
+  domicileDivision.value = {
+    id: data.id,
+    name: data.fullName,
+    level: data.levelIndex,
+    parentId: data.parentId ?? null,
+  }
+  domicileDivisionId.value = data.id
+  llcDraft.administrativeDivisionLevel = data.levelIndex
+  if (!divisionOptions.value.some((n) => n.id === data.id)) {
+    divisionOptions.value.unshift({
+      id: data.id,
+      name: data.fullName,
+      level: data.levelIndex,
+      parentId: data.parentId ?? null,
+    })
+  }
+}
+
+watch(selectedServerId, (value) => {
+  if (applyingInitial.value) return
+  domicileDivisionId.value = undefined
+  domicileDivision.value = null
+  divisionOptions.value = []
+  divisionSearch.value = ''
+  llcDraft.administrativeDivisionLevel = 1
+  void refreshAuthorityCompanies()
+  llcDraft.registrationAuthorityCompanyId = undefined
+  llcDraft.registrationAuthorityName = ''
+  if (value) {
+    void searchDivisions({ serverId: value })
+      .then((list) => (divisionOptions.value = list))
+      .catch(() => {
+        divisionOptions.value = []
+      })
+  }
+})
+
+watch(domicileDivisionId, async (value) => {
+  if (!value) {
+    domicileDivision.value = null
+    llcDraft.administrativeDivisionLevel = 1
     return
   }
-  domicilePath.value = await apiFetch<WorldDivisionPath>(
-    `/companies/geo/divisions/${domicileLevel3Id.value}/path`,
-  )
-}
-
-watch(domicileLevel1Id, () => {
-  if (applyingInitial.value) return
-  domicileLevel2Id.value = undefined
-  domicileLevel3Id.value = undefined
-  domicilePath.value = null
-  level2Options.value = []
-  level3Options.value = []
-  void refreshAuthorityCompanies()
-  llcDraft.registrationAuthorityCompanyId = undefined
-  llcDraft.registrationAuthorityName = ''
-})
-watch(domicileLevel2Id, () => {
-  if (applyingInitial.value) return
-  domicileLevel3Id.value = undefined
-  domicilePath.value = null
-  level3Options.value = []
-  void refreshAuthorityCompanies()
-  llcDraft.registrationAuthorityCompanyId = undefined
-  llcDraft.registrationAuthorityName = ''
-})
-watch(domicileLevel3Id, () => {
-  void refreshDomicilePath()
-  void refreshAuthorityCompanies()
-  if (applyingInitial.value) return
-  llcDraft.registrationAuthorityCompanyId = undefined
-  llcDraft.registrationAuthorityName = ''
+  if (!value || !selectedServerId.value) return
+  if (!applyingInitial.value) {
+    void refreshAuthorityCompanies()
+    llcDraft.registrationAuthorityCompanyId = undefined
+    llcDraft.registrationAuthorityName = ''
+  }
+  const cached = divisionOptions.value.find((n) => n.id === value)
+  if (cached) {
+    domicileDivision.value = cached
+    llcDraft.administrativeDivisionLevel = cached.level
+    return
+  }
+  try {
+    await loadSelectedDivision(selectedServerId.value, value)
+  } catch {
+    // ignore
+  }
 })
 
-watch(level1Search, (value) => {
+watch(divisionSearch, (value) => {
+  if (!selectedServerId.value) return
   if (divisionSearchTimer) window.clearTimeout(divisionSearchTimer)
   divisionSearchTimer = window.setTimeout(async () => {
     try {
-      level1Options.value = await searchDivisions({ level: 1, q: value })
-    } catch {
-      level1Options.value = []
-    }
-  }, 240)
-})
-watch(level2Search, (value) => {
-  if (!domicileLevel1Id.value) return
-  if (divisionSearchTimer) window.clearTimeout(divisionSearchTimer)
-  divisionSearchTimer = window.setTimeout(async () => {
-    try {
-      level2Options.value = await searchDivisions({
-        level: 2,
+      divisionOptions.value = await searchDivisions({
+        serverId: selectedServerId.value as string,
         q: value,
-        parentId: domicileLevel1Id.value,
       })
     } catch {
-      level2Options.value = []
-    }
-  }, 240)
-})
-watch(level3Search, (value) => {
-  if (!domicileLevel2Id.value) return
-  if (divisionSearchTimer) window.clearTimeout(divisionSearchTimer)
-  divisionSearchTimer = window.setTimeout(async () => {
-    try {
-      level3Options.value = await searchDivisions({
-        level: 3,
-        q: value,
-        parentId: domicileLevel2Id.value,
-      })
-    } catch {
-      level3Options.value = []
+      divisionOptions.value = []
     }
   }, 240)
 })
@@ -337,7 +335,7 @@ const llcDraft = reactive<{
   }
 }>({
   registeredCapital: null,
-  administrativeDivisionLevel: 3,
+  administrativeDivisionLevel: 1,
   brandName: '',
   industryFeature: '',
   registrationAuthorityCompanyId: undefined,
@@ -415,18 +413,12 @@ watch(
           // ignore：只影响展示
         }
 
-        const path = value.llc.domicileDivisionPath
-        if (path?.level1) level1Options.value = [path.level1]
-        if (path?.level2) level2Options.value = [path.level2]
-        if (path?.level3) level3Options.value = [path.level3]
-        domicilePath.value = path ?? null
-        domicileLevel1Id.value = path?.level1?.id
-        domicileLevel2Id.value = path?.level2?.id
-        domicileLevel3Id.value = value.llc.domicileDivisionId
+        selectedServerId.value = value.llc.serverId
+        domicileDivisionId.value = value.llc.domicileDivisionId
 
         llcDraft.registeredCapital = value.llc.registeredCapital ?? null
         llcDraft.administrativeDivisionLevel =
-          (value.llc.administrativeDivisionLevel as 1 | 2 | 3) ?? 3
+          Number(value.llc.administrativeDivisionLevel ?? 1) || 1
         llcDraft.brandName = value.llc.brandName ?? ''
         llcDraft.industryFeature = value.llc.industryFeature ?? ''
         llcDraft.registrationAuthorityCompanyId =
@@ -497,9 +489,15 @@ watch(
 
         llcDraft.financialOfficer.userId = value.llc.financialOfficerId
 
-        // 当后端未返回 domicileDivisionPath 时兜底刷新
-        if (!domicilePath.value && domicileLevel3Id.value) {
-          await refreshDomicilePath()
+        if (selectedServerId.value && domicileDivisionId.value) {
+          try {
+            await loadSelectedDivision(
+              selectedServerId.value,
+              domicileDivisionId.value,
+            )
+          } catch {
+            // ignore
+          }
         }
       }
 
@@ -528,16 +526,6 @@ watch(
   },
   { immediate: true },
 )
-
-const divisionNameOptions = computed(() => {
-  const p = domicilePath.value
-  const items = [
-    p?.level1?.name ? { value: 1, label: p.level1.name } : null,
-    p?.level2?.name ? { value: 2, label: p.level2.name } : null,
-    p?.level3?.name ? { value: 3, label: p.level3.name } : null,
-  ].filter(Boolean) as Array<{ value: 1 | 2 | 3; label: string }>
-  return items
-})
 
 const authorityCandidatesFiltered = computed(() => {
   const items = authorityCompanies.value
@@ -568,13 +556,7 @@ const authorityOptions = computed(() =>
 )
 
 const fullCompanyName = computed(() => {
-  const p = domicilePath.value
-  const division =
-    llcDraft.administrativeDivisionLevel === 1
-      ? p?.level1?.name
-      : llcDraft.administrativeDivisionLevel === 2
-        ? p?.level2?.name
-        : p?.level3?.name
+  const division = domicileDivision.value?.name
   const brand = llcDraft.brandName.trim()
   const feature = llcDraft.industryFeature.trim()
   const pieces = [division, brand, feature].filter(Boolean)
@@ -710,10 +692,7 @@ onBeforeUnmount(() => {
 
 onMounted(() => {
   void companyStore.fetchMeta()
-  // 预拉一级/二级/三级默认（空搜索会返回前若干项）
-  void searchDivisions({ level: 1 })
-    .then((v) => (level1Options.value = v))
-    .catch(() => {})
+  void companyStore.fetchRegistrationMeta()
 })
 
 const resolvedTypes = computed(() => {
@@ -732,6 +711,28 @@ const resolvedIndustries = computed(() => {
     return props.industries
   }
   return companyStore.meta?.industries ?? []
+})
+
+const registrationServers = computed(
+  () => companyStore.registrationMeta?.servers ?? [],
+)
+
+const serverOptions = computed(() =>
+  registrationServers.value.map((server) => ({
+    value: server.id,
+    label: server.name,
+  })),
+)
+
+const administrationByServer = computed(() => {
+  const map = new Map<
+    string,
+    { hasActiveRegime: boolean; levelCount?: number | null }
+  >()
+  for (const entry of companyStore.registrationMeta?.administration ?? []) {
+    map.set(entry.serverId, entry)
+  }
+  return map
 })
 
 const typeOptions = computed(() => {
@@ -858,8 +859,12 @@ const handleSubmit = () => {
   }
 
   if (isLlcSelected.value) {
-    if (!domicileLevel3Id.value) {
-      toast.add({ title: '请先选择住所地所在地区（区级）', color: 'error' })
+    if (!selectedServerId.value) {
+      toast.add({ title: '请先选择所属服务端', color: 'error' })
+      return
+    }
+    if (!domicileDivisionId.value) {
+      toast.add({ title: '请先选择住所地所在行政区', color: 'error' })
       return
     }
     if (!llcDraft.registrationAuthorityCompanyId) {
@@ -943,8 +948,8 @@ const handleSubmit = () => {
     }
 
     const llcPayload: LimitedLiabilityCompanyApplicationPayload = {
-      domicileDivisionId: domicileLevel3Id.value,
-      domicileDivisionPath: domicilePath.value ?? undefined,
+      serverId: selectedServerId.value as string,
+      domicileDivisionId: domicileDivisionId.value as string,
       registeredCapital: llcDraft.registeredCapital ?? 0,
       administrativeDivisionLevel: llcDraft.administrativeDivisionLevel,
       brandName: llcDraft.brandName.trim(),
@@ -1102,24 +1107,24 @@ const handleSubmit = () => {
       <div class="space-y-2">
         <p class="text-sm font-semibold text-slate-900">有限责任公司登记信息</p>
         <p class="text-xs text-slate-500">
-          先选择住所地所在地区（三级），再填写公司名称各组成部分与人员信息。
+          先选择所属服务端与行政区，再填写公司名称各组成部分与人员信息。
         </p>
       </div>
 
-      <!-- 1 住所地所在地区 -->
+      <!-- 1 所属服务端与行政区 -->
       <div class="space-y-3">
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          1. 住所地所在地区
+          1. 所属服务端与行政区
         </p>
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
           <USelectMenu
             class="w-full"
-            v-model="domicileLevel1Id"
-            v-model:search-term="level1Search"
-            :items="level1Options.map((n) => ({ value: n.id, label: n.name }))"
+            v-model="selectedServerId"
+            v-model:search-term="serverSearch"
+            :items="serverOptions"
             value-key="value"
             searchable
-            placeholder="一级：氢气"
+            placeholder="选择所属服务端"
           >
             <template #trailing="{ modelValue }">
               <div class="flex items-center gap-1">
@@ -1132,7 +1137,7 @@ const handleSubmit = () => {
                   type="button"
                   class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                   aria-label="清空"
-                  @click.stop.prevent="domicileLevel1Id = undefined"
+                  @click.stop.prevent="selectedServerId = undefined"
                 >
                   ×
                 </button>
@@ -1142,13 +1147,18 @@ const handleSubmit = () => {
           </USelectMenu>
           <USelectMenu
             class="w-full"
-            v-model="domicileLevel2Id"
-            v-model:search-term="level2Search"
-            :items="level2Options.map((n) => ({ value: n.id, label: n.name }))"
+            v-model="domicileDivisionId"
+            v-model:search-term="divisionSearch"
+            :items="
+              divisionOptions.map((n) => ({ value: n.id, label: n.name }))
+            "
             value-key="value"
             searchable
-            :disabled="!domicileLevel1Id"
-            placeholder="二级：xx都/xx县"
+            :disabled="
+              !selectedServerId ||
+              !administrationByServer.get(selectedServerId)?.hasActiveRegime
+            "
+            placeholder="搜索行政区"
           >
             <template #trailing="{ modelValue }">
               <div class="flex items-center gap-1">
@@ -1161,36 +1171,7 @@ const handleSubmit = () => {
                   type="button"
                   class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                   aria-label="清空"
-                  @click.stop.prevent="domicileLevel2Id = undefined"
-                >
-                  ×
-                </button>
-                <span class="select-none text-slate-400">▾</span>
-              </div>
-            </template>
-          </USelectMenu>
-          <USelectMenu
-            class="w-full"
-            v-model="domicileLevel3Id"
-            v-model:search-term="level3Search"
-            :items="level3Options.map((n) => ({ value: n.id, label: n.name }))"
-            value-key="value"
-            searchable
-            :disabled="!domicileLevel2Id"
-            placeholder="三级：xx区"
-          >
-            <template #trailing="{ modelValue }">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="
-                    modelValue !== undefined &&
-                    modelValue !== null &&
-                    String(modelValue) !== ''
-                  "
-                  type="button"
-                  class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label="清空"
-                  @click.stop.prevent="domicileLevel3Id = undefined"
+                  @click.stop.prevent="domicileDivisionId = undefined"
                 >
                   ×
                 </button>
@@ -1199,6 +1180,15 @@ const handleSubmit = () => {
             </template>
           </USelectMenu>
         </div>
+        <p
+          v-if="
+            selectedServerId &&
+            !administrationByServer.get(selectedServerId)?.hasActiveRegime
+          "
+          class="text-xs text-amber-600"
+        >
+          当前服务端尚未配置行政制度，暂时无法选择行政区。
+        </p>
       </div>
 
       <!-- 2 注册资本 -->
@@ -1222,35 +1212,12 @@ const handleSubmit = () => {
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div class="space-y-2">
             <label class="text-xs text-slate-500">（1）行政区划</label>
-            <USelectMenu
+            <UInput
               class="w-full"
-              v-model="llcDraft.administrativeDivisionLevel"
-              :items="divisionNameOptions"
-              value-key="value"
-              :disabled="!domicilePath"
-              placeholder="根据住所地选择"
-            >
-              <template #trailing="{ modelValue }">
-                <div class="flex items-center gap-1">
-                  <button
-                    v-if="
-                      modelValue !== undefined &&
-                      modelValue !== null &&
-                      String(modelValue) !== ''
-                    "
-                    type="button"
-                    class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                    aria-label="清空"
-                    @click.stop.prevent="
-                      llcDraft.administrativeDivisionLevel = 3
-                    "
-                  >
-                    ×
-                  </button>
-                  <span class="select-none text-slate-400">▾</span>
-                </div>
-              </template>
-            </USelectMenu>
+              :model-value="domicileDivision?.name || ''"
+              disabled
+              placeholder="请选择行政区"
+            />
           </div>
           <div class="space-y-2">
             <label class="text-xs text-slate-500">（2）字号</label>

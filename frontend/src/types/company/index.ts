@@ -36,7 +36,7 @@ export interface CompanyRef {
   industry?: { id: string; code: string; name: string } | null
 }
 
-export type WorldDivisionLevel = 1 | 2 | 3
+export type WorldDivisionLevel = number
 
 export interface WorldDivisionNode {
   id: string
@@ -78,6 +78,7 @@ export interface LlcShareholderEntry {
 }
 
 export interface LimitedLiabilityCompanyApplicationPayload {
+  serverId: string
   domicileDivisionId: string
   domicileDivisionPath?: WorldDivisionPath
   registeredCapital: number
@@ -387,6 +388,21 @@ export interface CompanyMeta {
   types: CompanyType[]
 }
 
+export interface CompanyRegistrationServer {
+  id: string
+  name: string
+  internalCodeEn?: string | null
+}
+
+export interface CompanyRegistrationMeta {
+  servers: CompanyRegistrationServer[]
+  administration: Array<{
+    serverId: string
+    hasActiveRegime: boolean
+    levelCount?: number | null
+  }>
+}
+
 export interface CompanyDirectoryResponse {
   total: number
   page: number
@@ -418,6 +434,8 @@ export interface AdminCreateCompanyPayload {
    * 机关法人专用：所属行政区划节点 id（支持 1/2/3 级）。
    */
   domicileDivisionId?: string
+  /** 机关法人专用：所属服务端 id */
+  serverId?: string
   category?: string
   status?: CompanyStatus
   visibility?: CompanyVisibility

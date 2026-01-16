@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { apiFetch } from '@/utils/http/api'
 import type {
   AdminCreateCompanyPayload,
@@ -7,7 +7,7 @@ import type {
   CompanyType,
   CompanyIndustry,
   WorldDivisionNode,
-  WorldDivisionPath,
+  CompanyRegistrationMeta,
 } from '@/types/company'
 
 const props = defineProps<{
@@ -33,6 +33,7 @@ const formState = reactive<AdminCreateCompanyPayload>({
   industryId: undefined,
   legalRepresentativeId: undefined,
   domicileDivisionId: undefined,
+  serverId: undefined,
 })
 
 const selectedType = computed(() =>
@@ -66,34 +67,49 @@ const candidateOptions = computed(() =>
 )
 
 // --- 行政区划选择（机关法人） ---
+const registrationMeta = ref<CompanyRegistrationMeta | null>(null)
+const serverSearchKeyword = ref('')
+const selectedServerId = ref<string | undefined>(undefined)
 const divisionSearchKeyword = ref('')
 const divisionCandidates = ref<WorldDivisionNode[]>([])
 const selectedDivisionId = ref<string | undefined>(undefined)
-const selectedDivisionPath = ref<WorldDivisionPath | null>(null)
+const selectedDivisionPath = ref<WorldDivisionNode[] | null>(null)
 let divisionSearchTimer: number | undefined
+
+const serverOptions = computed(() =>
+  (registrationMeta.value?.servers ?? []).map((server) => ({
+    value: server.id,
+    label: server.name,
+  })),
+)
 
 const divisionOptions = computed(() =>
   divisionCandidates.value.map((n) => ({
     value: n.id,
-    label: `${n.name}（${n.id}）· ${n.level === 1 ? '一级' : n.level === 2 ? '二级' : '三级'}`,
+    label: `${n.name}（${n.id}）· ${n.level}级`,
   })),
 )
 
 const selectedDivisionPathLabel = computed(() => {
   const path = selectedDivisionPath.value
   if (!path) return ''
-  const parts = [
-    path.level1?.name,
-    path.level2?.name,
-    path.level3?.name,
-  ].filter(Boolean) as string[]
-  return parts.join(' / ')
+  return path
+    .map((node) => node.name)
+    .filter(Boolean)
+    .join(' / ')
 })
 
 watch(
   () => divisionSearchKeyword.value,
   (value) => {
     if (!isStateOrganLegalPerson.value) return
+    if (!selectedServerId.value) {
+      divisionCandidates.value = []
+      selectedDivisionId.value = undefined
+      selectedDivisionPath.value = null
+      formState.domicileDivisionId = undefined
+      return
+    }
     const q = value.trim()
     if (!q) {
       divisionCandidates.value = []
@@ -108,7 +124,7 @@ watch(
     divisionSearchTimer = window.setTimeout(async () => {
       try {
         divisionCandidates.value = await apiFetch<WorldDivisionNode[]>(
-          `/companies/geo/divisions/search?q=${encodeURIComponent(q)}&limit=20`,
+          `/administration/servers/${selectedServerId.value}/divisions/search?q=${encodeURIComponent(q)}&limit=20`,
         )
       } catch {
         divisionCandidates.value = []
@@ -123,9 +139,10 @@ watch(
     formState.domicileDivisionId = value ?? undefined
     selectedDivisionPath.value = null
     if (!value) return
+    if (!selectedServerId.value) return
     try {
-      selectedDivisionPath.value = await apiFetch<WorldDivisionPath>(
-        `/companies/geo/divisions/${encodeURIComponent(value)}/path`,
+      selectedDivisionPath.value = await apiFetch<WorldDivisionNode[]>(
+        `/administration/servers/${selectedServerId.value}/divisions/${encodeURIComponent(value)}/path`,
       )
     } catch {
       selectedDivisionPath.value = null
@@ -143,6 +160,20 @@ watch(
       return
     }
     // 切出“机关法人”时清理专用字段
+    selectedServerId.value = undefined
+    serverSearchKeyword.value = ''
+    divisionSearchKeyword.value = ''
+    divisionCandidates.value = []
+    selectedDivisionId.value = undefined
+    selectedDivisionPath.value = null
+    formState.domicileDivisionId = undefined
+  },
+)
+
+watch(
+  () => selectedServerId.value,
+  (value) => {
+    formState.serverId = value ?? undefined
     divisionSearchKeyword.value = ''
     divisionCandidates.value = []
     selectedDivisionId.value = undefined
@@ -186,6 +217,10 @@ function closeDialog() {
 
 function handleSubmit() {
   if (isStateOrganLegalPerson.value) {
+    if (!formState.serverId?.trim()) {
+      toast.add({ title: '请选择所属服务端', color: 'error' })
+      return
+    }
     if (!formState.domicileDivisionId?.trim()) {
       toast.add({ title: '请选择所属行政区划', color: 'error' })
       return
@@ -203,6 +238,16 @@ function handleSubmit() {
   }
   emit('submit', payload)
 }
+
+onMounted(() => {
+  void apiFetch<CompanyRegistrationMeta>('/companies/registration/meta')
+    .then((data) => {
+      registrationMeta.value = data
+    })
+    .catch(() => {
+      registrationMeta.value = null
+    })
+})
 </script>
 
 <template>
@@ -261,11 +306,26 @@ function handleSubmit() {
 
             <div class="space-y-2">
               <label class="text-xs font-semibold text-slate-500">
+                所属服务端
+              </label>
+              <USelectMenu
+                v-model="selectedServerId"
+                v-model:search-term="serverSearchKeyword"
+                :items="serverOptions"
+                value-key="value"
+                searchable
+                placeholder="选择所属服务端"
+              />
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-slate-500">
                 所属行政区划
               </label>
               <UInput
                 v-model="divisionSearchKeyword"
                 placeholder="输入区划名称搜索（如：北京、杭州市、海淀…）"
+                :disabled="!selectedServerId"
               />
               <USelectMenu
                 v-model="selectedDivisionId"
@@ -273,7 +333,7 @@ function handleSubmit() {
                 value-key="value"
                 placeholder="选择所属行政区划"
                 :clearable="false"
-                :disabled="divisionOptions.length === 0"
+                :disabled="!selectedServerId || divisionOptions.length === 0"
               />
               <p
                 v-if="selectedDivisionPathLabel"

@@ -21,6 +21,7 @@ import { ServerModule } from './server/server.module';
 import { WorkflowModule } from './workflow/workflow.module';
 import { CompanyModule } from './company/company.module';
 import { TransportationModule } from './transportation/transportation.module';
+import { AdministrationModule } from './administration/administration.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { TransportationModule } from './transportation/transportation.module';
     WorkflowModule,
     CompanyModule,
     TransportationModule,
+    AdministrationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

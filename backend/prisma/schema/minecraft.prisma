@@ -31,6 +31,9 @@ model MinecraftServer {
   rankPlayerSnapshots           RankPlayerSnapshot[]           @relation("RankSnapshotsPerServer")
   rankSyncJobs                  RankSyncJob[]                  @relation("RankSyncJobsPerServer")
   transportationRailwaySyncJobs TransportationRailwaySyncJob[] @relation("TransportationRailwaySyncServer")
+  administrationRegimes         AdministrationRegime[]
+  administrationDivisionTypes   AdministrationDivisionType[]
+  administrationDivisions       AdministrationDivision[]
 
   @@index([displayOrder], map: "idx_minecraft_server_order")
   @@map("minecraft_servers")

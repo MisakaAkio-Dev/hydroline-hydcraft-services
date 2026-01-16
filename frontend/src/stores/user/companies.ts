@@ -18,6 +18,7 @@ import type {
   CompanyCapitalChangeApplyPayload,
   CompanyEquityTransferApplyPayload,
   CreateCompanyApplicationPayload,
+  CompanyRegistrationMeta,
   MyCompanyApplicationEntry,
   MyPendingConsentEntry,
   UpdateCompanyPayload,
@@ -29,6 +30,8 @@ export const useCompanyStore = defineStore('companies', {
   state: () => ({
     meta: null as CompanyMeta | null,
     metaLoading: false,
+    registrationMeta: null as CompanyRegistrationMeta | null,
+    registrationMetaLoading: false,
     recommendations: {
       recent: [] as CompanyRecommendation[],
       active: [] as CompanyRecommendation[],
@@ -73,6 +76,20 @@ export const useCompanyStore = defineStore('companies', {
         return this.meta
       } finally {
         this.metaLoading = false
+      }
+    },
+    async fetchRegistrationMeta(force = false) {
+      if (this.registrationMeta && !force) {
+        return this.registrationMeta
+      }
+      this.registrationMetaLoading = true
+      try {
+        this.registrationMeta = await apiFetch<CompanyRegistrationMeta>(
+          '/companies/registration/meta',
+        )
+        return this.registrationMeta
+      } finally {
+        this.registrationMetaLoading = false
       }
     },
     async fetchRecommendations(kind: RecommendationKind) {

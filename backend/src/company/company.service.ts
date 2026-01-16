@@ -42,10 +42,7 @@ import {
   UpdateCompanyProfileDto,
   WithdrawCompanyApplicationDto,
 } from './dto/company.dto';
-import {
-  CreateWorldDivisionNodeDto,
-  UpdateWorldDivisionNodeDto,
-} from './dto/admin-geo-division.dto';
+import {} from './dto/admin-geo-division.dto';
 import { AttachmentsService } from '../attachments/attachments.service';
 import type { UploadedStreamFile } from '../attachments/attachments.service';
 import type { StoredUploadedFile } from '../attachments/uploaded-file.interface';
@@ -66,6 +63,7 @@ import { CompanyPermissionService } from './services/company-permission.service'
 import { CompanySupportService } from './services/company-support.service';
 import { CompanyAdminService } from './services/company-admin.service';
 import { companyInclude, CompanyWithRelations } from './types/company.types';
+import { AdministrationService } from '../administration/administration.service';
 type CompanyMetaResult = {
   industries: CompanyIndustry[];
   types: CompanyType[];
@@ -90,6 +88,7 @@ export class CompanyService implements OnModuleInit {
     private readonly companyConfigService: CompanyConfigService,
     private readonly applicationService: CompanyApplicationService,
     private readonly adminService: CompanyAdminService,
+    private readonly administrationService: AdministrationService,
   ) {}
 
   async onModuleInit() {
@@ -108,6 +107,23 @@ export class CompanyService implements OnModuleInit {
 
   async getMeta(): Promise<CompanyMetaResult> {
     return this.metaService.getMeta();
+  }
+
+  async getRegistrationMeta() {
+    const servers =
+      await this.administrationService.listServersWithRegimeSummary();
+    return {
+      servers: servers.map((server) => ({
+        id: server.id,
+        name: server.name,
+        internalCodeEn: server.internalCodeEn,
+      })),
+      administration: servers.map((server) => ({
+        serverId: server.id,
+        hasActiveRegime: Boolean(server.administration),
+        levelCount: server.administration?.levelCount ?? null,
+      })),
+    };
   }
 
   async getDailyRegistrations(days?: number) {
@@ -301,8 +317,14 @@ export class CompanyService implements OnModuleInit {
     };
   }
 
-  async listRegistrationAuthoritiesByDivisionId(divisionId: string) {
-    return this.geoService.listRegistrationAuthoritiesByDivisionId(divisionId);
+  async listRegistrationAuthoritiesByDivisionId(
+    divisionId: string,
+    serverId: string,
+  ) {
+    return this.geoService.listRegistrationAuthoritiesByDivisionId(
+      divisionId,
+      serverId,
+    );
   }
 
   async resolveCompanies(ids: string[]) {
@@ -364,35 +386,12 @@ export class CompanyService implements OnModuleInit {
     return companies;
   }
 
-  async listWorldDivisions() {
-    return this.geoService.listWorldDivisions();
-  }
-
-  async createWorldDivisionNode(
-    body: CreateWorldDivisionNodeDto,
-    userId?: string,
-  ) {
-    return this.geoService.createWorldDivisionNode(body, userId);
-  }
-
-  async updateWorldDivisionNode(
-    id: string,
-    body: UpdateWorldDivisionNodeDto,
-    userId?: string,
-  ) {
-    return this.geoService.updateWorldDivisionNode(id, body, userId);
-  }
-
-  async deleteWorldDivisionNode(id: string, userId?: string) {
-    return this.geoService.deleteWorldDivisionNode(id, userId);
-  }
-
   async searchGeoDivisions(query: GeoDivisionSearchDto) {
     return this.geoService.searchGeoDivisions(query);
   }
 
-  async getGeoDivisionPath(id: string) {
-    return this.geoService.getGeoDivisionPath(id);
+  async getGeoDivisionPath(id: string, serverId: string) {
+    return this.geoService.getGeoDivisionPath(id, serverId);
   }
 
   async getApplicationConsents(applicationId: string, userId: string) {

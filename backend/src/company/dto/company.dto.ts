@@ -39,6 +39,10 @@ export class CompanySearchDto {
 
 export class GeoDivisionSearchDto {
   @IsOptional()
+  @IsUUID()
+  serverId?: string;
+
+  @IsOptional()
   @IsString()
   q?: string;
 
@@ -46,8 +50,7 @@ export class GeoDivisionSearchDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(3)
-  level?: 1 | 2 | 3;
+  level?: number;
 
   @IsOptional()
   @IsString()
@@ -148,6 +151,9 @@ export class LlcOperatingTermDto {
 }
 
 export class LimitedLiabilityCompanyApplicationDto {
+  @IsUUID()
+  serverId!: string;
+
   @IsString()
   domicileDivisionId!: string;
 
@@ -164,10 +170,10 @@ export class LimitedLiabilityCompanyApplicationDto {
   @Min(0)
   registeredCapital!: number;
 
-  @IsIn([1, 2, 3])
   @Type(() => Number)
   @IsInt()
-  administrativeDivisionLevel!: 1 | 2 | 3;
+  @Min(1)
+  administrativeDivisionLevel!: number;
 
   @IsString()
   @MinLength(1)
@@ -484,6 +490,13 @@ export class AdminCreateCompanyDto {
   @IsString()
   @MinLength(1)
   domicileDivisionId?: string;
+
+  /**
+   * 机关法人专用：所属服务端 id。
+   */
+  @IsOptional()
+  @IsUUID()
+  serverId?: string;
 }
 
 export class AdminCompanyListQueryDto {

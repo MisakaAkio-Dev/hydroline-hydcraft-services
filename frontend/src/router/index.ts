@@ -652,6 +652,50 @@ export const adminRoutes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'administration/regimes',
+        name: 'admin.administration.regimes',
+        component: () =>
+          import('@/views/admin/Administration/AdministrationRegimesView.vue'),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['administration.admin.view'],
+          layout: 'admin',
+          title: '行政制度',
+        },
+      },
+      {
+        path: 'administration',
+        redirect: '/admin/administration/regimes',
+      },
+      {
+        path: 'administration/types',
+        name: 'admin.administration.types',
+        component: () =>
+          import(
+            '@/views/admin/Administration/AdministrationDivisionTypesView.vue'
+          ),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['administration.admin.view'],
+          layout: 'admin',
+          title: '行政类别',
+        },
+      },
+      {
+        path: 'administration/divisions',
+        name: 'admin.administration.divisions',
+        component: () =>
+          import(
+            '@/views/admin/Administration/AdministrationDivisionsView.vue'
+          ),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['administration.admin.view'],
+          layout: 'admin',
+          title: '行政区管理',
+        },
+      },
+      {
         path: 'company/registry',
         name: 'admin.company.registry',
         component: () =>
