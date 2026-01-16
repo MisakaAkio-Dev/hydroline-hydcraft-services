@@ -73,6 +73,12 @@ async function handleLogoUploadChange(event: Event) {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('isPublic', 'true')
+    formData.append(
+      'metadata',
+      JSON.stringify({
+        scope: 'company-logo',
+      }),
+    )
     const attachment = await apiFetch<AttachmentUploadResult>('/attachments', {
       method: 'POST',
       body: formData,

@@ -12,6 +12,7 @@ import { apiFetch } from '@/utils/http/api'
 import { useCompanyStore } from '@/stores/user/companies'
 import { useAuthStore } from '@/stores/user/auth'
 import CompanyLlcRegistrationForm from '@/components/company/CompanyLlcRegistrationForm.vue'
+import AvatarCropperModal from '@/components/common/AvatarCropperModal.vue'
 import type {
   CompanyIndustry,
   CompanyType,
@@ -22,6 +23,11 @@ import type {
   WorldDivisionPath,
   WorldDivisionNode,
 } from '@/types/company'
+
+type AttachmentUploadResult = {
+  id: string
+  publicUrl: string | null
+}
 
 const props = withDefaults(
   defineProps<{
@@ -92,6 +98,7 @@ const formState = reactive<CreateCompanyApplicationPayload>({
   name: '',
   summary: '',
   description: '',
+  logoAttachmentId: undefined,
   typeId: undefined,
   typeCode: LIMITED_LIABILITY_CODE,
   industryId: undefined,
@@ -100,6 +107,13 @@ const formState = reactive<CreateCompanyApplicationPayload>({
 })
 let searchTimer: number | undefined
 let companySearchTimer: number | undefined
+const logoUploading = ref(false)
+const logoPreviewUrl = ref<string | null>(null)
+const logoFile = ref<File | null>(null)
+const logoObjectUrl = ref<string | null>(null)
+const logoCropperOpen = ref(false)
+const logoCropperImageUrl = ref<string | null>(null)
+const logoCropperFileName = ref<string | null>(null)
 
 // ---------- 有限责任公司：行政区（服务端 + 行政区搜索） ----------
 const serverSearch = ref('')
@@ -146,6 +160,87 @@ async function refreshAuthorityCompanies() {
 function handleAuthorityOpen() {
   if (authorityCompanies.value.length > 0 || authorityLoading.value) return
   void refreshAuthorityCompanies()
+}
+
+function cleanupLogoPreview() {
+  if (logoObjectUrl.value) {
+    URL.revokeObjectURL(logoObjectUrl.value)
+    logoObjectUrl.value = null
+  }
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') resolve(reader.result)
+      else reject(new Error('无法读取文件'))
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('无法读取文件'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function prepareLogoCropper(file: File) {
+  try {
+    const dataUrl = await readFileAsDataUrl(file)
+    logoCropperImageUrl.value = dataUrl
+    logoCropperFileName.value = file.name
+    logoCropperOpen.value = true
+  } catch (error) {
+    toast.add({
+      title: (error as Error).message || '无法加载图片用于裁剪',
+      color: 'error',
+    })
+  }
+}
+
+async function uploadLogo(file: File) {
+  if (!authStore.token) {
+    toast.add({ title: '请先登录', color: 'warning' })
+    return
+  }
+  logoUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('isPublic', 'true')
+    formData.append(
+      'metadata',
+      JSON.stringify({
+        scope: 'company-logo',
+      }),
+    )
+    const attachment = await apiFetch<AttachmentUploadResult>('/attachments', {
+      method: 'POST',
+      body: formData,
+      token: authStore.token,
+    })
+    formState.logoAttachmentId = attachment.id
+    logoPreviewUrl.value = attachment.publicUrl ?? logoPreviewUrl.value
+    toast.add({ title: 'Logo 已上传', color: 'primary' })
+  } catch (error) {
+    toast.add({
+      title: (error as Error).message || 'Logo 上传失败',
+      color: 'error',
+    })
+    throw error
+  } finally {
+    logoUploading.value = false
+  }
+}
+
+function handleLogoUpload(file: File) {
+  void prepareLogoCropper(file)
+}
+
+async function handleLogoCropConfirm(file: File) {
+  logoFile.value = file
+  cleanupLogoPreview()
+  const objectUrl = URL.createObjectURL(file)
+  logoObjectUrl.value = objectUrl
+  logoPreviewUrl.value = objectUrl
+  logoCropperOpen.value = false
 }
 
 async function prefillSelectedLabels(
@@ -574,6 +669,8 @@ watch(
       formState.name = value.name ?? ''
       formState.summary = value.summary ?? ''
       formState.description = value.description ?? ''
+      formState.logoAttachmentId = value.logoAttachmentId
+      logoPreviewUrl.value = null
       formState.typeId = value.typeId
       formState.industryId = value.industryId
       formState.legalRepresentativeId = value.legalRepresentativeId
@@ -952,6 +1049,17 @@ onMounted(() => {
   void companyStore.fetchRegistrationMeta()
 })
 
+watch(logoCropperOpen, (open) => {
+  if (!open) {
+    logoCropperImageUrl.value = null
+    logoCropperFileName.value = null
+  }
+})
+
+onBeforeUnmount(() => {
+  cleanupLogoPreview()
+})
+
 const resolvedTypes = computed(() => {
   if (props.types.length > 0) {
     return props.types
@@ -1154,7 +1262,7 @@ function cleanUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
   return cleaned
 }
 
-const handleSubmit = () => {
+const handleSubmit = async () => {
   if (LIMITED_LIABILITY_ONLY && !isLlcSelected.value) {
     toast.add({ title: '当前暂时仅支持申请注册有限责任公司', color: 'error' })
     return
@@ -1174,6 +1282,10 @@ const handleSubmit = () => {
   }
 
   if (isLlcSelected.value) {
+    if (llcActiveSection.value !== 'review') {
+      toast.add({ title: '请先完成信息核验后再提交', color: 'error' })
+      return
+    }
     if (!selectedServerId.value) {
       toast.add({ title: '请先选择所属服务端', color: 'error' })
       return
@@ -1194,6 +1306,18 @@ const handleSubmit = () => {
       llcDraft.registrationAuthorityName.trim()
     if (!authorityName) {
       toast.add({ title: '登记机关信息无效，请重新选择', color: 'error' })
+      return
+    }
+    if (!llcDraft.industryFeature.trim()) {
+      toast.add({ title: '请填写行业特点', color: 'error' })
+      return
+    }
+    if (!llcDraft.domicileAddress.trim()) {
+      toast.add({ title: '请填写住所地详细地址', color: 'error' })
+      return
+    }
+    if (!llcDraft.businessScope.trim()) {
+      toast.add({ title: '请填写经营范围', color: 'error' })
       return
     }
     const directors = directorIds.value
@@ -1335,6 +1459,14 @@ const handleSubmit = () => {
   }
 
   // 清理 undefined 值并发送 payload
+  if (logoFile.value) {
+    try {
+      await uploadLogo(logoFile.value)
+      logoFile.value = null
+    } catch {
+      return
+    }
+  }
   const cleanedPayload = cleanUndefined({ ...formState })
   emit('submit', cleanedPayload as CreateCompanyApplicationPayload)
 }
@@ -1436,6 +1568,8 @@ const handleSubmit = () => {
       :full-company-name="fullCompanyName"
       :authority-options="authorityOptions"
       :authority-loading="authorityLoading"
+      :logo-preview-url="logoPreviewUrl"
+      :logo-uploading="logoUploading"
       :llc-draft="llcDraft"
       :shareholder-ratio-sum="shareholderRatioSum"
       :shareholder-voting-sum="shareholderVotingSum"
@@ -1454,12 +1588,24 @@ const handleSubmit = () => {
       :add-supervisor="addSupervisor"
       :remove-supervisor="removeSupervisor"
       :active-section="llcActiveSection"
+      @submit="handleSubmit"
       @request-authorities="handleAuthorityOpen"
+      @upload-logo="handleLogoUpload"
       @update:selected-server-id="selectedServerId = $event"
       @update:server-search="serverSearch = $event"
       @update:level1-search="level1Search = $event"
       @update:division-level-selected-ids="divisionLevelSelectedIds = $event"
       @update:active-section="llcActiveSection = $event"
+    />
+
+    <AvatarCropperModal
+      v-model:open="logoCropperOpen"
+      :image-url="logoCropperImageUrl"
+      :file-name="logoCropperFileName"
+      :submitting="logoUploading"
+      title="裁剪公司 Logo"
+      confirm-label="使用该 Logo"
+      @confirm="handleLogoCropConfirm"
     />
 
     <div v-if="!isLlcSelected" class="flex justify-end">

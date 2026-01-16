@@ -299,6 +299,10 @@ export class CreateCompanyApplicationDto {
   description?: string;
 
   @IsOptional()
+  @IsUUID()
+  logoAttachmentId?: string;
+
+  @IsOptional()
   @IsString()
   typeCode?: string;
 

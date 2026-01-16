@@ -82,6 +82,8 @@ const props = defineProps<{
   fullCompanyName: string
   authorityOptions: SelectItem[]
   authorityLoading?: boolean
+  logoPreviewUrl?: string | null
+  logoUploading?: boolean
   llcDraft: LlcDraft
   shareholderRatioSum: number
   shareholderVotingSum: number
@@ -118,6 +120,8 @@ const emit = defineEmits<{
   ): void
   (event: 'update:activeSection', value: string): void
   (event: 'request-authorities'): void
+  (event: 'upload-logo', file: File): void
+  (event: 'submit'): void
 }>()
 
 const selectedServerModel = computed({
@@ -134,6 +138,21 @@ const level1SearchModel = computed({
   get: () => props.level1Search,
   set: (value) => emit('update:level1Search', value),
 })
+
+const logoUploadInput = ref<HTMLInputElement | null>(null)
+
+function triggerLogoUpload() {
+  logoUploadInput.value?.click()
+}
+
+function handleLogoUploadChange(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  const file = target?.files?.[0]
+  if (file) {
+    emit('upload-logo', file)
+  }
+  if (target) target.value = ''
+}
 
 function updateDivisionLevel(index: number, value: string | undefined) {
   const next = [...props.divisionLevelSelectedIds]
@@ -195,6 +214,14 @@ function goNext() {
   activeSection.value = stepOrder.value[activeIndex.value + 1]
 }
 
+function handlePrimaryAction() {
+  if (hasNext.value) {
+    goNext()
+    return
+  }
+  emit('submit')
+}
+
 const basicTimelineItems: TimelineItem[] = [
   {
     title: '所属服务端与行政区',
@@ -212,6 +239,12 @@ const basicTimelineItems: TimelineItem[] = [
     title: '公司名称',
     icon: 'i-lucide-building-2',
     slot: 'basic-3',
+    description: ' ',
+  },
+  {
+    title: 'LOGO',
+    icon: 'i-lucide-image',
+    slot: 'basic-3-logo',
     description: ' ',
   },
   {
@@ -332,6 +365,9 @@ const nameDivisionOptions = computed(() => {
 })
 const industryDisplay = computed(() =>
   props.industryLabel?.trim() ? props.industryLabel.trim() : '未选择',
+)
+const logoDisplay = computed(() =>
+  props.logoPreviewUrl ? props.logoPreviewUrl : null,
 )
 
 const authorityLabel = computed(() => {
@@ -611,6 +647,42 @@ const supervisorSummary = computed(() => {
               }}</span>
             </div>
           </div>
+        </template>
+
+        <template #basic-3-logo-description>
+          <div class="flex flex-wrap items-center gap-4 mt-2">
+            <div class="group relative">
+              <div
+                class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-slate-200/70 bg-slate-50"
+              >
+                <img
+                  v-if="logoPreviewUrl"
+                  :src="logoPreviewUrl"
+                  alt="公司 Logo"
+                  class="h-full w-full object-cover"
+                />
+                <span v-else class="text-xs text-slate-400">暂无 Logo</span>
+              </div>
+              <button
+                type="button"
+                class="absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-900/60 text-xs text-white opacity-0 transition group-hover:opacity-100 disabled:cursor-not-allowed"
+                :disabled="logoUploading"
+                @click="triggerLogoUpload"
+              >
+                {{
+                  logoUploading ? '上传中...' : logoPreviewUrl ? '更换' : '上传'
+                }}
+              </button>
+            </div>
+            <div class="text-xs text-slate-500">上传图片</div>
+          </div>
+          <input
+            ref="logoUploadInput"
+            type="file"
+            accept="image/*"
+            class="hidden"
+            @change="handleLogoUploadChange"
+          />
         </template>
 
         <template #basic-4-description>
@@ -1389,6 +1461,28 @@ const supervisorSummary = computed(() => {
               </p>
             </div>
             <div class="space-y-1">
+              <p class="text-xs text-slate-500">公司 Logo</p>
+              <div class="flex items-center gap-3">
+                <div
+                  class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-slate-200/70 bg-slate-50"
+                >
+                  <img
+                    v-if="logoDisplay"
+                    :src="logoDisplay"
+                    alt="公司 Logo 预览"
+                    class="h-full w-full object-cover"
+                  />
+                  <span v-else class="text-xs text-slate-400">暂无</span>
+                </div>
+                <span
+                  class="text-xs"
+                  :class="logoDisplay ? 'text-slate-500' : 'text-slate-400'"
+                >
+                  {{ logoDisplay ? '已选择' : '未上传' }}
+                </span>
+              </div>
+            </div>
+            <div class="space-y-1">
               <p class="text-xs text-slate-500">住所地</p>
               <p
                 class="text-sm"
@@ -1571,10 +1665,10 @@ const supervisorSummary = computed(() => {
         上一步
       </UButton>
       <UButton
-        :type="hasNext ? 'button' : 'submit'"
+        type="button"
         color="primary"
         variant="soft"
-        @click="hasNext ? goNext() : undefined"
+        @click="handlePrimaryAction"
       >
         {{ hasNext ? '下一步' : '提交注册申请' }}
       </UButton>

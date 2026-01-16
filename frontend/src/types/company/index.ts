@@ -475,6 +475,7 @@ export interface CreateCompanyApplicationPayload {
   name: string
   summary?: string
   description?: string
+  logoAttachmentId?: string
   typeId?: string
   typeCode?: string
   industryId?: string

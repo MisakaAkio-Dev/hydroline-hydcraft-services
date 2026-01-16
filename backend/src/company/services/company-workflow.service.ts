@@ -583,6 +583,7 @@ export class CompanyWorkflowService {
           slug,
           summary: dto.summary,
           description: dto.description,
+          logoAttachmentId: dto.logoAttachmentId ?? undefined,
           typeId: application.typeId ?? null,
           industryId: application.industryId ?? null,
           category: dto.category ?? type?.category ?? undefined,

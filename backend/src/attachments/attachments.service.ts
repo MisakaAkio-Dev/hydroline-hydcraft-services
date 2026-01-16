@@ -648,7 +648,11 @@ export class AttachmentsService implements OnModuleInit {
     if (!file) {
       throw new BadRequestException('File is required');
     }
-    const folderId = dto.folderId ?? null;
+    let folderId = dto.folderId ?? null;
+    if (!folderId && dto.metadata?.scope === 'company-logo') {
+      const folder = await this.resolveFolderByPath(userId, ['company']);
+      folderId = folder?.id ?? null;
+    }
     const folder = folderId
       ? await this.prisma.attachmentFolder.findUnique({
           where: { id: folderId },
