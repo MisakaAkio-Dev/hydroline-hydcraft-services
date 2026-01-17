@@ -52,6 +52,24 @@ export function normalizeId(value: unknown): string | null {
   return null;
 }
 
+export function resolveEntityId(
+  entityId: string | null | undefined,
+  payloadId: unknown,
+) {
+  const normalizedEntityId = normalizeId(entityId);
+  if (normalizedEntityId && normalizedEntityId.trim().length) {
+    return normalizedEntityId.trim();
+  }
+  const normalizedPayloadId = normalizeId(payloadId);
+  if (normalizedPayloadId && normalizedPayloadId.trim().length) {
+    return normalizedPayloadId.trim();
+  }
+  if (typeof entityId === 'string' && entityId.trim().length) {
+    return entityId.trim();
+  }
+  return normalizedEntityId ?? normalizedPayloadId ?? null;
+}
+
 export function normalizeIdList(values: unknown[]) {
   return values
     .map((value) => normalizeId(value))

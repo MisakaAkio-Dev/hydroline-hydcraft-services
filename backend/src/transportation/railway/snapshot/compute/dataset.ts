@@ -9,6 +9,7 @@ import type {
 import {
   normalizeId,
   normalizeIdList,
+  resolveEntityId,
   readString,
   toNumber,
 } from '../../utils/railway-normalizer';
@@ -27,8 +28,9 @@ function buildRouteRecordFromRow(row: RouteRow): RailwayRouteRecord | null {
   if (!payload) {
     return null;
   }
+  const recordId = resolveEntityId(row.entityId, payload['id']);
   return {
-    id: normalizeId(payload['id']) ?? row.entityId,
+    id: recordId ?? row.entityId,
     name: readString(payload['name']) ?? row.name ?? null,
     color: toNumber(payload['color']) ?? row.color ?? null,
     transport_mode: readString(payload['transport_mode']) ?? null,
@@ -50,8 +52,9 @@ function buildPlatformRecordFromEntity(
   row: { entityId: string; name: string | null; transportMode: string | null },
   payload: Record<string, unknown>,
 ): RailwayPlatformRecord | null {
+  const recordId = resolveEntityId(row.entityId, payload['id']);
   return {
-    id: normalizeId(payload['id']) ?? row.entityId,
+    id: recordId ?? row.entityId,
     name: readString(payload['name']) ?? row.name ?? null,
     color: toNumber(payload['color']) ?? null,
     transport_mode:
@@ -76,8 +79,9 @@ function buildStationRecordFromEntity(
   const xMax = toNumber(payload['x_max']);
   const zMin = toNumber(payload['z_min']);
   const zMax = toNumber(payload['z_max']);
+  const recordId = resolveEntityId(entityId, payload['id']);
   return {
-    id: normalizeId(payload['id']) ?? entityId,
+    id: recordId ?? entityId,
     name: readString(payload['name']) ?? null,
     color: toNumber(payload['color']),
     transport_mode: readString(payload['transport_mode']),

@@ -116,6 +116,7 @@ import {
   normalizeIdList,
   normalizePayloadRecord,
   normalizeRouteRow,
+  resolveEntityId,
   readString,
   toBoolean,
   toNumber,
@@ -257,6 +258,8 @@ export class TransportationRailwayRouteDetailService {
     if (!routeRecord) {
       throw new NotFoundException('Route data missing');
     }
+    const routePayload = this.toJsonRecord(routeEntity.payload);
+    const routePayloadId = routePayload ? readString(routePayload['id']) : null;
 
     const normalizedRoute = this.normalizeStoredRoute(routeEntity, server);
     if (!normalizedRoute) {
@@ -353,10 +356,25 @@ export class TransportationRailwayRouteDetailService {
       this.normalizePlatformRecord(platform, server),
     );
 
+    const fallbackStops = selectedPlatforms.length
+      ? { stops: [], stations: [] }
+      : await this.buildStopsFromSnapshot(
+          server,
+          dimensionContextForGeometry,
+          normalizedRouteId,
+          this.buildStationsMap(
+            await this.fetchStationsFromStorage(
+              server,
+              dimensionContextForGeometry,
+            ),
+          ),
+        );
+
     const normalizedDepots = await this.fetchDepotsForRoute(
       server,
       dimensionContextForGeometry,
       normalizedRouteId,
+      routePayloadId,
     );
 
     const routeGeometryCalculate = await this.fetchRouteGeometryCalculateRecord(
@@ -384,17 +402,21 @@ export class TransportationRailwayRouteDetailService {
         snapshotLength: null,
         lengthKm: estimatedLengthKm,
       },
-      stations: normalizedStations,
+      stations: selectedPlatforms.length
+        ? normalizedStations
+        : fallbackStops.stations,
       platforms: normalizedPlatforms,
       depots: normalizedDepots,
       operatorCompanyIds: [],
       builderCompanyIds: [],
       geometry,
-      stops: this.buildStopSequence(
-        orderedPlatformIds,
-        platforms,
-        stationAssociations.platformStations,
-      ),
+      stops: selectedPlatforms.length
+        ? this.buildStopSequence(
+            orderedPlatformIds,
+            platforms,
+            stationAssociations.platformStations,
+          )
+        : fallbackStops.stops,
       routeGeometryCalculate,
     };
 
@@ -1256,6 +1278,8 @@ export class TransportationRailwayRouteDetailService {
     if (!routeRecord) return null;
     const normalizedRoute = this.normalizeStoredRoute(routeEntity, server);
     if (!normalizedRoute) return null;
+    const routePayload = this.toJsonRecord(routeEntity.payload);
+    const routePayloadId = routePayload ? readString(routePayload['id']) : null;
 
     const orderedPlatformIds = normalizeIdList(routeRecord.platform_ids ?? []);
     const selectedPlatforms = orderedPlatformIds
@@ -1283,26 +1307,41 @@ export class TransportationRailwayRouteDetailService {
     };
 
     const estimatedLengthKm = estimateGeometryLengthKm(geometry);
-    const stationAssociations = await this.resolvePlatformStations(
-      server,
-      dimensionContextForGeometry,
-      stationsMap,
-      selectedPlatforms,
-    );
-
-    const normalizedStations = stationAssociations.stations.map((station) =>
-      this.normalizeStationRecord(station, server),
-    );
-    const normalizedPlatforms = selectedPlatforms.map((platform) =>
-      this.normalizePlatformRecord(platform, server),
-    );
+    const stationAssociations = selectedPlatforms.length
+      ? await this.resolvePlatformStations(
+          server,
+          dimensionContextForGeometry,
+          stationsMap,
+          selectedPlatforms,
+        )
+      : { platformStations: new Map(), stations: [] as RailwayStationRecord[] };
+    const normalizedPlatforms = selectedPlatforms.length
+      ? selectedPlatforms.map((platform) =>
+          this.normalizePlatformRecord(platform, server),
+        )
+      : [];
+    const normalizedStations = selectedPlatforms.length
+      ? stationAssociations.stations.map((station) =>
+          this.normalizeStationRecord(station, server),
+        )
+      : [];
+    const fallbackStops = selectedPlatforms.length
+      ? { stops: [], stations: [] }
+      : await this.buildStopsFromSnapshot(
+          server,
+          dimensionContextForGeometry,
+          normalizedRouteId,
+          stationsMap,
+        );
     const normalizedDepots = await this.fetchDepotsForRoute(
       server,
       dimensionContextForGeometry,
       normalizedRouteId,
+      routePayloadId,
     );
 
-    normalizedRoute.platformCount = orderedPlatformIds.length;
+    normalizedRoute.platformCount =
+      orderedPlatformIds.length || fallbackStops.stops.length;
     if (!normalizedRoute.dimension) {
       normalizedRoute.dimension = this.extractDimensionFromContext(
         normalizedRoute.dimensionContext ??
@@ -1340,17 +1379,21 @@ export class TransportationRailwayRouteDetailService {
         snapshotLength: null,
         lengthKm: estimatedLengthKm,
       },
-      stations: normalizedStations,
+      stations: selectedPlatforms.length
+        ? normalizedStations
+        : fallbackStops.stations,
       platforms: normalizedPlatforms,
       depots: normalizedDepots,
       operatorCompanyIds: [],
       builderCompanyIds: [],
       geometry,
-      stops: this.buildStopSequence(
-        orderedPlatformIds,
-        platformMap,
-        stationAssociations.platformStations,
-      ),
+      stops: selectedPlatforms.length
+        ? this.buildStopSequence(
+            orderedPlatformIds,
+            platformMap,
+            stationAssociations.platformStations,
+          )
+        : fallbackStops.stops,
       routeGeometryCalculate,
     };
   }
@@ -1401,8 +1444,9 @@ export class TransportationRailwayRouteDetailService {
     if (!payload) {
       return null;
     }
+    const recordId = resolveEntityId(row.entityId, payload['id']);
     return {
-      id: normalizeId(payload['id']) ?? row.entityId,
+      id: recordId ?? row.entityId,
       name: readString(payload['name']) ?? row.name ?? null,
       color: toNumber(payload['color']) ?? row.color ?? null,
       transport_mode:
@@ -1592,6 +1636,42 @@ export class TransportationRailwayRouteDetailService {
     };
   }
 
+  private async fetchRouteGeometrySnapshotStops(
+    server: BeaconServerRecord,
+    dimensionContext: string | null,
+    routeId: string,
+  ): Promise<
+    Array<{ stationId: string | null; x: number; z: number; label: string }>
+  > {
+    if (!dimensionContext || !routeId) return [];
+    const snapshot =
+      await this.prisma.transportationRailwayRouteGeometrySnapshot.findUnique({
+        where: {
+          serverId_railwayMod_dimensionContext_routeEntityId: {
+            serverId: server.id,
+            railwayMod: server.railwayMod,
+            dimensionContext,
+            routeEntityId: routeId,
+          },
+        },
+        select: {
+          status: true,
+          stops: true,
+        },
+      });
+    if (!snapshot || snapshot.status !== 'READY') {
+      return [];
+    }
+    return Array.isArray(snapshot.stops)
+      ? (snapshot.stops as Array<{
+          stationId: string | null;
+          x: number;
+          z: number;
+          label: string;
+        }>)
+      : [];
+  }
+
   private async fetchStationsByIds(
     server: BeaconServerRecord,
     stationIds: string[],
@@ -1639,8 +1719,9 @@ export class TransportationRailwayRouteDetailService {
     row: TransportationRailwayPlatform,
     payload: Record<string, unknown>,
   ): RailwayPlatformRecord | null {
+    const recordId = resolveEntityId(row.entityId, payload['id']);
     return {
-      id: normalizeId(payload['id']) ?? row.entityId,
+      id: recordId ?? row.entityId,
       dimension_context:
         readString(payload['dimension_context']) ??
         readString(payload['dimensionContext']) ??
@@ -2648,6 +2729,110 @@ export class TransportationRailwayRouteDetailService {
       );
   }
 
+  private async buildStopsFromSnapshot(
+    server: BeaconServerRecord,
+    dimensionContext: string | null,
+    routeId: string,
+    stationsMap: Map<string | null, RailwayStationRecord>,
+  ): Promise<{
+    stops: RouteDetailResult['stops'];
+    stations: RouteDetailResult['stations'];
+  }> {
+    if (!dimensionContext) {
+      return { stops: [], stations: [] };
+    }
+    const snapshot = await this.fetchRouteGeometrySnapshotStops(
+      server,
+      dimensionContext,
+      routeId,
+    );
+    if (!snapshot.length) {
+      return { stops: [], stations: [] };
+    }
+    const stationList = Array.from(stationsMap.values()).filter(
+      (station): station is RailwayStationRecord => Boolean(station),
+    );
+    const stationById = new Map(
+      stationList
+        .map((station) => {
+          const key = normalizeId(station.id);
+          return key ? ([key, station] as const) : null;
+        })
+        .filter((entry): entry is readonly [string, RailwayStationRecord] =>
+          Boolean(entry),
+        ),
+    );
+    const stops: RouteDetailResult['stops'] = [];
+    const stationRegistry = new Map<string, RailwayStationRecord>();
+    snapshot.forEach((stop, index) => {
+      const x = Number(stop.x);
+      const z = Number(stop.z);
+      if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+      const directId = normalizeId(stop.stationId);
+      let station =
+        directId != null ? (stationById.get(directId) ?? null) : null;
+      if (!station) {
+        station = this.matchStationByPoint({ x, z }, stationList);
+      }
+      const stationId = normalizeId(station?.id) ?? directId ?? null;
+      if (station && stationId) {
+        stationRegistry.set(stationId, station);
+      }
+      stops.push({
+        order: index,
+        platformId: directId ?? `${routeId}:stop:${index}`,
+        platformName: stop.label ?? null,
+        stationId,
+        stationName: station?.name ?? null,
+        dwellTime: null,
+        position: { x, z },
+        bounds: station
+          ? {
+              xMin: station.x_min ?? null,
+              xMax: station.x_max ?? null,
+              zMin: station.z_min ?? null,
+              zMax: station.z_max ?? null,
+            }
+          : null,
+      });
+    });
+    const stations = Array.from(stationRegistry.values()).map((station) =>
+      this.normalizeStationRecord(station, server),
+    );
+    return { stops, stations };
+  }
+
+  private matchStationByPoint(
+    point: { x: number; z: number },
+    stations: RailwayStationRecord[],
+  ) {
+    let nearest: { station: RailwayStationRecord; distSq: number } | null =
+      null;
+    for (const station of stations) {
+      if (!this.stationHasBounds(station)) continue;
+      if (this.isPointInsideStation(point, station)) {
+        return station;
+      }
+      const center = this.computeStationCenter(station);
+      if (!center) continue;
+      const dx = center.x - point.x;
+      const dz = center.z - point.z;
+      const distSq = dx * dx + dz * dz;
+      if (!nearest || distSq < nearest.distSq) {
+        nearest = { station, distSq };
+      }
+    }
+    if (
+      nearest &&
+      nearest.distSq <=
+        NEAREST_STATION_MAX_DISTANCE_BLOCKS *
+          NEAREST_STATION_MAX_DISTANCE_BLOCKS
+    ) {
+      return nearest.station;
+    }
+    return null;
+  }
+
   private async resolvePlatformStations(
     server: BeaconServerRecord,
     dimensionContext: string | null,
@@ -2825,6 +3010,7 @@ export class TransportationRailwayRouteDetailService {
     server: BeaconServerRecord,
     dimensionContext: string | null,
     routeId: string,
+    routePayloadId?: string | null,
   ) {
     if (!dimensionContext) {
       return [] as NormalizedEntity[];
@@ -2850,7 +3036,10 @@ export class TransportationRailwayRouteDetailService {
         continue;
       }
       const routeIds = this.extractRouteIds(payload);
-      if (!routeIds.includes(routeId)) {
+      const routeMatches =
+        routeIds.includes(routeId) ||
+        (routePayloadId ? routeIds.includes(routePayloadId) : false);
+      if (!routeMatches) {
         continue;
       }
       const normalized =
@@ -2913,8 +3102,9 @@ export class TransportationRailwayRouteDetailService {
     const xMax = toNumber(payload['x_max']);
     const zMin = toNumber(payload['z_min']);
     const zMax = toNumber(payload['z_max']);
+    const recordId = resolveEntityId(entityId, payload['id']);
     return {
-      id: normalizeId(payload['id']) ?? entityId,
+      id: recordId ?? entityId,
       name: readString(payload['name']) ?? null,
       color: toNumber(payload['color']),
       transport_mode: readString(payload['transport_mode']),
