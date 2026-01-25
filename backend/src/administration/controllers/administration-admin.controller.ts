@@ -23,10 +23,14 @@ import { AdministrationService } from '../administration.service';
 import {
   CreateAdministrationDivisionDto,
   CreateAdministrationDivisionTypeDto,
+  CreateAdministrationOrganizationDto,
   CreateAdministrationRegimeDto,
   UpdateAdministrationDivisionTypeDto,
   UpdateAdministrationRegimeDto,
   UpdateAdministrationDivisionDto,
+  UpdateAdministrationOrganizationDto,
+  UpdateAdministrationOrganizationMembersDto,
+  AdministrationOrganizationQueryDto,
 } from '../dto/administration.dto';
 
 @ApiTags('行政系统（后台）')
@@ -197,5 +201,68 @@ export class AdministrationAdminController {
   async deleteDivision(@Param('divisionId') divisionId: string) {
     await this.administrationService.deleteDivision(divisionId);
     return { success: true };
+  }
+
+  @Get('organizations')
+  @RequirePermissions(PERMISSIONS.ADMINISTRATION_VIEW_ADMIN)
+  @ApiOperation({ summary: '行政机构列表' })
+  async listOrganizations(@Query() query: AdministrationOrganizationQueryDto) {
+    return this.administrationService.listOrganizations({
+      serverId: query.serverId,
+      kind: query.kind,
+      q: query.q,
+    });
+  }
+
+  @Get('organizations/:organizationId')
+  @RequirePermissions(PERMISSIONS.ADMINISTRATION_VIEW_ADMIN)
+  @ApiOperation({ summary: '行政机构详情' })
+  async getOrganization(@Param('organizationId') organizationId: string) {
+    return this.administrationService.getOrganizationDetail(organizationId);
+  }
+
+  @Post('servers/:serverId/organizations')
+  @RequirePermissions(PERMISSIONS.ADMINISTRATION_MANAGE_ADMIN)
+  @ApiOperation({ summary: '创建行政机构' })
+  async createOrganization(
+    @Param('serverId') serverId: string,
+    @Body() body: CreateAdministrationOrganizationDto,
+    @Req() req: Request,
+  ) {
+    return this.administrationService.createOrganization(
+      serverId,
+      body,
+      req.user?.id,
+    );
+  }
+
+  @Patch('organizations/:organizationId')
+  @RequirePermissions(PERMISSIONS.ADMINISTRATION_MANAGE_ADMIN)
+  @ApiOperation({ summary: '更新行政机构信息' })
+  async updateOrganization(
+    @Param('organizationId') organizationId: string,
+    @Body() body: UpdateAdministrationOrganizationDto,
+    @Req() req: Request,
+  ) {
+    return this.administrationService.updateOrganization(
+      organizationId,
+      body,
+      req.user?.id,
+    );
+  }
+
+  @Patch('organizations/:organizationId/members')
+  @RequirePermissions(PERMISSIONS.ADMINISTRATION_MANAGE_ADMIN)
+  @ApiOperation({ summary: '更新行政机构成员' })
+  async updateOrganizationMembers(
+    @Param('organizationId') organizationId: string,
+    @Body() body: UpdateAdministrationOrganizationMembersDto,
+    @Req() req: Request,
+  ) {
+    return this.administrationService.updateOrganizationMembers(
+      organizationId,
+      body,
+      req.user?.id,
+    );
   }
 }

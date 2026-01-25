@@ -20,6 +20,7 @@ import {
   GeoDivisionSearchDto,
   IndividualBusinessApplicationDto,
   LimitedLiabilityCompanyApplicationDto,
+  PublicInstitutionApplicationDto,
 } from '../dto/company.dto';
 const COMPANY_CONFIG_NAMESPACE = 'company';
 const COMPANY_SUPER_AUTHORITY_COMPANY_ID_KEY =
@@ -373,6 +374,74 @@ export class CompanyGeoService {
     }
   }
 
+  async normalizeAndValidatePublicInstitutionRegistrationAuthority(
+    institution: PublicInstitutionApplicationDto,
+  ) {
+    const domicileDivisionId = String(
+      institution.domicileDivisionId ?? '',
+    ).trim();
+    const serverId = String(institution.serverId ?? '').trim();
+    const authorityCompanyId = String(
+      (
+        institution as unknown as {
+          registrationAuthorityCompanyId?: string | null;
+        }
+      ).registrationAuthorityCompanyId ?? '',
+    ).trim();
+    const authorityNameRaw = String(
+      institution.registrationAuthorityName ?? '',
+    ).trim();
+
+    if (!domicileDivisionId) {
+      throw new BadRequestException('缺少住所地行政区划，无法校验登记机关');
+    }
+    if (!serverId) {
+      throw new BadRequestException(
+        'Missing serverId for registration authority validation',
+      );
+    }
+
+    const authorities = await this.listRegistrationAuthoritiesByDivisionId(
+      domicileDivisionId,
+      serverId,
+    );
+
+    if (authorityCompanyId) {
+      const matched = authorities.find(
+        (item) => item.id === authorityCompanyId,
+      );
+      if (!matched) {
+        throw new BadRequestException('登记机关不存在或不可用');
+      }
+      institution.registrationAuthorityName = matched.name;
+      return;
+    }
+
+    if (!authorityNameRaw) {
+      throw new BadRequestException('请选择登记机关（市场监督管理局）');
+    }
+    const matchedByName = authorities.find(
+      (item) => item.name.trim() === authorityNameRaw,
+    );
+    if (!matchedByName) {
+      throw new BadRequestException('登记机关不属于所选行政区划的可选范围');
+    }
+    institution.registrationAuthorityName = matchedByName.name;
+    if (
+      !(
+        institution as unknown as {
+          registrationAuthorityCompanyId?: string | null;
+        }
+      ).registrationAuthorityCompanyId
+    ) {
+      (
+        institution as unknown as {
+          registrationAuthorityCompanyId?: string | null;
+        }
+      ).registrationAuthorityCompanyId = matchedByName.id;
+    }
+  }
+
   async resolveRegistrationAuthorityForApplication(applicationId: string) {
     const application = await this.prisma.companyApplication.findUnique({
       where: { id: applicationId },
@@ -549,19 +618,34 @@ export class CompanyGeoService {
 
     const individual = raw.individual;
     if (
-      !individual ||
-      typeof individual !== 'object' ||
-      Array.isArray(individual)
+      individual &&
+      typeof individual === 'object' &&
+      !Array.isArray(individual)
+    ) {
+      const individualRaw = individual as Record<string, unknown>;
+      const individualAuthority = individualRaw.registrationAuthorityName;
+      const individualName =
+        typeof individualAuthority === 'string'
+          ? individualAuthority.trim()
+          : String(individualAuthority ?? '').trim();
+      if (individualName) return individualName;
+    }
+
+    const institution = raw.publicInstitution;
+    if (
+      !institution ||
+      typeof institution !== 'object' ||
+      Array.isArray(institution)
     ) {
       return null;
     }
-    const individualRaw = individual as Record<string, unknown>;
-    const individualAuthority = individualRaw.registrationAuthorityName;
-    const individualName =
-      typeof individualAuthority === 'string'
-        ? individualAuthority.trim()
-        : String(individualAuthority ?? '').trim();
-    return individualName || null;
+    const institutionRaw = institution as Record<string, unknown>;
+    const institutionAuthority = institutionRaw.registrationAuthorityName;
+    const institutionName =
+      typeof institutionAuthority === 'string'
+        ? institutionAuthority.trim()
+        : String(institutionAuthority ?? '').trim();
+    return institutionName || null;
   }
 
   private extractRegistrationAuthorityCompanyIdFromApplicationPayload(
@@ -588,19 +672,36 @@ export class CompanyGeoService {
 
     const individual = raw.individual;
     if (
-      !individual ||
-      typeof individual !== 'object' ||
-      Array.isArray(individual)
+      individual &&
+      typeof individual === 'object' &&
+      !Array.isArray(individual)
+    ) {
+      const individualRaw = individual as Record<string, unknown>;
+      const individualAuthorityId =
+        individualRaw.registrationAuthorityCompanyId;
+      const individualId =
+        typeof individualAuthorityId === 'string'
+          ? individualAuthorityId.trim()
+          : String(individualAuthorityId ?? '').trim();
+      if (individualId) return individualId;
+    }
+
+    const institution = raw.publicInstitution;
+    if (
+      !institution ||
+      typeof institution !== 'object' ||
+      Array.isArray(institution)
     ) {
       return null;
     }
-    const individualRaw = individual as Record<string, unknown>;
-    const individualAuthorityId = individualRaw.registrationAuthorityCompanyId;
-    const individualId =
-      typeof individualAuthorityId === 'string'
-        ? individualAuthorityId.trim()
-        : String(individualAuthorityId ?? '').trim();
-    return individualId || null;
+    const institutionRaw = institution as Record<string, unknown>;
+    const institutionAuthorityId =
+      institutionRaw.registrationAuthorityCompanyId;
+    const institutionId =
+      typeof institutionAuthorityId === 'string'
+        ? institutionAuthorityId.trim()
+        : String(institutionAuthorityId ?? '').trim();
+    return institutionId || null;
   }
 
   async assertAuthorityNameAllowedForDivision(

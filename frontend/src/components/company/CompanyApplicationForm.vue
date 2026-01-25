@@ -13,6 +13,7 @@ import { useCompanyStore } from '@/stores/user/companies'
 import { useAuthStore } from '@/stores/user/auth'
 import CompanyLlcRegistrationForm from '@/components/company/CompanyLlcRegistrationForm.vue'
 import CompanyIndividualRegistrationForm from '@/components/company/CompanyIndividualRegistrationForm.vue'
+import CompanyPublicInstitutionRegistrationForm from '@/components/company/CompanyPublicInstitutionRegistrationForm.vue'
 import AvatarCropperModal from '@/components/common/AvatarCropperModal.vue'
 import type {
   CompanyIndustry,
@@ -22,6 +23,7 @@ import type {
   CreateCompanyApplicationPayload,
   IndividualBusinessApplicationPayload,
   LimitedLiabilityCompanyApplicationPayload,
+  PublicInstitutionApplicationPayload,
   WorldDivisionPath,
   WorldDivisionNode,
 } from '@/types/company'
@@ -61,7 +63,12 @@ const currentUserId = computed<string | null>(() => {
 const LIMITED_LIABILITY_CODE = 'limited_liability_company'
 const INDIVIDUAL_BUSINESS_CODE =
   'individual-run_industrial_and_commercial_households'
-const SUPPORTED_TYPE_CODES = [LIMITED_LIABILITY_CODE, INDIVIDUAL_BUSINESS_CODE]
+const PUBLIC_INSTITUTION_CODE = 'public_institution'
+const SUPPORTED_TYPE_CODES = [
+  LIMITED_LIABILITY_CODE,
+  INDIVIDUAL_BUSINESS_CODE,
+  PUBLIC_INSTITUTION_CODE,
+]
 
 // ---------- 选择框显示：缓存已见过的 name，避免 items 变化后回退显示 id ----------
 const userLabelCache = reactive<Record<string, string>>({})
@@ -113,6 +120,7 @@ const formState = reactive<CreateCompanyApplicationPayload>({
   legalRepresentativeId: undefined,
   llc: undefined,
   individual: undefined,
+  publicInstitution: undefined,
 })
 let searchTimer: number | undefined
 let companySearchTimer: number | undefined
@@ -141,9 +149,14 @@ const domicileDivision = computed(() => {
 })
 const authorityCompanies = ref<Array<{ id: string; name: string }>>([])
 const authorityLoading = ref(false)
+const supervisingOrganizations = ref<
+  Array<{ id: string; name: string; companyName?: string | null }>
+>([])
+const supervisingOrganizationLoading = ref(false)
 const applyingInitial = ref(false)
 const labelPrefillDone = ref(false)
 const individualLabelPrefillDone = ref(false)
+const publicInstitutionLabelPrefillDone = ref(false)
 let level1SearchTimer: number | undefined
 
 async function refreshAuthorityCompanies() {
@@ -165,6 +178,37 @@ async function refreshAuthorityCompanies() {
   } finally {
     authorityLoading.value = false
   }
+}
+
+async function refreshSupervisingOrganizations() {
+  const serverId = selectedServerId.value
+  if (!serverId) {
+    supervisingOrganizations.value = []
+    return
+  }
+  supervisingOrganizationLoading.value = true
+  try {
+    const divisionId = divisionLevelSelectedIds.value[0]
+    const query = new URLSearchParams()
+    query.set('kind', 'AGENCY')
+    if (divisionId) query.set('divisionId', divisionId)
+    supervisingOrganizations.value = await apiFetch<
+      Array<{ id: string; name: string; companyName?: string | null }>
+    >(
+      `/administration/servers/${serverId}/organizations${
+        query.toString() ? `?${query.toString()}` : ''
+      }`,
+    )
+  } catch {
+    supervisingOrganizations.value = []
+  } finally {
+    supervisingOrganizationLoading.value = false
+  }
+}
+
+function handleSupervisingOrganizationOpen() {
+  if (supervisingOrganizations.value.length > 0) return
+  void refreshSupervisingOrganizations()
 }
 
 function handleAuthorityOpen() {
@@ -320,6 +364,34 @@ async function prefillIndividualSelectedLabels(
   for (const id of individual.assistants ?? []) {
     if (id) userIds.add(id)
   }
+
+  let usersDone = userIds.size === 0
+
+  if (userIds.size) {
+    if (!authStore.token) {
+      usersDone = false
+    } else {
+      const users = await apiFetch<CompanyUserRef[]>(
+        '/companies/users/resolve',
+        {
+          method: 'POST',
+          body: { ids: Array.from(userIds) },
+          token: authStore.token,
+        },
+      )
+      for (const u of users) upsertUserLabel(u)
+      usersDone = true
+    }
+  }
+
+  return { usersDone }
+}
+
+async function prefillPublicInstitutionSelectedLabels(
+  institution: PublicInstitutionApplicationPayload,
+): Promise<{ usersDone: boolean }> {
+  const userIds = new Set<string>()
+  if (institution.principalId) userIds.add(institution.principalId)
 
   let usersDone = userIds.size === 0
 
@@ -500,7 +572,11 @@ watch(selectedServerId, (value) => {
   llcDraft.registrationAuthorityName = ''
   individualDraft.registrationAuthorityCompanyId = undefined
   individualDraft.registrationAuthorityName = ''
+  publicInstitutionDraft.registrationAuthorityCompanyId = undefined
+  publicInstitutionDraft.registrationAuthorityName = ''
   authorityCompanies.value = []
+  supervisingOrganizations.value = []
+  publicInstitutionDraft.supervisingOrganizationId = undefined
   if (!value) {
     initDivisionLevels(0)
     authorityCompanies.value = []
@@ -536,7 +612,12 @@ watch(
         llcDraft.registrationAuthorityName = ''
         individualDraft.registrationAuthorityCompanyId = undefined
         individualDraft.registrationAuthorityName = ''
+        publicInstitutionDraft.registrationAuthorityCompanyId = undefined
+        publicInstitutionDraft.registrationAuthorityName = ''
+        publicInstitutionDraft.supervisingOrganizationId = undefined
+        supervisingOrganizations.value = []
         void refreshAuthorityCompanies()
+        void refreshSupervisingOrganizations()
       }
       return
     }
@@ -560,6 +641,11 @@ watch(
       llcDraft.registrationAuthorityName = ''
       individualDraft.registrationAuthorityCompanyId = undefined
       individualDraft.registrationAuthorityName = ''
+      publicInstitutionDraft.registrationAuthorityCompanyId = undefined
+      publicInstitutionDraft.registrationAuthorityName = ''
+      publicInstitutionDraft.supervisingOrganizationId = undefined
+      supervisingOrganizations.value = []
+      void refreshSupervisingOrganizations()
     }
 
     const nextLevelIndex = changedIndex + 2
@@ -611,6 +697,22 @@ type IndividualAssistantDraft = {
   userId: string | undefined
   search: string
   candidates: CompanyUserRef[]
+}
+
+type PublicInstitutionDraft = {
+  brandName: string
+  industryFeature: string
+  companyNameDivisionLevels: number[]
+  registrationAuthorityCompanyId: string | undefined
+  registrationAuthorityName: string
+  domicileAddress: string
+  operatingTermLong: boolean
+  operatingTermYears: number | null
+  businessScope: string
+  principalId: string | undefined
+  principalSearch: string
+  principalCandidates: CompanyUserRef[]
+  supervisingOrganizationId: string | undefined
 }
 
 const llcDraft = reactive<{
@@ -736,6 +838,22 @@ const individualDraft = reactive<{
   assistants: [],
 })
 
+const publicInstitutionDraft = reactive<PublicInstitutionDraft>({
+  brandName: '',
+  industryFeature: '',
+  companyNameDivisionLevels: [],
+  registrationAuthorityCompanyId: undefined,
+  registrationAuthorityName: '',
+  domicileAddress: '',
+  operatingTermLong: true,
+  operatingTermYears: null,
+  businessScope: '',
+  principalId: undefined,
+  principalSearch: '',
+  principalCandidates: [],
+  supervisingOrganizationId: undefined,
+})
+
 const initialApplied = ref(false)
 watch(
   () => props.initial,
@@ -756,6 +874,7 @@ watch(
       formState.legalRepresentativeId = value.legalRepresentativeId
       formState.llc = value.llc
       formState.individual = value.individual
+      formState.publicInstitution = value.publicInstitution
 
       // LLC 回填（该表单 submit 时会依赖 llcDraft 构建 payload）
       if (value.llc) {
@@ -962,6 +1081,82 @@ watch(
         }
       }
 
+      if (value.publicInstitution) {
+        try {
+          const { usersDone } = await prefillPublicInstitutionSelectedLabels(
+            value.publicInstitution,
+          )
+          publicInstitutionLabelPrefillDone.value = usersDone
+        } catch {
+          // ignore：只影响展示
+        }
+
+        selectedServerId.value = value.publicInstitution.serverId
+
+        publicInstitutionDraft.brandName =
+          value.publicInstitution.brandName ?? ''
+        publicInstitutionDraft.industryFeature =
+          value.publicInstitution.industryFeature ?? ''
+        publicInstitutionDraft.registrationAuthorityCompanyId =
+          value.publicInstitution.registrationAuthorityCompanyId
+        publicInstitutionDraft.registrationAuthorityName =
+          value.publicInstitution.registrationAuthorityName ?? ''
+        publicInstitutionDraft.domicileAddress =
+          value.publicInstitution.domicileAddress ?? ''
+        publicInstitutionDraft.operatingTermLong =
+          value.publicInstitution.operatingTerm?.type === 'LONG_TERM'
+        publicInstitutionDraft.operatingTermYears =
+          value.publicInstitution.operatingTerm?.type === 'YEARS'
+            ? (value.publicInstitution.operatingTerm.years ?? null)
+            : null
+        publicInstitutionDraft.businessScope =
+          value.publicInstitution.businessScope ?? ''
+        publicInstitutionDraft.principalId =
+          value.publicInstitution.principalId ?? undefined
+        publicInstitutionDraft.supervisingOrganizationId =
+          value.publicInstitution.supervisingOrganizationId ?? undefined
+
+        if (selectedServerId.value) {
+          if (!companyStore.registrationMeta) {
+            await companyStore.fetchRegistrationMeta()
+          }
+          const regime = administrationByServer.value.get(
+            selectedServerId.value,
+          )
+          const pathFromPayload = normalizeDivisionPath(
+            value.publicInstitution.domicileDivisionPath as
+              | Record<string, { id: string; name: string } | null>
+              | undefined,
+          )
+          let nodes = pathFromPayload
+          if (!nodes.length && value.publicInstitution.domicileDivisionId) {
+            try {
+              nodes = await loadDivisionPath(
+                selectedServerId.value,
+                value.publicInstitution.domicileDivisionId,
+              )
+            } catch {
+              nodes = []
+            }
+          }
+          if (nodes.length > 0) {
+            await applyDivisionPath(selectedServerId.value, nodes)
+          } else if (regime?.hasActiveRegime && regime.levelCount) {
+            initDivisionLevels(regime.levelCount)
+            try {
+              await loadDivisionOptions({
+                serverId: selectedServerId.value,
+                levelIndex: 1,
+              })
+            } catch {
+              divisionLevelOptions.value[0] = []
+            }
+          } else {
+            initDivisionLevels(0)
+          }
+        }
+      }
+
       await nextTick()
     } finally {
       applyingInitial.value = false
@@ -993,6 +1188,16 @@ watch(
         // ignore
       }
     }
+    const institution = props.initial?.publicInstitution
+    if (institution && !publicInstitutionLabelPrefillDone.value) {
+      try {
+        const { usersDone } =
+          await prefillPublicInstitutionSelectedLabels(institution)
+        publicInstitutionLabelPrefillDone.value = usersDone
+      } catch {
+        // ignore
+      }
+    }
   },
   { immediate: true },
 )
@@ -1015,6 +1220,7 @@ const authorityCandidatesFiltered = computed(() => {
 
 const llcActiveSection = ref('basic')
 const individualActiveSection = ref('basic')
+const publicInstitutionActiveSection = ref('basic')
 
 const llcAuthorityOptions = computed(() =>
   buildCompanyItems(
@@ -1027,6 +1233,19 @@ const individualAuthorityOptions = computed(() =>
     authorityCandidatesFiltered.value as unknown as CompanyRef[],
     individualDraft.registrationAuthorityCompanyId,
   ),
+)
+const publicInstitutionAuthorityOptions = computed(() =>
+  buildCompanyItems(
+    authorityCandidatesFiltered.value as unknown as CompanyRef[],
+    publicInstitutionDraft.registrationAuthorityCompanyId,
+  ),
+)
+
+const supervisingOrganizationOptions = computed(() =>
+  supervisingOrganizations.value.map((item) => ({
+    value: item.id,
+    label: item.companyName ? `${item.name} · ${item.companyName}` : item.name,
+  })),
 )
 
 const availableNameDivisionLevels = computed(() =>
@@ -1041,6 +1260,7 @@ watch(
     if (levels.length === 0) {
       llcDraft.companyNameDivisionLevels = []
       individualDraft.companyNameDivisionLevels = []
+      publicInstitutionDraft.companyNameDivisionLevels = []
       return
     }
     const next = llcDraft.companyNameDivisionLevels.filter((level) =>
@@ -1049,6 +1269,11 @@ watch(
     const individualNext = individualDraft.companyNameDivisionLevels.filter(
       (level) => levels.includes(level),
     )
+    const institutionNext =
+      publicInstitutionDraft.companyNameDivisionLevels.filter((level) =>
+        levels.includes(level),
+      )
+
     if (next.length === 0) {
       llcDraft.companyNameDivisionLevels = [levels[0]]
     } else if (next.length !== llcDraft.companyNameDivisionLevels.length) {
@@ -1057,12 +1282,19 @@ watch(
 
     if (individualNext.length === 0) {
       individualDraft.companyNameDivisionLevels = [levels[0]]
-      return
-    }
-    if (
+    } else if (
       individualNext.length !== individualDraft.companyNameDivisionLevels.length
     ) {
       individualDraft.companyNameDivisionLevels = individualNext
+    }
+
+    if (institutionNext.length === 0) {
+      publicInstitutionDraft.companyNameDivisionLevels = [levels[0]]
+    } else if (
+      institutionNext.length !==
+      publicInstitutionDraft.companyNameDivisionLevels.length
+    ) {
+      publicInstitutionDraft.companyNameDivisionLevels = institutionNext
     }
   },
   { immediate: true },
@@ -1090,6 +1322,18 @@ const fullIndividualName = computed(() => {
   const feature = individualDraft.industryFeature.trim()
   const pieces = [...divisions, brand, feature].filter(Boolean)
   return `${pieces.join('') || ''}个体工商户`
+})
+
+const fullPublicInstitutionName = computed(() => {
+  const divisions = publicInstitutionDraft.companyNameDivisionLevels
+    .slice()
+    .sort((a, b) => a - b)
+    .map((level) => divisionLevelNodes.value[level - 1]?.name)
+    .filter((name): name is string => Boolean(name))
+  const brand = publicInstitutionDraft.brandName.trim()
+  const feature = publicInstitutionDraft.industryFeature.trim()
+  const pieces = [...divisions, brand, feature].filter(Boolean)
+  return `${pieces.join('') || ''}事业单位`
 })
 
 function buildDivisionPathPayload(): WorldDivisionPath | undefined {
@@ -1293,6 +1537,9 @@ const limitedLiabilityType = computed(() =>
 const individualBusinessType = computed(() =>
   resolvedTypes.value.find((t) => t.code === INDIVIDUAL_BUSINESS_CODE),
 )
+const publicInstitutionType = computed(() =>
+  resolvedTypes.value.find((t) => t.code === PUBLIC_INSTITUTION_CODE),
+)
 
 const resolvedIndustries = computed(() => {
   if (props.industries.length > 0) {
@@ -1432,6 +1679,14 @@ const individualOperatorLabel = computed(() => {
   )
 })
 
+const publicInstitutionPrincipalLabel = computed(() => {
+  const principalId = publicInstitutionDraft.principalId
+  if (principalId && userLabelCache[principalId]) {
+    return userLabelCache[principalId]
+  }
+  return principalId || '未选择'
+})
+
 const showCompanyTypeField = computed(() => true)
 const isCompanyTypeLocked = computed(() => supportedTypes.value.length <= 1)
 const isLlcSelected = computed(() => {
@@ -1452,6 +1707,15 @@ const isIndividualSelected = computed(() => {
   }
   const code = formState.typeCode
   return code === INDIVIDUAL_BUSINESS_CODE
+})
+const isPublicInstitutionSelected = computed(() => {
+  const id = formState.typeId
+  if (id) {
+    const t = resolvedTypes.value.find((x) => x.id === id)
+    return t?.code === PUBLIC_INSTITUTION_CODE
+  }
+  const code = formState.typeCode
+  return code === PUBLIC_INSTITUTION_CODE
 })
 
 // 当 types 元数据就绪时，如果未选择类型，默认选中有限责任公司（不覆盖 initial 回填）
@@ -1484,6 +1748,16 @@ watch(
   (enabled) => {
     if (!enabled) {
       formState.individual = undefined
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => isPublicInstitutionSelected.value,
+  (enabled) => {
+    if (!enabled) {
+      formState.publicInstitution = undefined
     }
   },
   { immediate: true },
@@ -1522,7 +1796,11 @@ function cleanUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
 }
 
 const handleSubmit = async () => {
-  if (!isLlcSelected.value && !isIndividualSelected.value) {
+  if (
+    !isLlcSelected.value &&
+    !isIndividualSelected.value &&
+    !isPublicInstitutionSelected.value
+  ) {
     toast.add({ title: '请先选择可申请的公司类型', color: 'error' })
     return
   }
@@ -1536,6 +1814,11 @@ const handleSubmit = async () => {
     formState.typeCode = INDIVIDUAL_BUSINESS_CODE
     if (individualBusinessType.value?.id) {
       formState.typeId = individualBusinessType.value.id
+    }
+  } else if (isPublicInstitutionSelected.value) {
+    formState.typeCode = PUBLIC_INSTITUTION_CODE
+    if (publicInstitutionType.value?.id) {
+      formState.typeId = publicInstitutionType.value.id
     }
   }
 
@@ -1720,6 +2003,7 @@ const handleSubmit = async () => {
     formState.legalRepresentativeId = llcDraft.legalRepresentativeId
     formState.llc = llcPayload
     formState.individual = undefined
+    formState.publicInstitution = undefined
   }
 
   if (isIndividualSelected.value) {
@@ -1805,6 +2089,87 @@ const handleSubmit = async () => {
     formState.legalRepresentativeId = operatorId
     formState.individual = individualPayload
     formState.llc = undefined
+    formState.publicInstitution = undefined
+  }
+
+  if (isPublicInstitutionSelected.value) {
+    if (publicInstitutionActiveSection.value !== 'review') {
+      toast.add({ title: '请先完成信息核验后再提交', color: 'error' })
+      return
+    }
+    if (!selectedServerId.value) {
+      toast.add({ title: '请先选择所属服务端', color: 'error' })
+      return
+    }
+    if (!domicileDivisionId.value) {
+      toast.add({ title: '请先选择住所地所在行政区', color: 'error' })
+      return
+    }
+    if (!publicInstitutionDraft.registrationAuthorityCompanyId) {
+      toast.add({ title: '请选择登记机关（机关法人）', color: 'error' })
+      return
+    }
+    const authorityName =
+      authorityCandidatesFiltered.value.find(
+        (c) => c.id === publicInstitutionDraft.registrationAuthorityCompanyId,
+      )?.name ??
+      companyLabelCache[
+        publicInstitutionDraft.registrationAuthorityCompanyId
+      ] ??
+      publicInstitutionDraft.registrationAuthorityName.trim()
+    if (!authorityName) {
+      toast.add({ title: '登记机关信息无效，请重新选择', color: 'error' })
+      return
+    }
+    if (!publicInstitutionDraft.industryFeature.trim()) {
+      toast.add({ title: '请填写行业特点', color: 'error' })
+      return
+    }
+    if (!publicInstitutionDraft.domicileAddress.trim()) {
+      toast.add({ title: '请填写住所地详细地址', color: 'error' })
+      return
+    }
+    if (!publicInstitutionDraft.businessScope.trim()) {
+      toast.add({ title: '请填写业务范围', color: 'error' })
+      return
+    }
+    const principalId = publicInstitutionDraft.principalId?.trim()
+    if (!principalId) {
+      toast.add({ title: '请选择负责人', color: 'error' })
+      return
+    }
+    if (!publicInstitutionDraft.supervisingOrganizationId) {
+      toast.add({ title: '请选择主管单位', color: 'error' })
+      return
+    }
+
+    const publicInstitutionPayload: PublicInstitutionApplicationPayload = {
+      serverId: selectedServerId.value as string,
+      domicileDivisionId: domicileDivisionId.value as string,
+      domicileDivisionPath: buildDivisionPathPayload(),
+      brandName: publicInstitutionDraft.brandName.trim() || undefined,
+      industryFeature: publicInstitutionDraft.industryFeature.trim(),
+      registrationAuthorityCompanyId:
+        publicInstitutionDraft.registrationAuthorityCompanyId,
+      registrationAuthorityName: authorityName,
+      domicileAddress: publicInstitutionDraft.domicileAddress.trim(),
+      operatingTerm: publicInstitutionDraft.operatingTermLong
+        ? { type: 'LONG_TERM' }
+        : {
+            type: 'YEARS',
+            years: publicInstitutionDraft.operatingTermYears ?? undefined,
+          },
+      businessScope: publicInstitutionDraft.businessScope.trim(),
+      principalId,
+      supervisingOrganizationId:
+        publicInstitutionDraft.supervisingOrganizationId,
+    }
+
+    formState.name = fullPublicInstitutionName.value
+    formState.legalRepresentativeId = principalId
+    formState.publicInstitution = publicInstitutionPayload
+    formState.llc = undefined
+    formState.individual = undefined
   }
 
   // 清理 undefined 值并发送 payload
@@ -1982,6 +2347,40 @@ const handleSubmit = async () => {
       @update:active-section="individualActiveSection = $event"
     />
 
+    <CompanyPublicInstitutionRegistrationForm
+      v-if="isPublicInstitutionSelected"
+      :selected-server-id="selectedServerId"
+      :server-search="serverSearch"
+      :server-options="serverOptions"
+      :visible-division-levels="visibleDivisionLevels"
+      :division-level-selected-ids="divisionLevelSelectedIds"
+      :division-level-options="divisionLevelOptions"
+      :level1-search="level1Search"
+      :has-active-regime="hasActiveRegime"
+      :domicile-division="domicileDivision"
+      :full-institution-name="fullPublicInstitutionName"
+      :authority-options="publicInstitutionAuthorityOptions"
+      :authority-loading="authorityLoading"
+      :supervising-organization-options="supervisingOrganizationOptions"
+      :supervising-organization-loading="supervisingOrganizationLoading"
+      :logo-preview-url="logoPreviewUrl"
+      :logo-uploading="logoUploading"
+      :public-institution-draft="publicInstitutionDraft"
+      :user-label-cache="userLabelCache"
+      :build-user-items="buildUserItems"
+      :handle-user-search-list="handleUserSearchList"
+      :active-section="publicInstitutionActiveSection"
+      @submit="handleSubmit"
+      @request-authorities="handleAuthorityOpen"
+      @request-supervisors="handleSupervisingOrganizationOpen"
+      @upload-logo="handleLogoUpload"
+      @update:selected-server-id="selectedServerId = $event"
+      @update:server-search="serverSearch = $event"
+      @update:level1-search="level1Search = $event"
+      @update:division-level-selected-ids="divisionLevelSelectedIds = $event"
+      @update:active-section="publicInstitutionActiveSection = $event"
+    />
+
     <AvatarCropperModal
       v-model:open="logoCropperOpen"
       :image-url="logoCropperImageUrl"
@@ -1993,7 +2392,9 @@ const handleSubmit = async () => {
     />
 
     <div
-      v-if="!isLlcSelected && !isIndividualSelected"
+      v-if="
+        !isLlcSelected && !isIndividualSelected && !isPublicInstitutionSelected
+      "
       class="flex justify-end"
     >
       <UButton type="submit" color="primary" :loading="submitting">

@@ -326,6 +326,72 @@ export class IndividualBusinessApplicationDto {
   assistants?: string[];
 }
 
+export class PublicInstitutionApplicationDto {
+  @IsUUID()
+  serverId!: string;
+
+  @IsString()
+  @MinLength(1)
+  domicileDivisionId!: string;
+
+  @IsOptional()
+  @IsObject()
+  domicileDivisionPath?: {
+    level1?: { id: string; name: string } | null;
+    level2?: { id: string; name: string } | null;
+    level3?: { id: string; name: string } | null;
+  };
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  brandName?: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  industryFeature!: string;
+
+  @ValidateIf(
+    (o: PublicInstitutionApplicationDto) => !o.registrationAuthorityName,
+  )
+  @IsUUID()
+  registrationAuthorityCompanyId?: string;
+
+  @ValidateIf(
+    (o: PublicInstitutionApplicationDto) => !o.registrationAuthorityCompanyId,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  registrationAuthorityName?: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  domicileAddress!: string;
+
+  @ValidateNested()
+  @Type(() => LlcOperatingTermDto)
+  operatingTerm!: LlcOperatingTermDto;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  businessScope!: string;
+
+  @IsString()
+  @MinLength(1)
+  principalId!: string;
+
+  @IsUUID()
+  supervisingOrganizationId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  supervisingCompanyId?: string;
+}
+
 export class CompanyRecommendationsQueryDto {
   @IsOptional()
   @IsString()
@@ -410,6 +476,15 @@ export class CreateCompanyApplicationDto {
   @ValidateNested()
   @Type(() => IndividualBusinessApplicationDto)
   individual?: IndividualBusinessApplicationDto;
+
+  /**
+   * 事业单位专用字段（typeCode === public_institution）
+   * 其内容会被整体保存到 CompanyApplication.payload 以供审核与后续落库扩展使用。
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PublicInstitutionApplicationDto)
+  publicInstitution?: PublicInstitutionApplicationDto;
 }
 
 export class CompanyApplicationConsentDecisionDto {

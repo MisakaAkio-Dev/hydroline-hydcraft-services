@@ -7,7 +7,7 @@ import type {
   WorldDivisionNode,
 } from '@/types/company'
 
-type IndividualDraft = {
+type PublicInstitutionDraft = {
   brandName: string
   industryFeature: string
   companyNameDivisionLevels: number[]
@@ -17,15 +17,18 @@ type IndividualDraft = {
   operatingTermLong: boolean
   operatingTermYears: number | null
   businessScope: string
-  operatorId: string | undefined
-  assistants: Array<{
-    userId: string | undefined
-    search: string
-    candidates: CompanyUserRef[]
-  }>
+  principalId: string | undefined
+  principalSearch: string
+  principalCandidates: CompanyUserRef[]
+  supervisingOrganizationId: string | undefined
 }
 
-type SelectItem = { value: string; label: string }
+type SelectItem = { value: string | number; label: string }
+
+type OrganizationOption = {
+  value: string
+  label: string
+}
 
 const props = defineProps<{
   selectedServerId: string | undefined
@@ -36,23 +39,21 @@ const props = defineProps<{
   divisionLevelOptions: WorldDivisionNode[][]
   level1Search: string
   hasActiveRegime: boolean
-  industryLabel: string
   domicileDivision: WorldDivisionNode | null
-  fullBusinessName: string
+  fullInstitutionName: string
   authorityOptions: SelectItem[]
   authorityLoading?: boolean
+  supervisingOrganizationOptions: OrganizationOption[]
+  supervisingOrganizationLoading?: boolean
   logoPreviewUrl?: string | null
   logoUploading?: boolean
-  individualDraft: IndividualDraft
-  operatorLabel: string
+  publicInstitutionDraft: PublicInstitutionDraft
   userLabelCache: Record<string, string>
   buildUserItems: (
     candidates: CompanyUserRef[],
     selectedId?: string,
   ) => SelectItem[]
   handleUserSearchList: (target: CompanyUserRef[], keyword: string) => void
-  addAssistant: () => void
-  removeAssistant: (index: number) => void
   activeSection?: string
 }>()
 
@@ -66,6 +67,7 @@ const emit = defineEmits<{
   ): void
   (event: 'update:activeSection', value: string): void
   (event: 'request-authorities'): void
+  (event: 'request-supervisors'): void
   (event: 'upload-logo', file: File): void
   (event: 'submit'): void
 }>()
@@ -116,6 +118,21 @@ const level2Id = computed({
   set: (value) => updateDivisionLevel(1, value),
 })
 
+const nameDivisionOptions = computed(() => {
+  const options: SelectItem[] = []
+  props.divisionLevelSelectedIds.forEach((id, index) => {
+    if (!id) return
+    const node = props.divisionLevelOptions[index]?.find((n) => n.id === id)
+    options.push({
+      value: index + 1,
+      label: node?.name || `第 ${index + 1} 级行政区`,
+    })
+  })
+  return options
+})
+
+const nameDivisionEnabled = computed(() => nameDivisionOptions.value.length > 0)
+
 const stepperItems = ref([
   {
     title: '基本信息',
@@ -123,7 +140,7 @@ const stepperItems = ref([
     value: 'basic',
   },
   {
-    title: '经营成员',
+    title: '机构成员',
     icon: 'i-lucide-users',
     value: 'members',
   },
@@ -176,7 +193,7 @@ const basicTimelineItems: TimelineItem[] = [
     description: ' ',
   },
   {
-    title: '个体工商户名称',
+    title: '事业单位名称',
     icon: 'i-lucide-building-2',
     slot: 'basic-2',
     description: ' ',
@@ -201,7 +218,7 @@ const basicTimelineItems: TimelineItem[] = [
     description: ' ',
   },
   {
-    title: '经营范围',
+    title: '业务范围',
     icon: 'i-lucide-notebook-text',
     slot: 'basic-7',
     description: ' ',
@@ -210,14 +227,14 @@ const basicTimelineItems: TimelineItem[] = [
 
 const memberTimelineItems: TimelineItem[] = [
   {
-    title: '经营者',
+    title: '负责人',
     icon: 'i-lucide-user-check',
     slot: 'member-1',
     description: ' ',
   },
   {
-    title: '其他经营成员',
-    icon: 'i-lucide-user-plus',
+    title: '主管单位',
+    icon: 'i-lucide-shield-check',
     slot: 'member-2',
     description: ' ',
   },
@@ -237,13 +254,13 @@ function resolveUserLabel(id?: string) {
   return props.userLabelCache[id] ?? id
 }
 
-const assistantSummary = computed(() =>
-  props.individualDraft.assistants
-    .map((entry, index) =>
-      entry.userId ? `#${index + 1} ${resolveUserLabel(entry.userId)}` : '',
-    )
-    .filter(Boolean),
-)
+const supervisingDisplay = computed(() => {
+  const option = props.supervisingOrganizationOptions.find(
+    (item) =>
+      item.value === props.publicInstitutionDraft.supervisingOrganizationId,
+  )
+  return option?.label ?? '未选择'
+})
 </script>
 
 <template>
@@ -256,7 +273,7 @@ const assistantSummary = computed(() =>
           <div class="space-y-3">
             <div class="flex gap-3 flex-col w-full">
               <div class="space-y-2">
-                <label class="block text-xs text-slate-500">所属服务端</label>
+                <label class="text-xs text-slate-500">所属服务端</label>
                 <USelectMenu
                   class="w-full"
                   v-model="selectedServerModel"
@@ -299,7 +316,7 @@ const assistantSummary = computed(() =>
                 class="space-y-2"
               >
                 <template v-if="level === 1">
-                  <label class="block text-xs text-slate-500">
+                  <label class="text-xs text-slate-500">
                     一级行政区<span class="text-red-500">*</span>
                   </label>
                   <USelectMenu
@@ -340,7 +357,7 @@ const assistantSummary = computed(() =>
                   </USelectMenu>
                 </template>
                 <template v-else>
-                  <label class="block text-xs text-slate-500">
+                  <label class="text-xs text-slate-500">
                     二级行政区
                     <span class="text-slate-400">（选填）</span>
                   </label>
@@ -387,31 +404,44 @@ const assistantSummary = computed(() =>
 
         <template #basic-2-description>
           <div class="space-y-3">
-            <div class="space-y-2">
-              <label class="block text-xs text-slate-500">字号</label>
-              <UInput
-                class="w-full"
-                v-model="individualDraft.brandName"
-                placeholder="填写字号（可选）"
-              />
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div class="space-y-2">
+                <label class="text-xs text-slate-500"
+                  >出现在名称中的行政区</label
+                >
+                <USelectMenu
+                  v-model="publicInstitutionDraft.companyNameDivisionLevels"
+                  :items="nameDivisionOptions"
+                  value-key="value"
+                  label-key="label"
+                  multiple
+                  :disabled="!nameDivisionEnabled"
+                  placeholder="选择需要拼接的行政区"
+                  class="w-full"
+                />
+              </div>
+              <div class="space-y-2">
+                <label class="text-xs text-slate-500">字号</label>
+                <UInput
+                  class="w-full"
+                  v-model="publicInstitutionDraft.brandName"
+                />
+              </div>
+              <div class="space-y-2">
+                <label class="text-xs text-slate-500">业务特点</label>
+                <UInput
+                  class="w-full"
+                  v-model="publicInstitutionDraft.industryFeature"
+                />
+              </div>
+              <div class="space-y-2">
+                <label class="text-xs text-slate-500">组织形式</label>
+                <UInput class="w-full" model-value="事业单位" disabled />
+              </div>
             </div>
-            <div class="space-y-2">
-              <label class="block text-xs text-slate-500">
-                行业特点<span class="text-red-500">*</span>
-              </label>
-              <UInput
-                class="w-full"
-                v-model="individualDraft.industryFeature"
-                placeholder="例如：餐饮、科技、零售"
-              />
-            </div>
-            <div class="space-y-2">
-              <label class="block text-xs text-slate-500">组织形式</label>
-              <UInput class="w-full" model-value="个体工商户" disabled />
-            </div>
-            <div v-if="fullBusinessName" class="text-xs text-slate-500">
+            <div v-if="fullInstitutionName" class="text-xs text-slate-500">
               预览：<span class="font-semibold text-slate-900">{{
-                fullBusinessName
+                fullInstitutionName
               }}</span>
             </div>
           </div>
@@ -426,7 +456,7 @@ const assistantSummary = computed(() =>
                 <img
                   v-if="logoPreviewUrl"
                   :src="logoPreviewUrl"
-                  alt="个体工商户 Logo"
+                  alt="事业单位 Logo"
                   class="h-full w-full object-cover"
                 />
                 <span v-else class="text-xs text-slate-400">暂无 Logo</span>
@@ -456,7 +486,7 @@ const assistantSummary = computed(() =>
         <template #basic-4-description>
           <USelectMenu
             class="w-full"
-            v-model="individualDraft.registrationAuthorityCompanyId"
+            v-model="publicInstitutionDraft.registrationAuthorityCompanyId"
             :items="authorityOptions"
             value-key="value"
             label-key="label"
@@ -479,7 +509,8 @@ const assistantSummary = computed(() =>
                   class="h-6 w-6 p-0 flex justify-center items-center"
                   aria-label="清空"
                   @click.stop.prevent="
-                    individualDraft.registrationAuthorityCompanyId = undefined
+                    publicInstitutionDraft.registrationAuthorityCompanyId =
+                      undefined
                   "
                 >
                   <UIcon name="i-lucide-x" class="h-4 w-4" />
@@ -491,28 +522,23 @@ const assistantSummary = computed(() =>
         </template>
 
         <template #basic-5-description>
-          <div class="space-y-2">
-            <label class="block text-xs text-slate-500">
-              住所地详细地址<span class="text-red-500">*</span>
-            </label>
-            <UInput
-              class="w-full"
-              v-model="individualDraft.domicileAddress"
-              placeholder="填写详细地址"
-            />
-          </div>
+          <UInput
+            class="w-full"
+            v-model="publicInstitutionDraft.domicileAddress"
+            placeholder="填写详细地址"
+          />
         </template>
 
         <template #basic-6-description>
           <div class="flex items-center gap-2 mt-2">
-            <USwitch v-model="individualDraft.operatingTermLong" />
+            <USwitch v-model="publicInstitutionDraft.operatingTermLong" />
             <span class="text-sm text-slate-600">{{
-              individualDraft.operatingTermLong ? '长期' : '按年限'
+              publicInstitutionDraft.operatingTermLong ? '长期' : '按年限'
             }}</span>
             <UInput
-              v-if="!individualDraft.operatingTermLong"
+              v-if="!publicInstitutionDraft.operatingTermLong"
               class="w-24"
-              v-model.number="individualDraft.operatingTermYears"
+              v-model.number="publicInstitutionDraft.operatingTermYears"
               type="number"
               placeholder="如：1 年"
               size="xs"
@@ -521,189 +547,171 @@ const assistantSummary = computed(() =>
         </template>
 
         <template #basic-7-description>
-          <div class="space-y-2">
-            <label class="block text-xs text-slate-500">
-              经营范围<span class="text-red-500">*</span>
-            </label>
-            <UTextarea
-              class="w-full"
-              v-model="individualDraft.businessScope"
-              :rows="3"
-              placeholder="填写主营业务与经营范围"
-            />
-          </div>
+          <UTextarea
+            class="w-full"
+            v-model="publicInstitutionDraft.businessScope"
+            :rows="3"
+            placeholder="填写主营业务与业务范围"
+          />
         </template>
       </UTimeline>
     </div>
 
-    <div v-if="activeSection === 'members'" class="space-y-4">
+    <div v-else-if="activeSection === 'members'" class="space-y-4">
       <UTimeline :items="memberTimelineItems" size="xs">
         <template #member-1-description>
-          <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <div class="text-xs text-slate-500">经营者（申请人）</div>
-            <div class="mt-1 text-sm font-semibold text-slate-900">
-              {{ operatorLabel }}
-            </div>
-            <p class="mt-1 text-xs text-slate-400">
-              经营者固定为当前申请人，无需选择。
-            </p>
+          <div class="space-y-2">
+            <label class="text-xs text-slate-500">负责人</label>
+            <USelectMenu
+              class="w-full"
+              v-model="publicInstitutionDraft.principalId"
+              v-model:search-term="publicInstitutionDraft.principalSearch"
+              :items="
+                buildUserItems(
+                  publicInstitutionDraft.principalCandidates,
+                  publicInstitutionDraft.principalId,
+                )
+              "
+              value-key="value"
+              label-key="label"
+              searchable
+              placeholder="搜索负责人"
+              @update:search-term="
+                (v: string) =>
+                  handleUserSearchList(
+                    publicInstitutionDraft.principalCandidates,
+                    v,
+                  )
+              "
+            >
+              <template #trailing="{ modelValue }">
+                <div class="flex items-center gap-1">
+                  <UButton
+                    v-if="
+                      modelValue !== undefined &&
+                      modelValue !== null &&
+                      String(modelValue) !== ''
+                    "
+                    type="button"
+                    color="neutral"
+                    variant="ghost"
+                    class="h-6 w-6 p-0 flex justify-center items-center"
+                    aria-label="清空"
+                    @click.stop.prevent="
+                      publicInstitutionDraft.principalId = undefined
+                    "
+                  >
+                    <UIcon name="i-lucide-x" class="h-4 w-4" />
+                  </UButton>
+                  <span class="select-none text-slate-400">▾</span>
+                </div>
+              </template>
+            </USelectMenu>
           </div>
         </template>
 
         <template #member-2-description>
-          <div class="space-y-3">
-            <div class="flex items-center justify-between">
-              <p class="text-xs text-slate-500">可选填</p>
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                @click="addAssistant"
-              >
-                添加成员
-              </UButton>
-            </div>
-
-            <div
-              v-if="individualDraft.assistants.length === 0"
-              class="text-xs text-slate-400"
+          <div class="space-y-2">
+            <label class="text-xs text-slate-500">主管单位</label>
+            <USelectMenu
+              class="w-full"
+              v-model="publicInstitutionDraft.supervisingOrganizationId"
+              :items="supervisingOrganizationOptions"
+              value-key="value"
+              label-key="label"
+              searchable
+              :loading="supervisingOrganizationLoading"
+              placeholder="选择主管单位（机关法人）"
+              @update:open="(open) => open && emit('request-supervisors')"
             >
-              暂无其他经营成员。
-            </div>
-
-            <div
-              v-for="(assistant, index) in individualDraft.assistants"
-              :key="index"
-              class="rounded-xl border border-slate-200/70 p-3 space-y-2"
-            >
-              <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold text-slate-700">
-                  成员 #{{ index + 1 }}
-                </p>
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  @click="removeAssistant(index)"
-                >
-                  删除
-                </UButton>
-              </div>
-              <USelectMenu
-                class="w-full"
-                v-model="assistant.userId"
-                v-model:search-term="assistant.search"
-                :items="buildUserItems(assistant.candidates, assistant.userId)"
-                value-key="value"
-                label-key="label"
-                searchable
-                placeholder="搜索用户"
-                @update:search-term="
-                  (v: string) => handleUserSearchList(assistant.candidates, v)
-                "
-              >
-                <template #trailing="{ modelValue }">
-                  <div class="flex items-center gap-1">
-                    <UButton
-                      v-if="
-                        modelValue !== undefined &&
-                        modelValue !== null &&
-                        String(modelValue) !== ''
-                      "
-                      type="button"
-                      color="neutral"
-                      variant="ghost"
-                      class="h-6 w-6 p-0 flex justify-center items-center"
-                      aria-label="清空"
-                      @click.stop.prevent="assistant.userId = undefined"
-                    >
-                      <UIcon name="i-lucide-x" class="h-4 w-4" />
-                    </UButton>
-                    <span class="select-none text-slate-400">▾</span>
-                  </div>
-                </template>
-              </USelectMenu>
-            </div>
+              <template #trailing="{ modelValue }">
+                <div class="flex items-center gap-1">
+                  <UButton
+                    v-if="
+                      modelValue !== undefined &&
+                      modelValue !== null &&
+                      String(modelValue) !== ''
+                    "
+                    type="button"
+                    color="neutral"
+                    variant="ghost"
+                    class="h-6 w-6 p-0 flex justify-center items-center"
+                    aria-label="清空"
+                    @click.stop.prevent="
+                      publicInstitutionDraft.supervisingOrganizationId =
+                        undefined
+                    "
+                  >
+                    <UIcon name="i-lucide-x" class="h-4 w-4" />
+                  </UButton>
+                  <span class="select-none text-slate-400">▾</span>
+                </div>
+              </template>
+            </USelectMenu>
           </div>
         </template>
       </UTimeline>
     </div>
 
-    <div v-if="activeSection === 'review'" class="space-y-4">
+    <div v-else class="space-y-4">
       <UTimeline :items="reviewTimelineItems" size="xs">
         <template #review-1-description>
-          <div
-            class="space-y-4 rounded-xl border border-slate-200 bg-white px-4 py-4"
-          >
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div class="space-y-1">
-              <p class="text-xs text-slate-500">个体工商户名称</p>
-              <p class="text-sm font-semibold text-slate-900">
-                {{ fullBusinessName || '未生成' }}
+              <p class="text-xs text-slate-500">事业单位名称</p>
+              <p class="text-sm text-slate-900">{{ fullInstitutionName }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-xs text-slate-500">业务特点</p>
+              <p class="text-sm text-slate-700">
+                {{ publicInstitutionDraft.industryFeature || '未填写' }}
               </p>
             </div>
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div>
-                <p class="text-xs text-slate-500">行业</p>
-                <p class="text-sm text-slate-700">{{ industryLabel }}</p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500">登记机关</p>
-                <p class="text-sm text-slate-700">
-                  {{
-                    authorityOptions.find(
-                      (item) =>
-                        item.value ===
-                        individualDraft.registrationAuthorityCompanyId,
-                    )?.label ||
-                    individualDraft.registrationAuthorityName ||
-                    '未选择'
-                  }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500">住所地</p>
-                <p class="text-sm text-slate-700">
-                  {{ individualDraft.domicileAddress || '未填写' }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500">经营期限</p>
-                <p class="text-sm text-slate-700">
-                  {{
-                    individualDraft.operatingTermLong
-                      ? '长期'
-                      : `${individualDraft.operatingTermYears ?? '未填写'} 年`
-                  }}
-                </p>
-              </div>
+            <div class="space-y-1">
+              <p class="text-xs text-slate-500">登记机关</p>
+              <p class="text-sm text-slate-700">
+                {{
+                  authorityOptions.find(
+                    (item) =>
+                      item.value ===
+                      publicInstitutionDraft.registrationAuthorityCompanyId,
+                  )?.label ||
+                  publicInstitutionDraft.registrationAuthorityName ||
+                  '未选择'
+                }}
+              </p>
             </div>
-            <div>
-              <p class="text-xs text-slate-500">经营范围</p>
+            <div class="space-y-1">
+              <p class="text-xs text-slate-500">住所地</p>
+              <p class="text-sm text-slate-700">
+                {{ publicInstitutionDraft.domicileAddress || '未填写' }}
+              </p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-xs text-slate-500">经营期限</p>
+              <p class="text-sm text-slate-900">
+                {{
+                  publicInstitutionDraft.operatingTermLong
+                    ? '长期'
+                    : `${publicInstitutionDraft.operatingTermYears ?? '未填写'} 年`
+                }}
+              </p>
+            </div>
+            <div class="space-y-1 md:col-span-2">
+              <p class="text-xs text-slate-500">业务范围</p>
               <p class="text-sm text-slate-700 whitespace-pre-wrap">
-                {{ individualDraft.businessScope || '未填写' }}
+                {{ publicInstitutionDraft.businessScope || '未填写' }}
               </p>
             </div>
-            <div>
-              <p class="text-xs text-slate-500">经营者</p>
-              <p class="text-sm text-slate-700">{{ operatorLabel }}</p>
+            <div class="space-y-1">
+              <p class="text-xs text-slate-500">负责人</p>
+              <p class="text-sm text-slate-700">
+                {{ resolveUserLabel(publicInstitutionDraft.principalId) }}
+              </p>
             </div>
-            <div>
-              <p class="text-xs text-slate-500">其他经营成员</p>
-              <div
-                v-if="assistantSummary.length === 0"
-                class="text-sm text-slate-400"
-              >
-                暂无
-              </div>
-              <div v-else class="flex flex-col gap-1">
-                <p
-                  v-for="item in assistantSummary"
-                  :key="item"
-                  class="text-sm text-slate-700"
-                >
-                  {{ item }}
-                </p>
-              </div>
+            <div class="space-y-1">
+              <p class="text-xs text-slate-500">主管单位</p>
+              <p class="text-sm text-slate-700">{{ supervisingDisplay }}</p>
             </div>
           </div>
         </template>

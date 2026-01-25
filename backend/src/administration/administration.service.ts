@@ -655,4 +655,305 @@ export class AdministrationService {
     }
     return division.serverId;
   }
+
+  async listOrganizations(params: {
+    serverId?: string;
+    kind?: 'AGENCY' | 'PUBLIC_INSTITUTION';
+    q?: string;
+  }) {
+    const keyword = params.q?.trim();
+    return this.prisma.administrationOrganization.findMany({
+      where: {
+        ...(params.serverId ? { serverId: params.serverId } : {}),
+        ...(params.kind ? { kind: params.kind } : {}),
+        ...(keyword
+          ? {
+              OR: [
+                { name: { contains: keyword, mode: 'insensitive' } },
+                {
+                  company: { name: { contains: keyword, mode: 'insensitive' } },
+                },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        division: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            type: { select: { code: true, name: true } },
+          },
+        },
+        members: { select: { role: true } },
+      },
+      orderBy: [{ updatedAt: 'desc' }],
+    });
+  }
+
+  async getOrganizationDetail(organizationId: string) {
+    const org = await this.prisma.administrationOrganization.findUnique({
+      where: { id: organizationId },
+      include: {
+        division: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            type: { select: { code: true, name: true } },
+          },
+        },
+        members: {
+          select: {
+            userId: true,
+            role: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profile: { select: { displayName: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!org) {
+      throw new NotFoundException('Organization not found');
+    }
+    return org;
+  }
+
+  async listOrganizationsForPublic(
+    serverId: string,
+    params: { kind?: 'AGENCY' | 'PUBLIC_INSTITUTION'; divisionId?: string },
+  ) {
+    return this.prisma.administrationOrganization.findMany({
+      where: {
+        serverId,
+        ...(params.kind ? { kind: params.kind } : {}),
+        ...(params.divisionId ? { divisionId: params.divisionId } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        company: { select: { id: true, name: true } },
+      },
+      orderBy: [{ name: 'asc' }],
+    });
+  }
+
+  async createOrganization(
+    serverId: string,
+    dto: {
+      name: string;
+      kind: 'AGENCY' | 'PUBLIC_INSTITUTION';
+      level: 'SERVER' | 'LEVEL1' | 'LEVEL2';
+      divisionId?: string;
+      companyId?: string;
+    },
+    userId?: string,
+  ) {
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('organization name is required');
+    }
+    const division = await this.resolveOrganizationDivision(
+      serverId,
+      dto.level,
+      dto.divisionId,
+    );
+    const companyId = await this.resolveOrganizationCompany(
+      dto.kind,
+      dto.companyId,
+    );
+
+    return this.prisma.administrationOrganization.create({
+      data: {
+        serverId,
+        name,
+        kind: dto.kind,
+        level: dto.level,
+        divisionId: division?.id ?? null,
+        companyId: companyId ?? null,
+        createdById: userId ?? null,
+        updatedById: userId ?? null,
+      },
+    });
+  }
+
+  async updateOrganization(
+    organizationId: string,
+    dto: {
+      name?: string;
+      kind?: 'AGENCY' | 'PUBLIC_INSTITUTION';
+      level?: 'SERVER' | 'LEVEL1' | 'LEVEL2';
+      divisionId?: string | null;
+      companyId?: string | null;
+    },
+    userId?: string,
+  ) {
+    const existing = await this.prisma.administrationOrganization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, serverId: true, kind: true, level: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Organization not found');
+    }
+    const name = typeof dto.name === 'string' ? dto.name.trim() : undefined;
+    const nextKind = dto.kind ?? existing.kind;
+    const nextLevel = dto.level ?? existing.level;
+    const division = await this.resolveOrganizationDivision(
+      existing.serverId,
+      nextLevel,
+      dto.divisionId === undefined ? undefined : (dto.divisionId ?? undefined),
+    );
+    const companyId = await this.resolveOrganizationCompany(
+      nextKind,
+      dto.companyId === undefined ? undefined : (dto.companyId ?? undefined),
+    );
+
+    return this.prisma.administrationOrganization.update({
+      where: { id: organizationId },
+      data: {
+        name: name ?? undefined,
+        kind: dto.kind ?? undefined,
+        level: dto.level ?? undefined,
+        divisionId: division
+          ? division.id
+          : dto.divisionId === null
+            ? null
+            : undefined,
+        companyId: companyId ?? (dto.companyId === null ? null : undefined),
+        updatedById: userId ?? null,
+      },
+    });
+  }
+
+  async updateOrganizationMembers(
+    organizationId: string,
+    dto: { managerIds?: string[]; memberIds?: string[] },
+    userId?: string,
+  ) {
+    const organization =
+      await this.prisma.administrationOrganization.findUnique({
+        where: { id: organizationId },
+        select: { id: true },
+      });
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+    const managers = (dto.managerIds ?? [])
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+    const members = (dto.memberIds ?? [])
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+
+    const managerSet = new Set(managers);
+    const memberSet = new Set(members);
+    for (const id of managerSet) {
+      if (memberSet.has(id)) {
+        throw new BadRequestException('管理人与成员不能重复');
+      }
+    }
+
+    const uniqueManagers = Array.from(managerSet);
+    const uniqueMembers = Array.from(memberSet);
+
+    if (uniqueManagers.length || uniqueMembers.length) {
+      const userIds = [...uniqueManagers, ...uniqueMembers];
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true },
+      });
+      if (users.length !== userIds.length) {
+        throw new BadRequestException('成员列表包含不存在的用户');
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.administrationOrganizationMember.deleteMany({
+        where: { organizationId },
+      });
+      const rows = [
+        ...uniqueManagers.map((id) => ({
+          organizationId,
+          userId: id,
+          role: 'MANAGER' as const,
+        })),
+        ...uniqueMembers.map((id) => ({
+          organizationId,
+          userId: id,
+          role: 'MEMBER' as const,
+        })),
+      ];
+      if (rows.length) {
+        await tx.administrationOrganizationMember.createMany({ data: rows });
+      }
+      if (userId) {
+        await tx.administrationOrganization.update({
+          where: { id: organizationId },
+          data: { updatedById: userId },
+        });
+      }
+    });
+    return this.getOrganizationDetail(organizationId);
+  }
+
+  private async resolveOrganizationDivision(
+    serverId: string,
+    level: 'SERVER' | 'LEVEL1' | 'LEVEL2',
+    divisionId?: string,
+  ) {
+    if (level === 'SERVER') {
+      return null;
+    }
+    if (!divisionId) {
+      throw new BadRequestException('divisionId is required for this level');
+    }
+    const division = await this.prisma.administrationDivision.findFirst({
+      where: { id: divisionId, serverId },
+      select: { id: true, levelIndex: true },
+    });
+    if (!division) {
+      throw new BadRequestException('divisionId not found');
+    }
+    if (level === 'LEVEL1' && division.levelIndex !== 1) {
+      throw new BadRequestException('仅允许选择一级行政区');
+    }
+    if (level === 'LEVEL2' && division.levelIndex !== 2) {
+      throw new BadRequestException('仅允许选择二级行政区');
+    }
+    return division;
+  }
+
+  private async resolveOrganizationCompany(
+    kind: 'AGENCY' | 'PUBLIC_INSTITUTION',
+    companyId?: string,
+  ) {
+    if (!companyId) return undefined;
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, type: { select: { code: true } } },
+    });
+    if (!company) {
+      throw new BadRequestException('关联法人单位不存在');
+    }
+    if (
+      kind === 'AGENCY' &&
+      company.type?.code !== 'state_organ_legal_person'
+    ) {
+      throw new BadRequestException('行政机关必须关联机关法人');
+    }
+    if (
+      kind === 'PUBLIC_INSTITUTION' &&
+      company.type?.code !== 'public_institution'
+    ) {
+      throw new BadRequestException('事业单位必须关联事业单位法人');
+    }
+    return company.id;
+  }
 }

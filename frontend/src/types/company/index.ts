@@ -132,6 +132,22 @@ export interface IndividualBusinessApplicationPayload {
   assistants?: string[]
 }
 
+export interface PublicInstitutionApplicationPayload {
+  serverId: string
+  domicileDivisionId: string
+  domicileDivisionPath?: WorldDivisionPath
+  brandName?: string
+  industryFeature: string
+  registrationAuthorityCompanyId?: string
+  registrationAuthorityName?: string
+  domicileAddress: string
+  operatingTerm: { type: 'LONG_TERM' | 'YEARS'; years?: number }
+  businessScope: string
+  principalId: string
+  supervisingOrganizationId: string
+  supervisingCompanyId?: string
+}
+
 /**
  * 轻量用户引用（用于选择框/展示等）。
  * 注意：这里不再与任何“公司成员/岗位角色”系统绑定，仅代表用户基本信息。
@@ -499,6 +515,7 @@ export interface CreateCompanyApplicationPayload {
   legalRepresentativeId?: string
   llc?: LimitedLiabilityCompanyApplicationPayload
   individual?: IndividualBusinessApplicationPayload
+  publicInstitution?: PublicInstitutionApplicationPayload
 }
 
 export interface CompanyDeregistrationApplyPayload {

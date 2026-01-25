@@ -696,6 +696,20 @@ export const adminRoutes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'administration/organizations',
+        name: 'admin.administration.organizations',
+        component: () =>
+          import(
+            '@/views/admin/Administration/AdministrationOrganizationsView.vue'
+          ),
+        meta: {
+          requiresAuth: true,
+          requiresPermissions: ['administration.admin.view'],
+          layout: 'admin',
+          title: '行政机构',
+        },
+      },
+      {
         path: 'company/registry',
         name: 'admin.company.registry',
         component: () =>

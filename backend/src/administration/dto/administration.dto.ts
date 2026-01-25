@@ -7,6 +7,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -155,4 +156,83 @@ export class DivisionSearchDto {
   @Min(1)
   @Max(50)
   limit?: number;
+}
+
+export class CreateAdministrationOrganizationDto {
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
+  @IsIn(['AGENCY', 'PUBLIC_INSTITUTION'])
+  kind!: 'AGENCY' | 'PUBLIC_INSTITUTION';
+
+  @IsIn(['SERVER', 'LEVEL1', 'LEVEL2'])
+  level!: 'SERVER' | 'LEVEL1' | 'LEVEL2';
+
+  @IsOptional()
+  @IsUUID()
+  divisionId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
+}
+
+export class UpdateAdministrationOrganizationDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @IsOptional()
+  @IsIn(['AGENCY', 'PUBLIC_INSTITUTION'])
+  kind?: 'AGENCY' | 'PUBLIC_INSTITUTION';
+
+  @IsOptional()
+  @IsIn(['SERVER', 'LEVEL1', 'LEVEL2'])
+  level?: 'SERVER' | 'LEVEL1' | 'LEVEL2';
+
+  @IsOptional()
+  @IsUUID()
+  divisionId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  companyId?: string | null;
+}
+
+export class UpdateAdministrationOrganizationMembersDto {
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  managerIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  memberIds?: string[];
+}
+
+export class AdministrationOrganizationQueryDto {
+  @IsOptional()
+  @IsUUID()
+  serverId?: string;
+
+  @IsOptional()
+  @IsIn(['AGENCY', 'PUBLIC_INSTITUTION'])
+  kind?: 'AGENCY' | 'PUBLIC_INSTITUTION';
+
+  @IsOptional()
+  @IsString()
+  q?: string;
+}
+
+export class PublicAdministrationOrganizationQueryDto {
+  @IsOptional()
+  @IsIn(['AGENCY', 'PUBLIC_INSTITUTION'])
+  kind?: 'AGENCY' | 'PUBLIC_INSTITUTION';
+
+  @IsOptional()
+  @IsUUID()
+  divisionId?: string;
 }

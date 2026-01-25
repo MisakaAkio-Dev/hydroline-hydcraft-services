@@ -176,6 +176,22 @@ enum AdministrationDivisionManagerRole {
   LOCAL_EDITOR
 }
 
+enum AdministrationOrganizationKind {
+  AGENCY
+  PUBLIC_INSTITUTION
+}
+
+enum AdministrationOrganizationLevel {
+  SERVER
+  LEVEL1
+  LEVEL2
+}
+
+enum AdministrationOrganizationMemberRole {
+  MANAGER
+  MEMBER
+}
+
 enum MinecraftServerEdition {
   JAVA
   BEDROCK

@@ -18,11 +18,9 @@ const uiStore = useUiStore()
 const toast = useToast()
 
 const LIMITED_LIABILITY_CODE = 'limited_liability_company'
-const SHARES_CODE = 'join_stock_company_limited_by_shares'
-const SPECIAL_LEGAL_PERSON_CODE = 'special_legal_person'
 const INDIVIDUAL_BUSINESS_CODE =
   'individual-run_industrial_and_commercial_households'
-const UNINCORPORATED_ORGANIZATION_CODE = 'unincorporated_organization'
+const PUBLIC_INSTITUTION_CODE = 'public_institution'
 
 const applicationGatewayOpen = ref(false)
 const applicationFormOpen = ref(false)
@@ -43,15 +41,12 @@ const individualBusinessType = computed(() =>
     (type) => type.code === INDIVIDUAL_BUSINESS_CODE,
   ),
 )
-const unincorporatedType = computed(() =>
+const publicInstitutionType = computed(() =>
   (companyStore.meta?.types ?? []).find(
-    (type) => type.category === 'UNINCORPORATED_ORGANIZATION',
+    (type) => type.code === PUBLIC_INSTITUTION_CODE,
   ),
 )
 const registrationTypeOptions = computed(() => {
-  const types = companyStore.meta?.types ?? []
-  const shares = types.find((type) => type.code === SHARES_CODE)
-  const special = types.find((type) => type.category === 'SPECIAL_LEGAL_PERSON')
   return [
     {
       value: LIMITED_LIABILITY_CODE,
@@ -60,28 +55,16 @@ const registrationTypeOptions = computed(() => {
       typeId: limitedLiabilityType.value?.id,
     },
     {
-      value: SHARES_CODE,
-      label: shares?.name || '股份有限公司',
-      available: false,
-      typeId: shares?.id,
-    },
-    {
-      value: SPECIAL_LEGAL_PERSON_CODE,
-      label: '特别法人',
-      available: false,
-      typeId: special?.id,
+      value: PUBLIC_INSTITUTION_CODE,
+      label: publicInstitutionType.value?.name || '事业单位',
+      available: Boolean(publicInstitutionType.value?.id),
+      typeId: publicInstitutionType.value?.id,
     },
     {
       value: INDIVIDUAL_BUSINESS_CODE,
       label: individualBusinessType.value?.name || '个体工商户',
       available: Boolean(individualBusinessType.value?.id),
       typeId: individualBusinessType.value?.id,
-    },
-    {
-      value: UNINCORPORATED_ORGANIZATION_CODE,
-      label: '非法人组织',
-      available: false,
-      typeId: unincorporatedType.value?.id,
     },
   ]
 })
@@ -100,7 +83,7 @@ const selectedTypeAvailable = computed(() =>
   ),
 )
 const showIndustrySelector = computed(
-  () => selectedRegistrationType.value !== SPECIAL_LEGAL_PERSON_CODE,
+  () => selectedRegistrationType.value !== PUBLIC_INSTITUTION_CODE,
 )
 const industryRequired = computed(() => showIndustrySelector.value)
 const canEnterRegistration = computed(() => {
@@ -826,7 +809,7 @@ watch(
               class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <p class="text-xs text-slate-500 dark:text-slate-400">
-                当前开放有限责任公司、个体工商户登记。
+                当前开放有限责任公司、个体工商户、事业单位登记。
               </p>
               <UButton
                 color="primary"

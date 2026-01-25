@@ -678,7 +678,7 @@ export class CompanyAdminService {
     const workflowCode = query.workflowCode?.trim();
     const keyword = query.search?.trim();
 
-    const authorityCompanyIdExpr = Prisma.sql`NULLIF(BTRIM(COALESCE(a."payload" #>> '{llc,registrationAuthorityCompanyId}', a."payload" #>> '{individual,registrationAuthorityCompanyId}', a."payload" #>> '{registrationAuthorityCompanyId}')), '')`;
+    const authorityCompanyIdExpr = Prisma.sql`NULLIF(BTRIM(COALESCE(a."payload" #>> '{llc,registrationAuthorityCompanyId}', a."payload" #>> '{individual,registrationAuthorityCompanyId}', a."payload" #>> '{publicInstitution,registrationAuthorityCompanyId}', a."payload" #>> '{registrationAuthorityCompanyId}')), '')`;
 
     const fromAndWhere = Prisma.sql`
       FROM "company_applications" a

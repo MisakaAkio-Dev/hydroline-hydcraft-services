@@ -100,8 +100,12 @@ model Company {
   transportationRailwayCompanyBindings    TransportationRailwayCompanyBinding[]
   applicationConsentsAsShareholderCompany CompanyApplicationConsent[]           @relation("CompanyApplicationConsentShareholderCompany")
   llcRegistration                         CompanyLlcRegistration?
+  publicInstitutionRegistration           CompanyPublicInstitutionRegistration?
+  administrationOrganizations             AdministrationOrganization[]
   llcRegistrationsAsAuthority             CompanyLlcRegistration[]              @relation("CompanyLlcRegistrationAuthority")
+  publicInstitutionRegistrationsAsAuthority CompanyPublicInstitutionRegistration[] @relation("CompanyPublicInstitutionAuthority")
   llcRegistrationShareholdings            CompanyLlcRegistrationShareholder[]   @relation("CompanyLlcRegistrationShareholderCompany")
+  publicInstitutionRegistrationsAsSupervisor CompanyPublicInstitutionRegistration[] @relation("CompanyPublicInstitutionSupervisor")
 
   @@index([status, createdAt], map: "idx_companies_status_created")
   @@index([industryId], map: "idx_companies_industry")
@@ -135,6 +139,7 @@ model CompanyApplication {
   auditRecords       CompanyAuditRecord[]
   consents           CompanyApplicationConsent[]
   llcRegistration    CompanyLlcRegistration?
+  publicInstitutionRegistration CompanyPublicInstitutionRegistration?
 
   @@index([applicantId], map: "idx_company_applications_applicant")
   @@index([status], map: "idx_company_applications_status")
@@ -192,6 +197,41 @@ model CompanyLlcRegistration {
   @@index([applicationId], map: "idx_company_llc_reg_application")
   @@index([registrationAuthorityCompanyId], map: "idx_company_llc_reg_authority_company")
   @@map("company_llc_registrations")
+}
+
+model CompanyPublicInstitutionRegistration {
+  id                             String                   @id @default(uuid())
+  companyId                      String                   @unique
+  applicationId                  String                   @unique
+  serverId                       String
+  domicileDivisionId             String
+  domicileDivisionPath           Json?
+  brandName                      String?
+  industryFeature                String
+  registrationAuthorityName      String
+  registrationAuthorityCompanyId String?
+  domicileAddress                String
+  operatingTermType              CompanyLlcOperatingTermType
+  operatingTermYears             Int?
+  businessScope                  String
+  principalId                    String
+  supervisingOrganizationId      String
+  supervisingCompanyId           String?
+  createdAt                      DateTime                 @default(now())
+  updatedAt                      DateTime                 @updatedAt
+
+  company                      Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  application                  CompanyApplication        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  principal                    User                      @relation(fields: [principalId], references: [id])
+  registrationAuthorityCompany Company?                  @relation("CompanyPublicInstitutionAuthority", fields: [registrationAuthorityCompanyId], references: [id])
+  supervisingOrganization      AdministrationOrganization @relation(fields: [supervisingOrganizationId], references: [id], onDelete: Restrict)
+  supervisingCompany           Company?                  @relation("CompanyPublicInstitutionSupervisor", fields: [supervisingCompanyId], references: [id])
+
+  @@index([companyId], map: "idx_company_public_inst_company")
+  @@index([applicationId], map: "idx_company_public_inst_application")
+  @@index([supervisingOrganizationId], map: "idx_company_public_inst_org")
+  @@index([registrationAuthorityCompanyId], map: "idx_company_public_inst_authority_company")
+  @@map("company_public_institution_registrations")
 }
 
 model CompanyLlcRegistrationShareholder {

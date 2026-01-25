@@ -155,6 +155,11 @@ const menuGroups = computed<MenuGroup[]>(() => [
         to: '/admin/administration/divisions',
         icon: 'i-lucide-map',
       },
+      {
+        label: '行政机构',
+        to: '/admin/administration/organizations',
+        icon: 'i-lucide-building',
+      },
     ],
   },
   {

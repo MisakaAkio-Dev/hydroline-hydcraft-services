@@ -57,6 +57,58 @@ export class CompanyRegistrationPersistenceService {
     );
   }
 
+  async persistPublicInstitutionRegistrationFromApplication(
+    applicationId: string,
+    companyId: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const client = tx ?? this.prisma;
+    const application = await client.companyApplication.findUnique({
+      where: { id: applicationId },
+      select: { id: true, payload: true, consentStatus: true },
+    });
+    if (!application) return;
+    if (
+      application.consentStatus !== CompanyApplicationConsentProgress.APPROVED
+    ) {
+      throw new BadRequestException('参与人同意未完成，无法入库');
+    }
+    const payload = application.payload as any;
+    const institution = payload?.publicInstitution as any;
+    if (!institution) return;
+    await this.persistPublicInstitutionRegistration(
+      companyId,
+      application.id,
+      institution,
+      client,
+    );
+  }
+
+  async persistPublicInstitutionRegistrationIfNeeded(
+    companyId: string,
+    instanceId: string,
+  ) {
+    const application = await this.prisma.companyApplication.findFirst({
+      where: { companyId, workflowInstanceId: instanceId },
+      select: { id: true, payload: true, consentStatus: true },
+    });
+    if (!application) return;
+    if (
+      application.consentStatus !== CompanyApplicationConsentProgress.APPROVED
+    ) {
+      throw new BadRequestException('参与人同意未完成，无法入库');
+    }
+    const payload = application.payload as any;
+    const institution = payload?.publicInstitution as any;
+    if (!institution) return;
+    await this.persistPublicInstitutionRegistration(
+      companyId,
+      application.id,
+      institution,
+      this.prisma,
+    );
+  }
+
   private async persistLlcRegistration(
     companyId: string,
     applicationId: string,
@@ -217,5 +269,71 @@ export class CompanyRegistrationPersistenceService {
         data: officerRows,
       });
     }
+  }
+
+  private async persistPublicInstitutionRegistration(
+    companyId: string,
+    applicationId: string,
+    institution: any,
+    tx: Prisma.TransactionClient,
+  ) {
+    if (!institution.registrationAuthorityName?.trim()) {
+      throw new BadRequestException('登记机关名称不能为空');
+    }
+    const now = new Date();
+    const operatingTermType =
+      institution.operatingTerm?.type === 'YEARS'
+        ? CompanyLlcOperatingTermType.YEARS
+        : CompanyLlcOperatingTermType.LONG_TERM;
+    const operatingTermYears =
+      institution.operatingTerm?.type === 'YEARS'
+        ? Number(institution.operatingTerm?.years ?? null)
+        : null;
+
+    await tx.companyPublicInstitutionRegistration.upsert({
+      where: { applicationId },
+      create: {
+        id: randomUUID(),
+        companyId,
+        applicationId,
+        serverId: institution.serverId,
+        domicileDivisionId: institution.domicileDivisionId,
+        domicileDivisionPath:
+          institution.domicileDivisionPath ?? Prisma.JsonNull,
+        brandName: institution.brandName ?? null,
+        industryFeature: institution.industryFeature,
+        registrationAuthorityName: institution.registrationAuthorityName,
+        registrationAuthorityCompanyId:
+          institution.registrationAuthorityCompanyId ?? null,
+        domicileAddress: institution.domicileAddress,
+        operatingTermType,
+        operatingTermYears: operatingTermYears ?? undefined,
+        businessScope: institution.businessScope,
+        principalId: institution.principalId,
+        supervisingOrganizationId: institution.supervisingOrganizationId,
+        supervisingCompanyId: institution.supervisingCompanyId ?? null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      update: {
+        serverId: institution.serverId,
+        domicileDivisionId: institution.domicileDivisionId,
+        domicileDivisionPath:
+          institution.domicileDivisionPath ?? Prisma.JsonNull,
+        brandName: institution.brandName ?? null,
+        industryFeature: institution.industryFeature,
+        registrationAuthorityName: institution.registrationAuthorityName,
+        registrationAuthorityCompanyId:
+          institution.registrationAuthorityCompanyId ?? null,
+        domicileAddress: institution.domicileAddress,
+        operatingTermType,
+        operatingTermYears: operatingTermYears ?? undefined,
+        businessScope: institution.businessScope,
+        principalId: institution.principalId,
+        supervisingOrganizationId: institution.supervisingOrganizationId,
+        supervisingCompanyId: institution.supervisingCompanyId ?? null,
+        updatedAt: now,
+      },
+    });
   }
 }

@@ -181,6 +181,44 @@ export interface AdminPhoneContactEntry {
   metadata?: unknown
 }
 
+export type AdministrationOrganizationKind = 'AGENCY' | 'PUBLIC_INSTITUTION'
+export type AdministrationOrganizationLevel = 'SERVER' | 'LEVEL1' | 'LEVEL2'
+
+export interface AdminAdministrationOrganizationEntry {
+  id: string
+  name: string
+  kind: AdministrationOrganizationKind
+  level: AdministrationOrganizationLevel
+  serverId: string
+  division?: {
+    id: string
+    fullName: string
+    levelIndex: number
+  } | null
+  company?: {
+    id: string
+    name: string
+    type?: { code: string; name: string } | null
+  } | null
+  members?: Array<{
+    role: string
+  }>
+}
+
+export interface AdminAdministrationOrganizationDetail
+  extends AdminAdministrationOrganizationEntry {
+  members?: Array<{
+    userId: string
+    role: string
+    user?: {
+      id: string
+      name?: string | null
+      email?: string | null
+      profile?: { displayName?: string | null } | null
+    } | null
+  }>
+}
+
 export interface AdminAttachmentSummary {
   id: string
   name: string

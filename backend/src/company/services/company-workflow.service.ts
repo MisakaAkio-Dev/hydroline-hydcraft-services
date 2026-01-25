@@ -32,6 +32,7 @@ import type {
   CreateCompanyApplicationDto,
   IndividualBusinessApplicationDto,
   LimitedLiabilityCompanyApplicationDto,
+  PublicInstitutionApplicationDto,
 } from '../dto/company.dto';
 import { CompanyChangePersistenceService } from './company-change-persistence.service';
 import { CompanyRegistrationPersistenceService } from './company-registration-persistence.service';
@@ -547,13 +548,16 @@ export class CompanyWorkflowService {
     const payload =
       application.payload as unknown as CreateCompanyApplicationDto & {
         individual?: IndividualBusinessApplicationDto;
+        publicInstitution?: PublicInstitutionApplicationDto;
         llc?: LimitedLiabilityCompanyApplicationDto;
       };
     const dto = payload;
     const llc = payload.llc ?? null;
+    const institution = payload.publicInstitution ?? null;
 
     const legalRepresentativeId =
       llc?.legalRepresentativeId ??
+      institution?.principalId ??
       dto.legalRepresentativeId ??
       application.applicantId;
     const legalRepresentative = await this.prisma.user.findUnique({
@@ -637,6 +641,12 @@ export class CompanyWorkflowService {
         tx,
       );
 
+      await this.registrationPersistenceService.persistPublicInstitutionRegistrationFromApplication(
+        applicationId,
+        company.id,
+        tx,
+      );
+
       return company.id;
     });
 
@@ -667,19 +677,34 @@ export class CompanyWorkflowService {
 
     const individual = raw.individual;
     if (
-      !individual ||
-      typeof individual !== 'object' ||
-      Array.isArray(individual)
+      individual &&
+      typeof individual === 'object' &&
+      !Array.isArray(individual)
+    ) {
+      const individualRaw = individual as Record<string, unknown>;
+      const individualAuthority = individualRaw.registrationAuthorityName;
+      const individualName =
+        typeof individualAuthority === 'string'
+          ? individualAuthority.trim()
+          : String(individualAuthority ?? '').trim();
+      if (individualName) return individualName;
+    }
+
+    const institution = raw.publicInstitution;
+    if (
+      !institution ||
+      typeof institution !== 'object' ||
+      Array.isArray(institution)
     ) {
       return null;
     }
-    const individualRaw = individual as Record<string, unknown>;
-    const individualAuthority = individualRaw.registrationAuthorityName;
-    const individualName =
-      typeof individualAuthority === 'string'
-        ? individualAuthority.trim()
-        : String(individualAuthority ?? '').trim();
-    return individualName || null;
+    const institutionRaw = institution as Record<string, unknown>;
+    const institutionAuthority = institutionRaw.registrationAuthorityName;
+    const institutionName =
+      typeof institutionAuthority === 'string'
+        ? institutionAuthority.trim()
+        : String(institutionAuthority ?? '').trim();
+    return institutionName || null;
   }
 
   private extractRegistrationAuthorityCompanyIdFromApplicationPayload(
@@ -706,19 +731,36 @@ export class CompanyWorkflowService {
 
     const individual = raw.individual;
     if (
-      !individual ||
-      typeof individual !== 'object' ||
-      Array.isArray(individual)
+      individual &&
+      typeof individual === 'object' &&
+      !Array.isArray(individual)
+    ) {
+      const individualRaw = individual as Record<string, unknown>;
+      const individualAuthorityId =
+        individualRaw.registrationAuthorityCompanyId;
+      const individualId =
+        typeof individualAuthorityId === 'string'
+          ? individualAuthorityId.trim()
+          : String(individualAuthorityId ?? '').trim();
+      if (individualId) return individualId;
+    }
+
+    const institution = raw.publicInstitution;
+    if (
+      !institution ||
+      typeof institution !== 'object' ||
+      Array.isArray(institution)
     ) {
       return null;
     }
-    const individualRaw = individual as Record<string, unknown>;
-    const individualAuthorityId = individualRaw.registrationAuthorityCompanyId;
-    const individualId =
-      typeof individualAuthorityId === 'string'
-        ? individualAuthorityId.trim()
-        : String(individualAuthorityId ?? '').trim();
-    return individualId || null;
+    const institutionRaw = institution as Record<string, unknown>;
+    const institutionAuthorityId =
+      institutionRaw.registrationAuthorityCompanyId;
+    const institutionId =
+      typeof institutionAuthorityId === 'string'
+        ? institutionAuthorityId.trim()
+        : String(institutionAuthorityId ?? '').trim();
+    return institutionId || null;
   }
 
   private async resolveRegistrationAuthorityForApplication(

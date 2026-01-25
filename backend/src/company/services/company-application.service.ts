@@ -18,6 +18,7 @@ import {
   CreateCompanyApplicationDto,
   IndividualBusinessApplicationDto,
   LimitedLiabilityCompanyApplicationDto,
+  PublicInstitutionApplicationDto,
   WithdrawCompanyApplicationDto,
 } from '../dto/company.dto';
 import {
@@ -72,6 +73,7 @@ import type { CompanyWithRelations } from '../types/company.types';
 export class CompanyApplicationService {
   private static readonly INDIVIDUAL_BUSINESS_CODE =
     'individual-run_industrial_and_commercial_households';
+  private static readonly PUBLIC_INSTITUTION_CODE = 'public_institution';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -247,6 +249,68 @@ export class CompanyApplicationService {
     if (errors.length) {
       throw new BadRequestException(errors.join('；'));
     }
+  }
+
+  private validatePublicInstitutionApplication(
+    dto: PublicInstitutionApplicationDto,
+  ) {
+    const errors: string[] = [];
+
+    const principalId = String(dto.principalId ?? '').trim();
+    if (!principalId) {
+      errors.push('负责人信息不能为空');
+    }
+
+    const supervisingOrgId = String(dto.supervisingOrganizationId ?? '').trim();
+    if (!supervisingOrgId) {
+      errors.push('主管单位不能为空');
+    }
+
+    if (errors.length) {
+      throw new BadRequestException(errors.join('；'));
+    }
+  }
+
+  private async normalizePublicInstitutionSupervisor(
+    dto: PublicInstitutionApplicationDto,
+  ) {
+    const organizationId = String(dto.supervisingOrganizationId ?? '').trim();
+    if (!organizationId) {
+      throw new BadRequestException('主管单位不能为空');
+    }
+
+    const organization =
+      await this.prisma.administrationOrganization.findUnique({
+        where: { id: organizationId },
+        select: {
+          id: true,
+          kind: true,
+          serverId: true,
+          companyId: true,
+        },
+      });
+    if (!organization) {
+      throw new BadRequestException('主管单位不存在或不可用');
+    }
+    if (organization.serverId !== dto.serverId) {
+      throw new BadRequestException('主管单位不属于所选服务端');
+    }
+    if (organization.kind !== 'AGENCY') {
+      throw new BadRequestException('主管单位必须为行政机关');
+    }
+    if (!organization.companyId) {
+      throw new BadRequestException('主管单位尚未绑定法人单位');
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: organization.companyId },
+      select: { id: true, type: { select: { code: true } } },
+    });
+    if (!company || company.type?.code !== 'state_organ_legal_person') {
+      throw new BadRequestException('主管单位必须为机关法人');
+    }
+
+    dto.supervisingCompanyId = company.id;
   }
 
   async getApplicationConsents(applicationId: string, userId: string) {
@@ -938,6 +1002,26 @@ export class CompanyApplicationService {
         dto.individual,
       );
     }
+    if (type?.code === CompanyApplicationService.PUBLIC_INSTITUTION_CODE) {
+      if (!dto.publicInstitution) {
+        throw new BadRequestException('缺少事业单位登记所需字段');
+      }
+      this.validatePublicInstitutionApplication(dto.publicInstitution);
+      await this.geoService.normalizeAndValidatePublicInstitutionRegistrationAuthority(
+        dto.publicInstitution,
+      );
+      await this.normalizePublicInstitutionSupervisor(dto.publicInstitution);
+    }
+    if (type?.code === CompanyApplicationService.PUBLIC_INSTITUTION_CODE) {
+      if (!dto.publicInstitution) {
+        throw new BadRequestException('缺少事业单位登记所需字段');
+      }
+      this.validatePublicInstitutionApplication(dto.publicInstitution);
+      await this.geoService.normalizeAndValidatePublicInstitutionRegistrationAuthority(
+        dto.publicInstitution,
+      );
+      await this.normalizePublicInstitutionSupervisor(dto.publicInstitution);
+    }
     if (type?.code === CompanyApplicationService.INDIVIDUAL_BUSINESS_CODE) {
       if (!dto.individual) {
         throw new BadRequestException('缺少个体工商户登记所需字段');
@@ -1031,6 +1115,18 @@ export class CompanyApplicationService {
       this.validateIndividualApplication(dtoPayload.individual);
       await this.geoService.normalizeAndValidateIndividualRegistrationAuthority(
         dtoPayload.individual,
+      );
+    }
+    if (type?.code === CompanyApplicationService.PUBLIC_INSTITUTION_CODE) {
+      if (!dtoPayload?.publicInstitution) {
+        throw new BadRequestException('缺少事业单位登记所需字段');
+      }
+      this.validatePublicInstitutionApplication(dtoPayload.publicInstitution);
+      await this.geoService.normalizeAndValidatePublicInstitutionRegistrationAuthority(
+        dtoPayload.publicInstitution,
+      );
+      await this.normalizePublicInstitutionSupervisor(
+        dtoPayload.publicInstitution,
       );
     }
 

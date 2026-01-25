@@ -116,6 +116,7 @@ model AdministrationDivision {
   createdBy  User?                   @relation("AdministrationDivisionCreatedBy", fields: [createdById], references: [id])
   updatedBy  User?                   @relation("AdministrationDivisionUpdatedBy", fields: [updatedById], references: [id])
   managers   AdministrationDivisionManager[]
+  organizations AdministrationOrganization[]
 
   @@index([serverId, parentId], map: "idx_admin_division_server_parent")
   @@index([serverId, fullName], map: "idx_admin_division_server_fullname")
@@ -134,4 +135,43 @@ model AdministrationDivisionManager {
 
   @@id([divisionId, userId])
   @@map("administration_division_managers")
+}
+
+model AdministrationOrganization {
+  id         String                         @id @default(uuid())
+  serverId   String
+  level      AdministrationOrganizationLevel @default(SERVER)
+  divisionId String?
+  kind       AdministrationOrganizationKind  @default(AGENCY)
+  name       String
+  companyId  String?
+  createdAt  DateTime                        @default(now())
+  updatedAt  DateTime                        @updatedAt
+  createdById String?
+  updatedById String?
+
+  server    MinecraftServer        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  division  AdministrationDivision? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  company   Company?               @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdBy User?                  @relation("AdministrationOrganizationCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?                  @relation("AdministrationOrganizationUpdatedBy", fields: [updatedById], references: [id])
+  members   AdministrationOrganizationMember[]
+  publicInstitutionRegistrations CompanyPublicInstitutionRegistration[]
+
+  @@index([serverId, kind], map: "idx_admin_org_server_kind")
+  @@index([divisionId], map: "idx_admin_org_division")
+  @@map("administration_organizations")
+}
+
+model AdministrationOrganizationMember {
+  organizationId String
+  userId         String
+  role           AdministrationOrganizationMemberRole @default(MEMBER)
+  createdAt      DateTime @default(now())
+
+  organization AdministrationOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, userId])
+  @@map("administration_organization_members")
 }

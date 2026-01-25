@@ -4,7 +4,10 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdministrationService } from '../administration.service';
-import { DivisionSearchDto } from '../dto/administration.dto';
+import {
+  DivisionSearchDto,
+  PublicAdministrationOrganizationQueryDto,
+} from '../dto/administration.dto';
 
 @ApiTags('行政系统（公开）')
 @Controller('administration/servers/:serverId')
@@ -36,5 +39,17 @@ export class AdministrationPublicController {
     @Param('divisionId') divisionId: string,
   ) {
     return this.administrationService.getDivisionPath(serverId, divisionId);
+  }
+
+  @Get('organizations')
+  @ApiOperation({ summary: '行政机构列表（公开）' })
+  async listOrganizations(
+    @Param('serverId') serverId: string,
+    @Query() query: PublicAdministrationOrganizationQueryDto,
+  ) {
+    return this.administrationService.listOrganizationsForPublic(serverId, {
+      kind: query.kind,
+      divisionId: query.divisionId,
+    });
   }
 }
