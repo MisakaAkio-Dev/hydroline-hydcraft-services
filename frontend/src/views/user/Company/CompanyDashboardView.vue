@@ -315,375 +315,384 @@ watch(
 
 <template>
   <section class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <h2 class="text-2xl font-semibold text-slate-900 dark:text-white">
-          工商仪表盘
-        </h2>
+    <div class="space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-semibold text-slate-900 dark:text-white">
+            工商仪表盘
+          </h2>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <UButton
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-refresh-cw"
+            :disabled="!authStore.isAuthenticated"
+            @click="handleRefresh"
+          />
+          <UButton
+            color="primary"
+            variant="soft"
+            icon="i-lucide-plus"
+            @click="openApplicationModal"
+          >
+            提交注册申请
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="soft"
+            @click="requireLogin('/company/dashboard/applications')"
+          >
+            我的申请/待同意
+          </UButton>
+          <UButton
+            v-if="hasRegistryApprovalRole"
+            color="primary"
+            variant="soft"
+            @click="requireLogin('/company/dashboard/registry-applications')"
+          >
+            登记机关审批
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="soft"
+            @click="requireLogin('/company/dashboard/my-legal-entities')"
+          >
+            我的法人
+          </UButton>
+        </div>
       </div>
-      <div class="flex items-center gap-2">
-        <UButton
-          variant="ghost"
-          color="neutral"
-          icon="i-lucide-refresh-cw"
-          :disabled="!authStore.isAuthenticated"
-          @click="handleRefresh"
-        />
-        <UButton
-          color="primary"
-          variant="soft"
-          icon="i-lucide-plus"
-          @click="openApplicationModal"
+
+      <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+        <div
+          v-for="item in categoryCards"
+          :key="item.key"
+          class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/70"
         >
-          提交注册申请
-        </UButton>
-        <UButton
-          color="neutral"
-          variant="soft"
-          @click="requireLogin('/company/dashboard/applications')"
+          <p
+            class="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400"
+          >
+            {{ item.label }}
+          </p>
+          <p class="text-3xl font-semibold text-slate-900 dark:text-white">
+            {{ item.count }}
+          </p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            {{ item.hint }}
+          </p>
+        </div>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-2">
+        <div
+          class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
         >
-          我的申请/待同意
-        </UButton>
-        <UButton
-          v-if="hasRegistryApprovalRole"
-          color="primary"
-          variant="soft"
-          @click="requireLogin('/company/dashboard/registry-applications')"
+          <div class="flex items-center justify-between">
+            <div>
+              <p
+                class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                法定代表人
+              </p>
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                前 5 概览
+              </h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                由您担任法定代表人的民事主体。
+              </p>
+            </div>
+            <UButton
+              size="sm"
+              color="primary"
+              variant="soft"
+              @click="requireLogin('/company/dashboard/legal-representative')"
+            >
+              查看更多
+            </UButton>
+          </div>
+          <div class="mt-4 space-y-3">
+            <div
+              v-for="company in legalRepresentativePreview"
+              :key="company.id"
+              class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
+            >
+              <div>
+                <p class="font-semibold text-slate-900 dark:text-white">
+                  {{ company.name }}
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ company.type?.name || '未归类类型' }} ·
+                  {{ company.industry?.name || '未归类行业' }}
+                </p>
+              </div>
+              <CompanyStatusBadge :status="company.status" />
+            </div>
+            <div
+              v-if="legalRepresentativePreview.length === 0"
+              class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
+            >
+              暂无由您担任法定代表人的民事主体。
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
         >
-          登记机关审批
-        </UButton>
-      </div>
-    </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <p
+                class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                持股
+              </p>
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                前 5 概览
+              </h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                由您持股的民事主体。
+              </p>
+            </div>
+            <UButton
+              size="sm"
+              color="primary"
+              variant="soft"
+              @click="requireLogin('/company/dashboard/shareholding')"
+            >
+              查看更多
+            </UButton>
+          </div>
+          <div class="mt-4 space-y-3">
+            <div
+              v-for="company in shareholdingPreview"
+              :key="company.id"
+              class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
+            >
+              <div>
+                <p class="font-semibold text-slate-900 dark:text-white">
+                  {{ company.name }}
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ company.type?.name || '未归类类型' }} ·
+                  {{ company.industry?.name || '未归类行业' }}
+                </p>
+              </div>
+              <CompanyStatusBadge :status="company.status" />
+            </div>
+            <div
+              v-if="shareholdingPreview.length === 0"
+              class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
+            >
+              暂无由您持股的民事主体。
+            </div>
+          </div>
+        </div>
 
-    <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
-      <div
-        v-for="item in categoryCards"
-        :key="item.key"
-        class="rounded-xl border border-slate-200 bg-white/90 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/70"
-      >
-        <p
-          class="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400"
+        <div
+          class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
         >
-          {{ item.label }}
-        </p>
-        <p class="text-3xl font-semibold text-slate-900 dark:text-white">
-          {{ item.count }}
-        </p>
-        <p class="text-xs text-slate-500 dark:text-slate-400">
-          {{ item.hint }}
-        </p>
-      </div>
-    </div>
-
-    <div class="grid gap-6 lg:grid-cols-2">
-      <div
-        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p
-              class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
-            >
-              法定代表人
-            </p>
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-              前 5 概览
-            </h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              由您担任法定代表人的民事主体。
-            </p>
-          </div>
-          <UButton
-            size="sm"
-            color="primary"
-            variant="soft"
-            @click="requireLogin('/company/dashboard/legal-representative')"
-          >
-            查看更多
-          </UButton>
-        </div>
-        <div class="mt-4 space-y-3">
-          <div
-            v-for="company in legalRepresentativePreview"
-            :key="company.id"
-            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
-          >
+          <div class="flex items-center justify-between">
             <div>
-              <p class="font-semibold text-slate-900 dark:text-white">
-                {{ company.name }}
+              <p
+                class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                董事
               </p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                {{ company.type?.name || '未归类类型' }} ·
-                {{ company.industry?.name || '未归类行业' }}
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                前 5 概览
+              </h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                由您担任董事的民事主体。
               </p>
             </div>
-            <CompanyStatusBadge :status="company.status" />
-          </div>
-          <div
-            v-if="legalRepresentativePreview.length === 0"
-            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
-          >
-            暂无由您担任法定代表人的民事主体。
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p
-              class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+            <UButton
+              size="sm"
+              color="primary"
+              variant="soft"
+              @click="requireLogin('/company/dashboard/director')"
             >
-              持股
-            </p>
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-              前 5 概览
-            </h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              由您持股的民事主体。
-            </p>
+              查看更多
+            </UButton>
           </div>
-          <UButton
-            size="sm"
-            color="primary"
-            variant="soft"
-            @click="requireLogin('/company/dashboard/shareholding')"
-          >
-            查看更多
-          </UButton>
+          <div class="mt-4 space-y-3">
+            <div
+              v-for="company in directorPreview"
+              :key="company.id"
+              class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
+            >
+              <div>
+                <p class="font-semibold text-slate-900 dark:text-white">
+                  {{ company.name }}
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ company.type?.name || '未归类类型' }} ·
+                  {{ company.industry?.name || '未归类行业' }}
+                </p>
+              </div>
+              <CompanyStatusBadge :status="company.status" />
+            </div>
+            <div
+              v-if="directorPreview.length === 0"
+              class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
+            >
+              暂无由您担任董事的民事主体。
+            </div>
+          </div>
         </div>
-        <div class="mt-4 space-y-3">
-          <div
-            v-for="company in shareholdingPreview"
-            :key="company.id"
-            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
-          >
+
+        <div
+          class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
+        >
+          <div class="flex items-center justify-between">
             <div>
-              <p class="font-semibold text-slate-900 dark:text-white">
-                {{ company.name }}
+              <p
+                class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                经理
               </p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                {{ company.type?.name || '未归类类型' }} ·
-                {{ company.industry?.name || '未归类行业' }}
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                前 5 概览
+              </h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                由您担任经理（包含副经理）的民事主体。
               </p>
             </div>
-            <CompanyStatusBadge :status="company.status" />
-          </div>
-          <div
-            v-if="shareholdingPreview.length === 0"
-            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
-          >
-            暂无由您持股的民事主体。
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p
-              class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+            <UButton
+              size="sm"
+              color="primary"
+              variant="soft"
+              @click="requireLogin('/company/dashboard/manager')"
             >
-              董事
-            </p>
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-              前 5 概览
-            </h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              由您担任董事的民事主体。
-            </p>
+              查看更多
+            </UButton>
           </div>
-          <UButton
-            size="sm"
-            color="primary"
-            variant="soft"
-            @click="requireLogin('/company/dashboard/director')"
-          >
-            查看更多
-          </UButton>
+          <div class="mt-4 space-y-3">
+            <div
+              v-for="company in managerPreview"
+              :key="company.id"
+              class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
+            >
+              <div>
+                <p class="font-semibold text-slate-900 dark:text-white">
+                  {{ company.name }}
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ company.type?.name || '未归类类型' }} ·
+                  {{ company.industry?.name || '未归类行业' }}
+                </p>
+              </div>
+              <CompanyStatusBadge :status="company.status" />
+            </div>
+            <div
+              v-if="managerPreview.length === 0"
+              class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
+            >
+              暂无由您担任经理（包含副经理）的民事主体。
+            </div>
+          </div>
         </div>
-        <div class="mt-4 space-y-3">
-          <div
-            v-for="company in directorPreview"
-            :key="company.id"
-            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
-          >
+
+        <div
+          class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
+        >
+          <div class="flex items-center justify-between">
             <div>
-              <p class="font-semibold text-slate-900 dark:text-white">
-                {{ company.name }}
+              <p
+                class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                监事
               </p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                {{ company.type?.name || '未归类类型' }} ·
-                {{ company.industry?.name || '未归类行业' }}
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                前 5 概览
+              </h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                由您担任监事的民事主体。
               </p>
             </div>
-            <CompanyStatusBadge :status="company.status" />
-          </div>
-          <div
-            v-if="directorPreview.length === 0"
-            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
-          >
-            暂无由您担任董事的民事主体。
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p
-              class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+            <UButton
+              size="sm"
+              color="primary"
+              variant="soft"
+              @click="requireLogin('/company/dashboard/supervisor')"
             >
-              经理
-            </p>
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-              前 5 概览
-            </h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              由您担任经理（包含副经理）的民事主体。
-            </p>
+              查看更多
+            </UButton>
           </div>
-          <UButton
-            size="sm"
-            color="primary"
-            variant="soft"
-            @click="requireLogin('/company/dashboard/manager')"
-          >
-            查看更多
-          </UButton>
+          <div class="mt-4 space-y-3">
+            <div
+              v-for="company in supervisorPreview"
+              :key="company.id"
+              class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
+            >
+              <div>
+                <p class="font-semibold text-slate-900 dark:text-white">
+                  {{ company.name }}
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ company.type?.name || '未归类类型' }} ·
+                  {{ company.industry?.name || '未归类行业' }}
+                </p>
+              </div>
+              <CompanyStatusBadge :status="company.status" />
+            </div>
+            <div
+              v-if="supervisorPreview.length === 0"
+              class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
+            >
+              暂无由您担任监事的民事主体。
+            </div>
+          </div>
         </div>
-        <div class="mt-4 space-y-3">
-          <div
-            v-for="company in managerPreview"
-            :key="company.id"
-            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
-          >
+
+        <div
+          class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
+        >
+          <div class="flex items-center justify-between">
             <div>
-              <p class="font-semibold text-slate-900 dark:text-white">
-                {{ company.name }}
+              <p
+                class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                财务负责人
               </p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                {{ company.type?.name || '未归类类型' }} ·
-                {{ company.industry?.name || '未归类行业' }}
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                前 5 概览
+              </h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                由您担任财务负责人的民事主体。
               </p>
             </div>
-            <CompanyStatusBadge :status="company.status" />
-          </div>
-          <div
-            v-if="managerPreview.length === 0"
-            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
-          >
-            暂无由您担任经理（包含副经理）的民事主体。
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p
-              class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+            <UButton
+              size="sm"
+              color="primary"
+              variant="soft"
+              @click="requireLogin('/company/dashboard/financial-officer')"
             >
-              监事
-            </p>
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-              前 5 概览
-            </h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              由您担任监事的民事主体。
-            </p>
+              查看更多
+            </UButton>
           </div>
-          <UButton
-            size="sm"
-            color="primary"
-            variant="soft"
-            @click="requireLogin('/company/dashboard/supervisor')"
-          >
-            查看更多
-          </UButton>
-        </div>
-        <div class="mt-4 space-y-3">
-          <div
-            v-for="company in supervisorPreview"
-            :key="company.id"
-            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
-          >
-            <div>
-              <p class="font-semibold text-slate-900 dark:text-white">
-                {{ company.name }}
-              </p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                {{ company.type?.name || '未归类类型' }} ·
-                {{ company.industry?.name || '未归类行业' }}
-              </p>
-            </div>
-            <CompanyStatusBadge :status="company.status" />
-          </div>
-          <div
-            v-if="supervisorPreview.length === 0"
-            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
-          >
-            暂无由您担任监事的民事主体。
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p
-              class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          <div class="mt-4 space-y-3">
+            <div
+              v-for="company in financialOfficerPreview"
+              :key="company.id"
+              class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
             >
-              财务负责人
-            </p>
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-              前 5 概览
-            </h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              由您担任财务负责人的民事主体。
-            </p>
-          </div>
-          <UButton
-            size="sm"
-            color="primary"
-            variant="soft"
-            @click="requireLogin('/company/dashboard/financial-officer')"
-          >
-            查看更多
-          </UButton>
-        </div>
-        <div class="mt-4 space-y-3">
-          <div
-            v-for="company in financialOfficerPreview"
-            :key="company.id"
-            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
-          >
-            <div>
-              <p class="font-semibold text-slate-900 dark:text-white">
-                {{ company.name }}
-              </p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                {{ company.type?.name || '未归类类型' }} ·
-                {{ company.industry?.name || '未归类行业' }}
-              </p>
+              <div>
+                <p class="font-semibold text-slate-900 dark:text-white">
+                  {{ company.name }}
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ company.type?.name || '未归类类型' }} ·
+                  {{ company.industry?.name || '未归类行业' }}
+                </p>
+              </div>
+              <CompanyStatusBadge :status="company.status" />
             </div>
-            <CompanyStatusBadge :status="company.status" />
-          </div>
-          <div
-            v-if="financialOfficerPreview.length === 0"
-            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
-          >
-            暂无由您担任财务负责人的民事主体。
+            <div
+              v-if="financialOfficerPreview.length === 0"
+              class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
+            >
+              暂无由您担任财务负责人的民事主体。
+            </div>
           </div>
         </div>
       </div>

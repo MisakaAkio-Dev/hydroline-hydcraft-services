@@ -4,7 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/user/auth'
 import { useCompanyStore } from '@/stores/user/companies'
 import CompanyStatusBadge from '@/components/company/CompanyStatusBadge.vue'
-import type { CompanyModel } from '@/types/company'
+import CompanyProfileForm from '@/components/company/CompanyProfileForm.vue'
+import type { CompanyModel, UpdateCompanyPayload } from '@/types/company'
 
 type RoleKey =
   | 'legalRepresentative'
@@ -13,17 +14,22 @@ type RoleKey =
   | 'manager'
   | 'supervisor'
   | 'financialOfficer'
+  | 'related'
 
 const authStore = useAuthStore()
 const companyStore = useCompanyStore()
 const router = useRouter()
 const route = useRoute()
+const toast = useToast()
 
 const currentUserId = computed(() => authStore.user?.id ?? null)
 
 const page = ref(1)
 const pageSize = ref(10)
 const search = ref('')
+const profileDialogOpen = ref(false)
+const profileSaving = ref(false)
+const profileCompanyId = ref<string | null>(null)
 
 const roleKey = computed<RoleKey>(() => {
   const key = route.meta?.roleKey as RoleKey | undefined
@@ -31,6 +37,7 @@ const roleKey = computed<RoleKey>(() => {
 })
 
 const title = computed(() => String(route.meta?.title || '主体列表'))
+const isRelatedMode = computed(() => roleKey.value === 'related')
 
 const subtitle = computed(() => {
   const map: Record<RoleKey, string> = {
@@ -40,6 +47,7 @@ const subtitle = computed(() => {
     manager: '由您担任经理（包含副经理）的民事主体',
     supervisor: '由您担任监事的民事主体',
     financialOfficer: '由您担任财务负责人的民事主体',
+    related: '与您有关的公司/个体工商户/事业单位等主体',
   }
   return map[roleKey.value]
 })
@@ -64,6 +72,41 @@ function hasShareholding(company: CompanyModel, userId: string | null) {
   return shareholders.some(
     (sh) => sh.kind === 'COMPANY' && sh.holderLegalRepresentativeId === userId,
   )
+}
+
+function buildRelationTags(company: CompanyModel, userId: string | null) {
+  if (!userId) return []
+  const tags: Array<{ label: string; color: string }> = []
+  if (
+    company.legalRepresentative?.id === userId ||
+    hasOfficerRole(company, userId, ['LEGAL_REPRESENTATIVE'])
+  ) {
+    tags.push({ label: '法定代表人', color: 'primary' })
+  }
+  if (hasShareholding(company, userId)) {
+    tags.push({ label: '股东', color: 'emerald' })
+  }
+  if (
+    hasOfficerRole(company, userId, [
+      'DIRECTOR',
+      'CHAIRPERSON',
+      'VICE_CHAIRPERSON',
+    ])
+  ) {
+    tags.push({ label: '董事', color: 'amber' })
+  }
+  if (hasOfficerRole(company, userId, ['MANAGER', 'DEPUTY_MANAGER'])) {
+    tags.push({ label: '经理', color: 'sky' })
+  }
+  if (
+    hasOfficerRole(company, userId, ['SUPERVISOR', 'SUPERVISOR_CHAIRPERSON'])
+  ) {
+    tags.push({ label: '监事', color: 'teal' })
+  }
+  if (hasOfficerRole(company, userId, ['FINANCIAL_OFFICER'])) {
+    tags.push({ label: '财务负责人', color: 'orange' })
+  }
+  return tags
 }
 
 const entities = computed(() => {
@@ -110,6 +153,10 @@ const entities = computed(() => {
       return all.filter((company) =>
         hasOfficerRole(company, userId, ['FINANCIAL_OFFICER']),
       )
+    case 'related':
+      return all.filter(
+        (company) => buildRelationTags(company, userId).length > 0,
+      )
     default:
       return []
   }
@@ -144,6 +191,38 @@ function openDetail(companyId: string) {
     name: 'company.database.detail',
     params: { companyId },
   })
+}
+
+const profileCompany = computed(() =>
+  companyStore.dashboard.find(
+    (company) => company.id === profileCompanyId.value,
+  ),
+)
+
+const profileIndustries = computed(() => companyStore.meta?.industries ?? [])
+
+function openProfileEditor(company: CompanyModel) {
+  if (!authStore.isAuthenticated) return
+  profileCompanyId.value = company.id
+  profileDialogOpen.value = true
+}
+
+async function handleProfileUpdate(payload: UpdateCompanyPayload) {
+  if (!authStore.isAuthenticated) return
+  if (!profileCompany.value) return
+  profileSaving.value = true
+  try {
+    await companyStore.update(profileCompany.value.id, payload)
+    toast.add({ title: '企业资料已更新', color: 'primary' })
+    profileDialogOpen.value = false
+  } catch (error) {
+    toast.add({
+      title: (error as Error).message || '更新失败',
+      color: 'error',
+    })
+  } finally {
+    profileSaving.value = false
+  }
 }
 
 function handleRefresh() {
@@ -246,6 +325,17 @@ watch(
                 <p class="text-xs text-slate-500">
                   {{ company.summary || '暂无简介' }}
                 </p>
+                <div v-if="isRelatedMode" class="mt-2 flex flex-wrap gap-2">
+                  <UBadge
+                    v-for="tag in buildRelationTags(company, currentUserId)"
+                    :key="tag.label"
+                    variant="soft"
+                    :color="tag.color"
+                    size="xs"
+                  >
+                    {{ tag.label }}
+                  </UBadge>
+                </div>
               </td>
               <td class="px-4 py-3 text-slate-500">
                 {{ company.industry?.name || '—' }}
@@ -264,6 +354,16 @@ watch(
                   @click="openDetail(company.id)"
                 >
                   查看详情
+                </UButton>
+                <UButton
+                  v-if="isRelatedMode"
+                  size="xs"
+                  color="primary"
+                  variant="soft"
+                  class="ml-2"
+                  @click="openProfileEditor(company)"
+                >
+                  编辑资料
                 </UButton>
               </td>
             </tr>
@@ -306,5 +406,45 @@ watch(
         </div>
       </div>
     </div>
+
+    <UModal
+      :open="profileDialogOpen"
+      @update:open="(value) => (profileDialogOpen = value)"
+      :ui="{ content: 'w-full max-w-2xl w-[calc(100vw-2rem)]' }"
+    >
+      <template #content>
+        <div class="flex h-full flex-col">
+          <div
+            class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700"
+          >
+            <div>
+              <p
+                class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                编辑资料
+              </p>
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                {{ profileCompany?.name || '企业信息' }}
+              </h3>
+            </div>
+            <UButton
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="profileDialogOpen = false"
+            />
+          </div>
+          <div class="flex-1 overflow-y-auto px-6 py-4">
+            <CompanyProfileForm
+              :company="profileCompany"
+              :industries="profileIndustries"
+              :saving="profileSaving"
+              @submit="handleProfileUpdate"
+            />
+          </div>
+        </div>
+      </template>
+    </UModal>
   </section>
 </template>

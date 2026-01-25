@@ -283,7 +283,7 @@ onMounted(() => {
           <div class="grid gap-4 sm:grid-cols-2">
             <div class="space-y-2">
               <label class="text-xs font-semibold text-slate-500">名称</label>
-              <UInput v-model="formState.name" />
+              <UInput v-model="formState.name" class="w-full" />
             </div>
             <div class="space-y-2">
               <label class="text-xs font-semibold text-slate-500">类型</label>
@@ -293,6 +293,7 @@ onMounted(() => {
                 value-key="value"
                 searchable
                 placeholder="公司类型"
+                class="w-full"
               />
             </div>
           </div>
@@ -317,6 +318,7 @@ onMounted(() => {
                 value-key="value"
                 searchable
                 placeholder="选择所属服务端"
+                class="w-full"
               />
             </div>
 
@@ -324,19 +326,23 @@ onMounted(() => {
               <label class="text-xs font-semibold text-slate-500">
                 所属行政区划
               </label>
-              <UInput
-                v-model="divisionSearchKeyword"
-                placeholder="输入区划名称搜索（如：北京、杭州市、海淀…）"
-                :disabled="!selectedServerId"
-              />
-              <USelectMenu
-                v-model="selectedDivisionId"
-                :items="divisionOptions"
-                value-key="value"
-                placeholder="选择所属行政区划"
-                :clearable="false"
-                :disabled="!selectedServerId || divisionOptions.length === 0"
-              />
+              <div class="grid gap-3 md:grid-cols-2">
+                <UInput
+                  v-model="divisionSearchKeyword"
+                  placeholder="输入区划名称搜索（如：北京、杭州市、海淀…）"
+                  :disabled="!selectedServerId"
+                  class="w-full"
+                />
+                <USelectMenu
+                  v-model="selectedDivisionId"
+                  :items="divisionOptions"
+                  value-key="value"
+                  placeholder="选择所属行政区划"
+                  :clearable="false"
+                  :disabled="!selectedServerId || divisionOptions.length === 0"
+                  class="w-full"
+                />
+              </div>
               <p
                 v-if="selectedDivisionPathLabel"
                 class="text-xs text-slate-500"
@@ -364,25 +370,42 @@ onMounted(() => {
               value-key="value"
               searchable
               placeholder="行业"
+              class="w-full"
             />
           </div>
           <div v-if="!isStateOrganLegalPerson" class="space-y-2">
             <label class="text-xs font-semibold text-slate-500">描述</label>
-            <UTextarea v-model="formState.description" :rows="4" />
-          </div>
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-slate-500">
-              搜索法定代表人
-            </label>
-            <UInput v-model="searchKeyword" placeholder="用户名、邮箱、昵称" />
-            <USelectMenu
-              v-model="selectedCandidateId"
-              :items="candidateOptions"
-              value-key="value"
-              placeholder="选择法定代表人"
-              :clearable="false"
-              :disabled="candidateOptions.length === 0"
+            <UTextarea
+              v-model="formState.description"
+              :rows="4"
+              class="w-full"
             />
+          </div>
+          <div class="grid gap-3 md:grid-cols-2">
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-slate-500">
+                搜索法定代表人
+              </label>
+              <UInput
+                v-model="searchKeyword"
+                placeholder="用户名、邮箱、昵称"
+                class="w-full"
+              />
+            </div>
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-slate-500">
+                选择法定代表人
+              </label>
+              <USelectMenu
+                v-model="selectedCandidateId"
+                :items="candidateOptions"
+                value-key="value"
+                placeholder="选择法定代表人"
+                :clearable="false"
+                :disabled="candidateOptions.length === 0"
+                class="w-full"
+              />
+            </div>
           </div>
         </div>
         <div class="border-t border-slate-200 px-6 py-4 flex justify-end gap-2">

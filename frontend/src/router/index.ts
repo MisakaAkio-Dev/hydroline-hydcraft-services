@@ -202,6 +202,17 @@ export const userRoutes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'dashboard/my-legal-entities',
+            name: 'company.dashboard.myLegalEntities',
+            component: () =>
+              import('@/views/user/Company/CompanyRoleEntityListView.vue'),
+            meta: {
+              requiresAuth: true,
+              title: '我的法人',
+              roleKey: 'related',
+            },
+          },
+          {
             path: 'database',
             name: 'company.database',
             component: () =>

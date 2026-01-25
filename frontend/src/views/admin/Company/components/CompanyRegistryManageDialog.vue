@@ -575,7 +575,7 @@ function handleSave() {
         <div class="px-6 py-4 space-y-3">
           <div class="grid grid-cols-[96px,1fr] items-center gap-4">
             <label class="text-xs font-semibold text-slate-500">公司名称</label>
-            <UInput v-model="formState.name" />
+            <UInput v-model="formState.name" class="w-full" />
           </div>
           <div class="grid grid-cols-[96px,1fr] items-center gap-4">
             <label class="text-xs font-semibold text-slate-500">公司类型</label>
@@ -584,6 +584,7 @@ function handleSave() {
               :items="typeOptions"
               value-key="value"
               placeholder="公司类型"
+              class="w-full"
             />
           </div>
           <div
@@ -596,6 +597,7 @@ function handleSave() {
               :items="industryOptions"
               value-key="value"
               placeholder="行业"
+              class="w-full"
             />
           </div>
           <div class="grid grid-cols-[96px,1fr] items-center gap-4">
@@ -605,6 +607,7 @@ function handleSave() {
               :items="statusOptions"
               value-key="value"
               placeholder="选择状态"
+              class="w-full"
             />
           </div>
           <div class="grid grid-cols-[96px,1fr] items-center gap-4">
@@ -614,6 +617,7 @@ function handleSave() {
               :items="visibilityOptions"
               value-key="value"
               placeholder="选择可见性"
+              class="w-full"
             />
           </div>
           <div
@@ -631,13 +635,18 @@ function handleSave() {
             <UInput
               v-model="formState.summary"
               placeholder="一句话说明公司定位"
+              class="w-full"
             />
           </div>
           <div class="grid grid-cols-[96px,1fr] items-start gap-4">
             <label class="pt-2 text-xs font-semibold text-slate-500">
               详细介绍
             </label>
-            <UTextarea v-model="formState.description" rows="4" />
+            <UTextarea
+              v-model="formState.description"
+              rows="4"
+              class="w-full"
+            />
           </div>
           <div class="grid grid-cols-[96px,1fr] items-start gap-4">
             <label class="pt-2 text-xs font-semibold text-slate-500">
@@ -647,6 +656,7 @@ function handleSave() {
               v-model="formState.auditReason"
               rows="2"
               placeholder="请输入修改原因"
+              class="w-full"
             />
           </div>
         </div>

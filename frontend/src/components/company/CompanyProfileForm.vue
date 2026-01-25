@@ -75,6 +75,7 @@ const handleSubmit = () => {
           v-model="formState.summary"
           placeholder="一句话说明公司定位"
           :disabled="isDisabled"
+          class="w-full"
         />
       </div>
       <div class="space-y-2">
@@ -83,10 +84,11 @@ const handleSubmit = () => {
         >
         <USelectMenu
           v-model="formState.industryId"
-          :options="industryOptions"
+          :items="industryOptions"
           searchable
           placeholder="选择行业"
           :disabled="isDisabled"
+          class="w-full"
         />
       </div>
     </div>
@@ -97,6 +99,7 @@ const handleSubmit = () => {
         :rows="4"
         placeholder="记录公司制度、简介、业务范围"
         :disabled="isDisabled"
+        class="w-full"
       />
     </div>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -109,6 +112,7 @@ const handleSubmit = () => {
           type="email"
           placeholder="例如: hello@hydcraft.cn"
           :disabled="isDisabled"
+          class="w-full"
         />
       </div>
       <div class="space-y-2">
@@ -119,6 +123,7 @@ const handleSubmit = () => {
           v-model="formState.contactPhone"
           placeholder="可留空"
           :disabled="isDisabled"
+          class="w-full"
         />
       </div>
       <div class="space-y-2">
@@ -129,6 +134,7 @@ const handleSubmit = () => {
           v-model="formState.contactAddress"
           placeholder="可输入省市区 + 详细地址"
           :disabled="isDisabled"
+          class="w-full"
         />
       </div>
       <div class="space-y-2">
@@ -139,6 +145,7 @@ const handleSubmit = () => {
           v-model="formState.homepageUrl"
           placeholder="https://example.com"
           :disabled="isDisabled"
+          class="w-full"
         />
       </div>
     </div>
