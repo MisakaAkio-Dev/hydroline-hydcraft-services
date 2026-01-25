@@ -261,6 +261,71 @@ export class LimitedLiabilityCompanyApplicationDto {
   financialOfficerId?: string;
 }
 
+export class IndividualBusinessApplicationDto {
+  @IsUUID()
+  serverId!: string;
+
+  @IsString()
+  @MinLength(1)
+  domicileDivisionId!: string;
+
+  @IsOptional()
+  @IsObject()
+  domicileDivisionPath?: {
+    level1?: { id: string; name: string } | null;
+    level2?: { id: string; name: string } | null;
+    level3?: { id: string; name: string } | null;
+  };
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  brandName?: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  industryFeature!: string;
+
+  @ValidateIf(
+    (o: IndividualBusinessApplicationDto) => !o.registrationAuthorityName,
+  )
+  @IsUUID()
+  registrationAuthorityCompanyId?: string;
+
+  @ValidateIf(
+    (o: IndividualBusinessApplicationDto) => !o.registrationAuthorityCompanyId,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  registrationAuthorityName?: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  domicileAddress!: string;
+
+  @ValidateNested()
+  @Type(() => LlcOperatingTermDto)
+  operatingTerm!: LlcOperatingTermDto;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  businessScope!: string;
+
+  @IsString()
+  @MinLength(1)
+  operatorId!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  assistants?: string[];
+}
+
 export class CompanyRecommendationsQueryDto {
   @IsOptional()
   @IsString()
@@ -336,6 +401,15 @@ export class CreateCompanyApplicationDto {
   @ValidateNested()
   @Type(() => LimitedLiabilityCompanyApplicationDto)
   llc?: LimitedLiabilityCompanyApplicationDto;
+
+  /**
+   * 个体工商户专用字段（typeCode === individual-run_industrial_and_commercial_households）
+   * 其内容会被整体保存到 CompanyApplication.payload 以供审核与后续落库扩展使用。
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => IndividualBusinessApplicationDto)
+  individual?: IndividualBusinessApplicationDto;
 }
 
 export class CompanyApplicationConsentDecisionDto {

@@ -30,6 +30,7 @@ import {
 import type {
   CompanyActionDto,
   CreateCompanyApplicationDto,
+  IndividualBusinessApplicationDto,
   LimitedLiabilityCompanyApplicationDto,
 } from '../dto/company.dto';
 import { CompanyChangePersistenceService } from './company-change-persistence.service';
@@ -545,6 +546,7 @@ export class CompanyWorkflowService {
 
     const payload =
       application.payload as unknown as CreateCompanyApplicationDto & {
+        individual?: IndividualBusinessApplicationDto;
         llc?: LimitedLiabilityCompanyApplicationDto;
       };
     const dto = payload;
@@ -661,7 +663,23 @@ export class CompanyWorkflowService {
       typeof llcAuthority === 'string'
         ? llcAuthority.trim()
         : String(llcAuthority ?? '').trim();
-    return llcName || null;
+    if (llcName) return llcName;
+
+    const individual = raw.individual;
+    if (
+      !individual ||
+      typeof individual !== 'object' ||
+      Array.isArray(individual)
+    ) {
+      return null;
+    }
+    const individualRaw = individual as Record<string, unknown>;
+    const individualAuthority = individualRaw.registrationAuthorityName;
+    const individualName =
+      typeof individualAuthority === 'string'
+        ? individualAuthority.trim()
+        : String(individualAuthority ?? '').trim();
+    return individualName || null;
   }
 
   private extractRegistrationAuthorityCompanyIdFromApplicationPayload(
@@ -684,7 +702,23 @@ export class CompanyWorkflowService {
       typeof llcAuthorityId === 'string'
         ? llcAuthorityId.trim()
         : String(llcAuthorityId ?? '').trim();
-    return llcId || null;
+    if (llcId) return llcId;
+
+    const individual = raw.individual;
+    if (
+      !individual ||
+      typeof individual !== 'object' ||
+      Array.isArray(individual)
+    ) {
+      return null;
+    }
+    const individualRaw = individual as Record<string, unknown>;
+    const individualAuthorityId = individualRaw.registrationAuthorityCompanyId;
+    const individualId =
+      typeof individualAuthorityId === 'string'
+        ? individualAuthorityId.trim()
+        : String(individualAuthorityId ?? '').trim();
+    return individualId || null;
   }
 
   private async resolveRegistrationAuthorityForApplication(

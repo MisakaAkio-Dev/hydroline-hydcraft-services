@@ -16,6 +16,7 @@ import {
   CompanyOfficerChangeApplyDto,
   CompanyRenameApplyDto,
   CreateCompanyApplicationDto,
+  IndividualBusinessApplicationDto,
   LimitedLiabilityCompanyApplicationDto,
   WithdrawCompanyApplicationDto,
 } from '../dto/company.dto';
@@ -69,6 +70,9 @@ import type { CompanyWithRelations } from '../types/company.types';
 
 @Injectable()
 export class CompanyApplicationService {
+  private static readonly INDIVIDUAL_BUSINESS_CODE =
+    'individual-run_industrial_and_commercial_households';
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly workflowService: WorkflowService,
@@ -213,6 +217,31 @@ export class CompanyApplicationService {
         errors.push('监事不得由董事、经理、副经理或财务负责人兼任');
         break;
       }
+    }
+
+    if (errors.length) {
+      throw new BadRequestException(errors.join('；'));
+    }
+  }
+
+  private validateIndividualApplication(dto: IndividualBusinessApplicationDto) {
+    const errors: string[] = [];
+
+    const operatorId = String(dto.operatorId ?? '').trim();
+    if (!operatorId) {
+      errors.push('经营者信息不能为空');
+    }
+
+    const assistants = Array.isArray(dto.assistants) ? dto.assistants : [];
+    const normalized = assistants
+      .map((id) => String(id ?? '').trim())
+      .filter((id) => id.length > 0);
+    const unique = new Set(normalized);
+    if (normalized.length !== unique.size) {
+      errors.push('经营成员存在重复人员');
+    }
+    if (operatorId && unique.has(operatorId)) {
+      errors.push('经营成员不得包含经营者本人');
     }
 
     if (errors.length) {
@@ -900,6 +929,24 @@ export class CompanyApplicationService {
         dto.llc,
       );
     }
+    if (type?.code === CompanyApplicationService.INDIVIDUAL_BUSINESS_CODE) {
+      if (!dto.individual) {
+        throw new BadRequestException('缺少个体工商户登记所需字段');
+      }
+      this.validateIndividualApplication(dto.individual);
+      await this.geoService.normalizeAndValidateIndividualRegistrationAuthority(
+        dto.individual,
+      );
+    }
+    if (type?.code === CompanyApplicationService.INDIVIDUAL_BUSINESS_CODE) {
+      if (!dto.individual) {
+        throw new BadRequestException('缺少个体工商户登记所需字段');
+      }
+      this.validateIndividualApplication(dto.individual);
+      await this.geoService.normalizeAndValidateIndividualRegistrationAuthority(
+        dto.individual,
+      );
+    }
 
     await this.prisma.companyApplication.update({
       where: { id: applicationId },
@@ -975,6 +1022,15 @@ export class CompanyApplicationService {
       await this.consentService.initLlcApplicationConsents(
         applicationId,
         dtoPayload.llc,
+      );
+    }
+    if (type?.code === CompanyApplicationService.INDIVIDUAL_BUSINESS_CODE) {
+      if (!dtoPayload?.individual) {
+        throw new BadRequestException('缺少个体工商户登记所需字段');
+      }
+      this.validateIndividualApplication(dtoPayload.individual);
+      await this.geoService.normalizeAndValidateIndividualRegistrationAuthority(
+        dtoPayload.individual,
       );
     }
 

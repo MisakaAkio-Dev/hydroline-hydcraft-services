@@ -18,6 +18,7 @@ import { CompanySupportService } from './company-support.service';
 import { SYSTEM_USER_EMAIL } from '../../lib/shared/system-user';
 import {
   GeoDivisionSearchDto,
+  IndividualBusinessApplicationDto,
   LimitedLiabilityCompanyApplicationDto,
 } from '../dto/company.dto';
 const COMPANY_CONFIG_NAMESPACE = 'company';
@@ -304,6 +305,74 @@ export class CompanyGeoService {
     }
   }
 
+  async normalizeAndValidateIndividualRegistrationAuthority(
+    individual: IndividualBusinessApplicationDto,
+  ) {
+    const domicileDivisionId = String(
+      individual.domicileDivisionId ?? '',
+    ).trim();
+    const serverId = String(individual.serverId ?? '').trim();
+    const authorityCompanyId = String(
+      (
+        individual as unknown as {
+          registrationAuthorityCompanyId?: string | null;
+        }
+      ).registrationAuthorityCompanyId ?? '',
+    ).trim();
+    const authorityNameRaw = String(
+      individual.registrationAuthorityName ?? '',
+    ).trim();
+
+    if (!domicileDivisionId) {
+      throw new BadRequestException('缺少住所地行政区划，无法校验登记机关');
+    }
+    if (!serverId) {
+      throw new BadRequestException(
+        'Missing serverId for registration authority validation',
+      );
+    }
+
+    const authorities = await this.listRegistrationAuthoritiesByDivisionId(
+      domicileDivisionId,
+      serverId,
+    );
+
+    if (authorityCompanyId) {
+      const matched = authorities.find(
+        (item) => item.id === authorityCompanyId,
+      );
+      if (!matched) {
+        throw new BadRequestException('登记机关不存在或不可用');
+      }
+      individual.registrationAuthorityName = matched.name;
+      return;
+    }
+
+    if (!authorityNameRaw) {
+      throw new BadRequestException('请选择登记机关（市场监督管理局）');
+    }
+    const matchedByName = authorities.find(
+      (item) => item.name.trim() === authorityNameRaw,
+    );
+    if (!matchedByName) {
+      throw new BadRequestException('登记机关不属于所选行政区划的可选范围');
+    }
+    individual.registrationAuthorityName = matchedByName.name;
+    if (
+      !(
+        individual as unknown as {
+          registrationAuthorityCompanyId?: string | null;
+        }
+      ).registrationAuthorityCompanyId
+    ) {
+      (
+        individual as unknown as {
+          registrationAuthorityCompanyId?: string | null;
+        }
+      ).registrationAuthorityCompanyId = matchedByName.id;
+    }
+  }
+
   async resolveRegistrationAuthorityForApplication(applicationId: string) {
     const application = await this.prisma.companyApplication.findUnique({
       where: { id: applicationId },
@@ -476,7 +545,23 @@ export class CompanyGeoService {
       typeof llcAuthority === 'string'
         ? llcAuthority.trim()
         : String(llcAuthority ?? '').trim();
-    return llcName || null;
+    if (llcName) return llcName;
+
+    const individual = raw.individual;
+    if (
+      !individual ||
+      typeof individual !== 'object' ||
+      Array.isArray(individual)
+    ) {
+      return null;
+    }
+    const individualRaw = individual as Record<string, unknown>;
+    const individualAuthority = individualRaw.registrationAuthorityName;
+    const individualName =
+      typeof individualAuthority === 'string'
+        ? individualAuthority.trim()
+        : String(individualAuthority ?? '').trim();
+    return individualName || null;
   }
 
   private extractRegistrationAuthorityCompanyIdFromApplicationPayload(
@@ -499,7 +584,23 @@ export class CompanyGeoService {
       typeof llcAuthorityId === 'string'
         ? llcAuthorityId.trim()
         : String(llcAuthorityId ?? '').trim();
-    return llcId || null;
+    if (llcId) return llcId;
+
+    const individual = raw.individual;
+    if (
+      !individual ||
+      typeof individual !== 'object' ||
+      Array.isArray(individual)
+    ) {
+      return null;
+    }
+    const individualRaw = individual as Record<string, unknown>;
+    const individualAuthorityId = individualRaw.registrationAuthorityCompanyId;
+    const individualId =
+      typeof individualAuthorityId === 'string'
+        ? individualAuthorityId.trim()
+        : String(individualAuthorityId ?? '').trim();
+    return individualId || null;
   }
 
   async assertAuthorityNameAllowedForDivision(

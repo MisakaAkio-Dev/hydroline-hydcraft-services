@@ -12,6 +12,7 @@ import { apiFetch } from '@/utils/http/api'
 import { useCompanyStore } from '@/stores/user/companies'
 import { useAuthStore } from '@/stores/user/auth'
 import CompanyLlcRegistrationForm from '@/components/company/CompanyLlcRegistrationForm.vue'
+import CompanyIndividualRegistrationForm from '@/components/company/CompanyIndividualRegistrationForm.vue'
 import AvatarCropperModal from '@/components/common/AvatarCropperModal.vue'
 import type {
   CompanyIndustry,
@@ -19,6 +20,7 @@ import type {
   CompanyUserRef,
   CompanyRef,
   CreateCompanyApplicationPayload,
+  IndividualBusinessApplicationPayload,
   LimitedLiabilityCompanyApplicationPayload,
   WorldDivisionPath,
   WorldDivisionNode,
@@ -51,9 +53,15 @@ const companyStore = useCompanyStore()
 const authStore = useAuthStore()
 const toast = useToast()
 
+const currentUserId = computed<string | null>(() => {
+  const user = authStore.user as { id?: string } | null
+  return user?.id ?? null
+})
+
 const LIMITED_LIABILITY_CODE = 'limited_liability_company'
-// 临时开关：目前仅开放“有限责任公司”注册申请
-const LIMITED_LIABILITY_ONLY = true
+const INDIVIDUAL_BUSINESS_CODE =
+  'individual-run_industrial_and_commercial_households'
+const SUPPORTED_TYPE_CODES = [LIMITED_LIABILITY_CODE, INDIVIDUAL_BUSINESS_CODE]
 
 // ---------- 选择框显示：缓存已见过的 name，避免 items 变化后回退显示 id ----------
 const userLabelCache = reactive<Record<string, string>>({})
@@ -104,6 +112,7 @@ const formState = reactive<CreateCompanyApplicationPayload>({
   industryId: undefined,
   legalRepresentativeId: undefined,
   llc: undefined,
+  individual: undefined,
 })
 let searchTimer: number | undefined
 let companySearchTimer: number | undefined
@@ -134,6 +143,7 @@ const authorityCompanies = ref<Array<{ id: string; name: string }>>([])
 const authorityLoading = ref(false)
 const applyingInitial = ref(false)
 const labelPrefillDone = ref(false)
+const individualLabelPrefillDone = ref(false)
 let level1SearchTimer: number | undefined
 
 async function refreshAuthorityCompanies() {
@@ -302,6 +312,37 @@ async function prefillSelectedLabels(
   return { usersDone, companiesDone }
 }
 
+async function prefillIndividualSelectedLabels(
+  individual: IndividualBusinessApplicationPayload,
+): Promise<{ usersDone: boolean }> {
+  const userIds = new Set<string>()
+  if (individual.operatorId) userIds.add(individual.operatorId)
+  for (const id of individual.assistants ?? []) {
+    if (id) userIds.add(id)
+  }
+
+  let usersDone = userIds.size === 0
+
+  if (userIds.size) {
+    if (!authStore.token) {
+      usersDone = false
+    } else {
+      const users = await apiFetch<CompanyUserRef[]>(
+        '/companies/users/resolve',
+        {
+          method: 'POST',
+          body: { ids: Array.from(userIds) },
+          token: authStore.token,
+        },
+      )
+      for (const u of users) upsertUserLabel(u)
+      usersDone = true
+    }
+  }
+
+  return { usersDone }
+}
+
 async function searchDivisions(params: {
   q?: string
   serverId: string
@@ -457,6 +498,8 @@ watch(selectedServerId, (value) => {
   llcDraft.administrativeDivisionLevel = 1
   llcDraft.registrationAuthorityCompanyId = undefined
   llcDraft.registrationAuthorityName = ''
+  individualDraft.registrationAuthorityCompanyId = undefined
+  individualDraft.registrationAuthorityName = ''
   authorityCompanies.value = []
   if (!value) {
     initDivisionLevels(0)
@@ -491,6 +534,8 @@ watch(
       if (changedIndex === 0) {
         llcDraft.registrationAuthorityCompanyId = undefined
         llcDraft.registrationAuthorityName = ''
+        individualDraft.registrationAuthorityCompanyId = undefined
+        individualDraft.registrationAuthorityName = ''
         void refreshAuthorityCompanies()
       }
       return
@@ -513,6 +558,8 @@ watch(
       void refreshAuthorityCompanies()
       llcDraft.registrationAuthorityCompanyId = undefined
       llcDraft.registrationAuthorityName = ''
+      individualDraft.registrationAuthorityCompanyId = undefined
+      individualDraft.registrationAuthorityName = ''
     }
 
     const nextLevelIndex = changedIndex + 2
@@ -558,6 +605,12 @@ type ShareholderDraft = {
   holderId: string | undefined
   ratio: number | undefined
   votingRatio: number | undefined
+}
+
+type IndividualAssistantDraft = {
+  userId: string | undefined
+  search: string
+  candidates: CompanyUserRef[]
 }
 
 const llcDraft = reactive<{
@@ -657,6 +710,32 @@ const llcDraft = reactive<{
   },
 })
 
+const individualDraft = reactive<{
+  brandName: string
+  industryFeature: string
+  companyNameDivisionLevels: number[]
+  registrationAuthorityCompanyId: string | undefined
+  registrationAuthorityName: string
+  domicileAddress: string
+  operatingTermLong: boolean
+  operatingTermYears: number | null
+  businessScope: string
+  operatorId: string | undefined
+  assistants: IndividualAssistantDraft[]
+}>({
+  brandName: '',
+  industryFeature: '',
+  companyNameDivisionLevels: [],
+  registrationAuthorityCompanyId: undefined,
+  registrationAuthorityName: '',
+  domicileAddress: '',
+  operatingTermLong: true,
+  operatingTermYears: null,
+  businessScope: '',
+  operatorId: undefined,
+  assistants: [],
+})
+
 const initialApplied = ref(false)
 watch(
   () => props.initial,
@@ -672,9 +751,11 @@ watch(
       formState.logoAttachmentId = value.logoAttachmentId
       logoPreviewUrl.value = null
       formState.typeId = value.typeId
+      formState.typeCode = value.typeCode
       formState.industryId = value.industryId
       formState.legalRepresentativeId = value.legalRepresentativeId
       formState.llc = value.llc
+      formState.individual = value.individual
 
       // LLC 回填（该表单 submit 时会依赖 llcDraft 构建 payload）
       if (value.llc) {
@@ -804,6 +885,83 @@ watch(
         }
       }
 
+      if (value.individual) {
+        try {
+          const { usersDone } = await prefillIndividualSelectedLabels(
+            value.individual,
+          )
+          individualLabelPrefillDone.value = usersDone
+        } catch {
+          // ignore：只影响展示
+        }
+
+        selectedServerId.value = value.individual.serverId
+
+        individualDraft.brandName = value.individual.brandName ?? ''
+        individualDraft.industryFeature = value.individual.industryFeature ?? ''
+        individualDraft.registrationAuthorityCompanyId =
+          value.individual.registrationAuthorityCompanyId
+        individualDraft.registrationAuthorityName =
+          value.individual.registrationAuthorityName ?? ''
+        individualDraft.domicileAddress = value.individual.domicileAddress ?? ''
+        individualDraft.operatingTermLong =
+          value.individual.operatingTerm?.type === 'LONG_TERM'
+        individualDraft.operatingTermYears =
+          value.individual.operatingTerm?.type === 'YEARS'
+            ? (value.individual.operatingTerm.years ?? null)
+            : null
+        individualDraft.businessScope = value.individual.businessScope ?? ''
+        individualDraft.operatorId =
+          value.individual.operatorId ?? individualDraft.operatorId
+        individualDraft.assistants = (value.individual.assistants ?? []).map(
+          (id) => ({
+            userId: id,
+            search: '',
+            candidates: [],
+          }),
+        )
+
+        if (selectedServerId.value) {
+          if (!companyStore.registrationMeta) {
+            await companyStore.fetchRegistrationMeta()
+          }
+          const regime = administrationByServer.value.get(
+            selectedServerId.value,
+          )
+          const pathFromPayload = normalizeDivisionPath(
+            value.individual.domicileDivisionPath as
+              | Record<string, { id: string; name: string } | null>
+              | undefined,
+          )
+          let nodes = pathFromPayload
+          if (!nodes.length && value.individual.domicileDivisionId) {
+            try {
+              nodes = await loadDivisionPath(
+                selectedServerId.value,
+                value.individual.domicileDivisionId,
+              )
+            } catch {
+              nodes = []
+            }
+          }
+          if (nodes.length > 0) {
+            await applyDivisionPath(selectedServerId.value, nodes)
+          } else if (regime?.hasActiveRegime && regime.levelCount) {
+            initDivisionLevels(regime.levelCount)
+            try {
+              await loadDivisionOptions({
+                serverId: selectedServerId.value,
+                levelIndex: 1,
+              })
+            } catch {
+              divisionLevelOptions.value[0] = []
+            }
+          } else {
+            initDivisionLevels(0)
+          }
+        }
+      }
+
       await nextTick()
     } finally {
       applyingInitial.value = false
@@ -817,14 +975,23 @@ watch(
   () => authStore.token,
   async (token) => {
     if (!token) return
-    if (labelPrefillDone.value) return
     const llc = props.initial?.llc
-    if (!llc) return
-    try {
-      const { usersDone, companiesDone } = await prefillSelectedLabels(llc)
-      labelPrefillDone.value = usersDone && companiesDone
-    } catch {
-      // ignore
+    if (llc && !labelPrefillDone.value) {
+      try {
+        const { usersDone, companiesDone } = await prefillSelectedLabels(llc)
+        labelPrefillDone.value = usersDone && companiesDone
+      } catch {
+        // ignore
+      }
+    }
+    const individual = props.initial?.individual
+    if (individual && !individualLabelPrefillDone.value) {
+      try {
+        const { usersDone } = await prefillIndividualSelectedLabels(individual)
+        individualLabelPrefillDone.value = usersDone
+      } catch {
+        // ignore
+      }
     }
   },
   { immediate: true },
@@ -847,11 +1014,18 @@ const authorityCandidatesFiltered = computed(() => {
 })
 
 const llcActiveSection = ref('basic')
+const individualActiveSection = ref('basic')
 
-const authorityOptions = computed(() =>
+const llcAuthorityOptions = computed(() =>
   buildCompanyItems(
     authorityCandidatesFiltered.value as unknown as CompanyRef[],
     llcDraft.registrationAuthorityCompanyId,
+  ),
+)
+const individualAuthorityOptions = computed(() =>
+  buildCompanyItems(
+    authorityCandidatesFiltered.value as unknown as CompanyRef[],
+    individualDraft.registrationAuthorityCompanyId,
   ),
 )
 
@@ -866,17 +1040,29 @@ watch(
   (levels) => {
     if (levels.length === 0) {
       llcDraft.companyNameDivisionLevels = []
+      individualDraft.companyNameDivisionLevels = []
       return
     }
     const next = llcDraft.companyNameDivisionLevels.filter((level) =>
       levels.includes(level),
     )
+    const individualNext = individualDraft.companyNameDivisionLevels.filter(
+      (level) => levels.includes(level),
+    )
     if (next.length === 0) {
       llcDraft.companyNameDivisionLevels = [levels[0]]
+    } else if (next.length !== llcDraft.companyNameDivisionLevels.length) {
+      llcDraft.companyNameDivisionLevels = next
+    }
+
+    if (individualNext.length === 0) {
+      individualDraft.companyNameDivisionLevels = [levels[0]]
       return
     }
-    if (next.length !== llcDraft.companyNameDivisionLevels.length) {
-      llcDraft.companyNameDivisionLevels = next
+    if (
+      individualNext.length !== individualDraft.companyNameDivisionLevels.length
+    ) {
+      individualDraft.companyNameDivisionLevels = individualNext
     }
   },
   { immediate: true },
@@ -892,6 +1078,18 @@ const fullCompanyName = computed(() => {
   const feature = llcDraft.industryFeature.trim()
   const pieces = [...divisions, brand, feature].filter(Boolean)
   return `${pieces.join('') || ''}有限公司`
+})
+
+const fullIndividualName = computed(() => {
+  const divisions = individualDraft.companyNameDivisionLevels
+    .slice()
+    .sort((a, b) => a - b)
+    .map((level) => divisionLevelNodes.value[level - 1]?.name)
+    .filter((name): name is string => Boolean(name))
+  const brand = individualDraft.brandName.trim()
+  const feature = individualDraft.industryFeature.trim()
+  const pieces = [...divisions, brand, feature].filter(Boolean)
+  return `${pieces.join('') || ''}个体工商户`
 })
 
 function buildDivisionPathPayload(): WorldDivisionPath | undefined {
@@ -1032,6 +1230,17 @@ function removeSupervisor(index: number) {
   llcDraft.supervisors.items.splice(index, 1)
 }
 
+function addIndividualAssistant() {
+  individualDraft.assistants.push({
+    userId: undefined,
+    search: '',
+    candidates: [],
+  })
+}
+function removeIndividualAssistant(index: number) {
+  individualDraft.assistants.splice(index, 1)
+}
+
 onBeforeUnmount(() => {
   if (searchTimer) {
     window.clearTimeout(searchTimer)
@@ -1048,6 +1257,17 @@ onMounted(() => {
   void companyStore.fetchMeta()
   void companyStore.fetchRegistrationMeta()
 })
+
+watch(
+  currentUserId,
+  (value) => {
+    if (!value) return
+    if (!individualDraft.operatorId) {
+      individualDraft.operatorId = value
+    }
+  },
+  { immediate: true },
+)
 
 watch(logoCropperOpen, (open) => {
   if (!open) {
@@ -1069,6 +1289,9 @@ const resolvedTypes = computed(() => {
 
 const limitedLiabilityType = computed(() =>
   resolvedTypes.value.find((t) => t.code === LIMITED_LIABILITY_CODE),
+)
+const individualBusinessType = computed(() =>
+  resolvedTypes.value.find((t) => t.code === INDIVIDUAL_BUSINESS_CODE),
 )
 
 const resolvedIndustries = computed(() => {
@@ -1151,29 +1374,29 @@ watch(selectedRegime, (regime) => {
   })
 })
 
-const typeOptions = computed(() => {
-  if (LIMITED_LIABILITY_ONLY) {
-    const items: Array<{ value: string; label: string }> = []
-    const llc = limitedLiabilityType.value
-    const selectedId = formState.typeId
-    const selected = selectedId
-      ? resolvedTypes.value.find((t) => t.id === selectedId)
-      : null
+const supportedTypes = computed(() =>
+  resolvedTypes.value.filter((type) =>
+    SUPPORTED_TYPE_CODES.includes(type.code),
+  ),
+)
 
-    // 兼容：打开历史申请/回填时，如果当前选中类型不是 LLC，也保证 UI 能展示其名称
-    if (selected && selected.code !== LIMITED_LIABILITY_CODE) {
-      items.push({
-        value: selected.id,
-        label: `${selected.name}（暂不支持新申请）`,
-      })
-    }
-    if (llc) items.push({ value: llc.id, label: llc.name })
-    return items
+const typeOptions = computed(() => {
+  const items: Array<{ value: string; label: string }> = []
+  const selectedId = formState.typeId
+  const selected = selectedId
+    ? resolvedTypes.value.find((t) => t.id === selectedId)
+    : null
+
+  if (selected && !SUPPORTED_TYPE_CODES.includes(selected.code)) {
+    items.push({
+      value: selected.id,
+      label: `${selected.name}（暂不支持新申请）`,
+    })
   }
-  return resolvedTypes.value.map((type) => ({
-    value: type.id,
-    label: type.name,
-  }))
+  for (const type of supportedTypes.value) {
+    items.push({ value: type.id, label: type.name })
+  }
+  return items
 })
 
 const industryOptions = computed(() =>
@@ -1190,10 +1413,27 @@ const selectedIndustryLabel = computed(() => {
   return matched?.name || '未选择'
 })
 
+const individualOperatorLabel = computed(() => {
+  const operatorId = individualDraft.operatorId ?? currentUserId.value ?? ''
+  if (operatorId && userLabelCache[operatorId]) {
+    return userLabelCache[operatorId]
+  }
+  const user = authStore.user as {
+    name?: string
+    email?: string
+    profile?: { displayName?: string }
+  } | null
+  return (
+    user?.profile?.displayName ||
+    user?.name ||
+    user?.email ||
+    operatorId ||
+    '未登录'
+  )
+})
+
 const showCompanyTypeField = computed(() => true)
-const isCompanyTypeLocked = computed(
-  () => LIMITED_LIABILITY_ONLY && Boolean(limitedLiabilityType.value),
-)
+const isCompanyTypeLocked = computed(() => supportedTypes.value.length <= 1)
 const isLlcSelected = computed(() => {
   const id = formState.typeId
   // 优先以 typeId 对应的 code 判断，避免出现 typeCode 与 typeId 不一致导致的误判
@@ -1204,15 +1444,24 @@ const isLlcSelected = computed(() => {
   const code = formState.typeCode
   return code === LIMITED_LIABILITY_CODE
 })
+const isIndividualSelected = computed(() => {
+  const id = formState.typeId
+  if (id) {
+    const t = resolvedTypes.value.find((x) => x.id === id)
+    return t?.code === INDIVIDUAL_BUSINESS_CODE
+  }
+  const code = formState.typeCode
+  return code === INDIVIDUAL_BUSINESS_CODE
+})
 
-// LLC-only：当 types 元数据就绪时，自动预选 LLC（不覆盖 initial 回填）
+// 当 types 元数据就绪时，如果未选择类型，默认选中有限责任公司（不覆盖 initial 回填）
 watch(
-  () => limitedLiabilityType.value?.id,
-  (llcTypeId) => {
-    if (!LIMITED_LIABILITY_ONLY) return
+  () => [limitedLiabilityType.value?.id, supportedTypes.value.length],
+  ([llcTypeId]) => {
     if (!llcTypeId) return
     if (props.initial) return
     if (applyingInitial.value) return
+    if (formState.typeId) return
     formState.typeId = llcTypeId
     formState.typeCode = LIMITED_LIABILITY_CODE
   },
@@ -1225,6 +1474,16 @@ watch(
   (enabled) => {
     if (!enabled) {
       formState.llc = undefined
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => isIndividualSelected.value,
+  (enabled) => {
+    if (!enabled) {
+      formState.individual = undefined
     }
   },
   { immediate: true },
@@ -1263,16 +1522,20 @@ function cleanUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
 }
 
 const handleSubmit = async () => {
-  if (LIMITED_LIABILITY_ONLY && !isLlcSelected.value) {
-    toast.add({ title: '当前暂时仅支持申请注册有限责任公司', color: 'error' })
+  if (!isLlcSelected.value && !isIndividualSelected.value) {
+    toast.add({ title: '请先选择可申请的公司类型', color: 'error' })
     return
   }
 
-  // LLC-only：尽量保证 payload 内 typeId/typeCode 与 LLC 一致
-  if (LIMITED_LIABILITY_ONLY) {
+  if (isLlcSelected.value) {
     formState.typeCode = LIMITED_LIABILITY_CODE
     if (limitedLiabilityType.value?.id) {
       formState.typeId = limitedLiabilityType.value.id
+    }
+  } else if (isIndividualSelected.value) {
+    formState.typeCode = INDIVIDUAL_BUSINESS_CODE
+    if (individualBusinessType.value?.id) {
+      formState.typeId = individualBusinessType.value.id
     }
   }
 
@@ -1456,6 +1719,92 @@ const handleSubmit = async () => {
     formState.name = fullCompanyName.value
     formState.legalRepresentativeId = llcDraft.legalRepresentativeId
     formState.llc = llcPayload
+    formState.individual = undefined
+  }
+
+  if (isIndividualSelected.value) {
+    if (individualActiveSection.value !== 'review') {
+      toast.add({ title: '请先完成信息核验后再提交', color: 'error' })
+      return
+    }
+    if (!selectedServerId.value) {
+      toast.add({ title: '请先选择所属服务端', color: 'error' })
+      return
+    }
+    if (!domicileDivisionId.value) {
+      toast.add({ title: '请先选择住所地所在行政区', color: 'error' })
+      return
+    }
+    if (!individualDraft.registrationAuthorityCompanyId) {
+      toast.add({ title: '请选择登记机关（机关法人）', color: 'error' })
+      return
+    }
+    const authorityName =
+      authorityCandidatesFiltered.value.find(
+        (c) => c.id === individualDraft.registrationAuthorityCompanyId,
+      )?.name ??
+      companyLabelCache[individualDraft.registrationAuthorityCompanyId] ??
+      individualDraft.registrationAuthorityName.trim()
+    if (!authorityName) {
+      toast.add({ title: '登记机关信息无效，请重新选择', color: 'error' })
+      return
+    }
+    if (!individualDraft.industryFeature.trim()) {
+      toast.add({ title: '请填写行业特点', color: 'error' })
+      return
+    }
+    if (!individualDraft.domicileAddress.trim()) {
+      toast.add({ title: '请填写住所地详细地址', color: 'error' })
+      return
+    }
+    if (!individualDraft.businessScope.trim()) {
+      toast.add({ title: '请填写经营范围', color: 'error' })
+      return
+    }
+    const operatorId = individualDraft.operatorId?.trim()
+    if (!operatorId) {
+      toast.add({ title: '经营者信息缺失，请刷新后重试', color: 'error' })
+      return
+    }
+
+    const assistants = individualDraft.assistants
+      .map((entry) => entry.userId?.trim())
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    const assistantSet = new Set(assistants)
+    if (assistantSet.size !== assistants.length) {
+      toast.add({ title: '经营成员不能重复', color: 'error' })
+      return
+    }
+    if (assistantSet.has(operatorId)) {
+      toast.add({ title: '经营成员不能包含经营者本人', color: 'error' })
+      return
+    }
+
+    const individualPayload: IndividualBusinessApplicationPayload = {
+      serverId: selectedServerId.value as string,
+      domicileDivisionId: domicileDivisionId.value as string,
+      domicileDivisionPath: buildDivisionPathPayload(),
+      brandName: individualDraft.brandName.trim() || undefined,
+      industryFeature: individualDraft.industryFeature.trim(),
+      registrationAuthorityCompanyId:
+        individualDraft.registrationAuthorityCompanyId,
+      registrationAuthorityName: authorityName,
+      domicileAddress: individualDraft.domicileAddress.trim(),
+      operatingTerm: individualDraft.operatingTermLong
+        ? { type: 'LONG_TERM' }
+        : {
+            type: 'YEARS',
+            years: individualDraft.operatingTermYears ?? undefined,
+          },
+      businessScope: individualDraft.businessScope.trim(),
+      operatorId,
+      assistants,
+    }
+
+    formState.name = fullIndividualName.value
+    formState.legalRepresentativeId = operatorId
+    formState.individual = individualPayload
+    formState.llc = undefined
   }
 
   // 清理 undefined 值并发送 payload
@@ -1566,7 +1915,7 @@ const handleSubmit = async () => {
       :industry-label="selectedIndustryLabel"
       :domicile-division="domicileDivision"
       :full-company-name="fullCompanyName"
-      :authority-options="authorityOptions"
+      :authority-options="llcAuthorityOptions"
       :authority-loading="authorityLoading"
       :logo-preview-url="logoPreviewUrl"
       :logo-uploading="logoUploading"
@@ -1598,6 +1947,41 @@ const handleSubmit = async () => {
       @update:active-section="llcActiveSection = $event"
     />
 
+    <CompanyIndividualRegistrationForm
+      v-if="isIndividualSelected"
+      :selected-server-id="selectedServerId"
+      :server-search="serverSearch"
+      :server-options="serverOptions"
+      :visible-division-levels="visibleDivisionLevels"
+      :division-level-selected-ids="divisionLevelSelectedIds"
+      :division-level-options="divisionLevelOptions"
+      :level1-search="level1Search"
+      :has-active-regime="hasActiveRegime"
+      :industry-label="selectedIndustryLabel"
+      :domicile-division="domicileDivision"
+      :full-business-name="fullIndividualName"
+      :authority-options="individualAuthorityOptions"
+      :authority-loading="authorityLoading"
+      :logo-preview-url="logoPreviewUrl"
+      :logo-uploading="logoUploading"
+      :individual-draft="individualDraft"
+      :operator-label="individualOperatorLabel"
+      :user-label-cache="userLabelCache"
+      :build-user-items="buildUserItems"
+      :handle-user-search-list="handleUserSearchList"
+      :add-assistant="addIndividualAssistant"
+      :remove-assistant="removeIndividualAssistant"
+      :active-section="individualActiveSection"
+      @submit="handleSubmit"
+      @request-authorities="handleAuthorityOpen"
+      @upload-logo="handleLogoUpload"
+      @update:selected-server-id="selectedServerId = $event"
+      @update:server-search="serverSearch = $event"
+      @update:level1-search="level1Search = $event"
+      @update:division-level-selected-ids="divisionLevelSelectedIds = $event"
+      @update:active-section="individualActiveSection = $event"
+    />
+
     <AvatarCropperModal
       v-model:open="logoCropperOpen"
       :image-url="logoCropperImageUrl"
@@ -1608,7 +1992,10 @@ const handleSubmit = async () => {
       @confirm="handleLogoCropConfirm"
     />
 
-    <div v-if="!isLlcSelected" class="flex justify-end">
+    <div
+      v-if="!isLlcSelected && !isIndividualSelected"
+      class="flex justify-end"
+    >
       <UButton type="submit" color="primary" :loading="submitting">
         {{ props.submitLabel || '提交注册申请' }}
       </UButton>

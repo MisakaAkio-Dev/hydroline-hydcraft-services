@@ -74,7 +74,7 @@ const registrationTypeOptions = computed(() => {
     {
       value: INDIVIDUAL_BUSINESS_CODE,
       label: individualBusinessType.value?.name || '个体工商户',
-      available: false,
+      available: Boolean(individualBusinessType.value?.id),
       typeId: individualBusinessType.value?.id,
     },
     {
@@ -93,10 +93,11 @@ const selectedRegistrationTypeOption = computed(() =>
 const selectedRegistrationTypeLabel = computed(
   () => selectedRegistrationTypeOption.value?.label || '单位注册',
 )
-const selectedTypeAvailable = computed(
-  () =>
-    selectedRegistrationType.value === LIMITED_LIABILITY_CODE &&
-    Boolean(selectedRegistrationTypeOption.value?.typeId),
+const selectedTypeAvailable = computed(() =>
+  Boolean(
+    selectedRegistrationTypeOption.value?.available &&
+      selectedRegistrationTypeOption.value?.typeId,
+  ),
 )
 const showIndustrySelector = computed(
   () => selectedRegistrationType.value !== SPECIAL_LEGAL_PERSON_CODE,
@@ -117,10 +118,9 @@ const applicationFormInitial = computed<CreateCompanyApplicationPayload | null>(
       name: '',
       typeId,
       industryId: selectedIndustryId.value,
-      typeCode:
-        selectedRegistrationType.value === LIMITED_LIABILITY_CODE
-          ? LIMITED_LIABILITY_CODE
-          : undefined,
+      typeCode: selectedTypeAvailable.value
+        ? selectedRegistrationType.value
+        : undefined,
     }
   },
 )
@@ -826,7 +826,7 @@ watch(
               class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <p class="text-xs text-slate-500 dark:text-slate-400">
-                当前仅开放有限责任公司登记。
+                当前开放有限责任公司、个体工商户登记。
               </p>
               <UButton
                 color="primary"

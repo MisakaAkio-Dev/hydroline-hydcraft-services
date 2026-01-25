@@ -117,6 +117,21 @@ export interface LimitedLiabilityCompanyApplicationPayload {
   financialOfficerId?: string
 }
 
+export interface IndividualBusinessApplicationPayload {
+  serverId: string
+  domicileDivisionId: string
+  domicileDivisionPath?: WorldDivisionPath
+  brandName?: string
+  industryFeature: string
+  registrationAuthorityCompanyId?: string
+  registrationAuthorityName?: string
+  domicileAddress: string
+  operatingTerm: { type: 'LONG_TERM' | 'YEARS'; years?: number }
+  businessScope: string
+  operatorId: string
+  assistants?: string[]
+}
+
 /**
  * 轻量用户引用（用于选择框/展示等）。
  * 注意：这里不再与任何“公司成员/岗位角色”系统绑定，仅代表用户基本信息。
@@ -483,6 +498,7 @@ export interface CreateCompanyApplicationPayload {
   category?: string
   legalRepresentativeId?: string
   llc?: LimitedLiabilityCompanyApplicationPayload
+  individual?: IndividualBusinessApplicationPayload
 }
 
 export interface CompanyDeregistrationApplyPayload {
