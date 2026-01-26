@@ -39,6 +39,7 @@ import type {
   RailwayStationRecord,
   RouteDetailResult,
 } from '../../types/railway-types';
+import type { StationRouteMapPayload } from '../../snapshot/compute/station-map';
 
 const BLOCKS_PER_KM = 1000;
 const NEAREST_STATION_MAX_DISTANCE_BLOCKS = 256;
@@ -652,7 +653,7 @@ export class TransportationRailwayRouteDetailService {
         }
       }
     }
-    const mergedRoutes = this.mergeRoutesForDisplay(routes);
+    let mergedRoutes = this.mergeRoutesForDisplay(routes);
 
     // Fetch related stations for the map (routes context)
     const relatedPlatformIds = new Set<string>();
@@ -697,9 +698,67 @@ export class TransportationRailwayRouteDetailService {
       }
     }
 
-    const normalizedRelatedStations = Array.from(
-      relatedStationsMap.values(),
-    ).map((s) => this.normalizeStationRecord(s, server));
+    let normalizedRelatedStations = Array.from(relatedStationsMap.values()).map(
+      (s) => this.normalizeStationRecord(s, server),
+    );
+
+    if (!routes.length || !normalizedRelatedStations.length) {
+      const snapshot = await this.fetchStationMapSnapshot(
+        server,
+        normalizedStationId,
+        dimensionContext,
+      );
+      if (snapshot?.payload) {
+        const payload = snapshot.payload as StationRouteMapPayload;
+        const snapshotDimensionContext =
+          snapshot.dimensionContext ??
+          (payload.dimension
+            ? buildDimensionContextFromDimension(
+                payload.dimension,
+                server.railwayMod,
+              )
+            : null);
+        const snapshotRouteIds = new Set<string>();
+        const snapshotStationIds = new Set<string>();
+        for (const group of payload.groups ?? []) {
+          for (const routeId of group.routeIds ?? []) {
+            const normalized = normalizeId(routeId);
+            if (normalized) snapshotRouteIds.add(normalized);
+          }
+          for (const stop of group.stops ?? []) {
+            const normalized = normalizeId(stop.stationId);
+            if (normalized) snapshotStationIds.add(normalized);
+          }
+        }
+
+        if (!routes.length && snapshotRouteIds.size) {
+          const context = snapshotDimensionContext ?? dimensionContext;
+          routes = await this.fetchNormalizedRoutesByIds(
+            server,
+            Array.from(snapshotRouteIds),
+            context,
+          );
+          if (!routes.length && context) {
+            routes = await this.fetchNormalizedRoutesByIds(
+              server,
+              Array.from(snapshotRouteIds),
+              null,
+            );
+          }
+          mergedRoutes = this.mergeRoutesForDisplay(routes);
+        }
+
+        if (!normalizedRelatedStations.length && snapshotStationIds.size) {
+          const stationRecords = await this.fetchStationsByIds(
+            server,
+            Array.from(snapshotStationIds),
+          );
+          normalizedRelatedStations = stationRecords.map((station) =>
+            this.normalizeStationRecord(station, server),
+          );
+        }
+      }
+    }
 
     const bindings = await this.fetchCompanyBindingsForEntity({
       entityType: TransportationRailwayBindingEntityType.STATION,
@@ -1694,6 +1753,47 @@ export class TransportationRailwayRouteDetailService {
       }
     }
     return records;
+  }
+
+  private async fetchStationMapSnapshot(
+    server: BeaconServerRecord,
+    stationId: string,
+    dimensionContext: string | null,
+  ) {
+    const stationEntityId = normalizeId(stationId) ?? stationId;
+    if (!stationEntityId) return null;
+    if (dimensionContext) {
+      const scoped =
+        await this.prisma.transportationRailwayStationMapSnapshot.findUnique({
+          where: {
+            serverId_railwayMod_dimensionContext_stationEntityId: {
+              serverId: server.id,
+              railwayMod: server.railwayMod,
+              dimensionContext,
+              stationEntityId,
+            },
+          },
+          select: {
+            payload: true,
+            dimensionContext: true,
+          },
+        });
+      if (scoped?.payload) {
+        return scoped;
+      }
+    }
+    return await this.prisma.transportationRailwayStationMapSnapshot.findFirst({
+      where: {
+        serverId: server.id,
+        railwayMod: server.railwayMod,
+        stationEntityId,
+      },
+      orderBy: { generatedAt: 'desc' },
+      select: {
+        payload: true,
+        dimensionContext: true,
+      },
+    });
   }
 
   private async fetchPlatformsForStation(
