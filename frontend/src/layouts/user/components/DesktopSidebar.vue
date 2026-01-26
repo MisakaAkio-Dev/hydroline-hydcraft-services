@@ -174,9 +174,15 @@ const handleToggle = () => {
                 <UIcon
                   :name="item.icon"
                   class="h-5 w-4 shrink-0 text-primary-500"
+                  aria-hidden="false"
                 />
               </Motion>
-              <UIcon v-else :name="item.icon" class="h-5 w-4 shrink-0" />
+              <UIcon
+                v-else
+                :name="item.icon"
+                class="h-5 w-4 shrink-0"
+                aria-hidden="false"
+              />
               <span
                 class="whitespace-nowrap transition-all duration-300"
                 :class="[

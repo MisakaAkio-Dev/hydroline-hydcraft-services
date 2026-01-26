@@ -229,7 +229,6 @@ function handleHeroPanMove(event: TouchEvent) {
   const deltaX = touch.clientX - heroPanStartX.value
   const deltaY = touch.clientY - heroPanStartY.value
   if (Math.abs(deltaX) <= Math.abs(deltaY)) return
-  event.preventDefault()
   const next = heroPanStartPosition.value - deltaX * 0.1
   heroPanPosition.value = Math.max(0, Math.min(100, next))
   const now = performance.now()
@@ -471,8 +470,8 @@ function handleHeroImageErrored() {
         <div
           v-if="!uiStore.previewMode"
           class="bg-image-mobile lg:bg-image hero-pan-area relative block h-full w-full select-none overflow-hidden text-left focus:outline-none"
-          @touchstart="handleHeroPanStart"
-          @touchmove="handleHeroPanMove"
+          @touchstart.passive="handleHeroPanStart"
+          @touchmove.passive="handleHeroPanMove"
           @touchend="handleHeroPanEnd"
           @touchcancel="handleHeroPanEnd"
         >
@@ -555,8 +554,8 @@ function handleHeroImageErrored() {
         <div
           v-else
           class="hero-pan-area relative block h-full w-full select-none overflow-hidden text-left focus:outline-none"
-          @touchstart="handleHeroPanStart"
-          @touchmove="handleHeroPanMove"
+          @touchstart.passive="handleHeroPanStart"
+          @touchmove.passive="handleHeroPanMove"
           @touchend="handleHeroPanEnd"
           @touchcancel="handleHeroPanEnd"
         >

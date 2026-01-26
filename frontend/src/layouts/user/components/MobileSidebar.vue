@@ -185,9 +185,18 @@ onUnmounted(() => {
                 :transition="{ type: 'spring', stiffness: 360, damping: 24 }"
                 class="flex h-6 w-6 items-center justify-center"
               >
-                <UIcon :name="item.icon" class="text-xl text-primary-500" />
+                <UIcon
+                  :name="item.icon"
+                  class="text-xl text-primary-500"
+                  aria-hidden="false"
+                />
               </Motion>
-              <UIcon v-else :name="item.icon" class="text-xl h-fit" />
+              <UIcon
+                v-else
+                :name="item.icon"
+                class="text-xl h-fit"
+                aria-hidden="false"
+              />
               <span class="whitespace-nowrap">{{ item.name }}</span>
             </RouterLink>
           </nav>
