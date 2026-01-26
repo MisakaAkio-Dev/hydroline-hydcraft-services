@@ -180,12 +180,14 @@ onBeforeUnmount(() => {
 })
 
 function onlineLabel(item: PublicServerStatusItem) {
+  if (item.mcsm?.status === 0) return '—'
   const players = item.ping?.response.players
   if (!players) return '暂无在线数据'
   return `${players.online ?? 0} / ${players.max ?? 0}`
 }
 
 function latencyLabel(item: PublicServerStatusItem) {
+  if (item.mcsm?.status === 0) return '—'
   const latency = item.ping?.response.latency
   if (latency == null) return '—'
   return `${latency} ms`
@@ -292,6 +294,7 @@ const totalCapacity = computed(() => {
   let max = 0
   let online = 0
   for (const s of servers.value) {
+    if (s.mcsm?.status === 0) continue
     const players = s.ping?.response.players
     if (players) {
       online += players.online ?? 0
@@ -308,6 +311,7 @@ const overallOnlinePercent = computed(() => {
 })
 
 function serverOnlinePercent(item: PublicServerStatusItem) {
+  if (item.mcsm?.status === 0) return 0
   const players = item.ping?.response.players
   const online = players?.online ?? 0
   const max = players?.max ?? 0

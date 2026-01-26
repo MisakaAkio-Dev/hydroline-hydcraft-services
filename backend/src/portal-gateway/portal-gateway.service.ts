@@ -889,13 +889,13 @@ export class PortalGatewayService {
             ) {
               mcsm = { status: mcsmStatus.detail.status };
             } else {
-              mcsm = { status: undefined };
+              mcsm = { status: 0 };
             }
           } catch (e) {
             this.logger.debug(
               `MCSM status fetch failed for server ${server.id}: ${String(e)}`,
             );
-            mcsm = { status: undefined };
+            mcsm = { status: 0 };
           }
         }
 
@@ -912,14 +912,16 @@ export class PortalGatewayService {
         if (lastPing) {
           const fallbackOnline = lastPing.onlinePlayers;
           const fallbackMax = lastPing.maxPlayers;
+          const online = beaconOnlinePlayers ?? fallbackOnline;
+          const max = beaconMaxPlayers ?? fallbackMax;
+          const players =
+            online != null || max != null ? { online, max } : undefined;
+
           ping = {
             edition: lastPing.edition as 'JAVA' | 'BEDROCK',
             response: {
               latency: lastPing.latency,
-              players: {
-                online: beaconOnlinePlayers ?? fallbackOnline,
-                max: beaconMaxPlayers ?? fallbackMax,
-              },
+              players,
               motdText: lastPing.motd,
             },
           };
