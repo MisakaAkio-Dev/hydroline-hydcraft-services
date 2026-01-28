@@ -175,7 +175,7 @@ const handleDashboard = () => {
     uiStore.openLoginDialog()
     return
   }
-  router.push('/company/dashboard')
+  router.push('/company')
 }
 
 const refreshRegistrations = () => {
@@ -379,7 +379,7 @@ onMounted(() => {
                     variant="ghost"
                     size="xs"
                     color="primary"
-                    to="/company/dashboard"
+                    to="/company"
                   >
                     详情
                   </UButton>
@@ -453,7 +453,7 @@ onMounted(() => {
                     variant="ghost"
                     size="xs"
                     color="primary"
-                    to="/company/dashboard"
+                    to="/company"
                   >
                     详情
                   </UButton>

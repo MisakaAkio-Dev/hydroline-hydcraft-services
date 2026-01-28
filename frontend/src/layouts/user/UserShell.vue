@@ -198,6 +198,11 @@ const routerPush = (path: string) => {
   if (route.fullPath === path) return
   router.push(path)
 }
+
+const pageTransitionKey = computed(() => {
+  const firstChildPath = route.matched[1]?.path
+  return firstChildPath ? `user:${firstChildPath}` : `user:${route.path}`
+})
 </script>
 
 <template>
@@ -453,7 +458,7 @@ const routerPush = (path: string) => {
       <main class="pt-8 lg:pt-4 mb-8">
         <RouterView v-slot="{ Component, route }">
           <Transition name="page-fade" mode="out-in">
-            <div v-if="Component" :key="route.path">
+            <div v-if="Component" :key="pageTransitionKey">
               <component :is="Component" />
             </div>
           </Transition>
@@ -563,7 +568,7 @@ const routerPush = (path: string) => {
 <style scoped>
 .page-fade-enter-active,
 .page-fade-leave-active {
-  transition: opacity 250ms ease;
+  transition: opacity 200ms ease;
 }
 
 .page-fade-enter-from,

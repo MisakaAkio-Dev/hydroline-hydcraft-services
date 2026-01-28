@@ -273,6 +273,59 @@ export class CompanyService implements OnModuleInit {
     };
   }
 
+  async getServerDashboardSnapshot() {
+    const where: Prisma.CompanyWhereInput = {
+      status: CompanyStatus.ACTIVE,
+      visibility: CompanyVisibility.PUBLIC,
+    };
+
+    const categories: CompanyCategory[] = [
+      CompanyCategory.FOR_PROFIT_LEGAL_PERSON,
+      CompanyCategory.NON_PROFIT_LEGAL_PERSON,
+      CompanyCategory.SPECIAL_LEGAL_PERSON,
+      CompanyCategory.UNINCORPORATED_ORGANIZATION,
+      CompanyCategory.INDIVIDUAL,
+    ];
+
+    const [companies, counts] = await Promise.all([
+      this.prisma.company.findMany({
+        where,
+        include: companyInclude,
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      Promise.all(
+        categories.map((category) =>
+          this.prisma.company.count({
+            where: { ...where, category },
+          }),
+        ),
+      ),
+    ]);
+
+    const categoryCounts: Record<string, number> = Object.fromEntries(
+      categories.map((category, index) => [category, counts[index] ?? 0]),
+    );
+
+    return {
+      categoryCounts,
+      companies: await Promise.all(
+        companies.map((company) =>
+          this.serializerService.serializeCompany(company),
+        ),
+      ),
+    };
+  }
+
+  async getDashboardSnapshot(userId?: string) {
+    const server = await this.getServerDashboardSnapshot();
+    if (!userId) {
+      return { server, mine: null as null };
+    }
+    const mine = await this.listMine(userId);
+    return { server, mine };
+  }
+
   async listDirectory(query: CompanyDirectoryQueryDto) {
     const page = Math.max(query.page ?? 1, 1);
     const pageSize = Math.min(Math.max(query.pageSize ?? 20, 5), 50);

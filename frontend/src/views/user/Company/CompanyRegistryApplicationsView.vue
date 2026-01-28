@@ -74,7 +74,7 @@ const loadList = async (page = 1) => {
         title: '无权访问登记机关审批',
         color: 'warning',
       })
-      await router.replace('/company/dashboard')
+      await router.replace('/company')
       return
     }
     toast.add({

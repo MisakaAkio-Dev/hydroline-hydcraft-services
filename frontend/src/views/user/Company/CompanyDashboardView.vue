@@ -149,39 +149,53 @@ const hasRegistryApprovalRole = computed(() => {
   return authStore.hasPermission('company.admin.applications')
 })
 
+const categoryOrder = [
+  'FOR_PROFIT_LEGAL_PERSON',
+  'NON_PROFIT_LEGAL_PERSON',
+  'SPECIAL_LEGAL_PERSON',
+  'UNINCORPORATED_ORGANIZATION',
+  'INDIVIDUAL',
+] as const
+
+const categoryLabels: Record<(typeof categoryOrder)[number], string> = {
+  FOR_PROFIT_LEGAL_PERSON: '营利法人',
+  NON_PROFIT_LEGAL_PERSON: '非营利法人',
+  SPECIAL_LEGAL_PERSON: '特别法人',
+  UNINCORPORATED_ORGANIZATION: '非法人组织',
+  INDIVIDUAL: '个体工商户',
+}
+
+const serverCategoryCounts = computed(
+  () => companyStore.serverDashboardCategoryCounts ?? {},
+)
+const serverTopCompanies = computed(() => companyStore.serverDashboard ?? [])
+
 const categoryCards = computed(() => {
-  const order = [
-    'FOR_PROFIT_LEGAL_PERSON',
-    'NON_PROFIT_LEGAL_PERSON',
-    'SPECIAL_LEGAL_PERSON',
-    'UNINCORPORATED_ORGANIZATION',
-    'INDIVIDUAL',
-  ]
-
-  const labels: Record<string, string> = {
-    FOR_PROFIT_LEGAL_PERSON: '营利法人',
-    NON_PROFIT_LEGAL_PERSON: '非营利法人',
-    SPECIAL_LEGAL_PERSON: '特别法人',
-    UNINCORPORATED_ORGANIZATION: '非法人组织',
-    INDIVIDUAL: '个体工商户',
-  }
-
   const counts: Record<string, number> = {}
-  for (const key of order) counts[key] = 0
+  for (const key of categoryOrder) counts[key] = 0
 
-  // 仅统计“由您担任法定代表人”的主体
-  for (const company of legalRepresentativeEntities.value) {
-    const key = company.category
-    if (!key) continue
-    if (!order.includes(key)) continue
-    counts[key] = (counts[key] ?? 0) + 1
+  if (authStore.isAuthenticated) {
+    // 仅统计“由您担任法定代表人”的主体
+    for (const company of legalRepresentativeEntities.value) {
+      const key = company.category
+      if (!key) continue
+      if (!categoryOrder.includes(key as (typeof categoryOrder)[number]))
+        continue
+      counts[key] = (counts[key] ?? 0) + 1
+    }
+  } else {
+    for (const key of categoryOrder) {
+      counts[key] = serverCategoryCounts.value[key] ?? 0
+    }
   }
 
-  return order.map((key) => ({
+  return categoryOrder.map((key) => ({
     key,
-    label: labels[key] || key,
+    label: categoryLabels[key] || key,
     count: counts[key] ?? 0,
-    hint: '由您担任法定代表人的主体数量。',
+    hint: authStore.isAuthenticated
+      ? '由您担任法定代表人的主体数量。'
+      : '全服已登记主体数量。',
   }))
 })
 
@@ -282,7 +296,7 @@ async function handleApply(payload: CreateCompanyApplicationPayload) {
     // 仅在提交成功后关闭表单；失败/校验报错时保持打开，避免用户重填
     applicationFormOpen.value = false
     applicationGatewayOpen.value = false
-    await router.push('/company/dashboard/applications')
+    await router.push('/company/applications')
   } catch (error) {
     toast.add({
       title: (error as Error).message || '提交失败',
@@ -298,17 +312,13 @@ function handleRefresh() {
 
 onMounted(() => {
   void companyStore.fetchMeta()
-  if (authStore.isAuthenticated) {
-    void companyStore.fetchDashboard()
-  }
+  void companyStore.fetchDashboard()
 })
 
 watch(
   () => authStore.isAuthenticated,
-  (value) => {
-    if (value) {
-      void companyStore.fetchDashboard()
-    }
+  () => {
+    void companyStore.fetchDashboard()
   },
 )
 </script>
@@ -339,26 +349,12 @@ watch(
             提交注册申请
           </UButton>
           <UButton
-            color="neutral"
-            variant="soft"
-            @click="requireLogin('/company/dashboard/applications')"
-          >
-            我的申请/待同意
-          </UButton>
-          <UButton
             v-if="hasRegistryApprovalRole"
             color="primary"
             variant="soft"
             @click="requireLogin('/company/dashboard/registry-applications')"
           >
             登记机关审批
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="soft"
-            @click="requireLogin('/company/dashboard/my-legal-entities')"
-          >
-            我的法人
           </UButton>
         </div>
       </div>
@@ -383,7 +379,7 @@ watch(
         </div>
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-2">
+      <div v-if="authStore.isAuthenticated" class="grid gap-6 lg:grid-cols-2">
         <div
           class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
         >
@@ -696,6 +692,58 @@ watch(
           </div>
         </div>
       </div>
+      <div
+        v-else
+        class="rounded-xl border border-slate-200/70 bg-white/90 px-6 py-5 dark:border-slate-700 dark:bg-slate-900/70"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <p
+              class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+            >
+              全服主体
+            </p>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+              前 5 概览
+            </h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              最近登记的主体。
+            </p>
+          </div>
+          <UButton
+            size="sm"
+            color="primary"
+            variant="soft"
+            @click="router.push('/company/database')"
+          >
+            查看更多
+          </UButton>
+        </div>
+        <div class="mt-4 space-y-3">
+          <div
+            v-for="company in serverTopCompanies.slice(0, 5)"
+            :key="company.id"
+            class="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/70 dark:text-slate-300"
+          >
+            <div>
+              <p class="font-semibold text-slate-900 dark:text-white">
+                {{ company.name }}
+              </p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                {{ company.type?.name || '未归类类型' }} ·
+                {{ company.industry?.name || '未归类行业' }}
+              </p>
+            </div>
+            <CompanyStatusBadge :status="company.status" />
+          </div>
+          <div
+            v-if="serverTopCompanies.length === 0"
+            class="rounded-xl border border-dashed border-slate-200/80 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400"
+          >
+            暂无已登记主体。
+          </div>
+        </div>
+      </div>
     </div>
 
     <UModal
@@ -721,7 +769,7 @@ watch(
           <div class="relative z-10 space-y-6">
             <div class="flex flex-col gap-5 md:flex-row md:items-center">
               <div
-                class="relative flex h-20 w-20 items-center justify-center rounded-full bg-slate-100/80 shadow-sm dark:bg-slate-800/80"
+                class="relative shrink-0 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100/80 shadow-sm dark:bg-slate-800/80"
               >
                 <span class="registry-orbit"></span>
                 <svg
@@ -821,6 +869,7 @@ watch(
                 当前开放有限责任公司、个体工商户、事业单位登记。
               </p>
               <UButton
+                class="text-center justify-center"
                 color="primary"
                 :disabled="!canEnterRegistration"
                 @click="openRegistrationForm"

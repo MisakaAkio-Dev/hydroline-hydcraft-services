@@ -259,11 +259,7 @@ watch(
 <template>
   <section class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-4">
-      <UButton
-        color="primary"
-        variant="ghost"
-        @click="router.push('/company/dashboard')"
-      >
+      <UButton color="primary" variant="ghost" @click="router.push('/company')">
         <UIcon name="i-lucide-arrow-left" />
         返回仪表盘
       </UButton>

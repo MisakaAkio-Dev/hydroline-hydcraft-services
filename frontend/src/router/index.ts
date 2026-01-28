@@ -75,20 +75,16 @@ export const userRoutes: RouteRecordRaw[] = [
         children: [
           {
             path: '',
-            name: 'company.overview',
-            component: () =>
-              import('@/views/user/Company/CompanyOverviewView.vue'),
-            meta: { title: '工商概览' },
-          },
-          {
-            path: 'dashboard',
             name: 'company.dashboard',
             component: () =>
               import('@/views/user/Company/CompanyDashboardView.vue'),
             meta: {
-              requiresAuth: true,
               title: '管理控制台',
             },
+          },
+          {
+            path: 'dashboard',
+            redirect: { name: 'company.dashboard' },
           },
           {
             path: 'dashboard/owned',
@@ -112,7 +108,7 @@ export const userRoutes: RouteRecordRaw[] = [
             },
           },
           {
-            path: 'dashboard/applications',
+            path: 'applications',
             name: 'company.dashboard.applications',
             component: () =>
               import(
@@ -120,8 +116,12 @@ export const userRoutes: RouteRecordRaw[] = [
               ),
             meta: {
               requiresAuth: true,
-              title: '我的申请/待同意',
+              title: '我的待办',
             },
+          },
+          {
+            path: 'dashboard/applications',
+            redirect: { name: 'company.dashboard.applications' },
           },
           {
             path: 'dashboard/registry-applications',
@@ -202,7 +202,7 @@ export const userRoutes: RouteRecordRaw[] = [
             },
           },
           {
-            path: 'dashboard/my-legal-entities',
+            path: 'my-legal-entities',
             name: 'company.dashboard.myLegalEntities',
             component: () =>
               import('@/views/user/Company/CompanyRoleEntityListView.vue'),
@@ -211,6 +211,10 @@ export const userRoutes: RouteRecordRaw[] = [
               title: '我的法人',
               roleKey: 'related',
             },
+          },
+          {
+            path: 'dashboard/my-legal-entities',
+            redirect: { name: 'company.dashboard.myLegalEntities' },
           },
           {
             path: 'database',

@@ -7,13 +7,6 @@ const router = useRouter()
 
 const tabs = [
   {
-    label: '导览',
-    name: 'company.overview',
-    disabled: false,
-    description: '工商系统导览与入口说明',
-    icon: 'i-lucide-compass',
-  },
-  {
     label: '仪表盘',
     name: 'company.dashboard',
     disabled: false,
@@ -27,6 +20,20 @@ const tabs = [
     description: '全服工商主体数据库与筛选',
     icon: 'i-lucide-database',
   },
+  {
+    label: '我的待办',
+    name: 'company.dashboard.applications',
+    disabled: false,
+    description: '查看注册申请进度与待同意事项',
+    icon: 'i-lucide-file-text',
+  },
+  {
+    label: '我的法人',
+    name: 'company.dashboard.myLegalEntities',
+    disabled: false,
+    description: '由您担任法定代表人的主体列表',
+    icon: 'i-lucide-building-2',
+  },
 ]
 
 const activeTab = computed(() => {
@@ -34,11 +41,17 @@ const activeTab = computed(() => {
   if (name === 'company.database' || name === 'company.database.detail') {
     return 'company.database'
   }
-  // 统一把所有 company.dashboard.* 子路由归类到“仪表盘”标签
+  if (name === 'company.dashboard.applications') {
+    return 'company.dashboard.applications'
+  }
+  if (name === 'company.dashboard.myLegalEntities') {
+    return 'company.dashboard.myLegalEntities'
+  }
+  // 默认把其余 company.dashboard.* 子路由归类到“仪表盘”标签
   if (name === 'company.dashboard' || name.startsWith('company.dashboard.')) {
     return 'company.dashboard'
   }
-  return 'company.overview'
+  return 'company.dashboard'
 })
 
 function handleTabClick(name: string, disabled: boolean) {

@@ -75,12 +75,13 @@ export class CompanyController {
   }
 
   @Get('dashboard')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '获取当前玩家可管理的公司列表' })
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({
+    summary: '获取公司仪表盘数据（服务端统计 + 可选的我的数据）',
+  })
   async dashboard(@Req() req: Request) {
-    const userId = this.requireUserId(req);
-    return this.companyService.listMine(userId);
+    const userId = (req.user as { id?: string } | undefined)?.id;
+    return this.companyService.getDashboardSnapshot(userId);
   }
 
   @Get('statistics/registrations')

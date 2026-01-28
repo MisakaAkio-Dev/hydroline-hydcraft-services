@@ -52,7 +52,7 @@ const company = computed(() => props.company)
     <div class="mt-auto pt-2">
       <RouterLink
         class="inline-flex items-center gap-2 text-sm font-medium text-primary-500 hover:text-primary-400"
-        to="/company/dashboard"
+        to="/company"
       >
         查看详情
       </RouterLink>

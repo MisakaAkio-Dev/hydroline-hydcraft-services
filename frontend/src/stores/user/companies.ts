@@ -44,6 +44,8 @@ export const useCompanyStore = defineStore('companies', {
       individualBusinessCount: 0,
       memberCount: 0,
     } as CompanyDashboardStats,
+    serverDashboard: [] as CompanyModel[],
+    serverDashboardCategoryCounts: {} as Record<string, number>,
     directory: {
       total: 0,
       page: 1,
@@ -108,14 +110,34 @@ export const useCompanyStore = defineStore('companies', {
       try {
         const authStore = useAuthStore()
         const response = await apiFetch<{
-          stats: CompanyDashboardStats
-          companies: CompanyModel[]
+          server: {
+            categoryCounts: Record<string, number>
+            companies: CompanyModel[]
+          }
+          mine: {
+            stats: CompanyDashboardStats
+            companies: CompanyModel[]
+          } | null
         }>('/companies/dashboard', {
-          token: authStore.token,
+          token: authStore.token ?? undefined,
         })
-        this.dashboardStats = response.stats
-        this.dashboard = response.companies
-        return this.dashboard
+
+        this.serverDashboardCategoryCounts =
+          response.server.categoryCounts ?? {}
+        this.serverDashboard = response.server.companies ?? []
+
+        if (response.mine) {
+          this.dashboardStats = response.mine.stats
+          this.dashboard = response.mine.companies
+        } else {
+          this.dashboard = []
+          this.dashboardStats = {
+            companyCount: 0,
+            individualBusinessCount: 0,
+            memberCount: 0,
+          }
+        }
+        return response.mine?.companies ?? []
       } finally {
         this.dashboardLoading = false
       }
