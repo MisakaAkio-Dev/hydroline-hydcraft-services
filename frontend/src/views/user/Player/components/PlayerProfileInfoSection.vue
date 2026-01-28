@@ -91,18 +91,18 @@ const isMunicipality = computed(() => {
   return municipalities.includes(regionProvince.value)
 })
 
-const hasRegionData = computed(() => {
-  return Boolean(
-    regionCountryCode.value ||
-      regionProvince.value ||
-      regionCity.value ||
-      regionDistrict.value,
-  )
+const regionDisplayParts = computed(() => {
+  const parts: string[] = []
+  if (displayCountryLabel.value) parts.push(displayCountryLabel.value)
+  if (showProvince.value) parts.push(regionProvince.value)
+  if (showCityLevel.value) parts.push(regionCity.value)
+  if (showDistrict.value) parts.push(regionDistrict.value)
+  return parts.filter((part) => part?.trim())
 })
 
 const hasSummary = computed(() => Boolean(props.summary))
 const showRegionSection = computed(
-  () => !hasSummary.value || hasRegionData.value,
+  () => !hasSummary.value || regionDisplayParts.value.length > 0,
 )
 
 const showBirthdaySection = computed(
@@ -268,18 +268,15 @@ function handleEditBiography() {
         <div
           class="text-base font-semibold text-slate-800 dark:text-slate-300 space-y-0"
         >
-          <template v-if="hasSummary && hasRegionData">
-            <div class="flex flex-wrap gap-0.5">
-              <span v-if="displayCountryLabel">{{ displayCountryLabel }}</span>
-              <span v-if="showProvince">{{ regionProvince }}</span>
-              <span v-if="showCityLevel">{{ regionCity }}</span>
-              <span v-if="showDistrict">
-                {{ regionDistrict }}
+          <template v-if="hasSummary">
+            <div
+              v-if="regionDisplayParts.length"
+              class="flex flex-wrap gap-0.5"
+            >
+              <span v-for="part in regionDisplayParts" :key="part">
+                {{ part }}
               </span>
             </div>
-          </template>
-          <template v-else-if="hasSummary">
-            <span class="text-slate-400">—</span>
           </template>
           <template v-else>
             <USkeleton class="h-4 w-32" />
