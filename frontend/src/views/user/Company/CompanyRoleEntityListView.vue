@@ -259,10 +259,14 @@ watch(
 <template>
   <section class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-4">
-      <UButton color="primary" variant="ghost" @click="router.push('/company')">
-        <UIcon name="i-lucide-arrow-left" />
-        返回仪表盘
-      </UButton>
+      <div>
+        <h2 class="text-2xl font-semibold text-slate-900 dark:text-white">
+          {{ title }}
+        </h2>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {{ subtitle }} · 共 {{ filteredEntities.length }} 条
+        </p>
+      </div>
 
       <div class="flex flex-wrap items-center gap-3">
         <UInput
@@ -279,15 +283,6 @@ watch(
           @click="handleRefresh"
         />
       </div>
-    </div>
-
-    <div>
-      <h2 class="text-2xl font-semibold text-slate-900 dark:text-white">
-        {{ title }}
-      </h2>
-      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        {{ subtitle }} · 共 {{ filteredEntities.length }} 条
-      </p>
     </div>
 
     <div

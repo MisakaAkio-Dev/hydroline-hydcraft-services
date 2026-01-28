@@ -17,6 +17,13 @@ const loading = ref(false)
 const companyId = computed(() => route.params.companyId as string)
 const llc = computed(() => company.value?.llcRegistration ?? null)
 const ownerUser = computed(() => company.value?.legalRepresentative || null)
+const ownerUserLabel = computed(
+  () =>
+    ownerUser.value?.displayName ||
+    ownerUser.value?.name ||
+    ownerUser.value?.email ||
+    '—',
+)
 
 function fmtZhDate(value?: string | null) {
   if (!value) return '—'
@@ -63,6 +70,27 @@ function getShareholderIdNumber(sh: {
     )
   }
   return '—'
+}
+
+function shareholderDisplayName(sh: {
+  kind: string
+  holderName?: string | null
+  user?: {
+    displayName?: string | null
+    name?: string | null
+    email?: string | null
+  } | null
+}) {
+  if (sh.kind === 'USER') {
+    return (
+      sh.user?.displayName ||
+      sh.user?.name ||
+      sh.user?.email ||
+      sh.holderName ||
+      '—'
+    )
+  }
+  return sh.holderName || '—'
 }
 
 function officerRoleLabel(role?: string | null) {
@@ -182,9 +210,7 @@ onMounted(() => {
       返回工商数据库
     </UButton>
 
-    <div
-      class="rounded-2xl border border-slate-200/70 bg-white/90 p-6 dark:border-slate-800/60 dark:bg-slate-900/70"
-    >
+    <div>
       <div
         v-if="loading"
         class="flex items-center gap-2 text-sm text-slate-500"
@@ -211,8 +237,8 @@ onMounted(() => {
             >
               {{ company.name }}
             </h2>
-            <p class="mt-2 text-sm text-slate-500">
-              {{ company.summary || '—' }}
+            <p class="mt-2 text-sm text-slate-500" v-if="company.summary">
+              {{ company.summary }}
             </p>
           </div>
           <div class="flex items-center gap-2">
@@ -259,12 +285,29 @@ onMounted(() => {
             <div class="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
               <dt class="text-sm text-slate-500">法定代表人</dt>
               <dd class="text-sm font-medium text-slate-900 dark:text-white">
-                {{
-                  ownerUser?.displayName ||
-                  ownerUser?.name ||
-                  ownerUser?.email ||
-                  '—'
-                }}
+                <div class="flex items-center gap-2">
+                  <UAvatar
+                    v-if="ownerUser?.avatarUrl"
+                    :src="ownerUser.avatarUrl"
+                    size="xs"
+                  />
+                  <div
+                    v-else
+                    class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800"
+                  >
+                    <UIcon name="i-lucide-user-round" class="h-3 w-3" />
+                  </div>
+                  <RouterLink
+                    v-if="ownerUser?.id"
+                    :to="{ name: 'player', params: { playerId: ownerUser.id } }"
+                    class="text-sm text-slate-600 hover:text-primary-500"
+                  >
+                    {{ ownerUserLabel }}
+                  </RouterLink>
+                  <span v-else class="text-sm text-slate-500">
+                    {{ ownerUserLabel }}
+                  </span>
+                </div>
               </dd>
             </div>
             <div class="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
@@ -318,12 +361,29 @@ onMounted(() => {
             <div class="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
               <dt class="text-sm text-slate-500">法定代表人</dt>
               <dd class="text-sm font-medium text-slate-900 dark:text-white">
-                {{
-                  ownerUser?.displayName ||
-                  ownerUser?.name ||
-                  ownerUser?.email ||
-                  '—'
-                }}
+                <div class="flex items-center gap-2">
+                  <UAvatar
+                    v-if="ownerUser?.avatarUrl"
+                    :src="ownerUser.avatarUrl"
+                    size="xs"
+                  />
+                  <div
+                    v-else
+                    class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800"
+                  >
+                    <UIcon name="i-lucide-user-round" class="h-3 w-3" />
+                  </div>
+                  <RouterLink
+                    v-if="ownerUser?.id"
+                    :to="{ name: 'player', params: { playerId: ownerUser.id } }"
+                    class="text-sm text-slate-600 hover:text-primary-500"
+                  >
+                    {{ ownerUserLabel }}
+                  </RouterLink>
+                  <span v-else class="text-sm text-slate-500">
+                    {{ ownerUserLabel }}
+                  </span>
+                </div>
               </dd>
             </div>
             <div class="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
@@ -437,7 +497,16 @@ onMounted(() => {
                 >
                   <td class="py-3 pr-3 text-slate-500">{{ idx + 1 }}</td>
                   <td class="py-3 pr-3">
-                    {{ sh.holderName || sh.companyId || sh.userId || '—' }}
+                    <RouterLink
+                      v-if="sh.kind === 'USER' && sh.user?.id"
+                      :to="{ name: 'player', params: { playerId: sh.user.id } }"
+                      class="text-sm text-slate-600 hover:text-primary-500"
+                    >
+                      {{ shareholderDisplayName(sh) }}
+                    </RouterLink>
+                    <span v-else class="text-sm text-slate-600">
+                      {{ shareholderDisplayName(sh) }}
+                    </span>
                   </td>
                   <td class="py-3 pr-3">{{ shareholderKindLabel(sh.kind) }}</td>
                   <td class="py-3 pr-3">

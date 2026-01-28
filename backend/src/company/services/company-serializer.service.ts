@@ -19,6 +19,35 @@ export class CompanySerializerService {
   ) {}
 
   async serializeCompany(company: CompanyWithRelations, viewerId?: string) {
+    const serializeUserRef = (
+      user:
+        | {
+            id: string;
+            name?: string | null;
+            email?: string | null;
+            image?: string | null;
+            avatarAttachmentId?: string | null;
+            profile?: { displayName?: string | null } | null;
+          }
+        | null
+        | undefined,
+      attachmentUrlMap?: Map<string, string | null>,
+    ) => {
+      if (!user) return null;
+      const avatarId = user.avatarAttachmentId ?? null;
+      return {
+        id: user.id,
+        name: user.name ?? null,
+        email: user.email ?? null,
+        displayName: user.profile?.displayName ?? null,
+        avatarUrl:
+          user.image ??
+          (avatarId && attachmentUrlMap
+            ? (attachmentUrlMap.get(avatarId) ?? null)
+            : null),
+      };
+    };
+
     const extra =
       company.extra &&
       typeof company.extra === 'object' &&
@@ -170,6 +199,27 @@ export class CompanySerializerService {
       ? (attachmentUrlMap.get(company.logoAttachmentId) ?? null)
       : null;
 
+    const legalRepresentative = serializeUserRef(
+      company.legalRepresentative,
+      attachmentUrlMap,
+    );
+
+    const llcRegistration = company.llcRegistration
+      ? {
+          ...company.llcRegistration,
+          officers: (company.llcRegistration.officers ?? []).map((officer) => ({
+            ...officer,
+            user: serializeUserRef(officer.user, attachmentUrlMap),
+          })),
+          shareholders: (company.llcRegistration.shareholders ?? []).map(
+            (shareholder) => ({
+              ...shareholder,
+              user: serializeUserRef(shareholder.user, attachmentUrlMap),
+            }),
+          ),
+        }
+      : null;
+
     const workflowContext =
       company.workflowInstance?.context &&
       typeof company.workflowInstance.context === 'object' &&
@@ -231,8 +281,8 @@ export class CompanySerializerService {
       visibility: company.visibility,
       isAuthority: company.isAuthority,
       logoUrl,
-      legalRepresentative: company.legalRepresentative,
-      llcRegistration: company.llcRegistration,
+      legalRepresentative,
+      llcRegistration,
       policies: company.policies,
       auditRecords: company.auditRecords,
       applications: company.applications,

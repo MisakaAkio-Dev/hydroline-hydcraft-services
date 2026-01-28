@@ -285,11 +285,8 @@ onMounted(() => {
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div>
         <h2 class="text-2xl font-semibold text-slate-900 dark:text-white">
-          我的申请 / 待同意
+          我的待办
         </h2>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          查看申请进度、查看谁还没同意，并对需要你同意的申请进行操作。
-        </p>
       </div>
       <div class="flex items-center gap-2">
         <UButton

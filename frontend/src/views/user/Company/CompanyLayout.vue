@@ -1,40 +1,50 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/user/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
-const tabs = [
-  {
-    label: '仪表盘',
-    name: 'company.dashboard',
-    disabled: false,
-    description: '个人工商数据与公司管理工作台',
-    icon: 'i-lucide-gauge',
-  },
-  {
-    label: '工商数据库',
-    name: 'company.database',
-    disabled: false,
-    description: '全服工商主体数据库与筛选',
-    icon: 'i-lucide-database',
-  },
-  {
-    label: '我的待办',
-    name: 'company.dashboard.applications',
-    disabled: false,
-    description: '查看注册申请进度与待同意事项',
-    icon: 'i-lucide-file-text',
-  },
-  {
-    label: '我的法人',
-    name: 'company.dashboard.myLegalEntities',
-    disabled: false,
-    description: '由您担任法定代表人的主体列表',
-    icon: 'i-lucide-building-2',
-  },
-]
+const tabs = computed(() => {
+  const base = [
+    {
+      label: '仪表盘',
+      name: 'company.dashboard',
+      disabled: false,
+      description: '个人工商数据与公司管理工作台',
+      icon: 'i-lucide-gauge',
+    },
+    {
+      label: '工商数据库',
+      name: 'company.database',
+      disabled: false,
+      description: '全服工商主体数据库与筛选',
+      icon: 'i-lucide-database',
+    },
+  ]
+
+  if (!authStore.isAuthenticated) return base
+
+  return [
+    ...base,
+    {
+      label: '我的待办',
+      name: 'company.dashboard.applications',
+      disabled: false,
+      description: '查看注册申请进度与待同意事项',
+      icon: 'i-lucide-file-text',
+    },
+    {
+      label: '我的法人',
+      name: 'company.dashboard.myLegalEntities',
+      disabled: false,
+      description: '由您担任法定代表人的主体列表',
+      icon: 'i-lucide-building-2',
+    },
+  ]
+})
 
 const activeTab = computed(() => {
   const name = String(route.name ?? '')
@@ -67,14 +77,16 @@ function handleTabClick(name: string, disabled: boolean) {
   >
     <header>
       <div class="flex justify-center gap-4">
-        <div class="flex flex-wrap gap-2">
+        <div
+          class="flex flex-nowrap gap-2 overflow-x-auto whitespace-nowrap px-1"
+        >
           <UTooltip
             v-for="tab in tabs"
             :key="tab.name"
             :text="tab.disabled ? undefined : tab.description"
           >
             <UButton
-              class="flex items-center gap-1 text-xs"
+              class="flex shrink-0 items-center gap-1 text-xs"
               color="primary"
               :variant="activeTab === tab.name ? 'soft' : 'ghost'"
               :disabled="tab.disabled"

@@ -8,6 +8,7 @@ export const companyInclude = Prisma.validator<Prisma.CompanyInclude>()({
       id: true,
       name: true,
       email: true,
+      image: true,
       avatarAttachmentId: true,
       profile: {
         select: {
@@ -50,6 +51,7 @@ export const companyInclude = Prisma.validator<Prisma.CompanyInclude>()({
               id: true,
               name: true,
               email: true,
+              image: true,
               avatarAttachmentId: true,
               profile: { select: { displayName: true } },
             },
@@ -73,6 +75,7 @@ export const companyInclude = Prisma.validator<Prisma.CompanyInclude>()({
               id: true,
               name: true,
               email: true,
+              image: true,
               avatarAttachmentId: true,
               profile: { select: { displayName: true } },
             },

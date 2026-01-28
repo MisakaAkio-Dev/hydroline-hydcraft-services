@@ -85,6 +85,7 @@ const handleSubmit = () => {
         <USelectMenu
           v-model="formState.industryId"
           :items="industryOptions"
+          value-key="value"
           searchable
           placeholder="选择行业"
           :disabled="isDisabled"
