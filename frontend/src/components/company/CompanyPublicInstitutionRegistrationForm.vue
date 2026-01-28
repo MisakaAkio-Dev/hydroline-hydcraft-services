@@ -440,9 +440,10 @@ const supervisingDisplay = computed(() => {
               </div>
             </div>
             <div v-if="fullInstitutionName" class="text-xs text-slate-500">
-              预览：<span class="font-semibold text-slate-900">{{
-                fullInstitutionName
-              }}</span>
+              预览：<span
+                class="font-semibold text-slate-900 dark:text-slate-100"
+                >{{ fullInstitutionName }}</span
+              >
             </div>
           </div>
         </template>

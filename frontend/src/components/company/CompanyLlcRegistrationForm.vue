@@ -401,7 +401,9 @@ const showCompanyPreview = computed(() => {
 
 const placeholderTexts = new Set(['未填写', '未选择'])
 function placeholderClass(value: string) {
-  return placeholderTexts.has(value) ? 'text-slate-400' : 'text-slate-900'
+  return placeholderTexts.has(value)
+    ? 'text-slate-400'
+    : 'text-slate-900 dark:text-slate-100'
 }
 
 function resolveHolderLabel(entry: ShareholderDraft) {
@@ -642,9 +644,10 @@ const supervisorSummary = computed(() => {
               </div>
             </div>
             <div v-if="showCompanyPreview" class="text-xs text-slate-500">
-              预览：<span class="font-semibold text-slate-900">{{
-                fullCompanyName
-              }}</span>
+              预览：<span
+                class="font-semibold text-slate-900 dark:text-slate-100"
+                >{{ fullCompanyName }}</span
+              >
             </div>
           </div>
         </template>
@@ -1446,13 +1449,15 @@ const supervisorSummary = computed(() => {
             </div>
             <div class="space-y-1">
               <p class="text-xs text-slate-500">注册资本</p>
-              <p class="text-sm text-slate-900">
+              <p class="text-sm text-slate-900 dark:text-slate-100">
                 {{ llcDraft.registeredCapital ?? 0 }}
               </p>
             </div>
             <div class="space-y-1">
               <p class="text-xs text-slate-500">公司名称预览</p>
-              <p class="text-sm text-slate-900">{{ fullCompanyName }}</p>
+              <p class="text-sm text-slate-900 dark:text-slate-100">
+                {{ fullCompanyName }}
+              </p>
             </div>
             <div class="space-y-1">
               <p class="text-xs text-slate-500">登记机关</p>
@@ -1493,7 +1498,9 @@ const supervisorSummary = computed(() => {
             </div>
             <div class="space-y-1">
               <p class="text-xs text-slate-500">经营期限</p>
-              <p class="text-sm text-slate-900">{{ operatingTermLabel }}</p>
+              <p class="text-sm text-slate-900 dark:text-slate-100">
+                {{ operatingTermLabel }}
+              </p>
             </div>
             <div class="space-y-1 md:col-span-2">
               <p class="text-xs text-slate-500">经营范围</p>
@@ -1517,7 +1524,9 @@ const supervisorSummary = computed(() => {
                     v-for="(item, index) in shareholderSummary"
                     :key="index"
                     :class="
-                      item.isPlaceholder ? 'text-slate-400' : 'text-slate-900'
+                      item.isPlaceholder
+                        ? 'text-slate-400'
+                        : 'text-slate-900 dark:text-slate-100'
                     "
                   >
                     {{ item.text }}
@@ -1534,7 +1543,7 @@ const supervisorSummary = computed(() => {
                 <li
                   v-for="(item, index) in directorSummary"
                   :key="index"
-                  class="text-slate-900"
+                  class="text-slate-900 dark:text-slate-100"
                 >
                   {{ item }}
                 </li>
@@ -1609,7 +1618,9 @@ const supervisorSummary = computed(() => {
               <p class="text-xs text-slate-500">监事</p>
               <ul class="mt-1 space-y-1">
                 <li v-for="(item, index) in supervisorSummary" :key="index">
-                  <span class="text-slate-900">{{ item }}</span>
+                  <span class="text-slate-900 dark:text-slate-100">{{
+                    item
+                  }}</span>
                 </li>
                 <li
                   v-if="supervisorSummary.length === 0"

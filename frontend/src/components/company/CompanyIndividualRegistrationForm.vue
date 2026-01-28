@@ -410,9 +410,10 @@ const assistantSummary = computed(() =>
               <UInput class="w-full" model-value="个体工商户" disabled />
             </div>
             <div v-if="fullBusinessName" class="text-xs text-slate-500">
-              预览：<span class="font-semibold text-slate-900">{{
-                fullBusinessName
-              }}</span>
+              预览：<span
+                class="font-semibold text-slate-900 dark:text-slate-100"
+                >{{ fullBusinessName }}</span
+              >
             </div>
           </div>
         </template>
@@ -539,9 +540,13 @@ const assistantSummary = computed(() =>
     <div v-if="activeSection === 'members'" class="space-y-4">
       <UTimeline :items="memberTimelineItems" size="xs">
         <template #member-1-description>
-          <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <div
+            class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50"
+          >
             <div class="text-xs text-slate-500">经营者（申请人）</div>
-            <div class="mt-1 text-sm font-semibold text-slate-900">
+            <div
+              class="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100"
+            >
               {{ operatorLabel }}
             </div>
             <p class="mt-1 text-xs text-slate-400">
@@ -633,22 +638,26 @@ const assistantSummary = computed(() =>
       <UTimeline :items="reviewTimelineItems" size="xs">
         <template #review-1-description>
           <div
-            class="space-y-4 rounded-xl border border-slate-200 bg-white px-4 py-4"
+            class="space-y-4 rounded-xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-800/50"
           >
             <div class="space-y-1">
               <p class="text-xs text-slate-500">个体工商户名称</p>
-              <p class="text-sm font-semibold text-slate-900">
+              <p
+                class="text-sm font-semibold text-slate-900 dark:text-slate-100"
+              >
                 {{ fullBusinessName || '未生成' }}
               </p>
             </div>
             <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
                 <p class="text-xs text-slate-500">行业</p>
-                <p class="text-sm text-slate-700">{{ industryLabel }}</p>
+                <p class="text-sm text-slate-700 dark:text-slate-300">
+                  {{ industryLabel }}
+                </p>
               </div>
               <div>
                 <p class="text-xs text-slate-500">登记机关</p>
-                <p class="text-sm text-slate-700">
+                <p class="text-sm text-slate-700 dark:text-slate-300">
                   {{
                     authorityOptions.find(
                       (item) =>
@@ -662,13 +671,13 @@ const assistantSummary = computed(() =>
               </div>
               <div>
                 <p class="text-xs text-slate-500">住所地</p>
-                <p class="text-sm text-slate-700">
+                <p class="text-sm text-slate-700 dark:text-slate-300">
                   {{ individualDraft.domicileAddress || '未填写' }}
                 </p>
               </div>
               <div>
                 <p class="text-xs text-slate-500">经营期限</p>
-                <p class="text-sm text-slate-700">
+                <p class="text-sm text-slate-700 dark:text-slate-300">
                   {{
                     individualDraft.operatingTermLong
                       ? '长期'
@@ -679,13 +688,17 @@ const assistantSummary = computed(() =>
             </div>
             <div>
               <p class="text-xs text-slate-500">经营范围</p>
-              <p class="text-sm text-slate-700 whitespace-pre-wrap">
+              <p
+                class="text-sm text-slate-700 whitespace-pre-wrap dark:text-slate-300"
+              >
                 {{ individualDraft.businessScope || '未填写' }}
               </p>
             </div>
             <div>
               <p class="text-xs text-slate-500">经营者</p>
-              <p class="text-sm text-slate-700">{{ operatorLabel }}</p>
+              <p class="text-sm text-slate-700 dark:text-slate-300">
+                {{ operatorLabel }}
+              </p>
             </div>
             <div>
               <p class="text-xs text-slate-500">其他经营成员</p>
@@ -699,7 +712,7 @@ const assistantSummary = computed(() =>
                 <p
                   v-for="item in assistantSummary"
                   :key="item"
-                  class="text-sm text-slate-700"
+                  class="text-sm text-slate-700 dark:text-slate-300"
                 >
                   {{ item }}
                 </p>

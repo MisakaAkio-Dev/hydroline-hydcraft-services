@@ -910,7 +910,7 @@ watch(
               @click="returnToGateway"
             />
           </div>
-          <div class="flex-1 overflow-y-auto px-6 py-4">
+          <div class="flex-1 overflow-y-auto px-6 py-4 pb-10">
             <CompanyApplicationForm
               v-if="applicationFormOpen"
               :industries="industries"
