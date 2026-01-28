@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createHead } from '@unhead/vue/client'
 import ui from '@nuxt/ui/vue-plugin'
-import { addCollection } from '@iconify/vue'
+import { addAPIProvider, addCollection } from '@iconify/vue'
 import heroiconsIcons from '@/icons/heroicons.json'
 import logosIcons from '@/icons/logos.json'
 import lucideIcons from '@/icons/lucide.json'
@@ -21,6 +21,7 @@ import { THEME_KEY } from 'vue-echarts'
 addCollection(lucideIcons)
 addCollection(logosIcons)
 addCollection(heroiconsIcons)
+addAPIProvider('', { resources: [] })
 
 import { use as echartsUse, registerTheme } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
