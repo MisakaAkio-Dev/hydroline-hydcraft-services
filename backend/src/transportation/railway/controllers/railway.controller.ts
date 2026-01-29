@@ -4,18 +4,24 @@ import {
   Get,
   Param,
   Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { TransportationRailwayMod } from '@prisma/client';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { OptionalAuthGuard } from '../../../auth/optional-auth.guard';
 import { TransportationRailwayService } from '../services/railway.service';
 import { TransportationRailwayRouteDetailService } from '../route-detail/railway-route-detail.service';
 import { TransportationRailwayListService } from '../services/railway-list.service';
 import { TransportationRailwayStationMapService } from '../services/railway-station-map.service';
+import { TransportationRailwayManualMergeService } from '../services/railway-manual-merge.service';
 import {
   RailwayEntityListQueryDto,
   RailwayRouteDetailQueryDto,
   RailwayRouteLogQueryDto,
 } from '../../dto/railway.dto';
+import { TransportationRailwayManualMergeEntityType } from '@prisma/client';
 
 @ApiTags('交通系统 - 铁路（前台）')
 @Controller('transportation/railway')
@@ -25,6 +31,7 @@ export class TransportationRailwayController {
     private readonly routeDetailService: TransportationRailwayRouteDetailService,
     private readonly listService: TransportationRailwayListService,
     private readonly stationMapService: TransportationRailwayStationMapService,
+    private readonly mergeService: TransportationRailwayManualMergeService,
   ) {}
 
   @Get('overview')
@@ -107,6 +114,16 @@ export class TransportationRailwayController {
     return this.routeDetailService.getRouteDetail(routeId, railwayType, query);
   }
 
+  @Get('routes/:routeId')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: '查看合并后的本地线路详情（uuid）' })
+  async getLocalRouteDetail(
+    @Param('routeId') routeId: string,
+    @Req() req: Request,
+  ) {
+    return this.mergeService.getMergedRouteDetail(routeId, req.user);
+  }
+
   @Get('stations/:railwayType/:stationId')
   @ApiOperation({ summary: '查看单个车站详情' })
   async getStationDetail(
@@ -119,6 +136,20 @@ export class TransportationRailwayController {
       stationId,
       railwayType,
       query,
+    );
+  }
+
+  @Get('stations/:stationId')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: '查看合并后的本地车站详情（uuid）' })
+  async getLocalStationDetail(
+    @Param('stationId') stationId: string,
+    @Req() req: Request,
+  ) {
+    return this.mergeService.getMergedEntityDetail(
+      TransportationRailwayManualMergeEntityType.STATION,
+      stationId,
+      req.user,
     );
   }
 
@@ -145,6 +176,20 @@ export class TransportationRailwayController {
   ) {
     const railwayType = parseRailwayTypeParam(railwayTypeParam);
     return this.routeDetailService.getDepotDetail(depotId, railwayType, query);
+  }
+
+  @Get('depots/:depotId')
+  @UseGuards(OptionalAuthGuard)
+  @ApiOperation({ summary: '查看合并后的本地车厂详情（uuid）' })
+  async getLocalDepotDetail(
+    @Param('depotId') depotId: string,
+    @Req() req: Request,
+  ) {
+    return this.mergeService.getMergedEntityDetail(
+      TransportationRailwayManualMergeEntityType.DEPOT,
+      depotId,
+      req.user,
+    );
   }
 
   @Get('routes/:railwayType/:routeId/logs')

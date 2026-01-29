@@ -103,13 +103,11 @@ export class RailwaySystemMap {
   destroy() {
     this.clearRoutes()
     const map = this.controller.getLeafletInstance()
-    if (map) {
-      if (this.zoomHandler) {
-        map.off('zoomend', this.zoomHandler)
-        this.zoomHandler = null
-      }
-      map.remove()
+    if (map && this.zoomHandler) {
+      map.off('zoomend', this.zoomHandler)
     }
+    this.zoomHandler = null
+    this.controller.destroy()
   }
 
   drawRoutes(

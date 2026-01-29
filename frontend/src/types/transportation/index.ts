@@ -535,6 +535,7 @@ export interface RailwaySystemDetail {
   id: string
   name: string
   englishName: string | null
+  color?: number | null
   logoAttachmentId: string | null
   logoUrl: string | null
   serverId: string
@@ -542,6 +543,52 @@ export interface RailwaySystemDetail {
   dimensionContext: string | null
   routes: RailwaySystemRouteSummary[]
   routeDetails?: RailwayRouteDetail[]
+  bindings?: RailwayCompanyBindingPayload
+  updatedAt: string
+  canEdit?: boolean
+  canDelete?: boolean
+}
+
+export type RailwayManualMergeEntityType = 'ROUTE' | 'STATION' | 'DEPOT'
+
+export interface RailwayManualMergeCreatePayload {
+  entityType: RailwayManualMergeEntityType
+  name: string
+  englishName?: string | null
+  color?: number | null
+  logoAttachmentId?: string | null
+  members: Array<{
+    entityId: string
+    railwayType: string
+    serverId: string
+    dimension?: string | null
+  }>
+}
+
+export interface RailwayManualMergeCreateResult {
+  id: string
+}
+
+export interface RailwayManualMergedRouteDetail extends RailwaySystemDetail {
+  color: number | null
+}
+
+export interface RailwayManualMergedEntityDetail {
+  id: string
+  name: string
+  englishName: string | null
+  color: number | null
+  logoAttachmentId: string | null
+  logoUrl: string | null
+  serverId: string
+  server?: { id: string; name: string; dynmapTileUrl?: string | null }
+  dimensionContext: string | null
+  members: Array<{
+    entityId: string
+    serverId: string
+    railwayType: string
+    dimension: string | null
+  }>
   bindings?: RailwayCompanyBindingPayload
   updatedAt: string
   canEdit?: boolean

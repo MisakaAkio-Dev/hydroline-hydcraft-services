@@ -203,10 +203,18 @@ watch(
 )
 
 function openDetail(item: RailwayRoute) {
+  const type = String(item.railwayType ?? '').toLowerCase()
+  if (type === 'local') {
+    router.push({
+      name: 'transportation.railway.route.local',
+      params: { routeId: item.id },
+    })
+    return
+  }
   router.push({
     name: 'transportation.railway.route',
     params: {
-      railwayType: item.railwayType.toLowerCase(),
+      railwayType: type,
       routeId: item.id,
     },
     query: {

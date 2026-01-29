@@ -79,6 +79,8 @@ model User {
   transportationRailwayCompanyBindingsCreated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingCreatedBy")
   transportationRailwayCompanyBindingsUpdated TransportationRailwayCompanyBinding[] @relation("TransportationRailwayCompanyBindingUpdatedBy")
   transportationRailwaySystemLogs             TransportationRailwaySystemLog[]      @relation("RailwaySystemLogActor")
+  transportationRailwayManualMergesCreated    TransportationRailwayManualMerge[]   @relation("TransportationRailwayManualMergeCreatedBy")
+  transportationRailwayManualMergesUpdated    TransportationRailwayManualMerge[]   @relation("TransportationRailwayManualMergeUpdatedBy")
   invitesCreated                              InviteCode[]                          @relation("InviteCreatedBy")
   invitesUsed                                 InviteCode[]                          @relation("InviteUsedBy")
 

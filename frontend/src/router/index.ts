@@ -261,6 +261,15 @@ export const userRoutes: RouteRecordRaw[] = [
             meta: { title: '线路列表' },
           },
           {
+            path: 'railway/routes/:routeId',
+            name: 'transportation.railway.route.local',
+            component: () =>
+              import(
+                '@/views/user/Transportation/RailwayMergedRouteDetailView.vue'
+              ),
+            meta: { title: '线路详情' },
+          },
+          {
             path: 'railway/routes/:railwayType/:routeId',
             name: 'transportation.railway.route',
             component: () =>
@@ -273,6 +282,15 @@ export const userRoutes: RouteRecordRaw[] = [
             component: () =>
               import(
                 '@/views/user/Transportation/RailwayStationDetailView.vue'
+              ),
+            meta: { title: '车站详情' },
+          },
+          {
+            path: 'railway/stations/:stationId',
+            name: 'transportation.railway.station.local',
+            component: () =>
+              import(
+                '@/views/user/Transportation/RailwayMergedStationDetailView.vue'
               ),
             meta: { title: '车站详情' },
           },
@@ -291,6 +309,15 @@ export const userRoutes: RouteRecordRaw[] = [
             meta: { title: '车厂详情' },
           },
           {
+            path: 'railway/depots/:depotId',
+            name: 'transportation.railway.depot.local',
+            component: () =>
+              import(
+                '@/views/user/Transportation/RailwayMergedDepotDetailView.vue'
+              ),
+            meta: { title: '车厂详情' },
+          },
+          {
             path: 'railway/depots',
             name: 'transportation.railway.depots',
             component: () =>
@@ -301,7 +328,9 @@ export const userRoutes: RouteRecordRaw[] = [
             path: 'railway/systems/new',
             name: 'transportation.railway.system.create',
             component: () =>
-              import('@/views/user/Transportation/RailwaySystemCreateView.vue'),
+              import(
+                '@/views/user/Transportation/RailwaySystemCreateDialogEntryView.vue'
+              ),
             meta: { title: '新建线路系统' },
           },
           {

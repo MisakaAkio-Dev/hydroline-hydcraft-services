@@ -264,3 +264,9 @@ enum TransportationRailwaySyncStatus {
   SUCCEEDED
   FAILED
 }
+
+enum TransportationRailwayManualMergeEntityType {
+  ROUTE
+  STATION
+  DEPOT
+}

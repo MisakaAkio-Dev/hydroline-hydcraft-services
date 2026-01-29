@@ -15,6 +15,7 @@ import {
   buildDimensionContextFromDimension,
   normalizeId,
 } from '../../utils/railway-normalizer';
+import { TransportationRailwayManualMergeEntityType } from '@prisma/client';
 import type {
   RailwayDepotDetailResult,
   RailwayRouteLogResult,
@@ -145,6 +146,38 @@ export class TransportationRailwayRouteDetailService {
         server.railwayMod,
       );
 
+    const excludedRouteIdSet = new Set<string>();
+    if (dimensionContextForGeometry) {
+      const [manualMergeMembers, systemRouteRows] = await Promise.all([
+        this.prisma.transportationRailwayManualMergeMember.findMany({
+          where: {
+            entityType: TransportationRailwayManualMergeEntityType.ROUTE,
+            serverId: server.id,
+            railwayMod,
+            dimensionContext: dimensionContextForGeometry,
+          },
+          select: { entityId: true },
+        }),
+        this.prisma.transportationRailwaySystemRoute.findMany({
+          where: {
+            route: {
+              serverId: server.id,
+              railwayMod,
+              dimensionContext: dimensionContextForGeometry,
+            },
+          },
+          select: { route: { select: { entityId: true } } },
+        }),
+      ]);
+      for (const row of manualMergeMembers) {
+        if (row.entityId) excludedRouteIdSet.add(row.entityId);
+      }
+      for (const row of systemRouteRows) {
+        const entityId = row.route?.entityId ?? null;
+        if (entityId) excludedRouteIdSet.add(entityId);
+      }
+    }
+
     const baseKey = this.variants.buildRouteBaseKey(routeRecord);
     const baseName = this.variants.buildRouteBaseName(routeRecord);
     if (!baseKey) {
@@ -176,6 +209,13 @@ export class TransportationRailwayRouteDetailService {
         if (!key || key !== baseKey) return null;
         const rid = row.entityId?.trim();
         if (!rid) return null;
+        if (
+          excludedRouteIdSet.size &&
+          excludedRouteIdSet.has(rid) &&
+          rid !== normalizedRouteId
+        ) {
+          return null;
+        }
         return { row, record, routeId: rid };
       })
       .filter(

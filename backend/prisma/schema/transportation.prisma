@@ -149,6 +149,45 @@ model TransportationRailwaySystemRoute {
   @@map("transportation_railway_system_routes")
 }
 
+model TransportationRailwayManualMerge {
+  id               String                                   @id @default(uuid())
+  entityType       TransportationRailwayManualMergeEntityType
+  name             String
+  englishName      String?
+  color            Int?
+  logoAttachmentId String?
+  serverId         String
+  railwayMod       TransportationRailwayMod                 @default(MTR)
+  dimensionContext String?
+  createdAt        DateTime                                 @default(now())
+  updatedAt        DateTime                                 @updatedAt
+  createdById      String?
+  updatedById      String?
+  createdBy        User?                                    @relation("TransportationRailwayManualMergeCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?                                    @relation("TransportationRailwayManualMergeUpdatedBy", fields: [updatedById], references: [id])
+  logoAttachment   Attachment?                              @relation("TransportationRailwayManualMergeLogo", fields: [logoAttachmentId], references: [id])
+  members          TransportationRailwayManualMergeMember[]
+
+  @@index([entityType, serverId, railwayMod, dimensionContext], map: "idx_transportation_railway_manual_merge_scope")
+  @@map("transportation_railway_manual_merges")
+}
+
+model TransportationRailwayManualMergeMember {
+  id               String                                   @id @default(uuid())
+  mergeId          String
+  entityType       TransportationRailwayManualMergeEntityType
+  serverId         String
+  railwayMod       TransportationRailwayMod                 @default(MTR)
+  entityId         String
+  dimensionContext String?
+  createdAt        DateTime                                 @default(now())
+  merge            TransportationRailwayManualMerge          @relation(fields: [mergeId], references: [id], onDelete: Cascade)
+
+  @@unique([mergeId, serverId, railwayMod, entityType, entityId], map: "uq_transportation_railway_manual_merge_member")
+  @@index([serverId, railwayMod, entityType, entityId], map: "idx_transportation_railway_manual_merge_member_lookup")
+  @@map("transportation_railway_manual_merge_members")
+}
+
 model TransportationRailwayCompanyBinding {
   id               String                                  @id @default(uuid())
   bindingType      TransportationRailwayCompanyBindingType

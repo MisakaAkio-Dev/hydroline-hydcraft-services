@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AnimatePresence, Motion } from 'motion-v'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
+import RailwayCreateWizardDialog from '@/views/user/Transportation/railway/components/RailwayCreateWizardDialog.vue'
 import type {
   RailwayEntity,
   RailwayEntityListResponse,
@@ -14,6 +15,7 @@ const router = useRouter()
 const route = useRoute()
 const railwayStore = useTransportationRailwayStore()
 const toast = useToast()
+const mergeWizardOpen = ref(false)
 
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
@@ -185,10 +187,18 @@ watch(
 )
 
 function openDetail(item: RailwayEntity) {
+  const type = String(item.railwayType ?? '').toLowerCase()
+  if (type === 'local') {
+    router.push({
+      name: 'transportation.railway.station.local',
+      params: { stationId: item.id },
+    })
+    return
+  }
   router.push({
     name: 'transportation.railway.station',
     params: {
-      railwayType: item.railwayType.toLowerCase(),
+      railwayType: type,
       stationId: item.id,
     },
     query: {
@@ -230,7 +240,20 @@ onMounted(async () => {
           全部车站
         </h1>
       </div>
+      <UButton
+        color="primary"
+        variant="soft"
+        icon="i-lucide-git-merge"
+        @click="mergeWizardOpen = true"
+      >
+        合并车站
+      </UButton>
     </div>
+
+    <RailwayCreateWizardDialog
+      v-model:open="mergeWizardOpen"
+      :initial-action="'merge-station'"
+    />
 
     <section class="grid gap-3 rounded-2xl py-4 md:grid-cols-5">
       <label class="flex flex-col gap-1 text-sm">

@@ -128,6 +128,9 @@ export class DynmapMapController {
   destroy() {
     this.tileLayer = null
     if (this.map) {
+      // Avoid rare Leaflet race where layers still receive move/zoom callbacks
+      // after the map is removed (e.g. during rapid mount/unmount).
+      this.map.off()
       this.map.remove()
       this.map = null
     }

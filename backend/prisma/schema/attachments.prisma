@@ -47,6 +47,7 @@ model Attachment {
   folder                           AttachmentFolder?             @relation(fields: [folderId], references: [id])
   owner                            User?                         @relation("AttachmentUploader", fields: [ownerId], references: [id])
   transportationRailwaySystemLogos TransportationRailwaySystem[] @relation("TransportationRailwaySystemLogo")
+  transportationRailwayManualMergeLogos TransportationRailwayManualMerge[] @relation("TransportationRailwayManualMergeLogo")
 
   @@index([folderId], map: "idx_attachments_folder")
   @@index([ownerId], map: "idx_attachments_owner")

@@ -5,6 +5,10 @@ import type {
   RailwayDepotDetail,
   RailwayEntityListResponse,
   RailwayFeaturedItem,
+  RailwayManualMergeCreatePayload,
+  RailwayManualMergeCreateResult,
+  RailwayManualMergedEntityDetail,
+  RailwayManualMergedRouteDetail,
   RailwayOverview,
   RailwayRouteDetail,
   RailwayRouteGeometryRegenerateResult,
@@ -145,6 +149,68 @@ export const useTransportationRailwayStore = defineStore(
         )
         this.depotDetails[cacheKey] = detail
         return detail
+      },
+
+      async fetchLocalMergedRouteDetail(routeId: string, force = false) {
+        const cacheKey = `LOCAL::route::${routeId}`
+        if (this.routeDetails[cacheKey] && !force) {
+          return this.routeDetails[
+            cacheKey
+          ] as unknown as RailwayManualMergedRouteDetail
+        }
+        this.routeLoading = true
+        try {
+          const detail = await apiFetch<RailwayManualMergedRouteDetail>(
+            `/transportation/railway/routes/${encodeURIComponent(routeId)}`,
+          )
+          ;(this.routeDetails as any)[cacheKey] = detail
+          return detail
+        } finally {
+          this.routeLoading = false
+        }
+      },
+
+      async fetchLocalMergedStationDetail(stationId: string, force = false) {
+        const cacheKey = `LOCAL::station::${stationId}`
+        if (this.stationDetails[cacheKey] && !force) {
+          return this.stationDetails[
+            cacheKey
+          ] as unknown as RailwayManualMergedEntityDetail
+        }
+        const detail = await apiFetch<RailwayManualMergedEntityDetail>(
+          `/transportation/railway/stations/${encodeURIComponent(stationId)}`,
+        )
+        ;(this.stationDetails as any)[cacheKey] = detail
+        return detail
+      },
+
+      async fetchLocalMergedDepotDetail(depotId: string, force = false) {
+        const cacheKey = `LOCAL::depot::${depotId}`
+        if (this.depotDetails[cacheKey] && !force) {
+          return this.depotDetails[
+            cacheKey
+          ] as unknown as RailwayManualMergedEntityDetail
+        }
+        const detail = await apiFetch<RailwayManualMergedEntityDetail>(
+          `/transportation/railway/depots/${encodeURIComponent(depotId)}`,
+        )
+        ;(this.depotDetails as any)[cacheKey] = detail
+        return detail
+      },
+
+      async createManualMerge(payload: RailwayManualMergeCreatePayload) {
+        const authStore = useAuthStore()
+        if (!authStore.token) {
+          throw new Error('需要登录后才能创建合并实体')
+        }
+        return await apiFetch<RailwayManualMergeCreateResult>(
+          '/transportation/railway/merges',
+          {
+            method: 'POST',
+            token: authStore.token,
+            body: payload,
+          },
+        )
       },
       async fetchRouteLogs(
         params: RouteCacheParams & {

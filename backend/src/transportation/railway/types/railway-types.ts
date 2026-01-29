@@ -107,7 +107,7 @@ export type NormalizedEntity = {
   filePath: string | null;
   payload: Record<string, unknown> | null;
   server: { id: string; name: string; dynmapTileUrl?: string | null };
-  railwayType: TransportationRailwayMod;
+  railwayType: TransportationRailwayMod | 'LOCAL';
 };
 
 export type NormalizedRoute = NormalizedEntity & {

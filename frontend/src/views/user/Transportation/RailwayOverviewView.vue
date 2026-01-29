@@ -6,6 +6,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import RailwayMapPanel from '@/views/user/Transportation/railway/components/RailwayMapPanel.vue'
 import RailwayDepotMapPanel from '@/views/user/Transportation/railway/components/RailwayDepotMapPanel.vue'
 import RailwayStationRoutesMapPanel from '@/views/user/Transportation/railway/components/RailwayStationRoutesMapPanel.vue'
+import RailwayCreateWizardDialog from '@/views/user/Transportation/railway/components/RailwayCreateWizardDialog.vue'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
 import railwayHeroImage from '@/assets/images/image_home_background_240730.webp'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
@@ -120,6 +121,7 @@ const canManageFeatured = computed(() =>
 )
 
 const settingsModalOpen = ref(false)
+const createWizardOpen = ref(false)
 const activeFeaturedTab = ref<'route' | 'station' | 'depot'>('route')
 const searchTerm = ref('')
 const searchLoading = ref(false)
@@ -223,7 +225,7 @@ function buildRecentDetailLink(item: RailwayRecentUpdateItem) {
 }
 
 function goCreateSystem() {
-  router.push({ name: 'transportation.railway.system.create' })
+  createWizardOpen.value = true
 }
 
 function goEditFacilities() {
@@ -635,7 +637,7 @@ onBeforeUnmount(() => {
         <UIcon name="i-lucide-settings" class="w-4.5 h-4.5" />
       </UButton>
 
-      <UTooltip text="新建铁路线路系统">
+      <UTooltip text="添加信息">
         <UButton
           color="primary"
           variant="soft"
@@ -659,6 +661,8 @@ onBeforeUnmount(() => {
         </UButton>
       </UTooltip>
     </div>
+
+    <RailwayCreateWizardDialog v-model:open="createWizardOpen" />
 
     <section class="space-y-4">
       <section

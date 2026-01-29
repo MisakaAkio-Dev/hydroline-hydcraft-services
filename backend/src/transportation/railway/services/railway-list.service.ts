@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TransportationRailwayMod } from '@prisma/client';
+import {
+  Prisma,
+  TransportationRailwayManualMergeEntityType,
+  TransportationRailwayMod,
+} from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
   buildDimensionContextFromDimension,
@@ -47,6 +51,22 @@ type RailwayListResponse<TItem> = {
 };
 
 const DEFAULT_MIN_PATH_NODE_COUNT = 3;
+
+function extractDimensionFromContextValue(value: string | null | undefined) {
+  if (!value) return null;
+  if (value.includes('/')) {
+    const parts = value.split('/');
+    if (parts.length >= 3) {
+      const dimension = parts.pop();
+      const namespace = parts.pop();
+      if (namespace && dimension) {
+        return `${namespace}:${dimension}`;
+      }
+    }
+  }
+  if (value.includes(':')) return value;
+  return null;
+}
 
 function resolveMinPathNodeCount(platformCount?: number | null) {
   if (typeof platformCount === 'number' && Number.isFinite(platformCount)) {
@@ -142,6 +162,114 @@ function selectPrimaryRoute(
 export class TransportationRailwayListService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private buildEntityKey(input: {
+    serverId: string;
+    railwayMod: TransportationRailwayMod;
+    dimensionContext: string | null;
+    entityId: string;
+  }) {
+    return [
+      input.serverId,
+      input.railwayMod,
+      input.dimensionContext ?? '',
+      input.entityId,
+    ].join('::');
+  }
+
+  private async resolveExcludedEntityKeySet(params: {
+    entityType: TransportationRailwayManualMergeEntityType;
+    serverId?: string | null;
+    railwayMod?: TransportationRailwayMod | null;
+    dimensionContext?: string | null;
+  }) {
+    const memberRows =
+      await this.prisma.transportationRailwayManualMergeMember.findMany({
+        where: {
+          entityType: params.entityType,
+          ...(params.serverId ? { serverId: params.serverId } : {}),
+          ...(params.railwayMod ? { railwayMod: params.railwayMod } : {}),
+          ...(params.dimensionContext
+            ? { dimensionContext: params.dimensionContext }
+            : {}),
+        },
+        select: {
+          serverId: true,
+          railwayMod: true,
+          dimensionContext: true,
+          entityId: true,
+        },
+      });
+    const set = new Set<string>();
+    for (const row of memberRows) {
+      if (!row.entityId) continue;
+      set.add(
+        this.buildEntityKey({
+          serverId: row.serverId,
+          railwayMod: row.railwayMod,
+          dimensionContext: row.dimensionContext ?? null,
+          entityId: row.entityId,
+        }),
+      );
+    }
+    return set;
+  }
+
+  private async resolveExcludedRouteKeySet(params: {
+    serverId?: string | null;
+    railwayType?: TransportationRailwayMod | null;
+    dimension?: string | null;
+  }) {
+    const dimensionContext = params.dimension
+      ? buildDimensionContextFromDimension(
+          params.dimension,
+          params.railwayType ?? TransportationRailwayMod.MTR,
+        )
+      : null;
+
+    const excluded = await this.resolveExcludedEntityKeySet({
+      entityType: TransportationRailwayManualMergeEntityType.ROUTE,
+      serverId: params.serverId ?? null,
+      railwayMod: params.railwayType ?? null,
+      dimensionContext,
+    });
+
+    const systemRouteRows =
+      await this.prisma.transportationRailwaySystemRoute.findMany({
+        where: {
+          route: {
+            ...(params.serverId ? { serverId: params.serverId } : {}),
+            ...(params.railwayType ? { railwayMod: params.railwayType } : {}),
+            ...(dimensionContext ? { dimensionContext } : {}),
+          },
+        },
+        select: {
+          route: {
+            select: {
+              serverId: true,
+              railwayMod: true,
+              dimensionContext: true,
+              entityId: true,
+            },
+          },
+        },
+      });
+
+    for (const row of systemRouteRows) {
+      const route = row.route;
+      if (!route?.entityId) continue;
+      excluded.add(
+        this.buildEntityKey({
+          serverId: route.serverId,
+          railwayMod: route.railwayMod,
+          dimensionContext: route.dimensionContext ?? null,
+          entityId: route.entityId,
+        }),
+      );
+    }
+
+    return excluded;
+  }
+
   private async resolveServerNameMap(serverIds: string[]) {
     if (!serverIds.length)
       return new Map<string, { name: string; dynmapTileUrl: string | null }>();
@@ -195,6 +323,12 @@ export class TransportationRailwayListService {
   }): Promise<RailwayListResponse<NormalizedRoute>> {
     const page = clampInt(params.page ?? 1, 1, 10_000);
     const pageSize = clampInt(params.pageSize ?? 20, 5, 100);
+
+    const excludedRouteKeySet = await this.resolveExcludedRouteKeySet({
+      serverId: params.serverId ?? null,
+      railwayType: params.railwayType ?? null,
+      dimension: params.dimension ?? null,
+    });
 
     const where: Prisma.TransportationRailwayRouteWhereInput = {
       ...(params.serverId ? { serverId: params.serverId } : {}),
@@ -291,7 +425,7 @@ export class TransportationRailwayListService {
       Array.from(new Set(rows.map((row) => row.serverId))),
     );
 
-    const rawItems = rows
+    const allRawItems = rows
       .map((row) => {
         const queryRow = buildQueryRowFromStoredEntity(row);
         const serverInfo = serverNameMap.get(row.serverId) ?? {
@@ -311,6 +445,29 @@ export class TransportationRailwayListService {
         return normalized;
       })
       .filter((item): item is NormalizedRoute => Boolean(item));
+
+    const allRouteByKey = new Map<string, NormalizedRoute>();
+    for (const item of allRawItems) {
+      allRouteByKey.set(
+        this.buildEntityKey({
+          serverId: item.server.id,
+          railwayMod: item.railwayType as TransportationRailwayMod,
+          dimensionContext: item.dimensionContext ?? null,
+          entityId: item.id,
+        }),
+        item,
+      );
+    }
+
+    const rawItems = allRawItems.filter((item) => {
+      const key = this.buildEntityKey({
+        serverId: item.server.id,
+        railwayMod: item.railwayType as TransportationRailwayMod,
+        dimensionContext: item.dimensionContext ?? null,
+        entityId: item.id,
+      });
+      return !excludedRouteKeySet.has(key);
+    });
 
     const grouped = new Map<string, RoutePreviewGroup>();
     for (const item of rawItems) {
@@ -365,6 +522,103 @@ export class TransportationRailwayListService {
       return group;
     });
 
+    const dimensionContext = params.dimension
+      ? buildDimensionContextFromDimension(
+          params.dimension,
+          params.railwayType ?? TransportationRailwayMod.MTR,
+        )
+      : null;
+
+    const includeManualMerges =
+      !params.transportMode && !params.routeStatus && !params.railwayType
+        ? true
+        : !params.transportMode && !params.routeStatus;
+
+    const manualMergeGroups: RoutePreviewGroup[] = [];
+    if (includeManualMerges) {
+      const mergeWhere: Prisma.TransportationRailwayManualMergeWhereInput = {
+        entityType: TransportationRailwayManualMergeEntityType.ROUTE,
+        ...(params.serverId ? { serverId: params.serverId } : {}),
+        ...(params.railwayType ? { railwayMod: params.railwayType } : {}),
+        ...(dimensionContext ? { dimensionContext } : {}),
+      };
+
+      if (params.search?.trim()) {
+        const keyword = params.search.trim();
+        mergeWhere.OR = [
+          { name: { contains: keyword, mode: 'insensitive' } },
+          { englishName: { contains: keyword, mode: 'insensitive' } },
+        ];
+      }
+
+      const merges =
+        await this.prisma.transportationRailwayManualMerge.findMany({
+          where: mergeWhere,
+          include: { members: true },
+          orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        });
+
+      for (const merge of merges) {
+        const serverInfo = serverNameMap.get(merge.serverId) ?? {
+          name: merge.serverId,
+          dynmapTileUrl: null,
+        };
+
+        const memberRoutes = merge.members
+          .map((member) => {
+            const key = this.buildEntityKey({
+              serverId: member.serverId,
+              railwayMod: member.railwayMod,
+              dimensionContext: member.dimensionContext ?? null,
+              entityId: member.entityId,
+            });
+            return allRouteByKey.get(key) ?? null;
+          })
+          .filter((route): route is NormalizedRoute => Boolean(route));
+
+        if (!memberRoutes.length) continue;
+
+        const mergedLastUpdated = memberRoutes.reduce((max, route) => {
+          return Math.max(max ?? 0, route.lastUpdated ?? 0);
+        }, merge.updatedAt.getTime());
+
+        manualMergeGroups.push({
+          key: `LOCAL::${merge.id}`,
+          item: {
+            id: merge.id,
+            name: merge.name,
+            color: merge.color ?? null,
+            transportMode: null,
+            lastUpdated: mergedLastUpdated || null,
+            dimension:
+              extractDimensionFromContextValue(merge.dimensionContext) ??
+              memberRoutes[0]?.dimension ??
+              null,
+            dimensionContext: merge.dimensionContext ?? null,
+            filePath: null,
+            payload: {
+              kind: 'LOCAL',
+              memberCount: memberRoutes.length,
+            },
+            server: {
+              id: merge.serverId,
+              name: serverInfo.name,
+              dynmapTileUrl: serverInfo.dynmapTileUrl,
+            },
+            railwayType: 'LOCAL',
+            platformCount: memberRoutes.reduce((sum, route) => {
+              return sum + (route.platformCount ?? 0);
+            }, 0),
+            previewSvg: null,
+          },
+          routes: memberRoutes,
+          serverId: merge.serverId,
+          railwayMod: merge.railwayMod,
+          dimensionContext: merge.dimensionContext ?? null,
+        });
+      }
+    }
+
     mergedGroups.sort(
       (a, b) =>
         (b.item.lastUpdated ?? 0) - (a.item.lastUpdated ?? 0) ||
@@ -386,7 +640,12 @@ export class TransportationRailwayListService {
             });
             return routeStatus === 'abnormal' ? hasAbnormal : !hasAbnormal;
           })
-        : mergedGroups;
+        : [...mergedGroups, ...manualMergeGroups].sort(
+            (a, b) =>
+              (b.item.lastUpdated ?? 0) - (a.item.lastUpdated ?? 0) ||
+              a.item.name?.localeCompare(b.item.name ?? '') ||
+              0,
+          );
 
     const total = filteredGroups.length;
     const start = (page - 1) * pageSize;
@@ -394,7 +653,9 @@ export class TransportationRailwayListService {
 
     if (pageGroups.length) {
       const previewGroups = pageGroups.filter(
-        (group) => group.item.railwayType === TransportationRailwayMod.MTR,
+        (group) =>
+          group.railwayMod === TransportationRailwayMod.MTR &&
+          Boolean(group.dimensionContext),
       );
       if (previewGroups.length) {
         const snapshotKeys = previewGroups
@@ -824,6 +1085,20 @@ export class TransportationRailwayListService {
     const page = clampInt(params.page ?? 1, 1, 10_000);
     const pageSize = clampInt(params.pageSize ?? 20, 5, 100);
 
+    const dimensionContext = params.dimension
+      ? buildDimensionContextFromDimension(
+          params.dimension,
+          params.railwayType ?? TransportationRailwayMod.MTR,
+        )
+      : null;
+
+    const excludedKeySet = await this.resolveExcludedEntityKeySet({
+      entityType: TransportationRailwayManualMergeEntityType.STATION,
+      serverId: params.serverId ?? null,
+      railwayMod: params.railwayType ?? null,
+      dimensionContext,
+    });
+
     const where: Prisma.TransportationRailwayStationWhereInput = {
       ...(params.serverId ? { serverId: params.serverId } : {}),
       ...(params.railwayType ? { railwayMod: params.railwayType } : {}),
@@ -837,10 +1112,7 @@ export class TransportationRailwayListService {
         : {}),
       ...(params.dimension
         ? {
-            dimensionContext: buildDimensionContextFromDimension(
-              params.dimension,
-              params.railwayType ?? TransportationRailwayMod.MTR,
-            ),
+            dimensionContext,
           }
         : {}),
     };
@@ -854,34 +1126,29 @@ export class TransportationRailwayListService {
       ];
     }
 
-    const [total, rows] = await Promise.all([
-      this.prisma.transportationRailwayStation.count({ where }),
-      this.prisma.transportationRailwayStation.findMany({
-        where,
-        orderBy: [{ lastBeaconUpdatedAt: 'desc' }, { updatedAt: 'desc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        select: {
-          serverId: true,
-          railwayMod: true,
-          entityId: true,
-          dimensionContext: true,
-          transportMode: true,
-          name: true,
-          color: true,
-          filePath: true,
-          payload: true,
-          lastBeaconUpdatedAt: true,
-          updatedAt: true,
-        },
-      }),
-    ]);
+    const rows = await this.prisma.transportationRailwayStation.findMany({
+      where,
+      orderBy: [{ lastBeaconUpdatedAt: 'desc' }, { updatedAt: 'desc' }],
+      select: {
+        serverId: true,
+        railwayMod: true,
+        entityId: true,
+        dimensionContext: true,
+        transportMode: true,
+        name: true,
+        color: true,
+        filePath: true,
+        payload: true,
+        lastBeaconUpdatedAt: true,
+        updatedAt: true,
+      },
+    });
 
     const serverNameMap = await this.resolveServerNameMap(
       Array.from(new Set(rows.map((row) => row.serverId))),
     );
 
-    const items = rows
+    const rawItems = rows
       .map((row) => {
         const queryRow = buildQueryRowFromStoredEntity(row);
         const serverInfo = serverNameMap.get(row.serverId) ?? {
@@ -899,8 +1166,75 @@ export class TransportationRailwayListService {
       })
       .filter((item): item is NormalizedEntity => Boolean(item));
 
+    const items = rawItems.filter((item) => {
+      const key = this.buildEntityKey({
+        serverId: item.server.id,
+        railwayMod: item.railwayType as TransportationRailwayMod,
+        dimensionContext: item.dimensionContext ?? null,
+        entityId: item.id,
+      });
+      return !excludedKeySet.has(key);
+    });
+
+    if (!params.transportMode) {
+      const mergeWhere: Prisma.TransportationRailwayManualMergeWhereInput = {
+        entityType: TransportationRailwayManualMergeEntityType.STATION,
+        ...(params.serverId ? { serverId: params.serverId } : {}),
+        ...(params.railwayType ? { railwayMod: params.railwayType } : {}),
+        ...(dimensionContext ? { dimensionContext } : {}),
+      };
+      if (params.search?.trim()) {
+        const keyword = params.search.trim();
+        mergeWhere.OR = [
+          { name: { contains: keyword, mode: 'insensitive' } },
+          { englishName: { contains: keyword, mode: 'insensitive' } },
+        ];
+      }
+      const merges =
+        await this.prisma.transportationRailwayManualMerge.findMany({
+          where: mergeWhere,
+          include: { members: true },
+          orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        });
+
+      for (const merge of merges) {
+        const serverInfo = serverNameMap.get(merge.serverId) ?? {
+          name: merge.serverId,
+          dynmapTileUrl: null,
+        };
+        items.push({
+          id: merge.id,
+          name: merge.name,
+          color: merge.color ?? null,
+          transportMode: null,
+          lastUpdated: merge.updatedAt.getTime(),
+          dimension: extractDimensionFromContextValue(merge.dimensionContext),
+          dimensionContext: merge.dimensionContext ?? null,
+          filePath: null,
+          payload: { kind: 'LOCAL', memberCount: merge.members.length },
+          server: {
+            id: merge.serverId,
+            name: serverInfo.name,
+            dynmapTileUrl: serverInfo.dynmapTileUrl,
+          },
+          railwayType: 'LOCAL',
+        });
+      }
+    }
+
+    items.sort(
+      (a, b) =>
+        (b.lastUpdated ?? 0) - (a.lastUpdated ?? 0) ||
+        a.name?.localeCompare(b.name ?? '') ||
+        0,
+    );
+
+    const total = items.length;
+    const start = (page - 1) * pageSize;
+    const pageItems = items.slice(start, start + pageSize);
+
     return {
-      items,
+      items: pageItems,
       pagination: {
         total,
         page,
@@ -922,6 +1256,20 @@ export class TransportationRailwayListService {
     const page = clampInt(params.page ?? 1, 1, 10_000);
     const pageSize = clampInt(params.pageSize ?? 20, 5, 100);
 
+    const dimensionContext = params.dimension
+      ? buildDimensionContextFromDimension(
+          params.dimension,
+          params.railwayType ?? TransportationRailwayMod.MTR,
+        )
+      : null;
+
+    const excludedKeySet = await this.resolveExcludedEntityKeySet({
+      entityType: TransportationRailwayManualMergeEntityType.DEPOT,
+      serverId: params.serverId ?? null,
+      railwayMod: params.railwayType ?? null,
+      dimensionContext,
+    });
+
     const where: Prisma.TransportationRailwayDepotWhereInput = {
       ...(params.serverId ? { serverId: params.serverId } : {}),
       ...(params.railwayType ? { railwayMod: params.railwayType } : {}),
@@ -935,10 +1283,7 @@ export class TransportationRailwayListService {
         : {}),
       ...(params.dimension
         ? {
-            dimensionContext: buildDimensionContextFromDimension(
-              params.dimension,
-              params.railwayType ?? TransportationRailwayMod.MTR,
-            ),
+            dimensionContext,
           }
         : {}),
     };
@@ -952,34 +1297,29 @@ export class TransportationRailwayListService {
       ];
     }
 
-    const [total, rows] = await Promise.all([
-      this.prisma.transportationRailwayDepot.count({ where }),
-      this.prisma.transportationRailwayDepot.findMany({
-        where,
-        orderBy: [{ lastBeaconUpdatedAt: 'desc' }, { updatedAt: 'desc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        select: {
-          serverId: true,
-          railwayMod: true,
-          entityId: true,
-          dimensionContext: true,
-          transportMode: true,
-          name: true,
-          color: true,
-          filePath: true,
-          payload: true,
-          lastBeaconUpdatedAt: true,
-          updatedAt: true,
-        },
-      }),
-    ]);
+    const rows = await this.prisma.transportationRailwayDepot.findMany({
+      where,
+      orderBy: [{ lastBeaconUpdatedAt: 'desc' }, { updatedAt: 'desc' }],
+      select: {
+        serverId: true,
+        railwayMod: true,
+        entityId: true,
+        dimensionContext: true,
+        transportMode: true,
+        name: true,
+        color: true,
+        filePath: true,
+        payload: true,
+        lastBeaconUpdatedAt: true,
+        updatedAt: true,
+      },
+    });
 
     const serverNameMap = await this.resolveServerNameMap(
       Array.from(new Set(rows.map((row) => row.serverId))),
     );
 
-    const items = rows
+    const rawItems = rows
       .map((row) => {
         const queryRow = buildQueryRowFromStoredEntity(row);
         const serverInfo = serverNameMap.get(row.serverId) ?? {
@@ -997,8 +1337,75 @@ export class TransportationRailwayListService {
       })
       .filter((item): item is NormalizedEntity => Boolean(item));
 
+    const items = rawItems.filter((item) => {
+      const key = this.buildEntityKey({
+        serverId: item.server.id,
+        railwayMod: item.railwayType as TransportationRailwayMod,
+        dimensionContext: item.dimensionContext ?? null,
+        entityId: item.id,
+      });
+      return !excludedKeySet.has(key);
+    });
+
+    if (!params.transportMode) {
+      const mergeWhere: Prisma.TransportationRailwayManualMergeWhereInput = {
+        entityType: TransportationRailwayManualMergeEntityType.DEPOT,
+        ...(params.serverId ? { serverId: params.serverId } : {}),
+        ...(params.railwayType ? { railwayMod: params.railwayType } : {}),
+        ...(dimensionContext ? { dimensionContext } : {}),
+      };
+      if (params.search?.trim()) {
+        const keyword = params.search.trim();
+        mergeWhere.OR = [
+          { name: { contains: keyword, mode: 'insensitive' } },
+          { englishName: { contains: keyword, mode: 'insensitive' } },
+        ];
+      }
+      const merges =
+        await this.prisma.transportationRailwayManualMerge.findMany({
+          where: mergeWhere,
+          include: { members: true },
+          orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        });
+
+      for (const merge of merges) {
+        const serverInfo = serverNameMap.get(merge.serverId) ?? {
+          name: merge.serverId,
+          dynmapTileUrl: null,
+        };
+        items.push({
+          id: merge.id,
+          name: merge.name,
+          color: merge.color ?? null,
+          transportMode: null,
+          lastUpdated: merge.updatedAt.getTime(),
+          dimension: extractDimensionFromContextValue(merge.dimensionContext),
+          dimensionContext: merge.dimensionContext ?? null,
+          filePath: null,
+          payload: { kind: 'LOCAL', memberCount: merge.members.length },
+          server: {
+            id: merge.serverId,
+            name: serverInfo.name,
+            dynmapTileUrl: serverInfo.dynmapTileUrl,
+          },
+          railwayType: 'LOCAL',
+        });
+      }
+    }
+
+    items.sort(
+      (a, b) =>
+        (b.lastUpdated ?? 0) - (a.lastUpdated ?? 0) ||
+        a.name?.localeCompare(b.name ?? '') ||
+        0,
+    );
+
+    const total = items.length;
+    const start = (page - 1) * pageSize;
+    const pageItems = items.slice(start, start + pageSize);
+
     return {
-      items,
+      items: pageItems,
       pagination: {
         total,
         page,

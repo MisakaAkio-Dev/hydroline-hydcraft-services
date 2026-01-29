@@ -17,6 +17,8 @@ import { TransportationRailwayCompanyBindingService } from './railway/services/r
 import { TransportationRailwaySystemController } from './railway/controllers/railway-system.controller';
 import { TransportationRailwayBindingController } from './railway/controllers/railway-binding.controller';
 import { TransportationRailwayCompanyController } from './railway/controllers/railway-company.controller';
+import { TransportationRailwayManualMergeService } from './railway/services/railway-manual-merge.service';
+import { TransportationRailwayManualMergeController } from './railway/controllers/railway-manual-merge.controller';
 
 @Module({
   imports: [
@@ -34,6 +36,7 @@ import { TransportationRailwayCompanyController } from './railway/controllers/ra
     TransportationRailwaySnapshotService,
     TransportationRailwaySystemService,
     TransportationRailwayCompanyBindingService,
+    TransportationRailwayManualMergeService,
   ],
   controllers: [
     TransportationRailwayController,
@@ -42,6 +45,7 @@ import { TransportationRailwayCompanyController } from './railway/controllers/ra
     TransportationRailwaySystemController,
     TransportationRailwayBindingController,
     TransportationRailwayCompanyController,
+    TransportationRailwayManualMergeController,
   ],
   exports: [TransportationRailwaySyncService, TransportationRailwayService],
 })
