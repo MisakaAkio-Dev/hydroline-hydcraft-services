@@ -506,7 +506,7 @@ onBeforeUnmount(() => {
   <UModal
     :open="localOpen"
     @update:open="(value) => (localOpen = value)"
-    :ui="{ content: 'w-full max-w-5xl w-[calc(100vw-2rem)]' }"
+    :ui="{ content: 'w-full max-w-3xl w-[calc(100vw-2rem)]' }"
     title="编辑线路系统"
     description="编辑线路系统基本信息与线路配置。"
   >
