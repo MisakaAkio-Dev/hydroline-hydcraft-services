@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import RailwaySystemMapPanel from '@/views/user/Transportation/railway/components/RailwaySystemMapPanel.vue'
 import RailwaySystemMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwaySystemMapFullscreenOverlay.vue'
 import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
+import RailwaySystemEditDialog from '@/views/user/Transportation/railway/components/RailwaySystemEditDialog.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
@@ -37,6 +38,7 @@ const relatedSystems = ref<Array<{ id: string; name: string }>>([])
 
 const deleteLoading = ref(false)
 const deleteModalOpen = ref(false)
+const systemEditOpen = ref(false)
 
 const logs = ref<RailwaySystemLogResponse | null>(null)
 const logLoading = ref(false)
@@ -399,12 +401,7 @@ onMounted(() => {
                 size="xs"
                 variant="link"
                 color="primary"
-                @click="
-                  router.push({
-                    name: 'transportation.railway.system.edit',
-                    params: { systemId: system.id },
-                  })
-                "
+                @click="systemEditOpen = true"
               >
                 编辑
               </UButton>
@@ -647,6 +644,12 @@ onMounted(() => {
       v-model="fullscreenOpen"
       :routes="routeDetails"
       :loading="routeDetails.length === 0"
+    />
+
+    <RailwaySystemEditDialog
+      v-model:open="systemEditOpen"
+      :system-id="systemId"
+      @saved="fetchSystemDetail"
     />
 
     <UModal v-model:open="deleteModalOpen">

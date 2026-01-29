@@ -220,6 +220,135 @@ export class TransportationRailwayCompanyBindingService {
     }));
   }
 
+  async listCompanyBindingsWithNames(params: {
+    companyId: string;
+    bindingType?: TransportationRailwayCompanyBindingType;
+  }) {
+    const bindings = await this.listCompanyBindings(params);
+    if (!bindings.length) {
+      return [];
+    }
+
+    const systemIds = new Set<string>();
+    const routeScopes: Array<{
+      serverId: string;
+      railwayMod: TransportationRailwayMod;
+      entityId: string;
+    }> = [];
+    const stationScopes: Array<{
+      serverId: string;
+      railwayMod: TransportationRailwayMod;
+      entityId: string;
+    }> = [];
+    const depotScopes: Array<{
+      serverId: string;
+      railwayMod: TransportationRailwayMod;
+      entityId: string;
+    }> = [];
+
+    for (const binding of bindings) {
+      if (
+        binding.entityType === TransportationRailwayBindingEntityType.SYSTEM
+      ) {
+        systemIds.add(binding.entityId);
+        continue;
+      }
+      if (!binding.serverId || !binding.railwayMod) continue;
+      const scope = {
+        serverId: binding.serverId,
+        railwayMod: binding.railwayMod,
+        entityId: binding.entityId,
+      };
+      if (binding.entityType === TransportationRailwayBindingEntityType.ROUTE) {
+        routeScopes.push(scope);
+      } else if (
+        binding.entityType === TransportationRailwayBindingEntityType.STATION
+      ) {
+        stationScopes.push(scope);
+      } else if (
+        binding.entityType === TransportationRailwayBindingEntityType.DEPOT
+      ) {
+        depotScopes.push(scope);
+      }
+    }
+
+    const [systems, routes, stations, depots] = await Promise.all([
+      systemIds.size
+        ? this.prisma.transportationRailwaySystem.findMany({
+            where: { id: { in: Array.from(systemIds) } },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+      routeScopes.length
+        ? this.prisma.transportationRailwayRoute.findMany({
+            where: { OR: routeScopes },
+            select: {
+              serverId: true,
+              railwayMod: true,
+              entityId: true,
+              name: true,
+            },
+          })
+        : Promise.resolve([]),
+      stationScopes.length
+        ? this.prisma.transportationRailwayStation.findMany({
+            where: { OR: stationScopes },
+            select: {
+              serverId: true,
+              railwayMod: true,
+              entityId: true,
+              name: true,
+            },
+          })
+        : Promise.resolve([]),
+      depotScopes.length
+        ? this.prisma.transportationRailwayDepot.findMany({
+            where: { OR: depotScopes },
+            select: {
+              serverId: true,
+              railwayMod: true,
+              entityId: true,
+              name: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const nameMap = new Map<string, string | null>();
+    for (const system of systems) {
+      nameMap.set(`SYSTEM:${system.id}`, system.name ?? null);
+    }
+    for (const route of routes) {
+      nameMap.set(
+        `ROUTE:${route.serverId}:${route.railwayMod}:${route.entityId}`,
+        route.name ?? null,
+      );
+    }
+    for (const station of stations) {
+      nameMap.set(
+        `STATION:${station.serverId}:${station.railwayMod}:${station.entityId}`,
+        station.name ?? null,
+      );
+    }
+    for (const depot of depots) {
+      nameMap.set(
+        `DEPOT:${depot.serverId}:${depot.railwayMod}:${depot.entityId}`,
+        depot.name ?? null,
+      );
+    }
+
+    return bindings.map((binding) => {
+      const key =
+        binding.entityType === TransportationRailwayBindingEntityType.SYSTEM
+          ? `SYSTEM:${binding.entityId}`
+          : `${binding.entityType}:${binding.serverId ?? ''}:${binding.railwayMod ?? ''}:${binding.entityId}`;
+      return {
+        ...binding,
+        entityName: nameMap.get(key) ?? null,
+      };
+    });
+  }
+
   async countDistinctCompanies(params: {
     bindingType: TransportationRailwayCompanyBindingType;
     entityType?: TransportationRailwayBindingEntityType;

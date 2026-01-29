@@ -656,6 +656,11 @@ export interface RailwayCompanyBindingEntry {
   createdAt: string
 }
 
+export interface RailwayCompanyBindingEntryWithName
+  extends RailwayCompanyBindingEntry {
+  entityName: string | null
+}
+
 export interface RailwayRouteLogEntry {
   id: number
   timestamp: string

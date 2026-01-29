@@ -348,13 +348,6 @@ export const userRoutes: RouteRecordRaw[] = [
             meta: { title: '线路系统详情' },
           },
           {
-            path: 'railway/systems/:systemId/edit',
-            name: 'transportation.railway.system.edit',
-            component: () =>
-              import('@/views/user/Transportation/RailwaySystemEditView.vue'),
-            meta: { title: '编辑线路系统' },
-          },
-          {
             path: 'railway/companies',
             name: 'transportation.railway.companies',
             component: () =>
@@ -371,15 +364,6 @@ export const userRoutes: RouteRecordRaw[] = [
                 '@/views/user/Transportation/RailwayCompanyDetailView.vue'
               ),
             meta: { title: '公司详情' },
-          },
-          {
-            path: 'railway/facilities',
-            name: 'transportation.railway.facilities',
-            component: () =>
-              import(
-                '@/views/user/Transportation/RailwayFacilityEditorView.vue'
-              ),
-            meta: { title: '设施编辑' },
           },
           {
             path: 'aviation',

@@ -7,6 +7,7 @@ import RailwayMapPanel from '@/views/user/Transportation/railway/components/Rail
 import RailwayDepotMapPanel from '@/views/user/Transportation/railway/components/RailwayDepotMapPanel.vue'
 import RailwayStationRoutesMapPanel from '@/views/user/Transportation/railway/components/RailwayStationRoutesMapPanel.vue'
 import RailwayCreateWizardDialog from '@/views/user/Transportation/railway/components/RailwayCreateWizardDialog.vue'
+import RailwayEditWizardDialog from '@/views/user/Transportation/railway/components/RailwayEditWizardDialog.vue'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
 import railwayHeroImage from '@/assets/images/image_home_background_240730.webp'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
@@ -122,6 +123,7 @@ const canManageFeatured = computed(() =>
 
 const settingsModalOpen = ref(false)
 const createWizardOpen = ref(false)
+const editWizardOpen = ref(false)
 const activeFeaturedTab = ref<'route' | 'station' | 'depot'>('route')
 const searchTerm = ref('')
 const searchLoading = ref(false)
@@ -229,7 +231,7 @@ function goCreateSystem() {
 }
 
 function goEditFacilities() {
-  router.push({ name: 'transportation.railway.facilities' })
+  editWizardOpen.value = true
 }
 
 function getRoutePlatformCount(item: RailwayFeaturedItem) {
@@ -663,6 +665,7 @@ onBeforeUnmount(() => {
     </div>
 
     <RailwayCreateWizardDialog v-model:open="createWizardOpen" />
+    <RailwayEditWizardDialog v-model:open="editWizardOpen" />
 
     <section class="space-y-4">
       <section

@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
+import type { TimelineItem } from '@nuxt/ui'
 import type {
   RailwayEntity,
   RailwayManualMergeCreatePayload,
@@ -118,6 +119,88 @@ const search = reactive({
   loading: false,
   results: [] as Array<RailwayRoute | RailwayEntity>,
   pagination: { total: 0, page: 1, pageSize: 10, pageCount: 1 },
+})
+
+const chooseTimelineItems = computed<TimelineItem[]>(() => [
+  {
+    title: '选择要创建的内容',
+    icon: 'i-lucide-layout-template',
+    slot: 'choose-type',
+    description: ' ',
+  },
+])
+
+const basicTimelineItems = computed<TimelineItem[]>(() => {
+  const items: TimelineItem[] = [
+    {
+      title: '名称',
+      icon: 'i-lucide-text',
+      slot: 'basic-name',
+      description: ' ',
+    },
+    {
+      title: '英文名（可选）',
+      icon: 'i-lucide-languages',
+      slot: 'basic-english',
+      description: ' ',
+    },
+  ]
+  if (action.value?.startsWith('merge')) {
+    items.push({
+      title: '颜色（可选）',
+      icon: 'i-lucide-palette',
+      slot: 'basic-color',
+      description: ' ',
+    })
+  }
+  return items
+})
+
+const selectTimelineItems = computed<TimelineItem[]>(() => [
+  {
+    title: '搜索并添加数据',
+    icon: 'i-lucide-search',
+    slot: 'select-search',
+    description: ' ',
+  },
+  {
+    title: '已选择列表',
+    icon: 'i-lucide-list-checks',
+    slot: 'select-list',
+    description: ' ',
+  },
+])
+
+const reviewTimelineItems = computed<TimelineItem[]>(() => {
+  const items: TimelineItem[] = [
+    {
+      title: '名称',
+      icon: 'i-lucide-text',
+      slot: 'review-name',
+      description: ' ',
+    },
+    {
+      title: '英文名',
+      icon: 'i-lucide-languages',
+      slot: 'review-english',
+      description: ' ',
+    },
+  ]
+  if (action.value?.startsWith('merge')) {
+    items.push({
+      title: '颜色',
+      icon: 'i-lucide-palette',
+      slot: 'review-color',
+      description: ' ',
+    })
+  }
+  items.push({
+    title: '已选择数据',
+    icon: 'i-lucide-database',
+    slot: 'review-selected',
+    description: ' ',
+  })
+  return items
 })
 
 async function performSearch(page = 1) {
@@ -327,236 +410,134 @@ async function handleSubmit() {
           />
         </div>
 
-        <div class="grid gap-6 p-6 md:grid-cols-[240px,1fr] overflow-auto">
+        <div
+          class="grid gap-6 p-6 pb-10 md:grid-cols-[240px,1fr] overflow-auto"
+        >
           <UStepper v-model="activeSection" :items="stepperItems" />
 
           <div class="space-y-6">
             <div v-if="activeSection === 'choose'" class="space-y-4">
-              <div
-                class="rounded-2xl border border-slate-200/70 bg-white p-5 dark:border-slate-800/60 dark:bg-slate-800/40"
-              >
-                <div class="flex items-center gap-4">
-                  <div
-                    class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-700"
-                  >
-                    <UIcon name="i-lucide-plus" class="h-6 w-6 text-sky-500" />
-                  </div>
-                  <div>
-                    <div
-                      class="text-base font-semibold text-slate-900 dark:text-white"
+              <UTimeline :items="chooseTimelineItems" size="xs">
+                <template #choose-type-description>
+                  <div class="grid gap-3 md:grid-cols-2 mt-2">
+                    <UButton
+                      class="px-3 py-2"
+                      :color="action === 'system' ? 'primary' : 'neutral'"
+                      :variant="action === 'system' ? 'soft' : 'ghost'"
+                      :ui="{
+                        base: 'h-auto items-start justify-start px-4 py-4 text-left whitespace-normal',
+                      }"
+                      @click="action = 'system'"
+                      :disabled="Boolean(props.initialAction)"
                     >
-                      选择创建类型
-                    </div>
-                    <div class="text-sm text-slate-500 dark:text-slate-400">
-                      先选一个入口，再按步骤填写信息与选择数据。
-                    </div>
+                      <div class="flex items-center gap-3 w-full">
+                        <div
+                          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors"
+                          :class="
+                            action === 'system'
+                              ? 'bg-white text-primary-600 dark:bg-slate-900 dark:text-primary-400'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                          "
+                        >
+                          <UIcon name="i-lucide-layout-grid" class="h-5 w-5" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                          <div class="text-sm font-semibold">铁路线路系统</div>
+                          <div
+                            class="text-xs opacity-80 font-normal leading-relaxed"
+                          >
+                            选择多条线路组成系统，组合地图与预览。
+                          </div>
+                        </div>
+                      </div>
+                    </UButton>
+
+                    <UButton
+                      class="px-3 py-2"
+                      :color="action === 'merge-route' ? 'primary' : 'neutral'"
+                      :variant="action === 'merge-route' ? 'soft' : 'ghost'"
+                      :ui="{
+                        base: 'h-auto items-start justify-start px-4 py-4 text-left whitespace-normal',
+                      }"
+                      @click="action = 'merge-route'"
+                      :disabled="Boolean(props.initialAction)"
+                    >
+                      <div class="flex items-center gap-3 w-full">
+                        <div
+                          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors"
+                          :class="
+                            action === 'merge-route'
+                              ? 'bg-white text-primary-600 dark:bg-slate-900 dark:text-primary-400'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                          "
+                        >
+                          <UIcon name="i-lucide-git-merge" class="h-5 w-5" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                          <div class="text-sm font-semibold">铁路线路</div>
+                          <div
+                            class="text-xs opacity-80 font-normal leading-relaxed"
+                          >
+                            合并多条源线路为一个线路。
+                          </div>
+                        </div>
+                      </div>
+                    </UButton>
                   </div>
-                </div>
-              </div>
-
-              <div class="space-y-3">
-                <div
-                  class="text-xs font-medium text-slate-500 dark:text-slate-400"
-                >
-                  选择要创建的内容
-                </div>
-
-                <div class="grid gap-3 md:grid-cols-2">
-                  <button
-                    type="button"
-                    class="group rounded-2xl border px-4 py-4 text-left transition"
-                    :class="
-                      action === 'system'
-                        ? 'border-sky-400/60 bg-sky-50/60 dark:border-sky-500/40 dark:bg-sky-900/20'
-                        : 'border-slate-200/70 bg-white hover:bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-800/40 dark:hover:bg-slate-800/60'
-                    "
-                    @click="action = 'system'"
-                    :disabled="Boolean(props.initialAction)"
-                  >
-                    <div class="flex items-center gap-3">
-                      <div
-                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
-                      >
-                        <UIcon name="i-lucide-layout-grid" class="h-5 w-5" />
-                      </div>
-                      <div class="min-w-0">
-                        <div
-                          class="text-sm font-semibold text-slate-900 dark:text-white"
-                        >
-                          铁路线路系统
-                        </div>
-                        <div
-                          class="mt-1 text-xs text-slate-500 dark:text-slate-400"
-                        >
-                          选择多条线路组成系统，组合地图与预览。
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    class="group rounded-2xl border px-4 py-4 text-left transition"
-                    :class="
-                      action === 'merge-route'
-                        ? 'border-sky-400/60 bg-sky-50/60 dark:border-sky-500/40 dark:bg-sky-900/20'
-                        : 'border-slate-200/70 bg-white hover:bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-800/40 dark:hover:bg-slate-800/60'
-                    "
-                    @click="action = 'merge-route'"
-                    :disabled="Boolean(props.initialAction)"
-                  >
-                    <div class="flex items-center gap-3">
-                      <div
-                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
-                      >
-                        <UIcon name="i-lucide-git-merge" class="h-5 w-5" />
-                      </div>
-                      <div class="min-w-0">
-                        <div
-                          class="text-sm font-semibold text-slate-900 dark:text-white"
-                        >
-                          铁路线路（手动合并）
-                        </div>
-                        <div
-                          class="mt-1 text-xs text-slate-500 dark:text-slate-400"
-                        >
-                          合并多条源线路为一个本地 UUID 线路。
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
+                </template>
+              </UTimeline>
             </div>
 
             <div v-else-if="activeSection === 'basic'" class="space-y-4">
-              <div
-                class="rounded-2xl border border-slate-200/70 bg-white p-5 dark:border-slate-800/60 dark:bg-slate-800/40"
-              >
-                <div
-                  class="text-sm font-semibold text-slate-900 dark:text-white"
-                >
-                  填写基础信息
-                </div>
-                <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  这些信息会用于列表展示与详情页标题。
-                </div>
-              </div>
-
-              <div class="space-y-3">
-                <div
-                  class="rounded-2xl border border-slate-200/70 bg-white p-5 dark:border-slate-800/60 dark:bg-slate-800/40"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div
-                        class="text-sm font-semibold text-slate-900 dark:text-white"
-                      >
-                        名称
-                      </div>
-                      <div
-                        class="mt-1 text-xs text-slate-500 dark:text-slate-400"
-                      >
-                        必填，用于显示与搜索。
-                      </div>
+              <UTimeline :items="basicTimelineItems" size="xs">
+                <template #basic-name-description>
+                  <div class="space-y-2">
+                    <div class="text-xs text-slate-500 dark:text-slate-400">
+                      必填
                     </div>
-                    <UIcon
-                      name="i-lucide-text"
-                      class="h-5 w-5 text-slate-400"
-                    />
-                  </div>
-                  <div class="mt-3">
-                    <UInput v-model="basic.name" placeholder="填写名称" />
-                  </div>
-                </div>
-
-                <div
-                  class="rounded-2xl border border-slate-200/70 bg-white p-5 dark:border-slate-800/60 dark:bg-slate-800/40"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div
-                        class="text-sm font-semibold text-slate-900 dark:text-white"
-                      >
-                        英文名（可选）
-                      </div>
-                      <div
-                        class="mt-1 text-xs text-slate-500 dark:text-slate-400"
-                      >
-                        可选，用于国际化展示。
-                      </div>
-                    </div>
-                    <UIcon
-                      name="i-lucide-languages"
-                      class="h-5 w-5 text-slate-400"
-                    />
-                  </div>
-                  <div class="mt-3">
                     <UInput
+                      class="w-full"
+                      v-model="basic.name"
+                      placeholder="填写名称"
+                    />
+                  </div>
+                </template>
+                <template #basic-english-description>
+                  <div class="space-y-2">
+                    <div class="text-xs text-slate-500 dark:text-slate-400">
+                      可选
+                    </div>
+                    <UInput
+                      class="w-full"
                       v-model="basic.englishName"
-                      placeholder="填写英文名（可选）"
+                      placeholder="填写英文名"
                     />
                   </div>
-                </div>
-
-                <div
-                  v-if="action?.startsWith('merge')"
-                  class="rounded-2xl border border-slate-200/70 bg-white p-5 dark:border-slate-800/60 dark:bg-slate-800/40"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div
-                        class="text-sm font-semibold text-slate-900 dark:text-white"
-                      >
-                        颜色（可选）
-                      </div>
-                      <div
-                        class="mt-1 text-xs text-slate-500 dark:text-slate-400"
-                      >
-                        十进制整数（例如：16711680 表示红色）。
-                      </div>
+                </template>
+                <template #basic-color-description>
+                  <div class="space-y-2">
+                    <div class="text-xs text-slate-500 dark:text-slate-400">
+                      十进制整数（例如：16711680 表示红色）。
                     </div>
-                    <UIcon
-                      name="i-lucide-palette"
-                      class="h-5 w-5 text-slate-400"
-                    />
-                  </div>
-                  <div class="mt-3">
                     <UInput
+                      class="w-full"
                       v-model="basic.colorText"
                       type="number"
                       placeholder="颜色（十进制，可选）"
                     />
                   </div>
-                </div>
-              </div>
+                </template>
+              </UTimeline>
             </div>
 
             <div v-else-if="activeSection === 'select'" class="space-y-4">
-              <div class="space-y-3">
-                <div
-                  class="rounded-2xl border border-slate-200/70 bg-white p-5 dark:border-slate-800/60 dark:bg-slate-800/40"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div
-                        class="text-sm font-semibold text-slate-900 dark:text-white"
-                      >
-                        搜索并添加数据
-                      </div>
-                      <div
-                        class="mt-1 text-xs text-slate-500 dark:text-slate-400"
-                      >
-                        输入关键词搜索，然后将数据添加到右侧已选择列表。
-                      </div>
+              <UTimeline :items="selectTimelineItems" size="xs">
+                <template #select-search-description>
+                  <div class="space-y-2">
+                    <div class="text-xs text-slate-500 dark:text-slate-400">
+                      输入关键词搜索，然后将数据添加到下方已选择列表。
                     </div>
-                    <UIcon
-                      name="i-lucide-search"
-                      class="h-5 w-5 text-slate-400"
-                    />
-                  </div>
 
-                  <div class="mt-3 space-y-2">
                     <div class="flex items-center gap-2">
                       <UInput
                         v-model="search.term"
@@ -640,31 +621,13 @@ async function handleSubmit() {
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <div
-                  class="rounded-2xl border border-slate-200/70 bg-white p-5 dark:border-slate-800/60 dark:bg-slate-800/40"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div
-                        class="text-sm font-semibold text-slate-900 dark:text-white"
-                      >
-                        已选择列表
-                      </div>
-                      <div
-                        class="mt-1 text-xs text-slate-500 dark:text-slate-400"
-                      >
-                        合并至少需要选择 2 条数据；线路系统可选择 1 条或更多。
-                      </div>
+                </template>
+                <template #select-list-description>
+                  <div class="space-y-2">
+                    <div class="text-xs text-slate-500 dark:text-slate-400">
+                      合并至少需要选择 2 条数据；线路系统可选择 1 条或更多。
                     </div>
-                    <UIcon
-                      name="i-lucide-list-checks"
-                      class="h-5 w-5 text-slate-400"
-                    />
-                  </div>
 
-                  <div class="mt-3 space-y-2">
                     <div
                       v-if="selected.items.length === 0"
                       class="rounded-xl border border-dashed border-slate-200/70 bg-slate-50 px-4 py-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/20 dark:text-slate-400"
@@ -696,44 +659,33 @@ async function handleSubmit() {
                       />
                     </div>
                   </div>
-                </div>
-              </div>
+                </template>
+              </UTimeline>
             </div>
 
             <div v-else class="space-y-4">
-              <div
-                class="rounded-2xl border border-slate-200/70 bg-white p-5 dark:border-slate-800/60 dark:bg-slate-800/40"
-              >
-                <div class="text-sm text-slate-600 dark:text-slate-300">
-                  <div class="flex justify-between gap-3">
-                    <span>名称</span>
-                    <span class="text-slate-900 dark:text-white">
-                      {{ basic.name || '—' }}
-                    </span>
+              <UTimeline :items="reviewTimelineItems" size="xs">
+                <template #review-name-description>
+                  <div class="text-sm text-slate-900 dark:text-white pb-2">
+                    {{ basic.name || '—' }}
                   </div>
-                  <div class="mt-2 flex justify-between gap-3">
-                    <span>英文名</span>
-                    <span class="text-slate-900 dark:text-white">
-                      {{ basic.englishName || '—' }}
-                    </span>
+                </template>
+                <template #review-english-description>
+                  <div class="text-sm text-slate-900 dark:text-white pb-2">
+                    {{ basic.englishName || '—' }}
                   </div>
-                  <div
-                    v-if="action?.startsWith('merge')"
-                    class="mt-2 flex justify-between gap-3"
-                  >
-                    <span>颜色</span>
-                    <span class="text-slate-900 dark:text-white">
-                      {{ basic.colorText || '—' }}
-                    </span>
+                </template>
+                <template #review-color-description>
+                  <div class="text-sm text-slate-900 dark:text-white pb-2">
+                    {{ basic.colorText || '—' }}
                   </div>
-                  <div class="mt-2 flex justify-between gap-3">
-                    <span>已选择</span>
-                    <span class="text-slate-900 dark:text-white">
-                      {{ selected.items.length }} 条
-                    </span>
+                </template>
+                <template #review-selected-description>
+                  <div class="text-sm text-slate-900 dark:text-white pb-2">
+                    共 {{ selected.items.length }} 条
                   </div>
-                </div>
-              </div>
+                </template>
+              </UTimeline>
             </div>
 
             <div class="flex items-center justify-between pt-2">

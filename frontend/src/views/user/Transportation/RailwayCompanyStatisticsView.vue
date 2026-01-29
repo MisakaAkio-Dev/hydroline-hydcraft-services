@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { AnimatePresence, Motion } from 'motion-v'
 import { useTransportationRailwayBindingsStore } from '@/stores/transportation/railwayBindings'
+import RailwayEditWizardDialog from '@/views/user/Transportation/railway/components/RailwayEditWizardDialog.vue'
 import { resolveCompaniesByIds } from '@/utils/company/company-lib'
 import type { CompanyModel } from '@/types/company'
 import type { RailwayCompanyBindingStatItem } from '@/types/transportation'
@@ -24,6 +25,8 @@ const tabs = [
   { label: '运营单位', value: 'OPERATOR' },
   { label: '建设单位', value: 'BUILDER' },
 ]
+
+const editWizardOpen = ref(false)
 
 const emptyText = computed(() =>
   bindingType.value === 'OPERATOR'
@@ -63,7 +66,7 @@ async function fetchStats() {
 }
 
 function goEditFacilities() {
-  router.push({ name: 'transportation.railway.facilities' })
+  editWizardOpen.value = true
 }
 
 function goToPage(nextPage: number) {
@@ -112,6 +115,10 @@ watch(
         />
       </UTooltip>
     </div>
+    <RailwayEditWizardDialog
+      v-model:open="editWizardOpen"
+      initial-action="facility"
+    />
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">

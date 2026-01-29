@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { AnimatePresence, Motion } from 'motion-v'
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
+import RailwaySystemEditDialog from '@/views/user/Transportation/railway/components/RailwaySystemEditDialog.vue'
 
 const systemsStore = useTransportationRailwaySystemsStore()
 const router = useRouter()
@@ -18,6 +19,8 @@ const renderToken = ref(0)
 
 const deleteLoading = ref(false)
 const deleteModalOpen = ref(false)
+const systemEditOpen = ref(false)
+const editingSystemId = ref<string | null>(null)
 const systemToDelete = ref<
   NonNullable<typeof systemsResponse.value>['items'][number] | null
 >(null)
@@ -69,10 +72,13 @@ function goToPage(nextPage: number) {
 }
 
 function openSystem(systemId: string, edit = false) {
+  if (edit) {
+    editingSystemId.value = systemId
+    systemEditOpen.value = true
+    return
+  }
   router.push({
-    name: edit
-      ? 'transportation.railway.system.edit'
-      : 'transportation.railway.system.detail',
+    name: 'transportation.railway.system.detail',
     params: { systemId },
   })
 }
@@ -324,6 +330,12 @@ onMounted(() => {
         </UButton>
       </div>
     </div>
+
+    <RailwaySystemEditDialog
+      v-model:open="systemEditOpen"
+      :system-id="editingSystemId"
+      @saved="loadSystems"
+    />
 
     <UModal v-model:open="deleteModalOpen">
       <template #content>

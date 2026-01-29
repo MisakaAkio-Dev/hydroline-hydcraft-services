@@ -2,23 +2,33 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { CompanyModel } from '@/types/company'
-import type { RailwayCompanyBindingEntry } from '@/types/transportation'
+import type { RailwayCompanyBindingEntryWithName } from '@/types/transportation'
 import { fetchCompanyDetail } from '@/utils/company/company-lib'
 import { useTransportationRailwayBindingsStore } from '@/stores/transportation/railwayBindings'
+import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 
 const route = useRoute()
 const router = useRouter()
 const bindingStore = useTransportationRailwayBindingsStore()
+const railwayStore = useTransportationRailwayStore()
 const toast = useToast()
 
 const company = ref<CompanyModel | null>(null)
-const bindings = ref<RailwayCompanyBindingEntry[]>([])
+const bindings = ref<RailwayCompanyBindingEntryWithName[]>([])
 const loading = ref(true)
 
 const companyId = computed(() => route.params.companyId as string)
 const bindingType = computed(() => {
   const value = route.query.bindingType
   return value === 'BUILDER' ? 'BUILDER' : 'OPERATOR'
+})
+
+const serverNameMap = computed(() => {
+  const map: Record<string, string> = {}
+  for (const server of railwayStore.servers) {
+    map[server.id] = server.name
+  }
+  return map
 })
 
 function ownerUser(target: CompanyModel | null | undefined) {
@@ -33,7 +43,7 @@ function extractDimension(dimensionContext: string | null) {
   return parts.length > 1 ? parts[1] : dimensionContext
 }
 
-function buildEntityLink(entry: RailwayCompanyBindingEntry) {
+function buildEntityLink(entry: RailwayCompanyBindingEntryWithName) {
   if (entry.entityType === 'SYSTEM') {
     return {
       name: 'transportation.railway.system.detail',
@@ -84,18 +94,34 @@ function buildEntityLink(entry: RailwayCompanyBindingEntry) {
   return null
 }
 
-function entityLabel(entry: RailwayCompanyBindingEntry) {
+function entityLabel(entry: RailwayCompanyBindingEntryWithName) {
   if (entry.entityType === 'SYSTEM') return '线路系统'
   if (entry.entityType === 'STATION') return '车站'
   if (entry.entityType === 'DEPOT') return '车厂'
   return '线路'
 }
 
+function serverLabel(serverId: string | null) {
+  if (!serverId) return '—'
+  return serverNameMap.value[serverId] || serverId
+}
+
+function normalizeEntityName(name: string | null, entryType: string) {
+  if (!name) return null
+  if (entryType === 'SYSTEM') return name
+  const primary = name.split('||')[0] ?? name
+  const first = primary.split('|')[0] ?? primary
+  return first.trim() || name
+}
+
 async function fetchDetail() {
   loading.value = true
   try {
+    if (!railwayStore.servers.length) {
+      await railwayStore.fetchServers()
+    }
     company.value = await fetchCompanyDetail(companyId.value)
-    bindings.value = await bindingStore.fetchCompanyBindings(
+    bindings.value = await bindingStore.fetchCompanyBindingsWithNames(
       companyId.value,
       bindingType.value,
     )
@@ -211,10 +237,18 @@ onMounted(() => {
                 class="border-t border-slate-100 dark:border-slate-800"
               >
                 <td class="px-4 py-3">{{ entityLabel(entry) }}</td>
-                <td class="px-4 py-3 font-mono text-xs text-slate-500">
-                  {{ entry.entityId }}
+                <td class="px-4 py-3">
+                  <div class="text-slate-900 dark:text-white">
+                    {{
+                      normalizeEntityName(entry.entityName, entry.entityType) ||
+                      entry.entityId
+                    }}
+                  </div>
+                  <div class="text-xs text-slate-400 font-mono">
+                    {{ entry.entityId }}
+                  </div>
                 </td>
-                <td class="px-4 py-3">{{ entry.serverId || '—' }}</td>
+                <td class="px-4 py-3">{{ serverLabel(entry.serverId) }}</td>
                 <td class="px-4 py-3">
                   {{ extractDimension(entry.dimensionContext) || '—' }}
                 </td>

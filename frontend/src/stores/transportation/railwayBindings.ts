@@ -3,6 +3,7 @@ import { apiFetch } from '@/utils/http/api'
 import { useAuthStore } from '@/stores/user/auth'
 import type {
   RailwayCompanyBindingEntry,
+  RailwayCompanyBindingEntryWithName,
   RailwayCompanyBindingPayload,
   RailwayCompanyBindingStatItem,
 } from '@/types/transportation'
@@ -68,6 +69,16 @@ export const useTransportationRailwayBindingsStore = defineStore(
         if (bindingType) query.set('bindingType', bindingType)
         return apiFetch<RailwayCompanyBindingEntry[]>(
           `/transportation/railway/companies/${companyId}/bindings?${query.toString()}`,
+        )
+      },
+      async fetchCompanyBindingsWithNames(
+        companyId: string,
+        bindingType?: string,
+      ) {
+        const query = new URLSearchParams()
+        if (bindingType) query.set('bindingType', bindingType)
+        return apiFetch<RailwayCompanyBindingEntryWithName[]>(
+          `/transportation/railway/companies/${companyId}/bindings/labels?${query.toString()}`,
         )
       },
     },

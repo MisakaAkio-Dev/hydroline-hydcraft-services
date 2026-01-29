@@ -33,4 +33,16 @@ export class TransportationRailwayCompanyController {
       bindingType: query.bindingType,
     });
   }
+
+  @Get(':companyId/bindings/labels')
+  @ApiOperation({ summary: '公司绑定的铁路设施列表（含名称）' })
+  async bindingsWithLabels(
+    @Param('companyId') companyId: string,
+    @Query() query: RailwayCompanyBindingListQueryDto,
+  ) {
+    return this.bindingService.listCompanyBindingsWithNames({
+      companyId,
+      bindingType: query.bindingType,
+    });
+  }
 }
