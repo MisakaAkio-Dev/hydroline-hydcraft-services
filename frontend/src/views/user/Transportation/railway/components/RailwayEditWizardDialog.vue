@@ -174,8 +174,10 @@ function handleSystemSaved() {
                     base: 'h-auto items-start justify-start px-4 py-4 text-left whitespace-normal',
                   }"
                   @click="
-                    action = 'system'
-                    activeSection = 'edit'
+                    () => {
+                      action = 'system'
+                      activeSection = 'edit'
+                    }
                   "
                 >
                   <div class="flex items-center gap-3 w-full">
@@ -208,8 +210,10 @@ function handleSystemSaved() {
                     base: 'h-auto items-start justify-start px-4 py-4 text-left whitespace-normal',
                   }"
                   @click="
-                    action = 'facility'
-                    activeSection = 'edit'
+                    () => {
+                      action = 'facility'
+                      activeSection = 'edit'
+                    }
                   "
                 >
                   <div class="flex items-center gap-3 w-full">
