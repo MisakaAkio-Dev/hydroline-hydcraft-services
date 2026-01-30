@@ -90,6 +90,8 @@ export class TransportationRailwayRouteDetailService {
       this.variants,
       this.preview,
       this.mappers,
+      prisma,
+      attachmentsService,
     );
   }
 

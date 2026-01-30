@@ -5,6 +5,14 @@ import type {
 } from '@/types/transportation'
 import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
 
+interface CompanyRef {
+  id: string
+  name: string
+  slug: string
+  logoUrl?: string | null
+  summary?: string | null
+}
+
 defineProps<{
   detail: RailwayRouteDetail
   routeColorHex: string | null
@@ -12,6 +20,8 @@ defineProps<{
   modpackImage: string | null
   operatorCompanyIds: string[]
   builderCompanyIds: string[]
+  operatorCompanies?: CompanyRef[]
+  builderCompanies?: CompanyRef[]
   systems?: RailwaySystemRef[]
 }>()
 </script>
@@ -64,6 +74,8 @@ defineProps<{
           :dimension="detail.dimension"
           :operator-company-ids="operatorCompanyIds"
           :builder-company-ids="builderCompanyIds"
+          :operator-companies="operatorCompanies"
+          :builder-companies="builderCompanies"
         />
         <div class="flex justify-between">
           <span>线路 ID</span>

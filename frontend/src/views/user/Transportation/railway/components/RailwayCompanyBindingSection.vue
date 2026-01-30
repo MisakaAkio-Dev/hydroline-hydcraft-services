@@ -3,6 +3,15 @@ import { computed, ref, watch } from 'vue'
 import CompanyBindingField from '@/components/company/CompanyBindingField.vue'
 import { useTransportationRailwayBindingsStore } from '@/stores/transportation/railwayBindings'
 import { useAuthStore } from '@/stores/user/auth'
+import type { CompanyModel } from '@/types/company'
+
+interface CompanyRef {
+  id: string
+  name: string
+  slug: string
+  logoUrl?: string | null
+  summary?: string | null
+}
 
 const props = defineProps<{
   entityType: string
@@ -12,6 +21,8 @@ const props = defineProps<{
   dimension?: string | null
   operatorCompanyIds?: string[]
   builderCompanyIds?: string[]
+  operatorCompanies?: CompanyRef[]
+  builderCompanies?: CompanyRef[]
   editable?: boolean
 }>()
 
@@ -24,6 +35,22 @@ const builderCompanyIds = ref<string[]>(props.builderCompanyIds ?? [])
 const submitting = ref(false)
 
 const allowEdit = computed(() => Boolean(authStore.isAuthenticated))
+
+const operatorCompanyMap = computed(() => {
+  const map: Record<string, CompanyModel> = {}
+  for (const c of props.operatorCompanies ?? []) {
+    map[c.id] = c as CompanyModel
+  }
+  return map
+})
+
+const builderCompanyMap = computed(() => {
+  const map: Record<string, CompanyModel> = {}
+  for (const c of props.builderCompanies ?? []) {
+    map[c.id] = c as CompanyModel
+  }
+  return map
+})
 
 watch(
   () => props.operatorCompanyIds,
@@ -84,12 +111,14 @@ async function updateBuilders(next: string[]) {
   <CompanyBindingField
     label="运营单位"
     :company-ids="operatorCompanyIds"
+    :preloaded-companies="operatorCompanyMap"
     :allow-edit="allowEdit && !submitting"
     @update="updateOperators"
   />
   <CompanyBindingField
     label="建设单位"
     :company-ids="builderCompanyIds"
+    :preloaded-companies="builderCompanyMap"
     :allow-edit="allowEdit && !submitting"
     @update="updateBuilders"
   />

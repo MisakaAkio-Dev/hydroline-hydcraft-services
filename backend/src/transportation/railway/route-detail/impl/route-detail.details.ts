@@ -26,6 +26,7 @@ import type { RouteDetailPreview } from './route-detail.preview';
 import type { RouteDetailStations } from './route-detail.stations';
 import type { RouteDetailStorage } from './route-detail.storage';
 import type { RouteDetailVariants } from './route-detail.variants';
+import type { AttachmentsService } from '../../../../attachments/attachments.service';
 
 export class RouteDetailDetails {
   constructor(
@@ -35,6 +36,8 @@ export class RouteDetailDetails {
     private readonly variants: RouteDetailVariants,
     private readonly preview: RouteDetailPreview,
     private readonly mappers: RouteDetailMappers,
+    private readonly prisma?: any,
+    private readonly attachmentsService?: AttachmentsService,
   ) {}
 
   async getRouteDetail(
@@ -241,6 +244,47 @@ export class RouteDetailDetails {
     detail.operatorCompanyIds = bindings.operatorCompanyIds;
     detail.builderCompanyIds = bindings.builderCompanyIds;
     detail.systems = await this.storage.fetchRouteSystems(routeEntity.id);
+
+    // resolve company details
+    const operatorCompanyIds = detail.operatorCompanyIds ?? [];
+    const builderCompanyIds = detail.builderCompanyIds ?? [];
+    const allCompanyIds = [
+      ...new Set([...operatorCompanyIds, ...builderCompanyIds]),
+    ];
+
+    if (this.prisma && allCompanyIds.length > 0) {
+      const companies = await this.prisma.company.findMany({
+        where: { id: { in: allCompanyIds } },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          logoAttachmentId: true,
+          summary: true,
+        },
+      });
+
+      // Resolve logo URLs
+      const companiesWithLogos = await Promise.all(
+        companies.map(async (c: any) => ({
+          ...c,
+          logoUrl: this.attachmentsService
+            ? await this.attachmentsService.resolvePublicUrl(c.logoAttachmentId)
+            : null,
+        })),
+      );
+
+      const companyMap = new Map(companiesWithLogos.map((c) => [c.id, c]));
+      (detail as any).operatorCompanies = operatorCompanyIds
+        .map((id) => companyMap.get(id))
+        .filter((c) => c !== undefined);
+      (detail as any).builderCompanies = builderCompanyIds
+        .map((id) => companyMap.get(id))
+        .filter((c) => c !== undefined);
+    } else {
+      (detail as any).operatorCompanies = [];
+      (detail as any).builderCompanies = [];
+    }
 
     return detail;
   }

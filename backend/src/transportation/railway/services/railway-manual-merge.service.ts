@@ -7,6 +7,7 @@ import {
 import {
   TransportationRailwayManualMergeEntityType,
   TransportationRailwayMod,
+  Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AttachmentsService } from '../../../attachments/attachments.service';
@@ -17,6 +18,8 @@ import type {
   RailwayManualMergeCreateDto,
   RailwayManualMergeMemberInputDto,
 } from '../../dto/railway-manual-merge.dto';
+import type { RailwayMergedRouteLogQueryDto } from '../../dto/railway.dto';
+import type { RailwayRouteLogResult } from '../types/railway-types';
 
 type ServerInfo = { id: string; name: string; dynmapTileUrl: string | null };
 
@@ -343,6 +346,45 @@ export class TransportationRailwayManualMergeService {
       dimension,
     });
 
+    // 获取公司详细信息
+    const operatorCompanyIds = bindings?.operatorCompanyIds ?? [];
+    const builderCompanyIds = bindings?.builderCompanyIds ?? [];
+    const allCompanyIds = [
+      ...new Set([...operatorCompanyIds, ...builderCompanyIds]),
+    ];
+
+    const companies =
+      allCompanyIds.length > 0
+        ? await this.prisma.company.findMany({
+            where: { id: { in: allCompanyIds } },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              logoAttachmentId: true,
+              summary: true,
+            },
+          })
+        : [];
+
+    // Resolve logo URLs
+    const companiesWithLogos = await Promise.all(
+      companies.map(async (c) => ({
+        ...c,
+        logoUrl: await this.attachmentsService.resolvePublicUrl(
+          c.logoAttachmentId,
+        ),
+      })),
+    );
+
+    const companyMap = new Map(companiesWithLogos.map((c) => [c.id, c]));
+    const operatorCompanies = operatorCompanyIds
+      .map((id) => companyMap.get(id))
+      .filter((c) => c !== undefined);
+    const builderCompanies = builderCompanyIds
+      .map((id) => companyMap.get(id))
+      .filter((c) => c !== undefined);
+
     return {
       id: merge.id,
       name: merge.name,
@@ -356,10 +398,177 @@ export class TransportationRailwayManualMergeService {
       routes,
       routeDetails: routeDetails.filter((item) => item !== null),
       bindings,
+      operatorCompanies,
+      builderCompanies,
       updatedAt: merge.updatedAt,
       canEdit: Boolean(user?.id && merge.createdById === user.id),
       canDelete: Boolean(user?.id && merge.createdById === user.id),
     };
+  }
+
+  async getMergedRouteLogs(
+    mergeId: string,
+    query: RailwayMergedRouteLogQueryDto,
+  ): Promise<RailwayRouteLogResult> {
+    const merge = await this.prisma.transportationRailwayManualMerge.findUnique(
+      {
+        where: { id: mergeId },
+        include: { members: true },
+      },
+    );
+    if (!merge) {
+      throw new NotFoundException('Merged route not found');
+    }
+    if (merge.entityType !== TransportationRailwayManualMergeEntityType.ROUTE) {
+      throw new BadRequestException('Target merge is not a route');
+    }
+
+    const memberEntityIds = merge.members
+      .map((m) => m.entityId)
+      .filter(Boolean);
+    if (memberEntityIds.length === 0) {
+      return {
+        server: {
+          id: merge.serverId,
+          name: merge.serverId,
+          dynmapTileUrl: null,
+        },
+        railwayType: merge.railwayMod,
+        total: 0,
+        page: query.page ?? 1,
+        pageSize: query.limit ?? 10,
+        entries: [],
+      };
+    }
+
+    const server = await this.resolveServerInfo(merge.serverId);
+    const dimension = this.extractDimensionFromContext(merge.dimensionContext);
+
+    // query logs for all member routes
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const offset = (page - 1) * limit;
+
+    const searchIds = memberEntityIds.flatMap((id) => [id, `[${id}]`]);
+
+    const countRows = await this.prisma.$queryRaw<
+      Array<{ total: number | string | bigint }>
+    >`
+        SELECT COUNT(*) as total
+        FROM "transportation_railway_mtr_logs"
+        WHERE "serverId" = ${merge.serverId}
+          AND "railwayMod"::text = ${merge.railwayMod}
+          AND "entryId" IN (${Prisma.join(searchIds)})
+      `;
+    const total = Number(countRows?.[0]?.total ?? 0);
+
+    // using raw query for performance
+    const paginatedLogs = await this.prisma.$queryRaw<
+      Array<Record<string, unknown>>
+    >`
+        SELECT
+          "beaconLogId",
+          "timestamp",
+          "playerName",
+          "playerUuid",
+          "className",
+          "entryId",
+          "entryName",
+          "position",
+          "changeType",
+          "oldData",
+          "newData",
+          "sourceFilePath",
+          "sourceLine",
+          "dimensionContext"
+        FROM "transportation_railway_mtr_logs"
+        WHERE "serverId" = ${merge.serverId}
+          AND "railwayMod"::text = ${merge.railwayMod}
+          AND "entryId" IN (${Prisma.join(searchIds)})
+        ORDER BY "timestamp" DESC NULLS LAST, "beaconLogId" DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+
+    // using existing log transformer
+    const entries = paginatedLogs.map((record) => {
+      const newData = this.parseLogData(
+        record['newData'] ?? record['new_data'],
+      );
+      const oldData = this.parseLogData(
+        record['oldData'] ?? record['old_data'],
+      );
+      return {
+        id:
+          typeof record['beaconLogId'] === 'number'
+            ? record['beaconLogId']
+            : Number(record['beaconLogId'] ?? 0),
+        timestamp: String(record['timestamp'] ?? ''),
+        playerName:
+          typeof record['playerName'] === 'string'
+            ? record['playerName']
+            : null,
+        playerUuid:
+          typeof record['playerUuid'] === 'string'
+            ? record['playerUuid']
+            : null,
+        changeType:
+          typeof record['changeType'] === 'string'
+            ? record['changeType']
+            : null,
+        className:
+          typeof record['className'] === 'string' ? record['className'] : null,
+        entryId:
+          typeof record['entryId'] === 'string' ? record['entryId'] : null,
+        entryName:
+          typeof record['entryName'] === 'string' ? record['entryName'] : null,
+        dimensionContext:
+          typeof record['dimensionContext'] === 'string'
+            ? record['dimensionContext']
+            : null,
+        sourceFilePath:
+          typeof record['sourceFilePath'] === 'string'
+            ? record['sourceFilePath']
+            : null,
+        sourceLine:
+          typeof record['sourceLine'] === 'number'
+            ? record['sourceLine']
+            : null,
+        newData,
+        oldData,
+      };
+    });
+
+    return {
+      server: {
+        id: server.id,
+        name: server.name,
+        dynmapTileUrl: server.dynmapTileUrl,
+      },
+      railwayType: merge.railwayMod,
+      total,
+      page,
+      pageSize: limit,
+      entries,
+    };
+  }
+
+  private parseLogData(value: unknown): Record<string, unknown> | null {
+    if (!value) return null;
+    if (typeof value === 'string') {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    }
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+    return null;
   }
 
   async getMergedEntityDetail(

@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -13,9 +14,13 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '../../../auth/auth.guard';
 import { TransportationRailwayManualMergeService } from '../services/railway-manual-merge.service';
-import { RailwayManualMergeCreateDto } from '../../dto/railway-manual-merge.dto';
+import {
+  RailwayManualMergeCreateDto,
+  RailwayManualMergeMemberInputDto,
+} from '../../dto/railway-manual-merge.dto';
 import { TransportationRailwayManualMergeEntityType } from '@prisma/client';
 import { OptionalAuthGuard } from '../../../auth/optional-auth.guard';
+import { RailwayMergedRouteLogQueryDto } from '../../dto/railway.dto';
 
 @ApiTags('交通系统 - 铁路手动合并')
 @Controller('transportation/railway/merges')
@@ -46,6 +51,15 @@ export class TransportationRailwayManualMergeController {
   @ApiOperation({ summary: '获取合并线路详情（uuid）' })
   async getMergedRoute(@Param('id') id: string, @Req() req: Request) {
     return this.mergeService.getMergedRouteDetail(id, req.user);
+  }
+
+  @Get('routes/:id/logs')
+  @ApiOperation({ summary: '获取合并线路的变更日志（合并所有成员线路的日志）' })
+  async getMergedRouteLogs(
+    @Param('id') id: string,
+    @Query() query: RailwayMergedRouteLogQueryDto,
+  ) {
+    return this.mergeService.getMergedRouteLogs(id, query);
   }
 
   @Get('stations/:id')

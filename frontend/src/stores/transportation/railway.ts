@@ -170,6 +170,31 @@ export const useTransportationRailwayStore = defineStore(
         }
       },
 
+      async fetchMergedRouteLogs(
+        routeId: string,
+        params: {
+          page?: number
+          limit?: number
+        },
+        force = false,
+      ) {
+        const page = params.page ?? 1
+        const limit = params.limit ?? 10
+        const cacheKey = `MERGED::logs::${routeId}::${page}::${limit}`
+        if (this.routeLogs[cacheKey] && !force) {
+          return this.routeLogs[cacheKey]
+        }
+        const query = new URLSearchParams({
+          page: String(page),
+          limit: String(limit),
+        })
+        const detail = await apiFetch<RailwayRouteLogResult>(
+          `/transportation/railway/merges/routes/${encodeURIComponent(routeId)}/logs?${query.toString()}`,
+        )
+        this.routeLogs[cacheKey] = detail
+        return detail
+      },
+
       async fetchLocalMergedStationDetail(stationId: string, force = false) {
         const cacheKey = `LOCAL::station::${stationId}`
         if (this.stationDetails[cacheKey] && !force) {

@@ -68,6 +68,28 @@ export class RailwayRouteLogQueryDto extends RailwayRouteDetailQueryDto {
   search?: string | null;
 }
 
+export class RailwayMergedRouteLogQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  limit?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  search?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  dimension?: string | null;
+}
+
 export class RailwayEntityListQueryDto {
   @IsOptional()
   @IsString()

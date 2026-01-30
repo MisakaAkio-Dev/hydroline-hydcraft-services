@@ -1,249 +1,1596 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Motion } from 'motion-v'
 import { useRoute, useRouter } from 'vue-router'
-import RailwaySystemMapPanel from '@/views/user/Transportation/railway/components/RailwaySystemMapPanel.vue'
-import RailwaySystemMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwaySystemMapFullscreenOverlay.vue'
-import RailwayCompanyBindingSection from '@/views/user/Transportation/railway/components/RailwayCompanyBindingSection.vue'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import RailwayMapPanel from '@/views/user/Transportation/railway/components/RailwayMapPanel.vue'
+import RailwayMapFullscreenOverlay from '@/views/user/Transportation/railway/components/RailwayMapFullscreenOverlay.vue'
+import RailwayRouteBasicInfoPanel from '@/views/user/Transportation/railway/components/RailwayRouteBasicInfoPanel.vue'
+import RailwayMergedRouteDataStatusPanel from '@/views/user/Transportation/railway/components/RailwayMergedRouteDataStatusPanel.vue'
+import RailwayRouteGeometryDialog from '@/views/user/Transportation/railway/components/RailwayRouteGeometryDialog.vue'
+import RailwayRouteFallbackPopover from '@/views/user/Transportation/railway/components/RailwayRouteFallbackPopover.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
+import { useAuthStore } from '@/stores/user/auth'
+import { apiFetch } from '@/utils/http/api'
+import type {
+  RailwayGeometryPoint,
+  RailwayRouteDetail,
+  RailwayRouteGeometryRegenerateResult,
+  RailwayRouteLogResult,
+  RailwayManualMergedRouteDetail,
+  RailwayCompanyRef,
+} from '@/types/transportation'
+import { getDimensionName } from '@/utils/minecraft/dimension-names'
+import { parseRouteName } from '@/utils/route/route-name'
 import { setDocumentTitle } from '@/utils/route/document-title'
-import type { RailwayManualMergedRouteDetail } from '@/types/transportation'
+import modpackCreateImg from '@/assets/resources/modpacks/Create.jpg'
+import modpackMtrImg from '@/assets/resources/modpacks/MTR.png'
+
+dayjs.extend(relativeTime)
 
 const route = useRoute()
 const router = useRouter()
-const railwayStore = useTransportationRailwayStore()
 const toast = useToast()
+const transportationStore = useTransportationRailwayStore()
+const authStore = useAuthStore()
+
+const mergedDetail = ref<RailwayManualMergedRouteDetail | null>(null)
+const loading = ref(true)
+const errorMessage = ref<string | null>(null)
+const logs = ref<RailwayRouteLogResult | null>(null)
+const logLoading = ref(true)
+const logError = ref<string | null>(null)
+
+const DEFAULT_VARIANT_MODE = '__default__'
+const variantMode = ref<string>(DEFAULT_VARIANT_MODE)
+
+const logContentRef = ref<HTMLElement | null>(null)
+let lastLogContentHeight: number | null = null
+const backdropVisible = ref(true)
+const backdropColor = ref<string | null>(null)
+const backdropReady = ref(false)
+let backdropReadyFrame: number | null = null
+let backdropSwapTimer: number | null = null
+const backdropFadeDurationMs = 500
+let lastBackdropScrollY = 0
+const handleBackdropScroll = () => {
+  const current = window.scrollY
+  if (current > lastBackdropScrollY + 4) {
+    backdropVisible.value = false
+  } else if (current < lastBackdropScrollY - 4) {
+    backdropVisible.value = true
+  } else if (current <= 0) {
+    backdropVisible.value = true
+  }
+  lastBackdropScrollY = current
+}
+
+const routeGeometryDialogOpen = ref(false)
+const routeGeometryLoading = ref(false)
+const routeGeometryError = ref<string | null>(null)
+const routeGeometryResult = ref<RailwayRouteGeometryRegenerateResult | null>(
+  null,
+)
+const fallbackPopoverMode = ref<'hover' | 'click'>('hover')
+let fallbackHoverMediaQuery: MediaQueryList | null = null
+
+const logPageSize = 8
+const logPage = ref(1)
+const logPageCount = computed(() => {
+  const total = logs.value?.total ?? 0
+  const pageSize = logs.value?.pageSize ?? logPageSize
+  if (!total || !pageSize) return 1
+  return Math.max(1, Math.ceil(total / pageSize))
+})
+const canGoLogPrev = computed(() => (logs.value?.page ?? logPage.value) > 1)
+const canGoLogNext = computed(
+  () => (logs.value?.page ?? logPage.value) < logPageCount.value,
+)
 
 const mergedRouteId = computed(() => route.params.routeId as string)
-const detail = ref<RailwayManualMergedRouteDetail | null>(null)
-const loading = ref(true)
-const fullscreenOpen = ref(false)
 
-const routeDetails = computed(() => detail.value?.routeDetails ?? [])
+const canRegenerateRouteGeometry = computed(() =>
+  authStore.hasPermission('transportation.railway.force-refresh'),
+)
 
-const combinedSvgEntries = computed(() => {
-  return routeDetails.value
-    .map((d) => d.route.previewSvg)
-    .filter((svg): svg is string => Boolean(svg))
+const mapAutoFocus = ref(true)
+const fullscreenMapOpen = ref(false)
+
+// 从合并线路数据中提取一个虚拟的 RailwayRouteDetail
+const detail = computed<RailwayRouteDetail | null>(() => {
+  if (!mergedDetail.value) return null
+  const merged = mergedDetail.value
+  const routeDetails = merged.routeDetails ?? []
+
+  // 如果处于variant模式，返回对应的routeDetail
+  if (variantMode.value !== DEFAULT_VARIANT_MODE) {
+    const found = routeDetails.find((d) => d.route.id === variantMode.value)
+    if (found) return found
+  }
+
+  // 否则返回第一个，或者构造一个虚拟的detail
+  if (routeDetails.length === 0) {
+    return null
+  }
+
+  const firstDetail = routeDetails[0]
+
+  // 合并所有路由的信息
+  const allStations = new Map<string, RailwayRouteDetail['stations'][number]>()
+  const allPlatforms = new Map<
+    string,
+    RailwayRouteDetail['platforms'][number]
+  >()
+  const allDepots = new Map<string, RailwayRouteDetail['depots'][number]>()
+  const allStops: RailwayRouteDetail['stops'] = []
+  const allOperatorCompanyIds = new Set<string>()
+  const allBuilderCompanyIds = new Set<string>()
+  const allOperatorCompanies = new Map<string, RailwayCompanyRef>()
+  const allBuilderCompanies = new Map<string, RailwayCompanyRef>()
+
+  // 合并手动合并线路本身的绑定公司
+  for (const c of merged.operatorCompanies ?? []) {
+    allOperatorCompanies.set(c.id, c)
+    allOperatorCompanyIds.add(c.id)
+  }
+  for (const c of merged.builderCompanies ?? []) {
+    allBuilderCompanies.set(c.id, c)
+    allBuilderCompanyIds.add(c.id)
+  }
+
+  for (const rd of routeDetails) {
+    // 合并stations
+    for (const station of rd.stations ?? []) {
+      if (!allStations.has(station.id)) {
+        allStations.set(station.id, station)
+      }
+    }
+    // 合并platforms
+    for (const platform of rd.platforms ?? []) {
+      if (!allPlatforms.has(platform.id)) {
+        allPlatforms.set(platform.id, platform)
+      }
+    }
+    // 合并depots
+    for (const depot of rd.depots ?? []) {
+      if (!allDepots.has(depot.id)) {
+        allDepots.set(depot.id, depot)
+      }
+    }
+    // 合并stops
+    allStops.push(...(rd.stops ?? []))
+    // 合并company IDs
+    for (const id of rd.operatorCompanyIds ?? []) {
+      allOperatorCompanyIds.add(id)
+    }
+    for (const id of rd.builderCompanyIds ?? []) {
+      allBuilderCompanyIds.add(id)
+    }
+    // 合并公司对象
+    for (const c of rd.operatorCompanies ?? []) {
+      allOperatorCompanies.set(c.id, c)
+    }
+    for (const c of rd.builderCompanies ?? []) {
+      allBuilderCompanies.set(c.id, c)
+    }
+  }
+
+  // 构造虚拟route
+  const virtualRoute: RailwayRouteDetail = {
+    server: merged.server ?? firstDetail.server,
+    dimension: firstDetail.dimension,
+    railwayType: firstDetail.railwayType,
+    route: {
+      id: merged.id,
+      name: merged.name,
+      color: merged.color ?? firstDetail.route.color ?? null,
+      previewSvg: firstDetail.route.previewSvg ?? null,
+      payload: firstDetail.route.payload ?? {},
+    },
+    metadata: {
+      lastUpdated: firstDetail.metadata.lastUpdated,
+      snapshotLength: null,
+      lengthKm: Math.max(
+        0,
+        ...routeDetails.map((rd) => rd.metadata.lengthKm ?? 0),
+      ),
+    },
+    stations: Array.from(allStations.values()),
+    platforms: Array.from(allPlatforms.values()),
+    depots: Array.from(allDepots.values()),
+    operatorCompanyIds: Array.from(allOperatorCompanyIds),
+    builderCompanyIds: Array.from(allBuilderCompanyIds),
+    operatorCompanies: Array.from(allOperatorCompanies.values()),
+    builderCompanies: Array.from(allBuilderCompanies.values()),
+    systems: firstDetail.systems ?? [],
+    geometry: firstDetail.geometry,
+    stops: allStops,
+    routeGeometryCalculate: firstDetail.routeGeometryCalculate ?? null,
+  }
+
+  return virtualRoute
+})
+
+const variantRouteItems = computed(() => {
+  const routeDetails = mergedDetail.value?.routeDetails ?? []
+  const merged = mergedDetail.value
+  if (!merged) return []
+
+  if (routeDetails.length === 0) {
+    return []
+  }
+
+  return routeDetails.map((rd) => {
+    const parts = (rd.route.name ?? '').split('||')
+    const target = parts[1] || parts[0] || ''
+    const variantLabel = target.replace(/\|/g, ' ').trim()
+
+    return {
+      routeId: rd.route.id,
+      variantLabel: variantLabel || rd.route.id,
+      detail: rd,
+    }
+  })
+})
+
+const variantModeItems = computed(() => {
+  const list = variantRouteItems.value
+  if (list.length <= 1) {
+    return [{ label: '默认', value: DEFAULT_VARIANT_MODE }]
+  }
+  const items: Array<{ label: string; value: string }> = [
+    { label: '默认', value: DEFAULT_VARIANT_MODE },
+  ]
+  for (const entry of list) {
+    if (!entry?.routeId) continue
+    items.push({
+      label: entry.variantLabel || entry.detail?.route?.name || entry.routeId,
+      value: entry.routeId,
+    })
+  }
+  return items
+})
+
+watch(detail, () => {
+  mapAutoFocus.value = true
+})
+
+watch(variantMode, (current, previous) => {
+  if (previous === undefined) return
+  if (current !== previous) {
+    mapAutoFocus.value = false
+    logPage.value = 1
+    void fetchLogs(false)
+  }
 })
 
 watch(
-  () => detail.value?.name,
+  () => variantRouteItems.value.length,
+  (count) => {
+    if (count <= 1 && variantMode.value !== DEFAULT_VARIANT_MODE) {
+      variantMode.value = DEFAULT_VARIANT_MODE
+    }
+  },
+)
+
+const activeDetail = computed(() => {
+  if (variantMode.value === DEFAULT_VARIANT_MODE) {
+    return detail.value
+  }
+  const found = variantRouteItems.value.find(
+    (entry) => entry.routeId === variantMode.value,
+  )
+  return found?.detail ?? detail.value
+})
+
+const tileUrl = computed(() => {
+  const d = activeDetail.value ?? detail.value
+  return (
+    d?.server?.dynmapTileUrl ??
+    d?.route?.server?.dynmapTileUrl ??
+    detail.value?.server?.dynmapTileUrl ??
+    null
+  )
+})
+
+const circularRegex = /circular|loop/i
+const isCircularRoute = computed(() => {
+  const payload = activeDetail.value?.route.payload ?? {}
+  const candidates = [payload.circular_state, payload.route_type]
+  return candidates.some(
+    (value) =>
+      typeof value === 'string' &&
+      circularRegex.test(value) &&
+      value.toUpperCase() !== 'NONE',
+  )
+})
+
+const maxStopsDetail = computed(() => {
+  const list = variantRouteItems.value
+  if (!list.length) return detail.value
+  let best = list[0]?.detail
+  let bestCount = best?.stops?.length ?? 0
+  for (const candidate of list) {
+    const d = candidate.detail
+    const count = d?.stops?.length ?? 0
+    if (count > bestCount) {
+      best = d
+      bestCount = count
+    }
+  }
+  return best ?? detail.value
+})
+
+const routeName = computed(() => {
+  // 对于手动合并的线路，在默认模式下直接使用merged detail的完整name
+  if (variantMode.value === DEFAULT_VARIANT_MODE && mergedDetail.value) {
+    const mergedName = mergedDetail.value.name
+    // 解析完整名称，保持所有部分
+    const parsed = parseRouteName(mergedName)
+    return parsed
+  }
+  // variant模式：解析当前选中的variant线路名称
+  const raw = activeDetail.value?.route.name
+  const parsed = parseRouteName(raw)
+  return parsed
+})
+
+const routeTitleName = computed(() => routeName.value.title || '线路')
+
+const stations = computed(() => maxStopsDetail.value?.stations ?? [])
+const platforms = computed(() => activeDetail.value?.platforms ?? [])
+const depots = computed(() => activeDetail.value?.depots ?? [])
+const orderedStops = computed(() => {
+  const stops = maxStopsDetail.value?.stops ?? []
+  return [...stops].sort((a, b) => a.order - b.order)
+})
+
+const fallbackVariantItems = computed(() =>
+  variantRouteItems.value.map((entry) => ({
+    id: entry.routeId,
+    label:
+      entry.variantLabel ||
+      entry.detail?.route?.name ||
+      entry.routeId ||
+      '线路',
+    calculate: entry.detail?.routeGeometryCalculate ?? null,
+  })),
+)
+
+watch(
+  () => routeTitleName.value,
   (name) => {
-    if (name) setDocumentTitle(name)
+    setDocumentTitle(name)
   },
   { immediate: true },
 )
 
-function resolveMemberLink(
-  entityId: string,
-  railwayType: string,
-  serverId: string,
-  dimension: string | null,
+function resolveStopStationIdForDetail(
+  d: RailwayRouteDetail | null | undefined,
+  stop: RailwayRouteDetail['stops'][number] | null | undefined,
 ) {
-  return {
-    name: 'transportation.railway.route',
-    params: {
-      railwayType: String(railwayType).toLowerCase(),
-      routeId: entityId,
-    },
-    query: { serverId, dimension: dimension ?? undefined },
+  if (!d || !stop) return null
+  if (stop.stationId) return stop.stationId
+  if (!stop.platformId) return null
+  const platform = (d.platforms ?? []).find((p) => p.id === stop.platformId)
+  return platform?.stationId ?? null
+}
+
+const shouldReverseStopOrder = computed(() => {
+  if (variantMode.value === DEFAULT_VARIANT_MODE) return false
+  const base = maxStopsDetail.value
+  const active = activeDetail.value
+  if (!base || !active) return false
+
+  const baseStops = [...(base.stops ?? [])].sort((a, b) => a.order - b.order)
+  const activeStops = [...(active.stops ?? [])].sort(
+    (a, b) => a.order - b.order,
+  )
+  if (baseStops.length < 2 || activeStops.length < 2) return false
+
+  const baseFirstId = resolveStopStationIdForDetail(base, baseStops[0])
+  const baseLastId = resolveStopStationIdForDetail(
+    base,
+    baseStops[baseStops.length - 1],
+  )
+  const activeFirstId = resolveStopStationIdForDetail(active, activeStops[0])
+  const activeLastId = resolveStopStationIdForDetail(
+    active,
+    activeStops[activeStops.length - 1],
+  )
+
+  if (baseFirstId && activeFirstId && baseFirstId === activeFirstId) {
+    return false
   }
+  if (baseFirstId && activeLastId && baseFirstId === activeLastId) {
+    return true
+  }
+  if (baseLastId && activeFirstId && baseLastId === activeFirstId) {
+    return true
+  }
+
+  const baseFirstName = resolveStopStationName({
+    ...baseStops[0],
+    stationId: baseFirstId ?? baseStops[0].stationId,
+  })
+  const baseLastName = resolveStopStationName({
+    ...baseStops[baseStops.length - 1],
+    stationId: baseLastId ?? baseStops[baseStops.length - 1].stationId,
+  })
+  const activeFirstName = resolveStopStationName({
+    ...activeStops[0],
+    stationId: activeFirstId ?? activeStops[0].stationId,
+  })
+  const activeLastName = resolveStopStationName({
+    ...activeStops[activeStops.length - 1],
+    stationId: activeLastId ?? activeStops[activeStops.length - 1].stationId,
+  })
+
+  if (baseFirstName && activeFirstName && baseFirstName === activeFirstName) {
+    return false
+  }
+  if (baseFirstName && activeLastName && baseFirstName === activeLastName) {
+    return true
+  }
+  if (baseLastName && activeFirstName && baseLastName === activeFirstName) {
+    return true
+  }
+
+  return false
+})
+
+const orderedStopsForView = computed(() => {
+  if (!orderedStops.value.length) return []
+  return shouldReverseStopOrder.value
+    ? [...orderedStops.value].reverse()
+    : orderedStops.value
+})
+const platformMap = computed(() => {
+  const map = new Map<string, RailwayRouteDetail['platforms'][number]>()
+  for (const platform of platforms.value) {
+    if (platform.id) {
+      map.set(platform.id, platform)
+    }
+  }
+  return map
+})
+const routeAccentColor = computed(() => {
+  const color = activeDetail.value?.route.color
+  if (color == null) return null
+  const sanitized = Math.max(0, Math.floor(color))
+  const hex = sanitized.toString(16).padStart(6, '0').slice(-6)
+  return `#${hex}`
+})
+
+const modpackInfo = computed(() => {
+  const mod = activeDetail.value?.railwayType
+  if (mod === 'MTR') {
+    return { label: 'MTR', image: modpackMtrImg }
+  }
+  if (mod === 'CREATE') {
+    return { label: '机械动力', image: modpackCreateImg }
+  }
+  return { label: mod || '—', image: null as string | null }
+})
+
+const routeColorHex = computed(() => routeAccentColor.value)
+const combinePaths = computed(() => variantMode.value === DEFAULT_VARIANT_MODE)
+
+watch(routeColorHex, (next) => {
+  if (!next || next === backdropColor.value) return
+  const isFirst = !backdropColor.value
+  if (backdropSwapTimer !== null) {
+    window.clearTimeout(backdropSwapTimer)
+    backdropSwapTimer = null
+  }
+  if (isFirst) {
+    backdropColor.value = next
+    if (backdropReadyFrame !== null) {
+      cancelAnimationFrame(backdropReadyFrame)
+    }
+    backdropReadyFrame = requestAnimationFrame(() => {
+      backdropReady.value = true
+      backdropReadyFrame = null
+    })
+    return
+  }
+  backdropReady.value = false
+  backdropSwapTimer = window.setTimeout(() => {
+    backdropColor.value = next
+    if (backdropReadyFrame !== null) {
+      cancelAnimationFrame(backdropReadyFrame)
+    }
+    backdropReadyFrame = requestAnimationFrame(() => {
+      backdropReady.value = true
+      backdropReadyFrame = null
+    })
+    backdropSwapTimer = null
+  }, backdropFadeDurationMs)
+})
+
+const variantLabelMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const entry of variantRouteItems.value) {
+    if (!entry?.routeId) continue
+    map.set(entry.routeId, entry.variantLabel || '')
+  }
+  return map
+})
+
+const geometryForView = computed(() => {
+  if (variantMode.value !== DEFAULT_VARIANT_MODE) {
+    return activeDetail.value?.geometry ?? null
+  }
+  const list = variantRouteItems.value
+  if (!list.length) return activeDetail.value?.geometry ?? null
+
+  const primaryId = mergedDetail.value?.routes?.[0]?.entityId ?? null
+  const paths = list
+    .map((entry) => {
+      const rid = entry.routeId
+      const d = entry.detail
+      if (!rid || !d) return null
+      const primaryPath =
+        d.geometry.paths?.find((p) => p && p.isPrimary) ?? d.geometry.paths?.[0]
+      const pathLike = primaryPath ?? {
+        id: rid,
+        label: null,
+        isPrimary: true,
+        source: d.geometry.source,
+        points: d.geometry.points ?? [],
+        segments: d.geometry.segments,
+      }
+      return {
+        id: rid,
+        label: variantLabelMap.value.get(rid) || pathLike.label || null,
+        isPrimary: primaryId ? rid === primaryId : false,
+        source: pathLike.source,
+        points: pathLike.points,
+        segments: pathLike.segments,
+      }
+    })
+    .filter(Boolean)
+
+  if (!paths.length) return activeDetail.value?.geometry ?? null
+
+  return {
+    source: paths[0].source,
+    points: [],
+    paths,
+  }
+})
+
+const mapStopsForView = computed(() => {
+  const sortStops = (stops: RailwayRouteDetail['stops'] | null | undefined) => {
+    const list = (stops ?? []).filter(Boolean)
+    if (list.length <= 1) return list
+    return [...list]
+      .map((stop, index) => ({ stop, index }))
+      .sort((a, b) => {
+        const ao = typeof a.stop.order === 'number' ? a.stop.order : Infinity
+        const bo = typeof b.stop.order === 'number' ? b.stop.order : Infinity
+        if (ao !== bo) return ao - bo
+        return a.index - b.index
+      })
+      .map((entry) => entry.stop)
+  }
+
+  if (variantMode.value === DEFAULT_VARIANT_MODE) {
+    return sortStops(maxStopsDetail.value?.stops)
+  }
+
+  const sorted = sortStops(activeDetail.value?.stops)
+  return shouldReverseStopOrder.value ? [...sorted].reverse() : sorted
+})
+const activeStopStationIdMap = computed(() => {
+  const active = activeDetail.value
+  if (!active) return new Map<string, RailwayRouteDetail['stops'][number]>()
+  const map = new Map<string, RailwayRouteDetail['stops'][number]>()
+  const platformById = new Map(
+    (active.platforms ?? []).map((p) => [p.id, p] as const),
+  )
+  for (const stop of active.stops ?? []) {
+    const platformStationId = stop.platformId
+      ? (platformById.get(stop.platformId)?.stationId ?? null)
+      : null
+    const resolvedStationId = stop.stationId ?? platformStationId
+    if (resolvedStationId) {
+      map.set(resolvedStationId, stop)
+    }
+  }
+  return map
+})
+
+const stopDisplayItems = computed(() =>
+  orderedStopsForView.value.map((baseStop) => {
+    const basePlatformStationId = baseStop.platformId
+      ? ((maxStopsDetail.value?.platforms ?? []).find(
+          (p) => p.id === baseStop.platformId,
+        )?.stationId ?? null)
+      : null
+    const resolvedStationId = baseStop.stationId ?? basePlatformStationId
+
+    const activeStop = resolvedStationId
+      ? (activeStopStationIdMap.value.get(resolvedStationId) ?? null)
+      : null
+    const skipped =
+      variantMode.value !== DEFAULT_VARIANT_MODE ? activeStop == null : false
+
+    const displayName = resolveStopStationName({
+      ...baseStop,
+      stationId: resolvedStationId,
+    })
+    const nameParts = formatStationNameParts(displayName)
+    const station = resolvedStationId
+      ? stations.value.find((item) => item.id === resolvedStationId)
+      : null
+
+    const stopForPlatform =
+      variantMode.value !== DEFAULT_VARIANT_MODE && activeStop
+        ? activeStop
+        : baseStop
+
+    const platformLabel = skipped ? '—' : getStopPlatformLabel(stopForPlatform)
+
+    return {
+      stop: stopForPlatform,
+      title: nameParts.title,
+      subtitle: nameParts.subtitle,
+      platformLabel,
+      stationId: resolvedStationId,
+      stationColorHex: colorToHex(station?.color ?? null),
+      dwellTime: skipped ? null : (stopForPlatform.dwellTime ?? null),
+      skipped,
+    }
+  }),
+)
+
+const rightmostStopTitle = computed(() => {
+  const items = stopDisplayItems.value
+  if (!items.length) return null
+  return items[items.length - 1].title
+})
+const showDirectionLabel = computed(() => {
+  if (isCircularRoute.value) return false
+  if (!rightmostStopTitle.value) return false
+  if (
+    variantMode.value === DEFAULT_VARIANT_MODE &&
+    variantModeItems.value.length > 1
+  ) {
+    return false
+  }
+  return true
+})
+
+function formatStationNameParts(value: string | null | undefined) {
+  if (!value) {
+    return { title: '未知', subtitle: null }
+  }
+  const [title, subtitle] = value.split('|')
+  return {
+    title: (title || '未知').trim(),
+    subtitle: subtitle?.trim() || null,
+  }
+}
+
+function splitFirstSegment(value: string | null | undefined) {
+  if (!value) return null
+  const [primary] = value.split('|')
+  return primary?.trim() || null
+}
+
+function resolveStopStationName(stop: RailwayRouteDetail['stops'][number]) {
+  const stationId = stop.stationId
+  if (stationId) {
+    const station = stations.value.find((item) => item.id === stationId)
+    if (station?.name) {
+      return station.name
+    }
+  }
+  if (stop.stationName) {
+    return stop.stationName
+  }
+  return null
+}
+
+function getStopPlatformLabel(stop: RailwayRouteDetail['stops'][number]) {
+  const platformId = stop.platformId
+  if (!platformId) {
+    return stop.platformName || '未知站台'
+  }
+  const platform = platformMap.value.get(platformId)
+  if (!platform) {
+    return stop.platformName || '未知站台'
+  }
+
+  const platformName =
+    splitFirstSegment(platform.name) ??
+    splitFirstSegment(stop.platformName) ??
+    splitFirstSegment(platformId) ??
+    '站台'
+  return `${platformName}`
+}
+
+function colorToHex(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return null
+  const sanitized = Math.max(0, Math.floor(value))
+  return `#${sanitized.toString(16).padStart(6, '0').slice(-6)}`
+}
+
+function formatSecondsFromTicks(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return null
+  const seconds = value / 2
+  const rounded = Math.round(seconds * 100) / 100
+  return rounded
+    .toFixed(2)
+    .replace(/\.0+$/, '')
+    .replace(/\.(\d*[1-9])0+$/, '.$1')
+}
+
+function getPlayerAvatar(playerName: string | null | undefined) {
+  if (!playerName) return null
+  return `https://mc-heads.hydcraft.cn/avatar/${encodeURIComponent(playerName)}/80`
+}
+
+function formatLogTimestamp(value: string | null | undefined) {
+  if (!value) return '—'
+  const d = dayjs(value)
+  if (!d.isValid()) return value
+  return d.format('YYYY-MM-DD HH:mm')
 }
 
 async function fetchDetail() {
   loading.value = true
+  errorMessage.value = null
   try {
-    const data = await railwayStore.fetchLocalMergedRouteDetail(
+    const result = await transportationStore.fetchLocalMergedRouteDetail(
       mergedRouteId.value,
       true,
     )
-    detail.value = data
+    mergedDetail.value = result
+    // 数据加载完成后再获取日志
+    void fetchLogs()
   } catch (error) {
-    toast.add({
-      title: error instanceof Error ? error.message : '加载失败',
-      color: 'red',
-    })
+    console.error(error)
+    errorMessage.value =
+      error instanceof Error ? error.message : '加载失败，请稍后再试'
+    toast.add({ title: errorMessage.value, color: 'error' })
+    mergedDetail.value = null
   } finally {
     loading.value = false
   }
 }
 
-onMounted(fetchDetail)
+async function fetchLogs(force = true) {
+  const merged = mergedDetail.value
+  if (!merged) {
+    logs.value = null
+    return
+  }
+
+  logLoading.value = true
+  logError.value = null
+
+  try {
+    // 如果是variant模式，只查询单个线路的日志
+    if (variantMode.value !== DEFAULT_VARIANT_MODE) {
+      const routeId = variantMode.value
+      const member = merged.routes?.find((r) => r.entityId === routeId)
+      if (!member) {
+        logs.value = null
+        return
+      }
+      const result = await transportationStore.fetchRouteLogs(
+        {
+          routeId: member.entityId,
+          serverId: member.serverId,
+          dimension: member.dimension,
+          railwayType: member.railwayType,
+          limit: logPageSize,
+          page: Math.max(1, logPage.value),
+        },
+        force,
+      )
+      logs.value = result
+      logPage.value = Math.max(1, result.page ?? logPage.value)
+      return
+    }
+
+    // 默认模式：使用后端的合并logs API
+    const result = await transportationStore.fetchMergedRouteLogs(
+      mergedRouteId.value,
+      {
+        limit: logPageSize,
+        page: Math.max(1, logPage.value),
+      },
+      force,
+    )
+    logs.value = result
+    logPage.value = Math.max(1, result.page ?? logPage.value)
+  } catch (error) {
+    console.error(error)
+    logError.value = error instanceof Error ? error.message : '日志加载失败'
+    toast.add({ title: logError.value, color: 'error' })
+  } finally {
+    logLoading.value = false
+  }
+}
+
+async function regenerateRouteGeometry() {
+  const routeId = mergedDetail.value?.routes?.[0]?.entityId
+  const serverId = mergedDetail.value?.serverId
+  const dimension = mergedDetail.value?.routes?.[0]?.dimension
+  const railwayType = mergedDetail.value?.routes?.[0]?.railwayType
+  if (!routeId || !serverId || !railwayType) {
+    routeGeometryError.value = '缺少 routeId、serverId 或铁路类型参数'
+    routeGeometryResult.value = null
+    routeGeometryDialogOpen.value = true
+    return
+  }
+  routeGeometryDialogOpen.value = true
+  routeGeometryLoading.value = true
+  routeGeometryError.value = null
+  routeGeometryResult.value = null
+  try {
+    const regenerateAction = (
+      transportationStore as {
+        regenerateRouteGeometry?: (input: {
+          routeId: string
+          serverId: string
+          dimension?: string | null
+          railwayType: string
+        }) => Promise<RailwayRouteGeometryRegenerateResult>
+      }
+    ).regenerateRouteGeometry
+    const result =
+      typeof regenerateAction === 'function'
+        ? await regenerateAction.call(transportationStore, {
+            routeId,
+            serverId,
+            dimension,
+            railwayType,
+          })
+        : await (async () => {
+            if (!authStore.token) {
+              throw new Error('Missing auth token')
+            }
+            return await apiFetch<RailwayRouteGeometryRegenerateResult>(
+              `/transportation/railway/admin/routes/${encodeURIComponent(railwayType)}/${encodeURIComponent(routeId)}/geometry?${new URLSearchParams(
+                {
+                  serverId,
+                  ...(dimension ? { dimension } : {}),
+                },
+              ).toString()}`,
+              {
+                method: 'POST',
+                token: authStore.token,
+              },
+            )
+          })()
+    routeGeometryResult.value = result
+    if (result.status === 'READY') {
+      await fetchDetail()
+    }
+  } catch (error) {
+    routeGeometryError.value =
+      error instanceof Error ? error.message : '生成失败，请稍后再试'
+    toast.add({ title: routeGeometryError.value, color: 'error' })
+  } finally {
+    routeGeometryLoading.value = false
+  }
+}
+
+watch(
+  () => [logs.value?.page, logs.value?.entries.length] as const,
+  async () => {
+    await nextTick()
+    const el = logContentRef.value
+    if (!el) return
+
+    const nextHeight = el.getBoundingClientRect().height
+    if (lastLogContentHeight == null) {
+      lastLogContentHeight = nextHeight
+      return
+    }
+    if (Math.abs(nextHeight - lastLogContentHeight) < 1) return
+
+    el.style.height = `${lastLogContentHeight}px`
+    el.style.overflow = 'hidden'
+    // force reflow
+    void el.getBoundingClientRect()
+    el.style.transition = 'height 200ms ease'
+    el.style.height = `${nextHeight}px`
+
+    window.setTimeout(() => {
+      if (el !== logContentRef.value) return
+      el.style.transition = ''
+      el.style.height = ''
+      el.style.overflow = ''
+    }, 220)
+
+    lastLogContentHeight = nextHeight
+  },
+  { flush: 'post' },
+)
+
+function goLogPrev() {
+  if (!canGoLogPrev.value) return
+  logPage.value = Math.max(1, logPage.value - 1)
+  void fetchLogs(false)
+}
+
+function goLogNext() {
+  if (!canGoLogNext.value) return
+  logPage.value = Math.min(logPageCount.value, logPage.value + 1)
+  void fetchLogs(false)
+}
+
+function goDetailedMap() {
+  fullscreenMapOpen.value = true
+}
+
+function goStationDetail(stationId: string | null | undefined) {
+  if (!stationId) return
+  const railwayType = mergedDetail.value?.routes?.[0]?.railwayType
+  if (!railwayType) return
+  router.push({
+    name: 'transportation.railway.station',
+    params: {
+      railwayType,
+      stationId,
+    },
+    query: {
+      serverId: mergedDetail.value?.serverId,
+      dimension: mergedDetail.value?.routes?.[0]?.dimension,
+    },
+  })
+}
+
+function goDepotDetail(depotId: string | null | undefined) {
+  if (!depotId) return
+  const railwayType = mergedDetail.value?.routes?.[0]?.railwayType
+  if (!railwayType) return
+  router.push({
+    name: 'transportation.railway.depot',
+    params: {
+      railwayType,
+      depotId,
+    },
+    query: {
+      serverId: mergedDetail.value?.serverId,
+      dimension: mergedDetail.value?.routes?.[0]?.dimension,
+    },
+  })
+}
+
+function goPlayerProfile(playerName: string | null | undefined) {
+  if (!playerName) return
+  router.push({
+    name: 'player.name',
+    params: { playerName },
+  })
+}
+
+const updateFallbackPopoverMode = () => {
+  if (typeof window === 'undefined') return
+  const isTouchOnly = window.matchMedia(
+    '(hover: none), (pointer: coarse)',
+  ).matches
+  fallbackPopoverMode.value = isTouchOnly ? 'click' : 'hover'
+}
+
+watch(
+  () => route.fullPath,
+  () => {
+    logPage.value = 1
+    variantMode.value = DEFAULT_VARIANT_MODE
+    void fetchDetail()
+    // fetchLogs 在 fetchDetail 完成后调用
+  },
+)
+
+onMounted(() => {
+  lastBackdropScrollY = window.scrollY
+  void fetchDetail()
+  // fetchLogs 在 fetchDetail 完成后调用，因为它依赖 mergedDetail 数据
+  updateFallbackPopoverMode()
+  fallbackHoverMediaQuery = window.matchMedia(
+    '(hover: none), (pointer: coarse)',
+  )
+  fallbackHoverMediaQuery.addEventListener?.(
+    'change',
+    updateFallbackPopoverMode,
+  )
+  window.addEventListener('scroll', handleBackdropScroll, { passive: true })
+})
+
+onBeforeUnmount(() => {
+  fallbackHoverMediaQuery?.removeEventListener?.(
+    'change',
+    updateFallbackPopoverMode,
+  )
+  fallbackHoverMediaQuery = null
+  window.removeEventListener('scroll', handleBackdropScroll)
+  if (backdropReadyFrame !== null) {
+    cancelAnimationFrame(backdropReadyFrame)
+    backdropReadyFrame = null
+  }
+  if (backdropSwapTimer !== null) {
+    window.clearTimeout(backdropSwapTimer)
+    backdropSwapTimer = null
+  }
+})
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex items-center justify-between gap-3">
-      <div class="space-y-1">
-        <p
-          class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
-        >
-          本地合并线路
-        </p>
-        <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
-          {{ detail?.name || mergedRouteId }}
-        </h1>
-        <p
-          v-if="detail?.englishName"
-          class="text-sm text-slate-500 dark:text-slate-400"
-        >
-          {{ detail.englishName }}
-        </p>
+  <Motion
+    v-if="backdropColor"
+    class="fixed -z-1 top-0 left-0 lg:left-16 right-0 h-2/5 pointer-events-none select-none transition-opacity duration-500"
+    :style="{
+      background: `linear-gradient(180deg, ${backdropColor} -50%, transparent 95%) no-repeat`,
+      opacity: !backdropReady ? 0 : backdropVisible ? 0.4 : 0.1,
+    }"
+    :initial="{ filter: 'blur(0px)' }"
+    :animate="{ filter: backdropVisible ? 'blur(64px)' : 'blur(0px)' }"
+    :transition="{ duration: 0.5, ease: 'easeOut' }"
+  ></Motion>
+
+  <RailwayMapFullscreenOverlay
+    v-model="fullscreenMapOpen"
+    v-model:variantMode="variantMode"
+    :variant-items="variantModeItems"
+    :variant-disabled="variantModeItems.length <= 1"
+    :route-label="
+      routeName.subtitle
+        ? `${routeName.title} ${routeName.subtitle}`
+        : routeName.title
+    "
+    :length-km="activeDetail?.metadata.lengthKm ?? null"
+    :stop-count="mapStopsForView.length"
+    :geometry="geometryForView"
+    :stops="mapStopsForView"
+    :color="activeDetail?.route.color ?? null"
+    :loading="!activeDetail"
+    :auto-focus="mapAutoFocus"
+    :combine-paths="combinePaths"
+    :tile-url="tileUrl"
+  />
+
+  <div v-show="!fullscreenMapOpen" class="space-y-6">
+    <div>
+      <div class="flex flex-col gap-1">
+        <div class="flex justify-between items-center text-sm text-slate-500">
+          <span>铁路线路详情</span>
+
+          <div class="flex items-center gap-1">
+            <RailwayRouteFallbackPopover
+              :variants="fallbackVariantItems"
+              :popover-mode="fallbackPopoverMode"
+            />
+
+            <UTooltip text="重新生成线路几何数据">
+              <UButton
+                v-if="canRegenerateRouteGeometry"
+                variant="link"
+                color="neutral"
+                size="sm"
+                icon="i-lucide-route"
+                :loading="routeGeometryLoading"
+                @click="regenerateRouteGeometry"
+              />
+            </UTooltip>
+          </div>
+        </div>
+
+        <div class="flex flex-col">
+          <div
+            class="mb-1 flex items-center gap-1 text-4xl font-semibold text-slate-900 dark:text-white"
+          >
+            <span
+              v-if="activeDetail?.route.previewSvg"
+              class="inline-flex h-10 w-fit items-center justify-center rounded-md align-middle overflow-hidden drop-shadow"
+              v-html="activeDetail.route.previewSvg"
+            ></span>
+
+            <span>
+              {{ routeName.title }}
+            </span>
+
+            <span class="inline-flex items-center gap-1.5">
+              <UTooltip
+                v-if="modpackInfo.image && modpackInfo.label"
+                :text="`${modpackInfo.label} Mod`"
+              >
+                <img
+                  :src="modpackInfo.image"
+                  :alt="modpackInfo.label"
+                  class="h-5 w-6 object-cover"
+                />
+              </UTooltip>
+            </span>
+          </div>
+          <div class="text-lg font-semibold text-slate-600 dark:text-slate-300">
+            <div class="inline-block align-middle mr-2">
+              <UTooltip :text="`线路色 ${routeColorHex}`">
+                <span
+                  class="inline-block h-3 w-3 rounded-full mr-2"
+                  :style="
+                    routeColorHex
+                      ? { backgroundColor: routeColorHex }
+                      : undefined
+                  "
+                ></span>
+              </UTooltip>
+
+              <span v-if="routeName.subtitle" class="break-all">
+                {{ routeName.subtitle }}
+              </span>
+            </div>
+
+            <div class="inline-flex items-center gap-2">
+              <UBadge variant="solid" size="sm" v-if="routeName.badge">
+                {{ routeName.badge.split('|').join(' ') }}
+              </UBadge>
+
+              <UBadge variant="soft" size="sm">
+                {{ detail?.server.name || mergedDetail?.server?.name }}
+              </UBadge>
+
+              <UBadge variant="soft" size="sm">
+                {{
+                  getDimensionName(
+                    detail?.dimension ||
+                      mergedDetail?.routes?.[0]?.dimension ||
+                      null,
+                  )
+                }}
+              </UBadge>
+            </div>
+          </div>
+        </div>
       </div>
-      <UButton
-        color="neutral"
-        variant="soft"
-        @click="router.push({ name: 'transportation.railway.routes' })"
-      >
-        返回列表
-      </UButton>
     </div>
 
     <div
-      class="grid gap-6 lg:grid-cols-[1fr,360px]"
-      :class="loading ? 'opacity-80' : ''"
+      class="mt-3 relative rounded-3xl border border-slate-200/70 dark:border-slate-800"
     >
-      <section class="space-y-4">
+      <RailwayMapPanel
+        :geometry="geometryForView"
+        :stops="mapStopsForView"
+        :color="activeDetail?.route.color ?? null"
+        :loading="!activeDetail"
+        :auto-focus="mapAutoFocus"
+        :combine-paths="combinePaths"
+        :tile-url="tileUrl"
+        height="520px"
+      />
+
+      <div class="pointer-events-none absolute bottom-3 left-3 z-998">
         <div
-          class="rounded-2xl border border-slate-200/60 bg-white p-4 dark:border-slate-800/60 dark:bg-slate-800/40"
+          class="rounded-lg text-xl font-semibold text-white"
+          style="text-shadow: 0 0 5px rgba(0, 0, 0, 0.7)"
         >
-          <div class="flex items-center justify-between gap-3">
-            <div class="text-sm text-slate-600 dark:text-slate-300">
-              已合并 {{ detail?.routes?.length ?? 0 }} 条线路
-            </div>
-            <UButton
-              size="sm"
-              color="primary"
-              variant="soft"
-              @click="fullscreenOpen = true"
-            >
-              全屏地图
-            </UButton>
-          </div>
-
-          <div class="mt-4">
-            <RailwaySystemMapPanel
-              :routes="routeDetails"
-              :loading="loading"
-              :auto-focus="true"
-            />
-          </div>
+          <span class="text-xs mr-1">线路全长</span>
+          <span>
+            {{
+              activeDetail?.metadata.lengthKm != null
+                ? `${activeDetail.metadata.lengthKm} km`
+                : '—'
+            }}
+          </span>
         </div>
+      </div>
 
-        <div
-          v-if="combinedSvgEntries.length"
-          class="rounded-2xl border border-slate-200/60 bg-white p-4 dark:border-slate-800/60 dark:bg-slate-800/40"
+      <div
+        class="pointer-events-none absolute inset-x-4 top-4 flex justify-end z-999"
+      >
+        <UButton
+          size="sm"
+          variant="ghost"
+          color="neutral"
+          class="flex items-center gap-1 pointer-events-auto backdrop-blur-2xl text-white bg-black/20 dark:bg-slate-900/10 hover:bg-white/10 dark:hover:bg-slate-900/20 shadow"
+          @click="goDetailedMap"
         >
-          <div class="text-sm font-medium text-slate-700 dark:text-slate-200">
-            线路预览
-          </div>
-          <div class="mt-3 grid gap-3">
-            <div
-              v-for="(svg, idx) in combinedSvgEntries"
-              :key="idx"
-              class="rounded-xl border border-slate-200/60 bg-slate-50 p-3 dark:border-slate-800/60 dark:bg-slate-900/30"
-              v-html="svg"
-            />
-          </div>
-        </div>
+          <UIcon name="i-lucide-maximize" class="h-3.5 w-3.5" />
+          全屏
+        </UButton>
+      </div>
+    </div>
 
-        <RailwaySystemMapFullscreenOverlay
-          v-model="fullscreenOpen"
-          :routes="routeDetails"
-          :loading="loading || routeDetails.length === 0"
+    <div>
+      <div v-if="loading" class="text-sm text-slate-500">
+        <UIcon
+          name="i-lucide-loader-2"
+          class="inline-block h-5 w-5 animate-spin text-slate-400"
         />
-      </section>
+      </div>
+      <div v-else-if="activeDetail" class="space-y-6">
+        <section class="flex flex-col">
+          <div class="mb-2 flex gap-2 items-start justify-between">
+            <h3
+              class="flex items-center gap-3 text-lg text-slate-600 dark:text-slate-300"
+            >
+              <span>所经站点</span>
 
-      <aside class="space-y-4">
-        <div
-          class="rounded-2xl border border-slate-200/60 bg-white p-4 dark:border-slate-800/60 dark:bg-slate-800/40"
-        >
-          <div class="text-sm font-medium text-slate-700 dark:text-slate-200">
-            基本信息
+              <span
+                v-if="showDirectionLabel"
+                class="inline-flex items-center gap-1 text-sm font-medium text-slate-500 dark:text-slate-400"
+              >
+                <UIcon name="i-lucide-play" class="h-3" />
+                <span>往 {{ rightmostStopTitle }}</span>
+              </span>
+            </h3>
+            <USelect
+              v-if="variantModeItems.length > 1"
+              v-model="variantMode"
+              :items="variantModeItems"
+              value-key="value"
+              label-key="label"
+              class="w-36"
+            />
           </div>
           <div
-            class="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300"
+            class="overflow-x-auto rounded-2xl mask-[linear-gradient(to_right,transparent,#fff_3%_97%,transparent)]"
+            style="scrollbar-width: thin"
           >
-            <div class="flex justify-between">
-              <span>合并 ID</span>
-              <span class="font-mono text-slate-900 dark:text-white">
-                {{ mergedRouteId }}
-              </span>
-            </div>
-            <div class="flex justify-between">
-              <span>服务端</span>
-              <span class="text-slate-900 dark:text-white">
-                {{ detail?.server?.name || detail?.serverId || '—' }}
-              </span>
-            </div>
-            <div class="flex justify-between">
-              <span>维度</span>
-              <span class="text-slate-900 dark:text-white">
-                {{ detail?.routes?.[0]?.dimension || '—' }}
-              </span>
-            </div>
-            <div class="pt-2">
-              <RailwayCompanyBindingSection
-                v-if="detail?.serverId"
-                entity-type="ROUTE"
-                :entity-id="mergedRouteId"
-                :server-id="detail.serverId"
-                :railway-type="detail?.routes?.[0]?.railwayType ?? 'MTR'"
-                :dimension="detail?.routes?.[0]?.dimension ?? null"
-                :operator-company-ids="
-                  detail?.bindings?.operatorCompanyIds ?? []
-                "
-                :builder-company-ids="detail?.bindings?.builderCompanyIds ?? []"
-                :editable="false"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="rounded-2xl border border-slate-200/60 bg-white p-4 dark:border-slate-800/60 dark:bg-slate-800/40"
-        >
-          <div class="text-sm font-medium text-slate-700 dark:text-slate-200">
-            成员线路
-          </div>
-          <div class="mt-3 space-y-2">
             <div
-              v-for="member in detail?.routes ?? []"
-              :key="member.entityId"
-              class="flex items-center justify-between rounded-xl border border-slate-200/60 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800/60 dark:bg-slate-900/30"
+              v-if="stopDisplayItems.length === 0"
+              class="p-4 text-sm text-slate-500 text-center"
             >
-              <div class="min-w-0">
-                <div class="truncate text-slate-900 dark:text-white">
-                  {{
-                    member.name?.split('||')[0].split('|')[0] || member.entityId
-                  }}
-                </div>
-                <div class="text-xs text-slate-500 dark:text-slate-400">
-                  {{ member.server.name }} · {{ member.railwayType }} ·
-                  {{ member.dimension ?? '主世界' }}
+              暂无站点数据
+            </div>
+            <div v-else class="h-22">
+              <div
+                class="relative inline-flex w-full min-w-max items-center justify-between"
+              >
+                <div
+                  class="mask-[linear-gradient(to_right,transparent,#fff_3%_97%,transparent)] pointer-events-none absolute left-0 right-0 top-12 h-1.5 -translate-y-1/2 w-full"
+                  :style="
+                    routeAccentColor
+                      ? { backgroundColor: routeAccentColor }
+                      : undefined
+                  "
+                ></div>
+
+                <div
+                  v-for="item in stopDisplayItems"
+                  :key="`stop-${item.stop.platformId ?? item.stop.stationId ?? item.stop.order}`"
+                  class="flex flex-col items-center text-center min-w-50"
+                >
+                  <div
+                    class="flex flex-col justify-end pb-3 h-12 w-full max-w-60"
+                  >
+                    <p
+                      class="text-base font-semibold text-slate-900 dark:text-white line-clamp-1 truncate hover:underline underline-offset-2 cursor-pointer"
+                      :class="item.skipped ? 'opacity-40' : ''"
+                      @click="goStationDetail(item.stationId)"
+                    >
+                      {{ item.title }}
+                    </p>
+                    <p
+                      class="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 truncate h-4"
+                    >
+                      <span v-if="item.subtitle !== null">{{
+                        item.subtitle
+                      }}</span>
+                    </p>
+                  </div>
+
+                  <div class="relative flex items-center justify-center">
+                    <span
+                      class="absolute flex items-center justify-center"
+                      aria-hidden="true"
+                    >
+                      <span
+                        class="h-5 w-5 rounded-full border-4 bg-white"
+                        :class="
+                          item.skipped
+                            ? 'border-slate-300 dark:border-slate-600'
+                            : ''
+                        "
+                        :style="
+                          !item.skipped && routeAccentColor
+                            ? { borderColor: routeAccentColor }
+                            : undefined
+                        "
+                      ></span>
+                    </span>
+                  </div>
+
+                  <div class="h-10 pt-4">
+                    <div
+                      class="text-[10px] text-slate-500 dark:text-slate-400 font-mono border border-slate-300 dark:border-slate-600 rounded px-1 bg-white dark:bg-slate-900"
+                      :class="item.skipped ? 'opacity-40' : ''"
+                    >
+                      {{ item.platformLabel.split('|')[0] }}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="soft"
-                @click="
-                  router.push(
-                    resolveMemberLink(
-                      member.entityId,
-                      member.railwayType,
-                      member.server.id,
-                      member.dimension,
-                    ),
-                  )
-                "
-              >
-                查看
-              </UButton>
             </div>
           </div>
+        </section>
+
+        <div class="grid gap-6 lg:grid-cols-2">
+          <div class="space-y-6">
+            <section class="space-y-3">
+              <RailwayRouteBasicInfoPanel
+                :detail="activeDetail"
+                :route-color-hex="routeColorHex"
+                :modpack-label="modpackInfo.label"
+                :modpack-image="modpackInfo.image"
+                :operator-company-ids="activeDetail?.operatorCompanyIds ?? []"
+                :builder-company-ids="activeDetail?.builderCompanyIds ?? []"
+                :operator-companies="activeDetail?.operatorCompanies ?? []"
+                :builder-companies="activeDetail?.builderCompanies ?? []"
+                :systems="detail?.systems ?? []"
+              />
+            </section>
+
+            <section class="space-y-3">
+              <div
+                class="flex flex-col lg:flex-row lg:items-center lg:justify-between"
+              >
+                <h3 class="text-lg text-slate-600 dark:text-slate-300">
+                  线路修改日志
+                </h3>
+                <div class="flex items-center gap-2 mx-auto lg:mx-0 lg:ml-auto">
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    icon="i-lucide-chevron-left"
+                    :disabled="logLoading || !canGoLogPrev"
+                    @click="goLogPrev"
+                  >
+                    上一页
+                  </UButton>
+                  <span class="text-xs text-slate-500 dark:text-slate-400">
+                    第 {{ logs?.page ?? logPage }} / {{ logPageCount }} 页
+                  </span>
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    icon="i-lucide-chevron-right"
+                    :disabled="logLoading || !canGoLogNext"
+                    @click="goLogNext"
+                  >
+                    下一页
+                  </UButton>
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    icon="i-lucide-refresh-cw"
+                    :disabled="logLoading"
+                    @click="fetchLogs(true)"
+                  >
+                    刷新
+                  </UButton>
+                </div>
+              </div>
+              <div>
+                <div ref="logContentRef" class="relative">
+                  <p v-if="!logs && logLoading" class="text-sm text-slate-500">
+                    <UIcon
+                      name="i-lucide-loader-2"
+                      class="inline-block h-5 w-5 animate-spin text-slate-400"
+                    />
+                  </p>
+                  <p v-else-if="!logs && logError" class="text-sm text-red-500">
+                    {{ logError }}
+                  </p>
+                  <p
+                    v-else-if="!logs"
+                    class="relative rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 overflow-hidden text-sm text-center text-slate-500"
+                  >
+                    暂无日志记录
+                  </p>
+                  <div v-else>
+                    <p
+                      v-if="logs.entries.length === 0"
+                      class="relative rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 overflow-hidden text-sm text-center text-slate-500"
+                    >
+                      暂无日志记录
+                    </p>
+                    <div v-else class="space-y-3">
+                      <div
+                        v-for="entry in logs.entries"
+                        :key="entry.id"
+                        class="flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition duration-250 outline-2 outline-transparent hover:outline-primary"
+                        @click="goPlayerProfile(entry.playerName)"
+                      >
+                        <div class="flex items-center gap-3">
+                          <button
+                            type="button"
+                            class="shrink-0"
+                            @click="goPlayerProfile(entry.playerName)"
+                          >
+                            <img
+                              v-if="getPlayerAvatar(entry.playerName)"
+                              :src="
+                                getPlayerAvatar(entry.playerName) || undefined
+                              "
+                              class="h-10 w-10 rounded-full border border-slate-200 dark:border-slate-700"
+                              alt="player avatar"
+                            />
+                            <div
+                              v-else
+                              class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                            >
+                              无
+                            </div>
+                          </button>
+                          <div>
+                            <p
+                              class="text-sm font-semibold text-slate-900 dark:text-white"
+                            >
+                              {{ entry.playerName || '未知玩家' }}
+                            </p>
+                            <p class="text-xs text-slate-500">
+                              {{ entry.changeType || '—' }} ·
+                              {{
+                                entry.entryName ||
+                                entry.className ||
+                                entry.entryId
+                              }}
+                            </p>
+                            <p class="text-xs text-slate-400">
+                              {{ formatLogTimestamp(entry.timestamp) }}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Transition
+                      enter-active-class="transition-opacity duration-200"
+                      enter-from-class="opacity-0"
+                      enter-to-class="opacity-100"
+                      leave-active-class="transition-opacity duration-200"
+                      leave-from-class="opacity-100"
+                      leave-to-class="opacity-0"
+                    >
+                      <div
+                        v-if="logLoading"
+                        class="absolute inset-0 rounded-xl bg-white/60 dark:bg-slate-900/30 backdrop-blur-[1px] flex items-center justify-center"
+                      >
+                        <UIcon
+                          name="i-lucide-loader-2"
+                          class="h-5 w-5 animate-spin text-slate-400"
+                        />
+                      </div>
+                    </Transition>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="space-y-6">
+            <section class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <h3 class="text-lg text-slate-600 dark:text-slate-300">
+                  途径站点
+                </h3>
+                <div
+                  class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mr-2"
+                >
+                  <template v-if="depots.length">
+                    <span>
+                      列车由
+                      <template
+                        v-for="(depot, index) in depots"
+                        :key="depot.id"
+                      >
+                        <span v-if="index !== 0" class="font-normal">、</span>
+                        <button
+                          type="button"
+                          class="group inline-flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300 cursor-pointer"
+                          @click="goDepotDetail(depot.id)"
+                        >
+                          <span
+                            class="underline-offset-2 group-hover:underline"
+                          >
+                            {{ (depot.name || depot.id).split('|')[0] }}
+                          </span>
+                          <UBadge
+                            v-if="(depot.name || depot.id).split('|')[1]"
+                            size="xs"
+                            class="text-xs py-0 border border-slate-300/70 dark:border-slate-700/70"
+                            color="neutral"
+                            variant="soft"
+                          >
+                            {{ (depot.name || depot.id).split('|')[1] }}
+                          </UBadge>
+                        </button>
+                      </template>
+                      发出
+                    </span>
+                    <UIcon name="i-lucide-corner-down-left" class="h-4 w-4" />
+                  </template>
+                  <span v-else>暂无车厂信息</span>
+                </div>
+              </div>
+              <div
+                class="rounded-xl px-4 py-3 bg-white border border-slate-200/60 dark:border-slate-800/60 dark:bg-slate-700/60"
+              >
+                <div class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  <div
+                    v-if="stopDisplayItems.length > 0"
+                    v-for="item in stopDisplayItems"
+                    :key="`station-card-${item.stop.platformId ?? item.stop.stationId ?? item.stop.order}`"
+                    class="py-3 first:pt-0 last:pb-0"
+                  >
+                    <div class="flex items-center justify-between gap-3">
+                      <button type="button" class="flex items-center gap-3">
+                        <div
+                          class="rounded border border-slate-200 px-2 py-0.5 text-xl text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                        >
+                          {{ item.platformLabel.split('|')[0] }}
+                        </div>
+
+                        <div class="flex flex-col items-start break-all">
+                          <div
+                            class="flex items-center gap-1 text-base font-semibold text-slate-900 dark:text-white hover:underline underline-offset-2 cursor-pointer"
+                            @click="goStationDetail(item.stationId)"
+                          >
+                            {{ item.title }}
+
+                            <span
+                              class="inline-flex h-2.5 w-2.5 rounded-full"
+                              :style="
+                                item.stationColorHex
+                                  ? { backgroundColor: item.stationColorHex }
+                                  : undefined
+                              "
+                            ></span>
+                          </div>
+                          <div class="text-left text-xs text-slate-500">
+                            {{ item.subtitle || '—' }}
+                          </div>
+                        </div>
+                      </button>
+                      <div
+                        class="whitespace-nowrap text-right text-lg font-semibold text-slate-600 dark:text-slate-300"
+                      >
+                        <div>
+                          <span class="text-xs font-normal mr-1">停站时间</span>
+                          <span v-if="item.dwellTime == null">—</span>
+                          <UTooltip v-else :text="`${item.dwellTime} tick`">
+                            <span
+                              >{{
+                                formatSecondsFromTicks(item.dwellTime)
+                              }}s</span
+                            >
+                          </UTooltip>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="text-sm">暂无站点数据</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="space-y-3">
+              <RailwayMergedRouteDataStatusPanel
+                :details="mergedDetail?.routeDetails ?? []"
+              />
+            </section>
+          </div>
         </div>
-      </aside>
+      </div>
     </div>
   </div>
+
+  <RailwayRouteGeometryDialog
+    :open="routeGeometryDialogOpen"
+    :loading="routeGeometryLoading"
+    :error="routeGeometryError"
+    :result="routeGeometryResult"
+    :route-title="routeName.title"
+    :route-id="mergedRouteId ?? null"
+    @update:open="routeGeometryDialogOpen = $event"
+    @regenerate="regenerateRouteGeometry"
+  />
 </template>

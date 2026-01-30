@@ -9,6 +9,7 @@ import {
 const props = defineProps<{
   label: string
   companyIds: string[]
+  preloadedCompanies?: Record<string, CompanyModel>
   allowEdit?: boolean
 }>()
 
@@ -30,9 +31,18 @@ const orderedCompanyIds = computed(() =>
 )
 
 watch(
-  () => props.companyIds,
-  async (ids) => {
-    companyMap.value = await resolveCompaniesByIds(ids)
+  () => [props.companyIds, props.preloadedCompanies] as const,
+  async ([ids, preloaded]) => {
+    if (preloaded && Object.keys(preloaded).length > 0) {
+      companyMap.value = { ...preloaded }
+      return
+    }
+
+    if (ids.length > 0) {
+      companyMap.value = await resolveCompaniesByIds(ids)
+    } else {
+      companyMap.value = {}
+    }
   },
   { immediate: true },
 )

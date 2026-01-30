@@ -241,6 +241,8 @@ export interface RailwayRouteDetail {
   depots: RailwayEntity[]
   operatorCompanyIds: string[]
   builderCompanyIds: string[]
+  operatorCompanies?: RailwayCompanyRef[]
+  builderCompanies?: RailwayCompanyRef[]
   systems?: RailwaySystemRef[]
   geometry: {
     source: 'rails' | 'platform-centers' | 'station-bounds'
@@ -569,8 +571,19 @@ export interface RailwayManualMergeCreateResult {
   id: string
 }
 
+export interface RailwayCompanyRef {
+  id: string
+  name: string
+  slug: string
+  logoAttachmentId?: string | null
+  logoUrl?: string | null
+  summary?: string | null
+}
+
 export interface RailwayManualMergedRouteDetail extends RailwaySystemDetail {
   color: number | null
+  operatorCompanies?: RailwayCompanyRef[]
+  builderCompanies?: RailwayCompanyRef[]
 }
 
 export interface RailwayManualMergedEntityDetail {

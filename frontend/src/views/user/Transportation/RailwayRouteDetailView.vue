@@ -1199,6 +1199,12 @@ onBeforeUnmount(() => {
                 :modpack-image="modpackInfo.image"
                 :operator-company-ids="activeDetail?.operatorCompanyIds ?? []"
                 :builder-company-ids="activeDetail?.builderCompanyIds ?? []"
+                :operator-companies="
+                  (activeDetail as any)?.operatorCompanies ?? []
+                "
+                :builder-companies="
+                  (activeDetail as any)?.builderCompanies ?? []
+                "
                 :systems="detail?.systems ?? []"
               />
             </section>
