@@ -14,7 +14,10 @@ import {
 } from '@prisma/client';
 import { HydrolineBeaconPoolService } from '../../../lib/hydroline-beacon';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { CreateRailwayFeaturedItemDto } from '../../dto/railway.dto';
+import {
+  CreateRailwayFeaturedItemDto,
+  UpdateRailwayRouteDto,
+} from '../../dto/railway.dto';
 import { BeaconServerRecord } from '../utils/railway-common';
 import {
   fetchRailwaySnapshot,
@@ -205,6 +208,41 @@ export class TransportationRailwayService {
   async deleteFeaturedItem(id: string) {
     await this.prisma.transportationRailwayFeaturedItem.delete({
       where: { id },
+    });
+    return { success: true };
+  }
+
+  async updateRoute(
+    serverId: string,
+    railwayMod: TransportationRailwayMod,
+    entityId: string,
+    dto: UpdateRailwayRouteDto,
+  ) {
+    const route = await this.prisma.transportationRailwayRoute.findUnique({
+      where: {
+        serverId_railwayMod_entityId: {
+          serverId,
+          railwayMod,
+          entityId,
+        },
+      },
+    });
+    if (!route) {
+      throw new NotFoundException('Route not found');
+    }
+
+    await this.prisma.transportationRailwayRoute.update({
+      where: {
+        serverId_railwayMod_entityId: {
+          serverId,
+          railwayMod,
+          entityId,
+        },
+      },
+      data: {
+        name: dto.name,
+        color: dto.color,
+      },
     });
     return { success: true };
   }

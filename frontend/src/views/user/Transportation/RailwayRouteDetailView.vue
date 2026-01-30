@@ -10,6 +10,7 @@ import RailwayRouteBasicInfoPanel from '@/views/user/Transportation/railway/comp
 import RailwayRouteDataStatusPanel from '@/views/user/Transportation/railway/components/RailwayRouteDataStatusPanel.vue'
 import RailwayRouteGeometryDialog from '@/views/user/Transportation/railway/components/RailwayRouteGeometryDialog.vue'
 import RailwayRouteFallbackPopover from '@/views/user/Transportation/railway/components/RailwayRouteFallbackPopover.vue'
+import RailwayEditWizardDialog from '@/views/user/Transportation/railway/components/RailwayEditWizardDialog.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useAuthStore } from '@/stores/user/auth'
 import { apiFetch } from '@/utils/http/api'
@@ -71,6 +72,7 @@ const handleBackdropScroll = () => {
 
 const routeGeometryDialogOpen = ref(false)
 const routeGeometryLoading = ref(false)
+const routeEditOpen = ref(false)
 const routeGeometryError = ref<string | null>(null)
 const routeGeometryResult = ref<RailwayRouteGeometryRegenerateResult | null>(
   null,
@@ -102,6 +104,7 @@ const params = computed(() => {
 const canRegenerateRouteGeometry = computed(() =>
   authStore.hasPermission('transportation.railway.force-refresh'),
 )
+const canEdit = computed(() => !!authStore.token)
 
 const mapAutoFocus = ref(true)
 const fullscreenMapOpen = ref(false)
@@ -951,6 +954,16 @@ onBeforeUnmount(() => {
               :popover-mode="fallbackPopoverMode"
             />
 
+            <UTooltip v-if="canEdit" text="编辑基本信息">
+              <UButton
+                variant="link"
+                color="neutral"
+                size="sm"
+                icon="i-lucide-pencil"
+                @click="routeEditOpen = true"
+              />
+            </UTooltip>
+
             <UTooltip text="重新生成线路几何数据">
               <UButton
                 v-if="canRegenerateRouteGeometry"
@@ -1471,5 +1484,12 @@ onBeforeUnmount(() => {
     :route-id="params.routeId ?? null"
     @update:open="routeGeometryDialogOpen = $event"
     @regenerate="regenerateRouteGeometry"
+  />
+
+  <RailwayEditWizardDialog
+    v-model:open="routeEditOpen"
+    :route="detail"
+    :initial-action="'route'"
+    @saved="fetchDetail"
   />
 </template>

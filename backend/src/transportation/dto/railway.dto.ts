@@ -128,3 +128,15 @@ export class RailwayEntityListQueryDto {
   @IsInt()
   pageSize?: number;
 }
+
+export class UpdateRailwayRouteDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  name?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  color?: number;
+}

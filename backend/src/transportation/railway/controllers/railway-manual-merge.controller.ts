@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -17,6 +18,7 @@ import { TransportationRailwayManualMergeService } from '../services/railway-man
 import {
   RailwayManualMergeCreateDto,
   RailwayManualMergeMemberInputDto,
+  RailwayManualMergeUpdateDto,
 } from '../../dto/railway-manual-merge.dto';
 import { TransportationRailwayManualMergeEntityType } from '@prisma/client';
 import { OptionalAuthGuard } from '../../../auth/optional-auth.guard';
@@ -91,5 +93,27 @@ export class TransportationRailwayManualMergeController {
   async delete(@Param('id') id: string, @Req() req: Request) {
     const user = this.requireUser(req);
     return this.mergeService.deleteMerge(user, id);
+  }
+
+  @Patch(':id')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新手动合并实体' })
+  async update(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() body: RailwayManualMergeUpdateDto,
+  ) {
+    const user = this.requireUser(req);
+    return this.mergeService.updateMerge(user, id, body);
+  }
+
+  @Post('routes/:id/geometry')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '重新生成合并线路的几何快照（包含所有成员）' })
+  async regenerateRouteGeometry(@Param('id') id: string, @Req() req: Request) {
+    const user = this.requireUser(req);
+    return this.mergeService.regenerateMergedRouteGeometry(user, id);
   }
 }

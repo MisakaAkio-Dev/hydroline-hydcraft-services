@@ -53,3 +53,24 @@ export class RailwayManualMergeCreateDto {
   @IsArray()
   members!: RailwayManualMergeMemberInputDto[];
 }
+
+export class RailwayManualMergeUpdateDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  englishName?: string | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  color?: number | null;
+
+  @IsOptional()
+  @IsString()
+  logoAttachmentId?: string | null;
+}

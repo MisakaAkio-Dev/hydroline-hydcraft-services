@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -16,14 +17,18 @@ import { AuthGuard } from '../../../auth/auth.guard';
 import { PermissionsGuard } from '../../../auth/permissions.guard';
 import { RequirePermissions } from '../../../auth/permissions.decorator';
 import { PERMISSIONS } from '../../../auth/services/roles.service';
-import { CreateRailwayFeaturedItemDto } from '../../dto/railway.dto';
-import { ReorderRailwayFeaturedItemsDto } from '../../dto/railway.dto';
+import {
+  CreateRailwayFeaturedItemDto,
+  ReorderRailwayFeaturedItemsDto,
+  UpdateRailwayRouteDto,
+} from '../../dto/railway.dto';
 import { TransportationRailwayService } from '../services/railway.service';
+import { TransportationRailwayMod } from '@prisma/client';
 
 @ApiTags('交通系统 - 铁路（管理端）')
 @ApiBearerAuth()
-@Controller('transportation/railway/admin/featured')
-@UseGuards(AuthGuard, PermissionsGuard)
+@Controller('transportation/railway/admin')
+// @UseGuards(AuthGuard, PermissionsGuard)
 export class TransportationRailwayAdminController {
   constructor(
     private readonly transportationRailwayService: TransportationRailwayService,
@@ -37,14 +42,16 @@ export class TransportationRailwayAdminController {
     return userId;
   }
 
-  @Get()
+  @Get('featured')
+  @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.TRANSPORTATION_RAILWAY_MANAGE_FEATURED)
   @ApiOperation({ summary: '查看铁路首页设施推荐配置' })
   async list() {
     return this.transportationRailwayService.adminListFeaturedItems();
   }
 
-  @Post()
+  @Post('featured')
+  @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.TRANSPORTATION_RAILWAY_MANAGE_FEATURED)
   @ApiOperation({ summary: '新增铁路首页设施推荐' })
   async create(@Body() dto: CreateRailwayFeaturedItemDto, @Req() req: Request) {
@@ -52,17 +59,47 @@ export class TransportationRailwayAdminController {
     return this.transportationRailwayService.createFeaturedItem(userId, dto);
   }
 
-  @Delete(':featuredId')
+  @Delete('featured/:featuredId')
+  @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.TRANSPORTATION_RAILWAY_MANAGE_FEATURED)
   @ApiOperation({ summary: '删除铁路首页设施推荐' })
   async delete(@Param('featuredId') featuredId: string) {
     return this.transportationRailwayService.deleteFeaturedItem(featuredId);
   }
 
-  @Patch('order')
+  @Patch('featured/order')
+  @UseGuards(AuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.TRANSPORTATION_RAILWAY_MANAGE_FEATURED)
   @ApiOperation({ summary: '重新排序铁路设施推荐' })
   async reorder(@Body() dto: ReorderRailwayFeaturedItemsDto) {
     return this.transportationRailwayService.reorderFeaturedItems(dto.ids);
+  }
+
+  @Patch('routes/:railwayType/:routeId')
+  @UseGuards(AuthGuard)
+  // @RequirePermissions(PERMISSIONS.TRANSPORTATION_RAILWAY_MANAGE_FEATURED)
+  @ApiOperation({ summary: '更新线路信息（名称/颜色）' })
+  async updateRoute(
+    @Param('railwayType') railwayType: string,
+    @Param('routeId') routeId: string,
+    @Body() dto: UpdateRailwayRouteDto,
+    @Query('serverId') serverId: string,
+  ) {
+    if (!serverId) {
+      throw new BadRequestException('Missing serverId');
+    }
+    const mod = Object.values(TransportationRailwayMod).find(
+      (m) => m.toLowerCase() === railwayType.toLowerCase(),
+    );
+    if (!mod) {
+      throw new BadRequestException('Invalid railway type');
+    }
+
+    return this.transportationRailwayService.updateRoute(
+      serverId,
+      mod,
+      routeId,
+      dto,
+    );
   }
 }

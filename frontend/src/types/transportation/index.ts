@@ -476,6 +476,13 @@ export interface RailwayRouteGeometryRegenerateResult {
   }
 }
 
+export interface RailwayMergedRouteGeometryRegenerateSummary {
+  total: number
+  succeeded: number
+  failed: number
+  details?: RailwayRouteGeometryRegenerateResult[]
+}
+
 export interface RailwayRailDiagnosticsPage {
   jobId: string
   serverId: string

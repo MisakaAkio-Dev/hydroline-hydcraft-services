@@ -14,9 +14,11 @@ import { AttachmentsService } from '../../../attachments/attachments.service';
 import { TransportationRailwayRouteDetailService } from '../route-detail/railway-route-detail.service';
 import { TransportationRailwayCompanyBindingService } from './railway-company-binding.service';
 import { buildDimensionContextFromDimension } from '../utils/railway-normalizer';
+import { TransportationRailwaySnapshotService } from '../snapshot/railway-snapshot.service';
 import type {
   RailwayManualMergeCreateDto,
   RailwayManualMergeMemberInputDto,
+  RailwayManualMergeUpdateDto,
 } from '../../dto/railway-manual-merge.dto';
 import type { RailwayMergedRouteLogQueryDto } from '../../dto/railway.dto';
 import type { RailwayRouteLogResult } from '../types/railway-types';
@@ -30,6 +32,7 @@ export class TransportationRailwayManualMergeService {
     private readonly attachmentsService: AttachmentsService,
     private readonly routeDetailService: TransportationRailwayRouteDetailService,
     private readonly bindingService: TransportationRailwayCompanyBindingService,
+    private readonly snapshotService: TransportationRailwaySnapshotService,
   ) {}
 
   private async ensureAttachmentPublic(attachmentId: string) {
@@ -649,9 +652,130 @@ export class TransportationRailwayManualMergeService {
         'Insufficient permissions to delete this merge',
       );
     }
-    await this.prisma.transportationRailwayManualMerge.delete({
+    return { success: true };
+  }
+
+  async updateMerge(
+    user: any,
+    mergeId: string,
+    dto: RailwayManualMergeUpdateDto,
+  ) {
+    const actor = this.assertAuthenticated(user);
+    const merge = await this.prisma.transportationRailwayManualMerge.findUnique(
+      {
+        where: { id: mergeId },
+        select: { id: true, createdById: true },
+      },
+    );
+    if (!merge) {
+      throw new NotFoundException('Merged entity not found');
+    }
+    // if (merge.createdById && merge.createdById !== actor.id) {
+    //   throw new ForbiddenException(
+    //     'Insufficient permissions to update this merge',
+    //   );
+    // }
+    await this.prisma.transportationRailwayManualMerge.update({
       where: { id: mergeId },
+      data: {
+        name: dto.name,
+        englishName: dto.englishName,
+        color: dto.color,
+        logoAttachmentId: dto.logoAttachmentId,
+        updatedById: actor.id,
+      },
     });
     return { success: true };
+  }
+
+  async regenerateMergedRouteGeometry(user: any, mergeId: string) {
+    this.assertAuthenticated(user);
+    const merge = await this.prisma.transportationRailwayManualMerge.findUnique(
+      {
+        where: { id: mergeId },
+        include: { members: true },
+      },
+    );
+    if (!merge) {
+      throw new NotFoundException('Merged route not found');
+    }
+    if (merge.entityType !== TransportationRailwayManualMergeEntityType.ROUTE) {
+      throw new BadRequestException('Target merge is not a route');
+    }
+
+    const memberEntityIds = merge.members
+      .map((m) => m.entityId)
+      .filter(Boolean);
+    const memberRows = await this.prisma.transportationRailwayRoute.findMany({
+      where: {
+        serverId: merge.serverId,
+        railwayMod: merge.railwayMod,
+        entityId: { in: memberEntityIds },
+        ...(merge.dimensionContext
+          ? { dimensionContext: merge.dimensionContext }
+          : {}),
+      },
+      select: {
+        entityId: true,
+        railwayMod: true,
+        dimensionContext: true,
+      },
+    });
+
+    const promises = memberRows.map((row) =>
+      this.snapshotService
+        .computeAndPersistRouteGeometrySnapshot({
+          serverId: merge.serverId,
+          railwayMod: row.railwayMod,
+          routeId: row.entityId,
+          dimension: this.extractDimensionFromContext(row.dimensionContext),
+        })
+        .then((res) => ({
+          ...res,
+          routeId: row.entityId, // Ensure routeId matches the member
+        }))
+        .catch(
+          (e) =>
+            ({
+              routeId: row.entityId,
+              status: 'failed' as const,
+              errorMessage: e instanceof Error ? e.message : String(e),
+              // Fallback minimal fields
+              serverId: merge.serverId,
+              railwayType: row.railwayMod,
+              dimension: this.extractDimensionFromContext(row.dimensionContext),
+              dimensionContext: row.dimensionContext,
+              fingerprint: '',
+              source: 'error',
+              persisted: false,
+              report: {
+                pointCount: 0,
+                pathNodeCount: 0,
+                pathEdgeCount: 0,
+                stopCount: 0,
+                bounds: null,
+              },
+              snapshot: null,
+              dataset: {
+                routeCount: 0,
+                platformCount: 0,
+                stationCount: 0,
+                railCount: 0,
+              },
+            }) as any,
+        ),
+    );
+
+    const results = await Promise.all(promises);
+
+    const succeeded = results.filter((r) => r.status === 'success').length;
+    const failed = results.filter((r) => r.status === 'failed').length;
+
+    return {
+      total: memberRows.length,
+      succeeded,
+      failed,
+      details: results,
+    };
   }
 }

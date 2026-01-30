@@ -1,22 +1,32 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useTransportationRailwaySystemsStore } from '@/stores/transportation/railwaySystems'
+import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import RailwaySystemEditDialog from '@/views/user/Transportation/railway/components/RailwaySystemEditDialog.vue'
 import RailwayFacilityEditorDialog from '@/views/user/Transportation/railway/components/RailwayFacilityEditorDialog.vue'
-import type { RailwaySystemListResponse } from '@/types/transportation'
+import type { TimelineItem } from '@nuxt/ui'
+import type {
+  RailwaySystemListResponse,
+  RailwayRouteDetail,
+  RailwayManualMergedRouteDetail,
+} from '@/types/transportation'
 
-type EditAction = 'system' | 'facility'
+type EditAction = 'system' | 'facility' | 'route'
 
 const props = withDefaults(
   defineProps<{
     open: boolean
     initialAction?: EditAction | null
+    route?: RailwayRouteDetail | RailwayManualMergedRouteDetail | null
+    isMerged?: boolean
   }>(),
-  { initialAction: null },
+  { initialAction: null, route: null, isMerged: false },
 )
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
+  (e: 'start-action', action: EditAction): void
+  (e: 'saved'): void
 }>()
 
 const localOpen = computed({
@@ -59,6 +69,9 @@ watch(
 )
 
 const systemsStore = useTransportationRailwaySystemsStore()
+const railwayStore = useTransportationRailwayStore()
+const toast = useToast()
+
 const systemsLoading = ref(false)
 const systems = ref<RailwaySystemListResponse['items']>([])
 const systemSearch = ref('')
@@ -68,6 +81,128 @@ const systemPagination = reactive({
   pageCount: 1,
   total: 0,
 })
+
+// Route editing state
+const routeSaving = ref(false)
+const routeForm = ref({
+  name: '',
+  englishName: '',
+  color: undefined as number | undefined | null,
+})
+
+const routeColorHex = computed({
+  get: () => {
+    if (routeForm.value.color == null) return '#000000'
+    return '#' + routeForm.value.color.toString(16).padStart(6, '0')
+  },
+  set: (val: string) => {
+    if (!val) {
+      routeForm.value.color = null
+      return
+    }
+    const num = parseInt(val.replace('#', ''), 16)
+    if (!isNaN(num)) {
+      routeForm.value.color = num
+    }
+  },
+})
+
+watch(
+  () => [localOpen.value, props.route],
+  ([open, route]) => {
+    if (!open) return
+    if (action.value === 'route' && route) {
+      if (props.isMerged) {
+        const r = route as RailwayManualMergedRouteDetail
+        routeForm.value = {
+          name: r.name ?? '',
+          englishName: r.englishName ?? '',
+          color: r.color ?? null,
+        }
+      } else {
+        const r = route as RailwayRouteDetail
+        routeForm.value = {
+          name: r.route.name ?? '',
+          englishName: '',
+          color: r.route.color ?? null,
+        }
+      }
+    }
+  },
+  { immediate: true },
+)
+
+const routeEditTimelineItems = computed<TimelineItem[]>(() => {
+  const items: TimelineItem[] = [
+    {
+      title: '线路名称',
+      icon: 'i-lucide-text',
+      slot: 'name',
+      description: ' ',
+    },
+  ]
+  if (props.isMerged) {
+    items.push({
+      title: '英文名称',
+      icon: 'i-lucide-languages',
+      slot: 'english',
+      description: ' ',
+    })
+  }
+  items.push({
+    title: '线路颜色',
+    icon: 'i-lucide-palette',
+    slot: 'color',
+    description: ' ',
+  })
+  return items
+})
+
+async function saveRoute() {
+  if (!props.route) return
+  if (routeSaving.value) return
+  if (!routeForm.value.name.trim()) {
+    toast.add({ title: '请输入线路名称', color: 'orange' })
+    return
+  }
+
+  routeSaving.value = true
+  try {
+    if (props.isMerged) {
+      const r = props.route as RailwayManualMergedRouteDetail
+      await railwayStore.updateMergedRoute(r.id, {
+        name: routeForm.value.name.trim(),
+        englishName: routeForm.value.englishName.trim(),
+        color: routeForm.value.color,
+      })
+    } else {
+      const r = props.route as RailwayRouteDetail
+      await railwayStore.updateRoute(
+        {
+          routeId: r.route.id,
+          serverId: r.server.id,
+          dimension: r.dimension,
+          railwayType: r.railwayType,
+        },
+        {
+          name: routeForm.value.name.trim(),
+          color: routeForm.value.color,
+        },
+      )
+    }
+
+    toast.add({ title: '线路信息已更新', color: 'green' })
+    emit('saved')
+    localOpen.value = false
+  } catch (error) {
+    toast.add({
+      title: error instanceof Error ? error.message : '保存失败',
+      color: 'red',
+    })
+  } finally {
+    routeSaving.value = false
+  }
+}
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -132,9 +267,15 @@ function handleSystemSaved() {
   <UModal
     :open="localOpen"
     @update:open="(value) => (localOpen = value)"
-    :ui="{ content: 'w-full max-w-4xl w-[calc(100vw-2rem)]' }"
-    title="编辑铁路设施"
-    description="选择要编辑的模块后继续。"
+    :ui="{
+      content: `w-full ${initialAction ? 'max-w-xl' : 'max-w-4xl'} w-[calc(100vw-2rem)]`,
+    }"
+    :title="initialAction === 'route' ? '编辑线路信息' : '编辑铁路设施'"
+    :description="
+      initialAction === 'route'
+        ? '修改线路的基本信息。'
+        : '选择要编辑的模块后继续。'
+    "
   >
     <template #content>
       <div class="flex max-h-[80vh] flex-col">
@@ -160,8 +301,18 @@ function handleSystemSaved() {
           />
         </div>
 
-        <div class="grid gap-6 p-6 md:grid-cols-[220px,1fr] overflow-auto">
-          <UStepper v-model="activeSection" :items="stepperItems" />
+        <div
+          :class="
+            initialAction
+              ? 'p-6'
+              : 'grid gap-6 p-6 md:grid-cols-[220px,1fr] overflow-auto'
+          "
+        >
+          <UStepper
+            v-if="!initialAction"
+            v-model="activeSection"
+            :items="stepperItems"
+          />
 
           <div class="space-y-6">
             <div v-if="activeSection === 'choose'" class="space-y-4">
@@ -334,6 +485,81 @@ function handleSystemSaved() {
                   >
                     打开设施编辑
                   </UButton>
+                </div>
+              </div>
+
+              <div v-else-if="action === 'route'" class="space-y-6">
+                <div
+                  :class="
+                    initialAction
+                      ? ''
+                      : 'rounded-2xl border border-slate-200/70 bg-white p-6 dark:border-slate-800/70 dark:bg-slate-900'
+                  "
+                >
+                  <UTimeline :items="routeEditTimelineItems">
+                    <template #name-description>
+                      <div class="space-y-2 mt-1">
+                        <div class="text-xs text-slate-500">
+                          必填，支持 Minecraft 颜色代码。
+                        </div>
+                        <UInput
+                          v-model="routeForm.name"
+                          placeholder="例如：1号线"
+                        />
+                      </div>
+                    </template>
+
+                    <template #english-description>
+                      <div class="space-y-2 mt-1">
+                        <div class="text-xs text-slate-500">
+                          线路的英文标识。
+                        </div>
+                        <UInput
+                          v-model="routeForm.englishName"
+                          placeholder="例如：Line 1"
+                        />
+                      </div>
+                    </template>
+
+                    <template #color-description>
+                      <div class="space-y-2 mt-1">
+                        <div class="text-xs text-slate-500">
+                          用于在地图和 UI 中标识线路。
+                        </div>
+                        <div class="flex items-center gap-3">
+                          <UInput
+                            v-model="routeColorHex"
+                            type="color"
+                            class="h-9 w-16 p-0 cursor-pointer overflow-hidden rounded ring-0 border-0"
+                          />
+                          <UInput
+                            v-model="routeColorHex"
+                            type="text"
+                            readonly
+                            class="w-32 font-mono"
+                            icon="i-lucide-hash"
+                          />
+                        </div>
+                      </div>
+                    </template>
+                  </UTimeline>
+
+                  <div
+                    class="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100 dark:border-slate-800"
+                  >
+                    <UButton
+                      color="neutral"
+                      variant="ghost"
+                      @click="localOpen = false"
+                      >取消</UButton
+                    >
+                    <UButton
+                      color="primary"
+                      :loading="routeSaving"
+                      @click="saveRoute"
+                      >保存更改</UButton
+                    >
+                  </div>
                 </div>
               </div>
 

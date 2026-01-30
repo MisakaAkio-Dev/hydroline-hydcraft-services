@@ -9,7 +9,9 @@ import RailwayMapFullscreenOverlay from '@/views/user/Transportation/railway/com
 import RailwayRouteBasicInfoPanel from '@/views/user/Transportation/railway/components/RailwayRouteBasicInfoPanel.vue'
 import RailwayMergedRouteDataStatusPanel from '@/views/user/Transportation/railway/components/RailwayMergedRouteDataStatusPanel.vue'
 import RailwayRouteGeometryDialog from '@/views/user/Transportation/railway/components/RailwayRouteGeometryDialog.vue'
+import RailwayMergedRouteGeometryDialog from '@/views/user/Transportation/railway/components/RailwayMergedRouteGeometryDialog.vue'
 import RailwayRouteFallbackPopover from '@/views/user/Transportation/railway/components/RailwayRouteFallbackPopover.vue'
+import RailwayEditWizardDialog from '@/views/user/Transportation/railway/components/RailwayEditWizardDialog.vue'
 import { useTransportationRailwayStore } from '@/stores/transportation/railway'
 import { useAuthStore } from '@/stores/user/auth'
 import { apiFetch } from '@/utils/http/api'
@@ -20,6 +22,7 @@ import type {
   RailwayRouteLogResult,
   RailwayManualMergedRouteDetail,
   RailwayCompanyRef,
+  RailwayMergedRouteGeometryRegenerateSummary,
 } from '@/types/transportation'
 import { getDimensionName } from '@/utils/minecraft/dimension-names'
 import { parseRouteName } from '@/utils/route/route-name'
@@ -69,6 +72,10 @@ const handleBackdropScroll = () => {
 const routeGeometryDialogOpen = ref(false)
 const routeGeometryLoading = ref(false)
 const routeGeometryError = ref<string | null>(null)
+const routeEditOpen = ref(false)
+const mergedRouteRegenerateResult =
+  ref<RailwayMergedRouteGeometryRegenerateSummary | null>(null)
+const mergedRouteRegenerateDialogOpen = ref(false)
 const routeGeometryResult = ref<RailwayRouteGeometryRegenerateResult | null>(
   null,
 )
@@ -93,6 +100,7 @@ const mergedRouteId = computed(() => route.params.routeId as string)
 const canRegenerateRouteGeometry = computed(() =>
   authStore.hasPermission('transportation.railway.force-refresh'),
 )
+const canEdit = computed(() => !!authStore.token)
 
 const mapAutoFocus = ref(true)
 const fullscreenMapOpen = ref(false)
@@ -818,66 +826,93 @@ async function fetchLogs(force = true) {
 }
 
 async function regenerateRouteGeometry() {
-  const routeId = mergedDetail.value?.routes?.[0]?.entityId
-  const serverId = mergedDetail.value?.serverId
-  const dimension = mergedDetail.value?.routes?.[0]?.dimension
-  const railwayType = mergedDetail.value?.routes?.[0]?.railwayType
-  if (!routeId || !serverId || !railwayType) {
-    routeGeometryError.value = '缺少 routeId、serverId 或铁路类型参数'
+  const merged = mergedDetail.value
+  if (!merged) return
+
+  // 如果在 variant 模式，只更新单个线路
+  if (variantMode.value !== DEFAULT_VARIANT_MODE) {
+    const routeId = variantMode.value
+    const member = merged.routes?.find((r) => r.entityId === routeId)
+    if (!member) return
+
+    routeGeometryLoading.value = true
+    routeGeometryError.value = null
     routeGeometryResult.value = null
-    routeGeometryDialogOpen.value = true
-    return
-  }
-  routeGeometryDialogOpen.value = true
-  routeGeometryLoading.value = true
-  routeGeometryError.value = null
-  routeGeometryResult.value = null
-  try {
-    const regenerateAction = (
-      transportationStore as {
-        regenerateRouteGeometry?: (input: {
-          routeId: string
-          serverId: string
-          dimension?: string | null
-          railwayType: string
-        }) => Promise<RailwayRouteGeometryRegenerateResult>
-      }
-    ).regenerateRouteGeometry
-    const result =
-      typeof regenerateAction === 'function'
-        ? await regenerateAction.call(transportationStore, {
-            routeId,
-            serverId,
-            dimension,
-            railwayType,
-          })
-        : await (async () => {
-            if (!authStore.token) {
-              throw new Error('Missing auth token')
-            }
-            return await apiFetch<RailwayRouteGeometryRegenerateResult>(
-              `/transportation/railway/admin/routes/${encodeURIComponent(railwayType)}/${encodeURIComponent(routeId)}/geometry?${new URLSearchParams(
+
+    try {
+      const regenerateAction = (
+        transportationStore as {
+          regenerateRouteGeometry?: (input: {
+            routeId: string
+            serverId: string
+            dimension?: string | null
+            railwayType: string
+          }) => Promise<RailwayRouteGeometryRegenerateResult>
+        }
+      ).regenerateRouteGeometry
+
+      const result =
+        typeof regenerateAction === 'function'
+          ? await regenerateAction.call(transportationStore, {
+              routeId: member.entityId,
+              serverId: member.serverId,
+              dimension: member.dimension,
+              railwayType: member.railwayType,
+            })
+          : await (async () => {
+              // 临时 fallback fetch
+              const query = new URLSearchParams({
+                serverId: member.serverId,
+              })
+              if (member.dimension) query.set('dimension', member.dimension)
+              return await apiFetch<RailwayRouteGeometryRegenerateResult>(
+                `/transportation/railway/admin/routes/${encodeURIComponent(member.railwayType)}/${encodeURIComponent(member.entityId)}/geometry?${query.toString()}`,
                 {
-                  serverId,
-                  ...(dimension ? { dimension } : {}),
+                  method: 'POST',
+                  token: authStore.token,
                 },
-              ).toString()}`,
-              {
-                method: 'POST',
-                token: authStore.token,
-              },
-            )
-          })()
-    routeGeometryResult.value = result
-    if (result.status === 'READY') {
-      await fetchDetail()
+              )
+            })()
+
+      routeGeometryResult.value = result
+      routeGeometryDialogOpen.value = true
+      // fetchDetail()
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      routeGeometryError.value = msg
+      toast.add({
+        title: '几何生成失败',
+        description: msg,
+        color: 'red',
+      })
+    } finally {
+      routeGeometryLoading.value = false
     }
-  } catch (error) {
-    routeGeometryError.value =
-      error instanceof Error ? error.message : '生成失败，请稍后再试'
-    toast.add({ title: routeGeometryError.value, color: 'error' })
-  } finally {
-    routeGeometryLoading.value = false
+  } else {
+    // 默认模式：更新合并线路的所有子线路
+    routeGeometryLoading.value = true
+    routeGeometryError.value = null
+    routeGeometryResult.value = null
+    try {
+      const result = await transportationStore.regenerateMergedRouteGeometry(
+        merged.id,
+      )
+      mergedRouteRegenerateResult.value = result
+      mergedRouteRegenerateDialogOpen.value = true
+
+      // 刷新详情以获取最新数据
+      void fetchDetail()
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      routeGeometryError.value = msg
+      toast.add({
+        title: '几何生成失败',
+        description: msg,
+        color: 'red',
+      })
+    } finally {
+      routeGeometryLoading.value = false
+    }
   }
 }
 
@@ -1068,6 +1103,16 @@ onBeforeUnmount(() => {
               :variants="fallbackVariantItems"
               :popover-mode="fallbackPopoverMode"
             />
+
+            <UTooltip v-if="canEdit" text="编辑基本信息">
+              <UButton
+                variant="link"
+                color="neutral"
+                size="sm"
+                icon="i-lucide-pencil"
+                @click="routeEditOpen = true"
+              />
+            </UTooltip>
 
             <UTooltip text="重新生成线路几何数据">
               <UButton
@@ -1589,8 +1634,25 @@ onBeforeUnmount(() => {
     :error="routeGeometryError"
     :result="routeGeometryResult"
     :route-title="routeName.title"
-    :route-id="mergedRouteId ?? null"
+    :route-id="routeGeometryResult?.routeId ?? null"
     @update:open="routeGeometryDialogOpen = $event"
+    @regenerate="regenerateRouteGeometry"
+  />
+  <RailwayEditWizardDialog
+    v-model:open="routeEditOpen"
+    :route="mergedDetail"
+    :is-merged="true"
+    :initial-action="'route'"
+    @saved="fetchDetail"
+  />
+
+  <RailwayMergedRouteGeometryDialog
+    :open="mergedRouteRegenerateDialogOpen"
+    :loading="routeGeometryLoading"
+    :error="routeGeometryError"
+    :result="mergedRouteRegenerateResult"
+    :route-title="routeName.title"
+    @update:open="mergedRouteRegenerateDialogOpen = $event"
     @regenerate="regenerateRouteGeometry"
   />
 </template>

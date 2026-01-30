@@ -237,6 +237,50 @@ export const useTransportationRailwayStore = defineStore(
           },
         )
       },
+      async updateMergedRoute(
+        id: string,
+        payload: {
+          name?: string
+          englishName?: string | null
+          color?: number | null
+          logoAttachmentId?: string | null
+        },
+      ) {
+        const authStore = useAuthStore()
+        if (!authStore.token) {
+          throw new Error('需要登录后才能更新合并实体')
+        }
+        await apiFetch(`/transportation/railway/merges/${id}`, {
+          method: 'PATCH',
+          token: authStore.token,
+          body: payload,
+        })
+        const cacheKey = `LOCAL::route::${id}`
+        if (this.routeDetails[cacheKey]) {
+          const detail = this.routeDetails[
+            cacheKey
+          ] as unknown as RailwayManualMergedRouteDetail
+          if (payload.name !== undefined) detail.name = payload.name
+          if (payload.englishName !== undefined)
+            detail.englishName = payload.englishName
+          if (payload.color !== undefined) detail.color = payload.color
+        }
+        await this.fetchLocalMergedRouteDetail(id, true)
+      },
+      async regenerateMergedRouteGeometry(id: string) {
+        const authStore = useAuthStore()
+        if (!authStore.token) {
+          throw new Error(
+            'Authentication required for route geometry generation',
+          )
+        }
+        return await apiFetch<
+          import('@/types/transportation').RailwayMergedRouteGeometryRegenerateSummary
+        >(`/transportation/railway/merges/routes/${id}/geometry`, {
+          method: 'POST',
+          token: authStore.token,
+        })
+      },
       async fetchRouteLogs(
         params: RouteCacheParams & {
           page?: number
@@ -308,6 +352,37 @@ export const useTransportationRailwayStore = defineStore(
             token: authStore.token,
           },
         )
+      },
+
+      async updateRoute(
+        params: RouteCacheParams,
+        payload: {
+          name?: string
+          color?: number | null
+        },
+      ) {
+        const authStore = useAuthStore()
+        if (!authStore.token) {
+          throw new Error('需要登录后才能更新线路信息')
+        }
+        const query = new URLSearchParams({
+          serverId: params.serverId,
+        })
+        await apiFetch(
+          `/transportation/railway/admin/routes/${encodeURIComponent(params.railwayType)}/${encodeURIComponent(params.routeId)}?${query.toString()}`,
+          {
+            method: 'PATCH',
+            token: authStore.token,
+            body: payload,
+          },
+        )
+        const cacheKey = this.buildRouteCacheKey(params)
+        if (this.routeDetails[cacheKey]) {
+          const detail = this.routeDetails[cacheKey]
+          if (payload.name !== undefined) detail.route.name = payload.name
+          if (payload.color !== undefined) detail.route.color = payload.color
+        }
+        await this.fetchRouteDetail(params, true)
       },
 
       async fetchStationLogs(
